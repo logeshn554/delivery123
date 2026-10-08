@@ -1,0 +1,6 @@
+{
+  "name": "AllGo Super App",
+  "description": "An all-in-one super-app for food/grocery delivery, ride-booking, driver takeover, and intercity transport, with synchronized customer, driver, merchant, and admin roles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

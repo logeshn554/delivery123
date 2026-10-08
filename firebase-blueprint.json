@@ -1,0 +1,168 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Unified profile for customers, drivers, merchants, and admins.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Auth user ID" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "description": "Email address" },
+        "phone": { "type": "string", "description": "Indian phone number" },
+        "role": { "type": "string", "enum": ["customer", "driver", "merchant", "admin"], "description": "System access role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "DriverProfile": {
+      "title": "DriverProfile",
+      "description": "Vehicle and verification details for active partners.",
+      "type": "object",
+      "properties": {
+        "driverId": { "type": "string", "description": "Matches user UID" },
+        "vehicleType": { "type": "string", "enum": ["bike", "auto", "car", "suv"], "description": "Assigned vehicle tier" },
+        "vehicleNo": { "type": "string", "description": "Official vehicle registration number" },
+        "licenseNo": { "type": "string", "description": "Driving license number" },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"], "description": "Document verification status" },
+        "online": { "type": "boolean", "description": "Ready to receive dispatch offers" },
+        "currentLat": { "type": "number", "description": "Active GPS Latitude" },
+        "currentLng": { "type": "number", "description": "Active GPS Longitude" },
+        "todayEarnings": { "type": "number", "description": "Consolidated payouts for today in ₹" },
+        "completedJobs": { "type": "number", "description": "Completed trip count" }
+      },
+      "required": ["driverId", "vehicleType", "vehicleNo", "licenseNo", "status", "online"]
+    },
+    "Restaurant": {
+      "title": "Restaurant",
+      "description": "Restaurant details for food delivery.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "cuisine": { "type": "string" },
+        "image": { "type": "string" },
+        "rating": { "type": "number" },
+        "deliveryTime": { "type": "string" },
+        "pureVeg": { "type": "boolean" },
+        "address": { "type": "string" }
+      },
+      "required": ["id", "name", "cuisine", "image", "pureVeg"]
+    },
+    "MenuItem": {
+      "title": "MenuItem",
+      "description": "Food menu items within a restaurant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "restaurantId": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "isVeg": { "type": "boolean" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" }
+      },
+      "required": ["id", "restaurantId", "name", "price", "isVeg"]
+    },
+    "GroceryStore": {
+      "title": "GroceryStore",
+      "description": "Local marts powered by Instamart module.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "rating": { "type": "number" },
+        "deliveryTime": { "type": "string" },
+        "image": { "type": "string" }
+      },
+      "required": ["id", "name", "address", "image"]
+    },
+    "GroceryProduct": {
+      "title": "GroceryProduct",
+      "description": "Grocery stock item details.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "storeId": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "unit": { "type": "string" },
+        "category": { "type": "string" },
+        "image": { "type": "string" }
+      },
+      "required": ["id", "storeId", "name", "price", "stock", "unit", "category"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Unified transactional records representing orders, trips, or service rentals.",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "serviceType": { "type": "string", "enum": ["food", "grocery", "ride", "parcel", "takeover", "transport"] },
+        "status": { "type": "string", "enum": ["pending", "accepted", "preparing", "ready", "transit", "delivered", "completed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "price": { "type": "number" },
+        "pickupAddress": { "type": "string" },
+        "dropAddress": { "type": "string" },
+        "driverId": { "type": "string" },
+        "driverName": { "type": "string" },
+        "otp": { "type": "string" },
+        "details": { "type": "object", "description": "JSON object holding sub-module metrics (items, vehicle details, weight photos etc)" }
+      },
+      "required": ["bookingId", "customerId", "customerName", "serviceType", "status", "price"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "Disputes or helpdesk items logged with our admin team.",
+      "type": "object",
+      "properties": {
+        "ticketId": { "type": "string" },
+        "userId": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ticketId", "userId", "subject", "message", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Profile data for each customer/merchant/driver/admin"
+    },
+    "/driver_profiles/{driverId}": {
+      "schema": "DriverProfile",
+      "description": "Metadata regarding driver status, verification and live telemetry sync"
+    },
+    "/restaurants/{restaurantId}": {
+      "schema": "Restaurant",
+      "description": "Restaurant vendors listing"
+    },
+    "/restaurants/{restaurantId}/menu_items/{itemId}": {
+      "schema": "MenuItem",
+      "description": "Individual items served by a particular restaurant"
+    },
+    "/grocery_stores/{storeId}": {
+      "schema": "GroceryStore",
+      "description": "Grocery stores listings"
+    },
+    "/grocery_stores/{storeId}/products/{productId}": {
+      "schema": "GroceryProduct",
+      "description": "Product listings for localized instant grocery delivery"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Unified booking history containing food, grocery, taxi, parcel, takeover, or intercity transport"
+    },
+    "/support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Dispute details and resolutions"
+    }
+  }
+}

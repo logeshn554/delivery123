@@ -1,0 +1,185 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. DEFAULT DENY CATCH-ALL
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. PRIMITIVE GLOBAL HELPERS
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isDriverOwner(driverId) {
+      return isSignedIn() && (driverId == request.auth.uid || driverId == request.auth.uid + '_drv');
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isEmailAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.keys().hasAll(['email']) && (
+          request.auth.token.email == 'logeshlogesh.n554@gmail.com' ||
+          request.auth.token.email == 'logesh.al23@bitsathy.ac.in' ||
+          request.auth.token.email.matches('.*@allgo\\.in')
+        )) ||
+        // Document-based admin role fallback for anonymous guest simulation sessions
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 3. VALIDATION HELPERS BY COLLECTION
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role']) 
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance'])
+        && data.uid == request.auth.uid
+        && data.name is string && data.name.size() <= 100
+        && data.email is string && data.email.size() <= 100
+        && (data.role == 'customer' || data.role == 'driver' || data.role == 'merchant' || data.role == 'admin')
+        && (!data.keys().hasAny(['phone']) || (data.phone is string && data.phone.size() <= 20))
+        && (!data.keys().hasAny(['walletBalance']) || (data.walletBalance is int || data.walletBalance is float));
+    }
+
+    function isValidDriverProfile(data, driverId) {
+      return data.keys().hasAll(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online'])
+        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs'])
+        && data.driverId == driverId
+        && (data.vehicleType == 'bike' || data.vehicleType == 'auto' || data.vehicleType == 'car' || data.vehicleType == 'suv')
+        && data.vehicleNo is string && data.vehicleNo.size() <= 30
+        && data.licenseNo is string && data.licenseNo.size() <= 50
+        && (data.status == 'pending' || data.status == 'verified' || data.status == 'rejected')
+        && data.online is bool
+        && (!data.keys().hasAny(['currentLat']) || (data.currentLat is int || data.currentLat is float))
+        && (!data.keys().hasAny(['currentLng']) || (data.currentLng is int || data.currentLng is float))
+        && (!data.keys().hasAny(['todayEarnings']) || (data.todayEarnings is int || data.todayEarnings is float))
+        && (!data.keys().hasAny(['completedJobs']) || (data.completedJobs is int || data.completedJobs is float));
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['bookingId', 'customerId', 'customerName', 'serviceType', 'status', 'price'])
+        && data.keys().hasOnly(['bookingId', 'customerId', 'customerName', 'serviceType', 'status', 'price', 'createdAt', 'updatedAt', 'pickupAddress', 'dropAddress', 'driverId', 'driverName', 'otp', 'details'])
+        && data.bookingId is string && data.bookingId.size() <= 100
+        && data.customerId == request.auth.uid
+        && data.customerName is string && data.customerName.size() <= 100
+        && (data.serviceType == 'food' || data.serviceType == 'grocery' || data.serviceType == 'ride' || data.serviceType == 'parcel' || data.serviceType == 'takeover' || data.serviceType == 'transport')
+        && (data.status == 'pending' || data.status == 'accepted' || data.status == 'preparing' || data.status == 'ready' || data.status == 'transit' || data.status == 'delivered' || data.status == 'completed' || data.status == 'cancelled')
+        && (data.price is int || data.price is float)
+        && (!data.keys().hasAny(['pickupAddress']) || (data.pickupAddress is string && data.pickupAddress.size() <= 300))
+        && (!data.keys().hasAny(['dropAddress']) || (data.dropAddress is string && data.dropAddress.size() <= 300))
+        && (!data.keys().hasAny(['driverId']) || (data.driverId is string && data.driverId.size() <= 100))
+        && (!data.keys().hasAny(['driverName']) || (data.driverName is string && data.driverName.size() <= 100))
+        && (!data.keys().hasAny(['otp']) || (data.otp is string && data.otp.size() <= 10));
+    }
+
+    function isValidSupportTicket(data) {
+      return data.keys().hasAll(['ticketId', 'userId', 'subject', 'message', 'status'])
+        && data.keys().hasOnly(['ticketId', 'userId', 'subject', 'message', 'status', 'createdAt'])
+        && data.ticketId is string && data.ticketId.size() <= 100
+        && data.userId == request.auth.uid
+        && data.subject is string && data.subject.size() <= 200
+        && data.message is string && data.message.size() <= 2000
+        && (data.status == 'open' || data.status == 'resolved');
+    }
+
+    // 4. RESOURCE SPECIFIC SECURITY BOUNDARIES
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isEmailAdmin();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
+      allow update: if isSignedIn() && (isEmailAdmin() || (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role));
+      allow delete: if isEmailAdmin();
+    }
+
+    // DRIVER PROFILES
+    match /driver_profiles/{driverId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isDriverOwner(driverId) && isValidDriverProfile(incoming(), driverId);
+      allow update: if isSignedIn() && (
+        isEmailAdmin() || 
+        (isDriverOwner(driverId) && isValidDriverProfile(incoming(), driverId) && (
+          // Drivers can update online state or coordinates, but can't self-approve verification status
+          incoming().status == existing().status &&
+          incoming().todayEarnings == existing().todayEarnings &&
+          incoming().completedJobs == existing().completedJobs
+        ))
+      );
+      allow delete: if isEmailAdmin();
+    }
+
+    // RESTAURANTS & SUB-COLLECTIONS
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+
+      match /menu_items/{itemId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // GROCERY STORES & SUB-COLLECTIONS
+    match /grocery_stores/{storeId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+
+      match /products/{productId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // BOOKINGS (Unified transactional records)
+    match /bookings/{bookingId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && (
+        resource.data.customerId == request.auth.uid || 
+        resource.data.driverId == request.auth.uid || 
+        resource.data.driverId == request.auth.uid + '_drv' ||
+        isEmailAdmin()
+      );
+      allow create: if isSignedIn() && isValidBooking(incoming());
+      allow update: if isSignedIn() && (
+        isEmailAdmin() || 
+        (existing().customerId == request.auth.uid && isValidBooking(incoming()) && incoming().customerId == existing().customerId) ||
+        (existing().driverId == request.auth.uid + '_drv') ||
+        (existing().driverId == request.auth.uid) ||
+        (incoming().driverId == request.auth.uid + '_drv' && existing().driverId == null) // Allow driver to claim booking
+      );
+      allow delete: if isEmailAdmin();
+
+      match /chats/{chatId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // SUPPORT TICKETS
+    match /support_tickets/{ticketId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isEmailAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isEmailAdmin());
+      allow create: if isSignedIn() && isValidSupportTicket(incoming());
+      allow update: if isEmailAdmin();
+      allow delete: if isEmailAdmin();
+    }
+  }
+}
