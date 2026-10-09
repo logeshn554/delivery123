@@ -63,4 +63,6 @@ Remaining: native-friendly dialogs everywhere; complete offline/retry/accessibil
 
 Outstanding: real identity linking, all six full staging journeys, physical Android/iPhone testing, browser checkout, push, backups/restoration, monitoring/alerts and production approval. The previously declined live Neon account test has not been retried.
 
+Android connection follow-up: the old running API was restarted to allow `X-AllGo-Native`. Custom Android plugins now register before Capacitor creates its bridge; secure-storage errors retain their own error code. The updated debug app was rebuilt and installed on the connected Android phone, and the user confirmed it is working. This verifies this reconnection fix, not all native/provider service journeys.
+
 See `DEPLOYMENT_SETUP.md` for configuration and coordinated deployment prerequisites. Deploying code alone does not satisfy this checklist.
