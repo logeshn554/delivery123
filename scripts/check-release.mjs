@@ -6,7 +6,7 @@ const file = `.env.${environment}.local`, otherFile = `.env.${environment==='sta
 const env = fs.existsSync(file)?parse(fs.readFileSync(file)):{};
 const other = fs.existsSync(otherFile)?parse(fs.readFileSync(otherFile)):{};
 const errors = [];
-const required = ['DATABASE_URL','FIREBASE_PROJECT_ID','FIRESTORE_DATABASE_ID','VITE_FIREBASE_PROJECT_ID','VITE_FIREBASE_DATABASE_ID','VITE_FIREBASE_APP_ID','VITE_FIREBASE_AUTH_DOMAIN','VITE_ACCOUNT_API_URL','ACCOUNT_ALLOWED_ORIGINS','ACCOUNT_EMAIL_API_KEY','ACCOUNT_EMAIL_FROM','VITE_APP_CHECK_SITE_KEY','VITE_SUPPORT_EMAIL','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL'];
+const required = ['DATABASE_URL','FIREBASE_PROJECT_ID','FIRESTORE_DATABASE_ID','VITE_FIREBASE_PROJECT_ID','VITE_FIREBASE_DATABASE_ID','VITE_FIREBASE_APP_ID','VITE_FIREBASE_API_KEY','VITE_FIREBASE_AUTH_DOMAIN','VITE_FIREBASE_MESSAGING_SENDER_ID','VITE_ACCOUNT_API_URL','ACCOUNT_ALLOWED_ORIGINS','ACCOUNT_EMAIL_API_KEY','ACCOUNT_EMAIL_FROM','VITE_APP_CHECK_SITE_KEY','VITE_SUPPORT_EMAIL','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL'];
 for(const key of required) if(!env[key]?.trim())errors.push(`${key} is missing from the ${environment} configuration.`);
 for(const key of ['VITE_ACCOUNT_API_URL','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL']) {
   try {const url=new URL(env[key]);if(url.protocol!=='https:'||url.username||url.password||['localhost','127.0.0.1','0.0.0.0','[::1]'].includes(url.hostname))throw new Error();} catch{errors.push(`${key} must use a deployed HTTPS URL.`);}

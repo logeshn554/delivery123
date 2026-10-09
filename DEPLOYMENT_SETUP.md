@@ -14,6 +14,8 @@ Web account requests must pass through a same-origin `/api` HTTPS proxy to the a
 
 Use separate `.env.staging.local` and `.env.production.local` files or corresponding secret-manager configurations. Set explicit `ACCOUNT_ALLOWED_ORIGINS`; the production server refuses the development origin defaults. Set `NODE_ENV=production` behind the HTTPS proxy. Do not put a server secret in any `VITE_` variable.
 
+Selected setup: a dedicated Firebase project displayed as **AllGo Staging**, its default Firestore database, a separate Neon staging database, Resend with a verified sender, Razorpay test mode and Google Maps. The actual globally unique project ID must come from your Firebase account. `.env.staging.example` is a configuration template, not a provisioned project. `npm run build:staging` and `npm run build:production` run the configuration preflight before building.
+
 ## Coverage and operational configuration
 
 Verified administrators with both the admin claim and profile role can configure polygons and service prices in the operations dashboard. Food/grocery prices require actual delivery rates, minimum baskets and tax/handling settings. Route services require actual fare options and appropriate parcel weight limits. Configure `MAPS_API_KEY` in Firebase Secret Manager. Quotes require resolved provider locations and enabled coverage before payment.
