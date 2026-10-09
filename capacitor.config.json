@@ -1,0 +1,18 @@
+{
+  "appId": "in.allgo.app",
+  "appName": "AllGo",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": [
+        "google.com",
+        "apple.com",
+        "phone"
+      ]
+    }
+  }
+}

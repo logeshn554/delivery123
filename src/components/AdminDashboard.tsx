@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import PayoutRequests from './PayoutRequests';
+import DeletionRequests from './DeletionRequests';
 import { 
   Users, MapPin, ClipboardList, Shield, DollarSign, Search, Check, X, 
   Map, Trash2, ArrowUpRight, CheckCircle2, ListFilter
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
-import { updateBookingStatus } from '../data/firestoreHelper';
-import DriverPerformanceLeaderboard from './DriverPerformanceLeaderboard';
+import { requestBookingCancellation, updateDriverVerification } from '../data/firestoreHelper';
 
 interface AdminDashboardProps {
   activeBookings: Booking[];
@@ -15,12 +16,7 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ activeBookings, driverProfiles }: AdminDashboardProps) {
   const [filterType, setFilterType] = useState<'all' | 'food' | 'grocery' | 'ride' | 'takeover' | 'transport'>('all');
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Audit list
-  const [pendingKYC, setPendingKYC] = useState([
-    { id: 'DRV_01', name: 'Logesh N.', vehicle: 'Royal Enfield (Bike)', license: 'TN-01-2026-00384', doc: 'Aadhaar + DL' },
-    { id: 'DRV_02', name: 'Srinivasan K.', vehicle: 'Maruti Suzuki Auto', license: 'TN-02-2026-99120', doc: 'DL + Permit' },
-  ]);
+  const [serviceApprovals, setServiceApprovals] = useState<Record<string, Booking['serviceType'][]>>({});
 
   // Filter Bookings
   const filteredBookings = activeBookings.filter(bk => {
@@ -32,17 +28,29 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
   });
 
   // Handle document approval
-  const handleApproveKYC = (drvId: string) => {
-    setPendingKYC(prev => prev.filter(p => p.id !== drvId));
-    alert("Driver KYC documents approved. Partner is now whitelisted for dispatching.");
+  const pendingKYC = driverProfiles.filter((driver) => driver.status === 'pending');
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const completedToday = activeBookings.filter((booking) => ['completed', 'delivered'].includes(booking.status) && new Date(booking.updatedAt || booking.createdAt).getTime() >= todayStart.getTime());
+  const todayBookingValue = completedToday.reduce((total, booking) => total + booking.price, 0);
+  const customerCount = new Set(activeBookings.map((booking) => booking.customerId)).size;
+
+  const handleKYC = async (driverId: string, status: 'verified' | 'rejected') => {
+    const services = serviceApprovals[driverId] || [];
+    if (status === 'verified' && !services.length) { alert('Select the services this partner is qualified to perform.'); return; }
+    try {
+      await updateDriverVerification(driverId, status, services);
+    } catch {
+      alert('Unable to update driver verification. Check the admin role and Firestore rules.');
+    }
   };
 
   // Handle Admin cancellation / Refund trigger
   const handleAdminCancel = async (bookingId: string) => {
-    const confirm = window.confirm("Are you sure you want to cancel this booking and trigger an automatic wallet refund?");
+    const confirm = window.confirm("Cancel this booking?");
     if (confirm) {
-      await updateBookingStatus(bookingId, { status: 'cancelled' });
-      alert("Order cancelled. Refund initiated to client wallet.");
+      try { await requestBookingCancellation(bookingId); alert('Cancellation submitted with a provider refund request. Check the payment status for completion.'); }
+      catch (error) { alert(error instanceof Error ? error.message : 'Cancellation could not be confirmed. Check payment status before retrying.'); }
     }
   };
 
@@ -56,7 +64,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
             <Shield className="w-4 h-4" /> Operations Hub Control
           </div>
           <h1 className="text-2xl font-black text-white mt-1">AllGo Super App Analytics</h1>
-          <p className="text-xs text-slate-400">Monitoring real-time Chennai dispatches and document verification audits</p>
+          <p className="text-xs text-slate-400">Monitor bookings, delivery partners and verification requests.</p>
         </div>
 
         <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-1 shrink-0">
@@ -75,10 +83,10 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
           <div className="flex justify-between items-center text-slate-400">
             <span className="text-[10px] uppercase font-bold tracking-wider">Total Revenue</span>
-            <span className="text-emerald-400 text-xs font-bold">+15.4%</span>
+            <span className="text-emerald-400 text-xs font-bold">Today</span>
           </div>
-          <h3 className="text-2xl font-black text-white mt-1.5">₹8,45,000</h3>
-          <p className="text-[9px] text-slate-500 mt-1">Platform fee cut cumulative today</p>
+          <h3 className="text-2xl font-black text-white mt-1.5">₹{todayBookingValue.toLocaleString('en-IN')}</h3>
+          <p className="text-[9px] text-slate-500 mt-1">Completed booking value</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
@@ -87,7 +95,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
             <span className="text-purple-400 text-xs font-bold">{driverProfiles.filter(d => d.online).length} live</span>
           </div>
           <h3 className="text-2xl font-black text-white mt-1.5">{driverProfiles.length} registered</h3>
-          <p className="text-[9px] text-slate-500 mt-1">Chennai Central Metro Area coverage</p>
+          <p className="text-[9px] text-slate-500 mt-1">Partners who have shared a location</p>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
@@ -102,69 +110,20 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
           <div className="flex justify-between items-center text-slate-400">
             <span className="text-[10px] uppercase font-bold tracking-wider">Active Customers</span>
-            <span className="text-cyan-400 text-xs font-bold">+5.8%</span>
+            <span className="text-cyan-400 text-xs font-bold">From bookings</span>
           </div>
-          <h3 className="text-2xl font-black text-white mt-1.5">25,430</h3>
-          <p className="text-[9px] text-slate-500 mt-1">Active within Chennai bounds</p>
+          <h3 className="text-2xl font-black text-white mt-1.5">{customerCount}</h3>
+          <p className="text-[9px] text-slate-500 mt-1">Customers with a booking</p>
         </div>
 
       </div>
       
-      {/* 2.5 Driver Performance Leaderboard (Chennai Hub) */}
-      <DriverPerformanceLeaderboard 
-        activeBookings={activeBookings}
-        driverProfiles={driverProfiles}
-      />
-
       {/* 3. Grid for Live dispatch monitor + KYC queue */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
-        {/* Live Map Dispatch Plotter */}
-        <div className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">Live Dispatch Map Tracker</h3>
-            <span className="bg-blue-600/10 text-blue-400 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-blue-500/25">Interactive Sim</span>
-          </div>
-
-          <div className="bg-slate-950 border border-slate-800 rounded-xl h-60 relative overflow-hidden flex items-center justify-center">
-            {/* Detailed Vector map */}
-            <div className="absolute inset-0 opacity-15">
-              <div className="w-full h-1 bg-slate-400 absolute top-10"></div>
-              <div className="w-full h-1 bg-slate-400 absolute top-28"></div>
-              <div className="w-full h-1 bg-slate-400 absolute top-48"></div>
-              <div className="w-1 h-full bg-slate-400 absolute left-24"></div>
-              <div className="w-1 h-full bg-slate-400 absolute left-64"></div>
-              <div className="w-1 h-full bg-slate-400 absolute left-1/2"></div>
-            </div>
-
-            <div className="absolute top-10 left-12 text-[10px] text-slate-500 font-bold">Anna Nagar</div>
-            <div className="absolute bottom-10 right-20 text-[10px] text-slate-500 font-bold">T. Nagar</div>
-            <div className="absolute bottom-20 left-1/3 text-[10px] text-slate-500 font-bold">Mylapore</div>
-
-            {/* active drivers pin plotting */}
-            {driverProfiles.map((drv, idx) => (
-              <div 
-                key={idx} 
-                className={`absolute p-1 rounded-full text-white cursor-pointer group shadow-lg ${
-                  idx % 3 === 0 ? 'top-16 left-32 bg-purple-600' :
-                  idx % 3 === 1 ? 'bottom-24 left-1/2 bg-blue-600' :
-                  'top-28 right-36 bg-cyan-600'
-                }`}
-              >
-                <MapPin className="w-4 h-4" />
-                <span className="hidden group-hover:block absolute bg-slate-900 border border-slate-800 text-[9px] p-1 rounded -top-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap z-20">
-                  {drv.vehicleNo} · Online
-                </span>
-              </div>
-            ))}
-
-            <div className="absolute bottom-3 left-3 bg-slate-900/95 border border-slate-800 rounded-lg p-2 text-[10px] text-slate-400 font-semibold leading-relaxed">
-              <span className="font-bold text-white block mb-0.5">Legend:</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500"></span> Driver Partners</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500"></span> Cab Ride partners</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-500"></span> Truck transport</span>
-            </div>
-          </div>
+        <div className="xl:col-span-2 space-y-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-md">
+          <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Delivery partner locations</h3>
+          {driverProfiles.filter((driver) => driver.online).length === 0 ? <p className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-xs text-slate-500">No delivery partners are online.</p> : driverProfiles.filter((driver) => driver.online).map((driver) => <div key={driver.driverId} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs"><span className="font-bold text-slate-200">{driver.vehicleNo || 'Delivery partner'} · {driver.vehicleType}</span><span className="text-slate-400">{driver.currentLat != null && driver.currentLng != null ? `${driver.currentLat.toFixed(4)}, ${driver.currentLng.toFixed(4)}` : 'Location unavailable'}</span></div>)}
         </div>
 
         {/* KYC APPROVAL QUEUE */}
@@ -174,33 +133,37 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
           {pendingKYC.length === 0 ? (
             <div className="text-center py-10">
               <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
-              <p className="text-xs text-slate-500 font-semibold">All documents audited!</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">No pending partner applications in queue.</p>
+              <p className="text-xs text-slate-500 font-semibold">No pending applications</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">No pending partner applications.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {pendingKYC.map(p => (
-                <div key={p.id} className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                <div key={p.driverId} className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-200">{p.name}</h4>
-                      <p className="text-[9px] text-slate-500 mt-0.5">Vehicle: {p.vehicle}</p>
-                      <p className="text-[9px] text-slate-500">License: {p.license}</p>
+                      <h4 className="text-xs font-bold text-slate-200">Driver {p.driverId.slice(0, 8)}</h4>
+                      <p className="text-[9px] text-slate-500 mt-0.5">Vehicle: {p.vehicleType} · {p.vehicleNo}</p>
+                      <p className="text-[9px] text-slate-500">License: {p.licenseNo}</p>
                     </div>
                     <span className="text-[9px] bg-yellow-900/30 text-yellow-500 px-1.5 py-0.5 rounded font-bold uppercase">
                       Auditable
                     </span>
                   </div>
 
+                  <fieldset className="flex flex-wrap gap-2 text-xs"><legend className="mb-2 text-slate-400">Approve qualified services</legend>{(['food', 'grocery', 'parcel', 'ride', 'takeover', 'transport'] as const).map(service => <label key={service} className="flex items-center gap-1"><input type="checkbox" checked={(serviceApprovals[p.driverId] || []).includes(service)} onChange={event => setServiceApprovals(current => ({ ...current, [p.driverId]: event.target.checked ? [...(current[p.driverId] || []), service] : (current[p.driverId] || []).filter(value => value !== service) }))} />{service}</label>)}</fieldset>
                   <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-900 pt-2">
-                    <span>Uploaded: {p.doc}</span>
+                    <span>Awaiting admin review</span>
                     <div className="flex gap-1.5">
                       <button 
-                        onClick={() => handleApproveKYC(p.id)}
+                        onClick={() => handleKYC(p.driverId, 'verified')}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white p-1 rounded-md"
                         title="Approve Driver"
                       >
                         <Check className="w-3 h-3" />
+                      </button>
+                      <button onClick={() => handleKYC(p.driverId, 'rejected')} className="bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-md" title="Reject Driver">
+                        <X className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
@@ -212,6 +175,8 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
 
       </div>
 
+      <PayoutRequests />
+      <DeletionRequests />
       {/* 4. Live bookings table monitor */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">

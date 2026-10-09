@@ -6,3 +6,16 @@ coverage/
 *.log
 .env*
 !.env.example
+
+*.jks
+*.keystore
+*.p12
+*.p8
+*.pfx
+*.pem
+*.key
+.npmrc
+credentials*.json
+GoogleService-Info.plist
+google-services.json
+service-account*.json

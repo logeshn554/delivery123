@@ -1,0 +1,19 @@
+{
+  "name": "allgo-payment-functions",
+  "private": true,
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "lint": "node --check index.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.5.0",
+    "firebase-functions": "^6.4.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6",
+    "uuid": "11.1.1"
+  }
+}

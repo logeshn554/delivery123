@@ -1,0 +1,1007 @@
+const crypto = require('node:crypto');
+const { initializeApp } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
+const { getMessaging } = require('firebase-admin/messaging');
+const { onDocumentWritten } = require('firebase-functions/v2/firestore');
+const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
+const { onCall: firebaseOnCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
+const { geocode, routeBetween } = require('./maps');
+const { validPoint, checkCoverage, calculateFare } = require('./bookingPolicy');
+const { validateParcelContents, separateParcelContacts } = require('./parcelPolicy');
+
+const app = initializeApp();
+const db = getFirestore(app, process.env.FIRESTORE_DATABASE_ID || 'ai-studio-33ff364a-171b-472c-93a0-dd18e20cf1e4');
+const RAZORPAY_KEY_ID = defineSecret('RAZORPAY_KEY_ID');
+const RAZORPAY_KEY_SECRET = defineSecret('RAZORPAY_KEY_SECRET');
+const RAZORPAY_WEBHOOK_SECRET = defineSecret('RAZORPAY_WEBHOOK_SECRET');
+const MAPS_API_KEY = defineSecret('MAPS_API_KEY');
+const REGION = 'asia-south1';
+const CURRENCY = 'INR';
+
+function onCall(options, handler) {
+  const { operation, ...platformOptions } = options;
+  return firebaseOnCall({ maxInstances: 20, concurrency: 40, enforceAppCheck: process.env.REQUIRE_APP_CHECK === 'true', ...platformOptions }, async request => {
+    const endpoint = operation || 'callable';
+    const identity = request.auth?.uid || `ip_${crypto.createHash('sha256').update(request.rawRequest.ip || 'unknown').digest('hex')}`;
+    const bucket = Math.floor(Date.now() / 60000);
+    const limit = /Payment|Wallet|Coupon|ServiceQuote|ServiceLocations|TrackingRoute/.test(endpoint) ? 15 : /Location/.test(endpoint) ? 30 : 60;
+    const ref = db.doc(`rate_limits/${crypto.createHash('sha256').update(`${identity}:${endpoint}:${bucket}`).digest('hex')}`);
+    await db.runTransaction(async transaction => {
+      const record = await transaction.get(ref);
+      if ((record.data()?.count || 0) >= limit) throw new HttpsError('resource-exhausted', 'Too many requests. Wait a minute and try again.');
+      transaction.set(ref, { count: (record.data()?.count || 0) + 1, expiresAt: Timestamp.fromMillis(Date.now() + 120000) });
+    });
+    if (request.auth?.uid) {
+      const deletion = await db.doc(`account_deletions/${request.auth.uid}`).get();
+      if (['processing', 'completed', 'failed'].includes(deletion.data()?.status)) throw new HttpsError('permission-denied', 'This account is being deleted. Contact support.');
+    }
+    try { return await handler(request); }
+    catch (error) {
+      if (error instanceof HttpsError) throw error;
+      console.error('Callable failed', { endpoint, code: error.code || 'internal' });
+      throw new HttpsError('internal', 'The request could not be completed. Check its status before retrying.');
+    }
+  });
+}
+
+function requireUser(request) {
+  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in before paying.');
+  return request.auth.uid;
+}
+
+function cleanText(value, label, max = 300) {
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > max) {
+    throw new HttpsError('invalid-argument', `${label} is required.`);
+  }
+  return value.trim();
+}
+
+function documentId(value, label) {
+  const id = cleanText(value, label, 128);
+  if (/[\/\x00-\x1f]/.test(id)) throw new HttpsError('invalid-argument', `${label} is invalid.`);
+  return id;
+}
+
+exports.exchangeNativeAuthToken = onCall({ operation: 'exchangeNativeAuthToken', region: REGION }, async request => {
+  const token = cleanText(request.data?.token, 'Native sign-in token', 10000);
+  let identity;
+  try { identity = await getAuth(app).verifyIdToken(token, true); }
+  catch { throw new HttpsError('unauthenticated', 'Native sign-in could not be verified.'); }
+  const provider = identity.firebase?.sign_in_provider;
+  if (!['phone', 'google.com', 'apple.com'].includes(provider)) throw new HttpsError('permission-denied', 'Unsupported native sign-in provider.');
+  const deletion = await db.doc(`account_deletions/${identity.uid}`).get();
+  if (['processing', 'completed', 'failed'].includes(deletion.data()?.status)) throw new HttpsError('permission-denied', 'This account is being deleted. Contact support.');
+  return { token: await getAuth(app).createCustomToken(identity.uid) };
+});
+
+exports.registerPushDevice = onCall({ operation: 'registerPushDevice', region: REGION }, async request => {
+  const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096);
+  if (!['android', 'ios'].includes(request.data?.platform)) throw new HttpsError('invalid-argument', 'Invalid device platform.');
+  const id = crypto.createHash('sha256').update(token).digest('hex');
+  await db.doc(`push_devices/${id}`).set({ uid, token, platform: request.data.platform, updatedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 90 * 86400000) });
+  return { registered: true };
+});
+exports.unregisterPushDevice = onCall({ operation: 'unregisterPushDevice', region: REGION }, async request => {
+  const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096);
+  const ref = db.doc(`push_devices/${crypto.createHash('sha256').update(token).digest('hex')}`);
+  await db.runTransaction(async transaction => { const record = await transaction.get(ref); if (record.data()?.uid === uid) transaction.delete(ref); });
+  return { removed: true };
+});
+exports.notifyBookingChange = onDocumentWritten({ region: REGION, database: process.env.FIRESTORE_DATABASE_ID || 'ai-studio-33ff364a-171b-472c-93a0-dd18e20cf1e4', document: 'bookings/{bookingId}', retry: true }, async event => {
+  const booking = event.data?.after.data(), previous = event.data?.before.data();
+  if (!booking || (previous && previous.status === booking.status && previous.driverId === booking.driverId && previous.paymentStatus === booking.paymentStatus)) return;
+  const recipients = [...new Set([booking.customerId, booking.driverId].filter(Boolean))];
+  for (const uid of recipients) {
+    const account = await db.doc(`users/${uid}`).get();
+    if (!account.exists || account.data().preferences?.orderUpdates === false) continue;
+    const devices = await db.collection('push_devices').where('uid', '==', uid).get();
+    const active = devices.docs.filter(record => record.data().expiresAt?.toMillis() > Date.now());
+    for (let offset = 0; offset < active.length; offset += 500) {
+      const chunk = active.slice(offset, offset + 500);
+      const result = await getMessaging(app).sendEachForMulticast({ tokens: chunk.map(record => record.data().token), notification: { title: 'AllGo order update', body: `Booking status: ${booking.status}. Open AllGo for details.` }, data: { bookingId: booking.bookingId, eventId: event.id }, android: { collapseKey: booking.bookingId }, apns: { headers: { 'apns-collapse-id': booking.bookingId } } });
+      await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
+      if (result.responses.some(response => response.error && !['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error.code))) throw new Error('One or more booking notifications require retry.');
+    }
+  }
+});
+
+exports.advanceMerchantBooking = onCall({ operation: 'advanceMerchantBooking', region: REGION }, async request => {
+  const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID'), next = request.data?.status;
+  if (!['preparing', 'ready'].includes(next)) throw new HttpsError('invalid-argument', 'Invalid merchant transition.');
+  return db.runTransaction(async transaction => {
+    const bookingRef = db.doc(`bookings/${bookingId}`);
+    const [account, snapshot] = await Promise.all([transaction.get(db.doc(`users/${uid}`)), transaction.get(bookingRef)]);
+    const merchant = account.data(), booking = snapshot.data();
+    const service = merchant?.merchantType === 'restaurant' ? 'food' : 'grocery';
+    if (!merchant || merchant.role !== 'merchant' || !merchant.merchantId || !['restaurant', 'grocery'].includes(merchant.merchantType) || !booking || booking.merchantId !== merchant.merchantId || booking.serviceType !== service) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
+    if (booking.status === next) return { status: next };
+    if (booking.paymentStatus !== 'paid' || booking.driverId || booking.status !== (next === 'preparing' ? 'pending' : 'preparing')) throw new HttpsError('failed-precondition', 'The order changed. Refresh before continuing.');
+    transaction.update(bookingRef, { status: next, updatedAt: new Date().toISOString() });
+    return { status: next };
+  });
+});
+
+exports.updateMerchantCatalog = onCall({ operation: 'updateMerchantCatalog', region: REGION }, async request => {
+  const uid = requireUser(request), type = request.data?.merchantType;
+  if (!['restaurant', 'grocery'].includes(type)) throw new HttpsError('invalid-argument', 'Invalid catalog type.');
+  const catalogId = documentId(request.data?.catalogId, 'Catalog ID'), itemId = documentId(request.data?.itemId, 'Item ID');
+  const changes = type === 'restaurant' ? { available: request.data.available } : { stock: request.data.stock };
+  if (type === 'restaurant' ? typeof changes.available !== 'boolean' : !Number.isSafeInteger(changes.stock) || changes.stock < 0) throw new HttpsError('invalid-argument', 'Enter a valid availability or stock value.');
+  return db.runTransaction(async transaction => {
+    const parentPath = type === 'restaurant' ? `restaurants/${catalogId}` : `grocery_stores/${catalogId}`;
+    const itemRef = db.doc(`${parentPath}/${type === 'restaurant' ? 'menu_items' : 'products'}/${itemId}`);
+    const [account, parent, item] = await Promise.all([transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(parentPath)), transaction.get(itemRef)]);
+    if (account.data()?.role !== 'merchant' || account.data().merchantId !== catalogId || account.data().merchantType !== type) throw new HttpsError('permission-denied', 'This catalog is not assigned to your business.');
+    if (!parent.exists || !item.exists) throw new HttpsError('not-found', 'The catalog item is unavailable.');
+    transaction.update(itemRef, changes);
+    return { updated: true };
+  });
+});
+
+function normalizeItems(input) {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 30) {
+    throw new HttpsError('invalid-argument', 'Add between 1 and 30 items.');
+  }
+  const merged = new Map();
+  for (const item of input) {
+    if (typeof item?.id !== 'string' || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 30 || (item.variantId !== undefined && (typeof item.variantId !== 'string' || item.variantId.length > 128))) {
+      throw new HttpsError('invalid-argument', 'The cart contains an invalid item or quantity.');
+    }
+    documentId(item.id, 'Item ID');
+    const key = `${item.id}\u0000${item.variantId || ''}`;
+    const existing = merged.get(key);
+    const quantity = (existing?.quantity || 0) + item.quantity;
+    if (quantity > 30) throw new HttpsError('invalid-argument', 'An item quantity cannot exceed 30.');
+    merged.set(key, { id: item.id, quantity, ...(item.variantId ? { variantId: item.variantId } : {}) });
+  }
+  return [...merged.values()];
+}
+
+async function priceAndPrepareBooking(uid, input) {
+  const serviceType = input?.serviceType;
+  const allowed = ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'];
+  if (!allowed.includes(serviceType)) throw new HttpsError('invalid-argument', 'Unsupported AllGo service.');
+
+  const customer = await db.doc(`users/${uid}`).get();
+  if (!customer.exists) throw new HttpsError('failed-precondition', 'Your customer profile is missing.');
+  const customerName = cleanText(customer.data().name || input.customerName, 'Customer name', 100);
+  const detailsInput = input.details || {};
+  let price = 0;
+  let details = {};
+  let pickupAddress = '';
+  let dropAddress = '';
+
+  if (serviceType === 'food' || serviceType === 'grocery') {
+    const items = normalizeItems(detailsInput.items);
+    const catalogId = documentId(serviceType === 'food' ? detailsInput.restaurantId : detailsInput.storeId, serviceType === 'food' ? 'Restaurant' : 'Store');
+    const parentPath = serviceType === 'food' ? `restaurants/${catalogId}` : `grocery_stores/${catalogId}`;
+    const parent = await db.doc(parentPath).get();
+    if (!parent.exists) throw new HttpsError('failed-precondition', 'This store is no longer available.');
+    if (parent.data().acceptingOrders === false) throw new HttpsError('failed-precondition', 'This partner is not accepting orders.');
+    const catalogPath = serviceType === 'food' ? 'menu_items' : 'products';
+    const itemDocs = await Promise.all(items.map(({ id }) => db.doc(`${parentPath}/${catalogPath}/${id}`).get()));
+    const canonicalItems = [];
+    for (let index = 0; index < items.length; index += 1) {
+      const doc = itemDocs[index];
+      const requested = items[index];
+      if (!doc.exists) throw new HttpsError('failed-precondition', 'An item in your cart is no longer available.');
+      const catalogItem = doc.data();
+      if (serviceType === 'food' && catalogItem.available === false) throw new HttpsError('failed-precondition', `${catalogItem.name || 'An item'} is sold out.`);
+      if (serviceType === 'grocery' && (!Number.isFinite(catalogItem.stock) || catalogItem.stock < requested.quantity)) {
+        throw new HttpsError('failed-precondition', `${catalogItem.name || 'An item'} has insufficient stock.`);
+      }
+      let unitPrice = catalogItem.price;
+      let variantName;
+      if (serviceType === 'grocery' && requested.variantId) throw new HttpsError('invalid-argument', 'Grocery products do not support menu variants.');
+      if (serviceType === 'food' && Array.isArray(catalogItem.variants) && catalogItem.variants.length) {
+        if (!requested.variantId) throw new HttpsError('invalid-argument', `${catalogItem.name || 'This dish'} requires an option selection.`);
+        const variant = catalogItem.variants.find((entry) => entry?.id === requested.variantId && entry.available !== false);
+        if (!variant || !Number.isFinite(variant.price) || variant.price <= 0) throw new HttpsError('failed-precondition', `${catalogItem.name || 'This dish'} option is no longer available.`);
+        unitPrice = variant.price;
+        variantName = cleanText(variant.label, 'Menu option', 80);
+      } else if (requested.variantId) {
+        throw new HttpsError('failed-precondition', 'A selected menu option is no longer available. Refresh your cart.');
+      }
+      if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new HttpsError('failed-precondition', 'An item has an invalid catalog price.');
+      const canonical = { id: doc.id, name: cleanText(catalogItem.name, 'Item name', 120), price: unitPrice, quantity: requested.quantity, ...(requested.variantId ? { variantId: requested.variantId, variantName } : {}) };
+      canonicalItems.push(canonical);
+      price += canonical.price * canonical.quantity;
+    }
+    const customerNotes = detailsInput.notes ? cleanText(detailsInput.notes, 'Order instructions', 500) : '';
+    details = serviceType === 'food'
+      ? { restaurantId: catalogId, restaurantName: cleanText(parent.data().name, 'Restaurant name', 120), items: canonicalItems, ...(customerNotes ? { notes: customerNotes } : {}) }
+      : { storeId: catalogId, items: canonicalItems, ...(customerNotes ? { notes: customerNotes } : {}) };
+    pickupAddress = cleanText(parent.data().address, 'Merchant pickup address');
+    dropAddress = cleanText(input.pickupAddress, 'Delivery address');
+  } else {
+    const requested = detailsInput;
+    const pricingDoc = await db.doc(`service_pricing/${serviceType}`).get();
+    if (!pricingDoc.exists || pricingDoc.data().enabled !== true) throw new HttpsError('failed-precondition', 'This service is not accepting bookings yet.');
+    const option = serviceType === 'ride' ? requested.vehicleType : serviceType === 'parcel' ? requested.parcelType : serviceType === 'takeover' ? requested.takeoverOption : requested.transportVehicleType;
+    const configuredPrice = pricingDoc.data().options?.[option]?.price;
+    if (!Number.isFinite(configuredPrice) || configuredPrice <= 0) throw new HttpsError('failed-precondition', 'A fare is not available for this option. Please choose another option or contact support.');
+    price = configuredPrice;
+    if (serviceType === 'ride') {
+      const vehicleType = requested.vehicleType;
+      if (!['bike', 'auto', 'car'].includes(vehicleType)) throw new HttpsError('invalid-argument', 'Choose a supported ride vehicle.');
+      details = { vehicleType };
+      pickupAddress = cleanText(input.pickupAddress, 'Pickup address');
+      dropAddress = cleanText(input.dropAddress, 'Drop address');
+    } else if (serviceType === 'parcel') {
+      const parcelType = cleanText(requested.parcelType, 'Parcel type', 40);
+      if (!['Documents', 'Box', 'Electronics', 'Others'].includes(parcelType)) throw new HttpsError('invalid-argument', 'Choose a parcel type.');
+      details = { parcelType };
+      pickupAddress = cleanText(input.pickupAddress, 'Pickup address');
+      dropAddress = cleanText(input.dropAddress, 'Drop address');
+    } else if (serviceType === 'takeover') {
+      const takeoverOption = requested.takeoverOption;
+      if (!['hourly', 'halfday', 'fullday'].includes(takeoverOption)) throw new HttpsError('invalid-argument', 'Choose a driver duration.');
+      details = { takeoverOption };
+      pickupAddress = cleanText(input.pickupAddress, 'Pickup address');
+      dropAddress = cleanText(input.dropAddress, 'Destination');
+    } else {
+      const transportVehicleType = requested.transportVehicleType;
+      if (!['bike', 'car'].includes(transportVehicleType)) throw new HttpsError('invalid-argument', 'Choose a vehicle to transport.');
+      details = { transportVehicleType, transportMakeModel: cleanText(requested.transportMakeModel, 'Vehicle make and model', 100) };
+      pickupAddress = cleanText(input.pickupAddress, 'Pickup address');
+      dropAddress = cleanText(input.dropAddress, 'Destination');
+    }
+    if (requested.notes) details.notes = cleanText(requested.notes, 'Instructions', 500);
+    if (requested.preferredDate) {
+      const scheduled = Date.parse(requested.preferredDate);
+      if (!Number.isFinite(scheduled) || scheduled < Date.now()) throw new HttpsError('invalid-argument', 'Choose a future pickup date.');
+      details.preferredDate = new Date(scheduled).toISOString();
+    }
+    if (serviceType === 'parcel') {
+      if (!['local', 'intercity'].includes(requested.deliveryMode)) throw new HttpsError('invalid-argument', 'Choose local or intercity delivery.');
+      if (!Number.isFinite(requested.weightKg) || requested.weightKg <= 0 || requested.weightKg > 50) throw new HttpsError('invalid-argument', 'Parcel weight must be between 0 and 50 kg.');
+      details.deliveryMode = requested.deliveryMode;
+      details.weightKg = requested.weightKg;
+      try { Object.assign(details, validateParcelContents(requested)); }
+      catch (error) { throw new HttpsError('invalid-argument', error.message); }
+    }
+    if (serviceType === 'takeover') {
+      details.takeoverVehicleModel = cleanText(requested.takeoverVehicleModel, 'Your vehicle make and model', 100);
+      details.takeoverVehicleNo = cleanText(requested.takeoverVehicleNo, 'Your vehicle registration', 30);
+    }
+    if (serviceType === 'transport') details.transportRegNo = cleanText(requested.transportRegNo, 'Vehicle registration', 30);
+    const pickupPlaceId = cleanText(requested.pickupPlaceId, 'Select a pickup address', 256);
+    const dropPlaceId = cleanText(requested.dropPlaceId, 'Select a destination address', 256);
+    const [origins, destinations] = await Promise.all([geocode(MAPS_API_KEY.value(), { place_id: pickupPlaceId }), geocode(MAPS_API_KEY.value(), { place_id: dropPlaceId })]);
+    const origin = origins[0], destination = destinations[0];
+    if (!origin || !destination || origin.partialMatch || destination.partialMatch) throw new HttpsError('invalid-argument', 'Choose complete, resolved pickup and destination addresses.');
+    const pricing = pricingDoc.data(), optionConfig = pricing.options[option];
+    if (!Array.isArray(pricing.zoneIds) || pricing.zoneIds.length < 1 || pricing.zoneIds.length > 20 || pricing.zoneIds.some(id => typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(id))) throw new HttpsError('failed-precondition', 'Service coverage is not configured. Contact support.');
+    const zoneDocs = await Promise.all(pricing.zoneIds.map(id => db.doc(`service_zones/${id}`).get()));
+    const coverage = checkCoverage(zoneDocs.filter(snapshot => snapshot.exists).map(snapshot => ({ ...snapshot.data(), id: snapshot.id })), serviceType, origin.location, destination.location, serviceType !== 'transport' && !(serviceType === 'parcel' && requested.deliveryMode === 'intercity'));
+    if (serviceType === 'parcel') {
+      const maxWeight = optionConfig.maxWeightKg ?? 50;
+      if (!Number.isFinite(maxWeight) || maxWeight <= 0 || requested.weightKg > maxWeight) throw new HttpsError('failed-precondition', 'This parcel exceeds the configured weight limit.');
+      if (requested.deliveryMode === 'intercity' && pricing.intercityEnabled !== true) throw new HttpsError('failed-precondition', 'Intercity parcel delivery is not enabled for this service.');
+    }
+    const route = await routeBetween(MAPS_API_KEY.value(), origin, destination, optionConfig.travelMode || 'DRIVE');
+    price = calculateFare(optionConfig, route, serviceType === 'parcel' ? requested.weightKg : 0);
+    pickupAddress = origin.address;
+    dropAddress = destination.address;
+    details = { ...details, pickupPlaceId, dropPlaceId, pickupLocation: origin.location, dropLocation: destination.location, ...coverage, estimatedKm: route.distanceMeters / 1000, estimatedMinutes: Math.ceil(route.durationSeconds / 60), routeProvider: 'google' };
+  }
+
+  const amount = Math.round(price * 100);
+  if (!Number.isSafeInteger(amount) || amount < 100 || amount > 100000000) throw new HttpsError('failed-precondition', 'The payable amount is outside the supported range.');
+  const now = new Date().toISOString();
+  const booking = {
+    bookingId: `ALLGO_${crypto.randomUUID()}`,
+    customerId: uid,
+    customerName,
+    serviceType,
+    status: 'pending',
+    price: amount / 100,
+    createdAt: now,
+    updatedAt: now,
+    pickupAddress,
+    dropAddress,
+    driverId: null,
+    otp: String(crypto.randomInt(1000, 10000)),
+    paymentStatus: 'paid',
+    paymentOrderId: '',
+    paymentId: '',
+    ...(['food', 'grocery'].includes(serviceType) ? { merchantId: serviceType === 'food' ? details.restaurantId : details.storeId } : {}),
+    details
+  };
+  return { amount, booking, items: details.items || [], storeId: details.storeId || null, restaurantId: details.restaurantId || null };
+}
+
+async function razorpayRequest(path, method, body, extraHeaders = {}) {
+  const response = await fetch(`https://api.razorpay.com/v1${path}`, {
+    method,
+    signal: AbortSignal.timeout(20000),
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${RAZORPAY_KEY_ID.value()}:${RAZORPAY_KEY_SECRET.value()}`).toString('base64')}`,
+      'Content-Type': 'application/json',
+      ...extraHeaders,
+    },
+    ...(body ? { body: JSON.stringify(body) } : {})
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error?.description || 'Payment provider request failed.');
+  return data;
+}
+
+function validSignature(orderId, paymentId, signature) {
+  const expected = crypto.createHmac('sha256', RAZORPAY_KEY_SECRET.value()).update(`${orderId}|${paymentId}`).digest();
+  let actual;
+  try { actual = Buffer.from(signature, 'hex'); } catch { return false; }
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+async function issueRefund(paymentId, amount) {
+  const idempotencyKey = crypto.createHash('sha256').update(`${paymentId}:full-refund:${amount}`).digest('hex');
+  return razorpayRequest(`/payments/${encodeURIComponent(paymentId)}/refund`, 'POST', { amount, speed: 'normal' }, { 'X-Refund-Idempotency': idempotencyKey });
+}
+
+async function applyCoupon(uid, quote, rawCode) {
+  if (!rawCode) return quote;
+  const code = cleanText(rawCode, 'Coupon', 40).toUpperCase();
+  if (!/^[A-Z0-9_-]+$/.test(code)) throw new HttpsError('invalid-argument', 'Invalid offer code.');
+  const coupon = (await db.doc(`coupons/${code}`).get()).data();
+  const redeemed = await db.doc(`coupon_redemptions/${code}_${uid}`).get();
+  if (!coupon || coupon.enabled !== true || !(coupon.expiresAt?.toMillis() > Date.now()) || redeemed.exists || !Array.isArray(coupon.serviceTypes) || !coupon.serviceTypes.includes(quote.booking.serviceType) || (Array.isArray(coupon.eligibleUserIds) && !coupon.eligibleUserIds.includes(uid)) || !Number.isSafeInteger(coupon.minAmountCents) || quote.amount < coupon.minAmountCents || !Number.isSafeInteger(coupon.maxRedemptions) || (coupon.redeemedCount || 0) >= coupon.maxRedemptions) throw new HttpsError('failed-precondition', 'This offer is expired, already used or unavailable for this order.');
+  const discount = coupon.type === 'fixed' ? coupon.discountCents : coupon.type === 'percent' && Number.isInteger(coupon.percentBps) && coupon.percentBps > 0 && coupon.percentBps <= 10000 ? Math.min(Math.floor(quote.amount * coupon.percentBps / 10000), coupon.maxDiscountCents) : NaN;
+  if (!Number.isSafeInteger(discount) || discount <= 0 || discount >= quote.amount || quote.amount - discount < 100) throw new HttpsError('failed-precondition', 'This offer has an invalid discount configuration.');
+  return { ...quote, amount: quote.amount - discount, booking: { ...quote.booking, price: (quote.amount - discount) / 100, originalPrice: quote.amount / 100, couponCode: code, couponDiscountCents: discount } };
+}
+
+exports.previewCartCoupon = onCall({ operation: 'previewCartCoupon', region: REGION }, async request => {
+  const uid = requireUser(request);
+  if (!['food', 'grocery'].includes(request.data?.booking?.serviceType)) throw new HttpsError('invalid-argument', 'Select a food or grocery cart.');
+  const quote = await applyCoupon(uid, await priceAndPrepareBooking(uid, request.data.booking), request.data.code);
+  return { amount: quote.amount, discountCents: quote.booking.couponDiscountCents || 0, code: quote.booking.couponCode || '' };
+});
+
+async function settleCapturedPayment(orderId, paymentId, providerPayment, walletPayment = false) {
+  const attemptRef = db.doc(`payment_attempts/${orderId}`);
+  const attemptSnap = await attemptRef.get();
+  if (!attemptSnap.exists) throw new HttpsError('not-found', 'Payment request could not be found.');
+  const attempt = attemptSnap.data();
+  if (attempt.status === 'paid') return { bookingId: attempt.bookingId || null, status: 'paid' };
+  if (['refunded', 'refund_processing', 'refund_required'].includes(attempt.status)) {
+    throw new HttpsError('failed-precondition', 'This payment is already in refund handling and cannot create another booking.');
+  }
+  if (!walletPayment && (providerPayment.status !== 'captured' || providerPayment.order_id !== orderId || providerPayment.amount !== attempt.amount || providerPayment.currency !== CURRENCY)) {
+    throw new HttpsError('failed-precondition', 'Payment has not been captured for this order.');
+  }
+
+  if (attempt.kind === 'wallet_topup') {
+    await db.runTransaction(async transaction => {
+      const userRef = db.doc(`users/${attempt.uid}`), ledgerRef = db.doc(`wallet_ledger/${attempt.uid}/entries/${orderId}`);
+      const [latest, account, ledger] = await Promise.all([transaction.get(attemptRef), transaction.get(userRef), transaction.get(ledgerRef)]);
+      if (latest.data()?.status === 'paid' || ledger.exists) return;
+      if (!account.exists || latest.data()?.status !== 'created') throw new HttpsError('failed-precondition', 'This wallet credit requires review.');
+      const balance = Math.round((account.data().walletBalance || 0) * 100);
+      if (!Number.isSafeInteger(balance) || balance < 0) throw new HttpsError('failed-precondition', 'The wallet balance needs reconciliation.');
+      transaction.update(userRef, { walletBalance: (balance + attempt.amount) / 100 });
+      transaction.create(ledgerRef, { kind: 'topup', amountCents: attempt.amount, balanceCents: balance + attempt.amount, paymentId, createdAt: new Date().toISOString() });
+      transaction.update(attemptRef, { status: 'paid', paymentId, paidAt: Timestamp.now() });
+    });
+    return { status: 'paid', walletCredited: true };
+  }
+  try {
+    await db.runTransaction(async (transaction) => {
+      const latestAttempt = await transaction.get(attemptRef);
+      if (!latestAttempt.exists) throw new HttpsError('not-found', 'Payment request could not be found.');
+      if (latestAttempt.data().status === 'paid') return;
+      if (['refunded', 'refund_processing', 'refund_required'].includes(latestAttempt.data().status)) throw new HttpsError('aborted', 'This payment is in refund handling.');
+      if (latestAttempt.data().uid !== attempt.uid) throw new HttpsError('permission-denied', 'Payment owner does not match.');
+      const walletRef = db.doc(`users/${attempt.uid}`);
+      const walletAccount = walletPayment ? await transaction.get(walletRef) : null;
+      const walletBalance = Math.round((walletAccount?.data()?.walletBalance || 0) * 100);
+      if (walletPayment && (!Number.isSafeInteger(walletBalance) || walletBalance < attempt.amount)) throw new HttpsError('resource-exhausted', 'Insufficient AllGo wallet balance.');
+      const acceptedMethods = ['upi', 'card', 'netbanking', 'wallet', 'emi'];
+      const paymentMethod = walletPayment ? 'wallet' : acceptedMethods.includes(providerPayment.method) ? providerPayment.method : 'other';
+      const booking = { ...attempt.booking, paymentOrderId: orderId, paymentId, paymentMethod };
+      const couponRef = booking.couponCode ? db.doc(`coupons/${booking.couponCode}`) : null;
+      const redemptionRef = booking.couponCode ? db.doc(`coupon_redemptions/${booking.couponCode}_${attempt.uid}`) : null;
+      const coupon = couponRef ? await transaction.get(couponRef) : null;
+      const redemption = redemptionRef ? await transaction.get(redemptionRef) : null;
+      if (couponRef && (!coupon.exists || coupon.data().enabled !== true || !(coupon.data().expiresAt?.toMillis() > Date.now()) || redemption.exists || (coupon.data().redeemedCount || 0) >= coupon.data().maxRedemptions)) throw new HttpsError('failed-precondition', 'The offer became unavailable while payment was processing.');
+      let stockRefs = [];
+      let stockSnaps = [];
+      if (attempt.storeId) {
+        stockRefs = attempt.items.map((item) => db.doc(`grocery_stores/${attempt.storeId}/products/${item.id}`));
+        stockSnaps = await Promise.all(stockRefs.map((ref) => transaction.get(ref)));
+        for (let index = 0; index < stockSnaps.length; index += 1) {
+          if (!stockSnaps[index].exists || !Number.isSafeInteger(stockSnaps[index].data().stock) || stockSnaps[index].data().stock < attempt.items[index].quantity) {
+            throw new HttpsError('failed-precondition', 'Stock changed while payment was processing.');
+          }
+        }
+      }
+      let menuRefs = [];
+      if (attempt.restaurantId) {
+        menuRefs = attempt.items.map((item) => db.doc(`restaurants/${attempt.restaurantId}/menu_items/${item.id}`));
+        const menuSnaps = await Promise.all(menuRefs.map((ref) => transaction.get(ref)));
+        if (menuSnaps.some((snapshot) => !snapshot.exists || snapshot.data().available === false)) {
+          throw new HttpsError('failed-precondition', 'A restaurant item became unavailable while payment was processing.');
+        }
+        for (let index = 0; index < attempt.items.length; index += 1) {
+          const item = attempt.items[index];
+          if (!item.variantId) continue;
+          const variants = menuSnaps[index].data().variants;
+          if (!Array.isArray(variants) || !variants.some((variant) => variant?.id === item.variantId && variant.available !== false)) {
+            throw new HttpsError('failed-precondition', 'A selected menu option became unavailable while payment was processing.');
+          }
+        }
+      }
+      if (walletPayment) {
+        transaction.update(walletRef, { walletBalance: (walletBalance - attempt.amount) / 100 });
+        transaction.create(db.doc(`wallet_ledger/${attempt.uid}/entries/${orderId}`), { kind: 'booking', amountCents: -attempt.amount, balanceCents: walletBalance - attempt.amount, bookingId: attempt.bookingId, createdAt: new Date().toISOString() });
+      }
+      stockSnaps.forEach((snapshot, index) => transaction.update(stockRefs[index], { stock: snapshot.data().stock - attempt.items[index].quantity }));
+      if (couponRef) {
+        transaction.update(couponRef, { redeemedCount: (coupon.data().redeemedCount || 0) + 1 });
+        transaction.create(redemptionRef, { uid: attempt.uid, bookingId: booking.bookingId, discountCents: booking.couponDiscountCents, createdAt: Timestamp.now() });
+      }
+      const { otp, ...publicBooking } = booking;
+      const { parcelContacts, publicDetails } = separateParcelContacts(publicBooking.details);
+      publicBooking.details = publicDetails;
+      if (booking.serviceType === 'parcel' && parcelContacts) transaction.create(db.doc(`booking_contacts/${booking.bookingId}`), { customerId: booking.customerId, ...parcelContacts });
+      transaction.create(db.doc(`booking_codes/${booking.bookingId}`), { customerId: booking.customerId, code: otp, attempts: 0 });
+      transaction.create(db.doc(`bookings/${booking.bookingId}`), publicBooking);
+      transaction.update(attemptRef, { status: 'paid', bookingId: booking.bookingId, paymentId, paymentMethod, paidAt: Timestamp.now() });
+    });
+  } catch (error) {
+    if (!walletPayment && error instanceof HttpsError && error.code === 'failed-precondition') {
+      const state = await db.runTransaction(async transaction => {
+        const latest = await transaction.get(attemptRef), status = latest.data()?.status;
+        if (['paid', 'refunded', 'refund_processing', 'refund_required'].includes(status)) return status;
+        transaction.update(attemptRef, { status: 'refund_processing', paymentId, failureReason: 'inventory_unavailable', updatedAt: Timestamp.now() });
+        return 'claimed';
+      });
+      if (state === 'paid') return { bookingId: attempt.bookingId, status: 'paid' };
+      if (state !== 'claimed') throw new HttpsError('failed-precondition', 'This payment is in refund handling. Check payment activity or contact support.');
+      try {
+        const refund = await issueRefund(paymentId, attempt.amount);
+        await db.runTransaction(async transaction => {
+          const snapshot = await transaction.get(attemptRef);
+          if (snapshot.data()?.status !== 'refunded') transaction.update(attemptRef, { status: refund.status === 'processed' ? 'refunded' : refund.status === 'failed' ? 'refund_required' : 'refund_processing', refundId: refund.id, refundStatus: refund.status, updatedAt: Timestamp.now() });
+        });
+        if (refund.status === 'failed') throw new Error('Refund provider reported a failure.');
+      } catch (refundError) {
+        await db.runTransaction(async transaction => {
+          const latest = await transaction.get(attemptRef);
+          if (latest.data()?.status !== 'refunded') transaction.update(attemptRef, { status: 'refund_required', paymentId, failureReason: 'inventory_unavailable', updatedAt: Timestamp.now() });
+        });
+        throw new HttpsError('internal', 'Payment was captured but inventory could not be reserved. Contact AllGo support to resolve the refund.');
+      }
+      throw new HttpsError('failed-precondition', 'Stock changed during payment. A refund has been initiated; check payment activity for its status.');
+    }
+    throw error;
+  }
+  return { bookingId: attempt.booking.bookingId, status: 'paid' };
+}
+
+exports.searchServiceLocations = onCall({ operation: 'searchServiceLocations', region: REGION, secrets: [MAPS_API_KEY] }, async (request) => {
+  requireUser(request);
+  const address = cleanText(request.data?.address, 'Address', 300);
+  return { locations: await geocode(MAPS_API_KEY.value(), { address, region: 'in' }) };
+});
+
+exports.reverseServiceLocation = onCall({ operation: 'reverseServiceLocation', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
+  requireUser(request);
+  if (!validPoint(request.data?.location)) throw new HttpsError('invalid-argument', 'A valid device location is required.');
+  return { locations: await geocode(MAPS_API_KEY.value(), { latlng: `${request.data.location.lat},${request.data.location.lng}` }) };
+});
+
+exports.updateDriverLocation = onCall({ operation: 'updateDriverLocation', region: REGION }, async request => {
+  const uid = requireUser(request), location = request.data?.location, accuracy = request.data?.accuracy;
+  if (!validPoint(location) || !Number.isFinite(accuracy) || accuracy < 0) throw new HttpsError('invalid-argument', 'A valid device position and accuracy are required.');
+  return db.runTransaction(async transaction => {
+    const driverRef = db.doc(`driver_profiles/${uid}`);
+    const [driver, account] = await Promise.all([transaction.get(driverRef), transaction.get(db.doc(`users/${uid}`))]);
+    const data = driver.data();
+    if (account.data()?.role !== 'driver' || data?.status !== 'verified' || data.online !== true) throw new HttpsError('permission-denied', 'Only verified online partners can report a position.');
+    const booking = data.activeBookingId ? await transaction.get(db.doc(`bookings/${data.activeBookingId}`)) : null;
+    if (Date.now() - Date.parse(data.locationUpdatedAt || '') < 5000) return { accepted: false };
+    const updatedAt = new Date().toISOString();
+    transaction.update(driverRef, { currentLat: location.lat, currentLng: location.lng, locationAccuracyMeters: accuracy, locationUpdatedAt: updatedAt });
+    if (booking?.data()?.driverId === uid && !['completed', 'delivered', 'cancelled'].includes(booking.data().status)) transaction.set(db.doc(`booking_tracking/${booking.id}`), { driverId: uid, currentLat: location.lat, currentLng: location.lng, locationAccuracyMeters: accuracy, locationUpdatedAt: updatedAt });
+    return { accepted: true };
+  });
+});
+
+exports.getTrackingRoute = onCall({ operation: 'getTrackingRoute', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
+  const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID');
+  const [bookingDoc, trackingDoc] = await Promise.all([db.doc(`bookings/${bookingId}`).get(), db.doc(`booking_tracking/${bookingId}`).get()]);
+  const booking = bookingDoc.data(), tracking = trackingDoc.data();
+  if (!booking || (booking.customerId !== uid && booking.driverId !== uid && request.auth.token.admin !== true)) throw new HttpsError('permission-denied', 'This journey is not assigned to your account.');
+  if (!tracking || !validPoint({ lat: tracking.currentLat, lng: tracking.currentLng }) || !Number.isFinite(Date.parse(tracking.locationUpdatedAt)) || tracking.driverId !== booking.driverId || Date.now() - Date.parse(tracking.locationUpdatedAt) > 60000 || ['completed', 'delivered', 'cancelled'].includes(booking.status)) throw new HttpsError('failed-precondition', 'A fresh partner location is required for a travel estimate.');
+  const pickup = ['accepted', 'preparing', 'ready'].includes(booking.status);
+  const placeId = pickup ? booking.details?.pickupPlaceId : booking.details?.dropPlaceId;
+  const destinations = await geocode(MAPS_API_KEY.value(), placeId ? { place_id: placeId } : { address: pickup ? booking.pickupAddress : booking.dropAddress });
+  if (!destinations[0] || destinations[0].partialMatch) throw new HttpsError('failed-precondition', 'The journey address could not be resolved for a travel estimate.');
+  const route = await routeBetween(MAPS_API_KEY.value(), { location: { lat: tracking.currentLat, lng: tracking.currentLng } }, destinations[0]);
+  return { distanceMeters: route.distanceMeters, estimatedMinutes: Math.ceil(route.durationSeconds / 60), calculatedAt: new Date().toISOString(), destination: pickup ? 'pickup' : 'drop', provider: 'google' };
+});
+
+exports.sendBookingMessage = onCall({ operation: 'sendBookingMessage', region: REGION }, async request => {
+  const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID'), text = cleanText(request.data?.text, 'Message', 2000);
+  const [snapshot, account] = await Promise.all([db.doc(`bookings/${bookingId}`).get(), db.doc(`users/${uid}`).get()]);
+  const booking = snapshot.data();
+  if (!booking || !booking.driverId || (booking.customerId !== uid && booking.driverId !== uid)) throw new HttpsError('permission-denied', 'Only this customer and assigned partner can send messages.');
+  if (['completed', 'delivered', 'cancelled'].includes(booking.status)) throw new HttpsError('failed-precondition', 'This conversation is closed. Use support for further help.');
+  await db.collection(`bookings/${bookingId}/chats`).add({ senderId: uid, senderName: cleanText(account.data()?.name, 'Account name', 100), text, timestamp: new Date().toISOString() });
+  return { sent: true };
+});
+
+exports.getServiceQuote = onCall({ operation: 'getServiceQuote', region: REGION, secrets: [MAPS_API_KEY] }, async (request) => {
+  const uid = requireUser(request);
+  if (!['ride', 'parcel', 'takeover', 'transport'].includes(request.data?.serviceType)) throw new HttpsError('invalid-argument', 'Choose a booking service.');
+  const quote = await applyCoupon(uid, await priceAndPrepareBooking(uid, request.data), request.data?.couponCode);
+  const quoteRef = db.collection('service_quotes').doc();
+  const expiresAt = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000);
+  await quoteRef.create({ ...quote, uid, expiresAt, createdAt: Timestamp.now(), claimed: false });
+  return { quoteId: quoteRef.id, amount: quote.amount, currency: CURRENCY, price: quote.amount / 100, expiresAt: expiresAt.toDate().toISOString(), estimatedKm: quote.booking.details.estimatedKm, estimatedMinutes: quote.booking.details.estimatedMinutes };
+});
+
+exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region: REGION }, async (request) => {
+  const uid = requireUser(request);
+  const bookingId = cleanText(request.data?.bookingId, 'Booking ID', 128);
+  if (!/^[a-zA-Z0-9_-]+$/.test(bookingId)) throw new HttpsError('invalid-argument', 'Invalid booking ID.');
+  return db.runTransaction(async transaction => {
+    const bookingRef = db.doc(`bookings/${bookingId}`);
+    const driverRef = db.doc(`driver_profiles/${uid}`);
+    const [booking, driver, account] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(db.doc(`users/${uid}`))]);
+    if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified' || driver.data()?.online !== true) throw new HttpsError('permission-denied', 'Only verified online drivers can accept jobs.');
+    if (driver.data()?.activeBookingId) throw new HttpsError('failed-precondition', 'Complete your current job before accepting another.');
+    const data = booking.data();
+    const dispatchable = data && (['food', 'grocery'].includes(data.serviceType) ? data.status === 'ready' : data.status === 'pending');
+    if (!dispatchable || data.driverId || data.paymentStatus !== 'paid' || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available.');
+    if (data.serviceType === 'ride' && data.details?.vehicleType !== driver.data().vehicleType) throw new HttpsError('failed-precondition', 'Your verified vehicle does not match this ride.');
+    if (!driver.data().supportedServices?.includes(data.serviceType)) throw new HttpsError('permission-denied', 'Your account is not approved for this service. Contact operations.');
+    transaction.update(bookingRef, { driverId: uid, driverName: account.data().name, status: 'accepted', updatedAt: new Date().toISOString() });
+    transaction.update(driverRef, { activeBookingId: bookingId });
+    return { status: 'accepted' };
+  });
+});
+
+exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', region: REGION }, async (request) => {
+  const uid = requireUser(request);
+  const bookingId = cleanText(request.data?.bookingId, 'Booking ID', 128);
+  if (!/^[a-zA-Z0-9_-]+$/.test(bookingId)) throw new HttpsError('invalid-argument', 'Invalid booking ID.');
+  const next = request.data?.status;
+  if (!['preparing', 'transit', 'completed'].includes(next)) throw new HttpsError('invalid-argument', 'Invalid job transition.');
+  const result = await db.runTransaction(async transaction => {
+    const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
+    const codeRef = db.doc(`booking_codes/${bookingId}`);
+    const [booking, driver, code] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef)]);
+    const data = booking.data();
+    if (!data || data.driverId !== uid || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'This job is not assigned to you.');
+    if (data.paymentStatus !== 'paid') throw new HttpsError('failed-precondition', 'This job is in payment or cancellation review. Contact operations.');
+    if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
+    const allowed = { preparing: ['accepted'], transit: ['accepted', 'preparing', 'ready'], completed: ['transit'] };
+    if (!allowed[next].includes(data.status)) throw new HttpsError('failed-precondition', 'The order has changed. Refresh before continuing.');
+    if (next === 'completed') {
+      if (!code.exists) throw new HttpsError('failed-precondition', 'The delivery code is unavailable. Contact operations.');
+      const confirmation = code.data();
+      if (confirmation.lockedUntil?.toMillis() > Date.now()) throw new HttpsError('resource-exhausted', 'Too many incorrect codes. Wait five minutes or contact support.');
+      if (String(request.data?.otp || '') !== confirmation.code) {
+        const attempts = confirmation.lockedUntil ? 1 : Number(confirmation.attempts || 0) + 1;
+        transaction.update(codeRef, { attempts, ...(attempts >= 5 ? { lockedUntil: Timestamp.fromMillis(Date.now() + 5 * 60 * 1000) } : { lockedUntil: FieldValue.delete() }) });
+        return { error: 'wrong-code' };
+      }
+      const settlement = await transaction.get(db.doc('operations/settlement'));
+      const share = settlement.data()?.driverShareBps;
+      if (!Number.isInteger(share) || share < 0 || share > 10000) throw new HttpsError('failed-precondition', 'Partner settlement is not configured. Contact operations.');
+      const payout = Math.round(data.price * 100 * share / 10000) / 100;
+      const today = new Date().toISOString().slice(0, 10);
+      const current = driver.data();
+      const payoutCents = Math.round(payout * 100);
+      transaction.update(driverRef, { activeBookingId: null, earningsDate: today, todayEarnings: (current.earningsDate === today ? Number(current.todayEarnings || 0) : 0) + payout, availableEarningsCents: Number(current.availableEarningsCents || 0) + payoutCents, completedJobs: Number(current.completedJobs || 0) + 1 });
+      transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}`), { bookingId, amountCents: payoutCents, type: 'delivery_earning', createdAt: Timestamp.now() });
+      transaction.update(bookingRef, { status: next, driverPayout: payout, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      transaction.delete(codeRef);
+    } else transaction.update(bookingRef, { status: next, updatedAt: new Date().toISOString() });
+    return { status: next };
+  });
+  if (result.error) throw new HttpsError('permission-denied', 'Enter the recipient’s delivery code to complete this booking.');
+  return result;
+});
+
+exports.rejectDriverBooking = onCall({ operation: 'rejectDriverBooking', region: REGION }, async request => {
+  const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID');
+  return db.runTransaction(async transaction => {
+    const driverRef = db.doc(`driver_profiles/${uid}`), bookingRef = db.doc(`bookings/${bookingId}`);
+    const [driver, booking, account] = await Promise.all([transaction.get(driverRef), transaction.get(bookingRef), transaction.get(db.doc(`users/${uid}`))]);
+    const data = booking.data();
+    if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified' || !data) throw new HttpsError('permission-denied', 'This job is unavailable.');
+    if (data.driverId && data.driverId !== uid) throw new HttpsError('permission-denied', 'This job belongs to another partner.');
+    if (!['pending', 'ready', 'accepted', 'preparing'].includes(data.status) || data.paymentStatus !== 'paid') throw new HttpsError('failed-precondition', 'This job cannot be rejected at its current stage. Contact operations.');
+    const rejectedBookingIds = [...new Set([...(driver.data().rejectedBookingIds || []), bookingId])].slice(-100);
+    transaction.update(driverRef, { rejectedBookingIds, ...(data.driverId === uid ? { activeBookingId: null } : {}) });
+    if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', updatedAt: new Date().toISOString() });
+    transaction.set(db.doc(`dispatch_events/${crypto.randomUUID()}`), { bookingId, driverId: uid, action: 'rejected', createdAt: Timestamp.now() });
+    return { status: 'rejected' };
+  });
+});
+
+exports.requestDriverPayout = onCall({ operation: 'requestDriverPayout', region: REGION }, async request => {
+  const uid = requireUser(request), requestId = documentId(request.data?.requestId, 'Request ID');
+  const payoutRef = db.doc(`payout_requests/${uid}_${requestId}`), driverRef = db.doc(`driver_profiles/${uid}`);
+  return db.runTransaction(async transaction => {
+    const [existing, driver, account] = await Promise.all([transaction.get(payoutRef), transaction.get(driverRef), transaction.get(db.doc(`users/${uid}`))]);
+    if (existing.exists) return { amount: existing.data().amount, status: existing.data().status };
+    if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'Only verified partners can request payouts.');
+    const cents = driver.data().availableEarningsCents;
+    if (!Number.isSafeInteger(cents) || cents <= 0) throw new HttpsError('failed-precondition', 'No ledger earnings are available for withdrawal.');
+    transaction.update(driverRef, { availableEarningsCents: 0, reservedEarningsCents: Number(driver.data().reservedEarningsCents || 0) + cents });
+    transaction.create(payoutRef, { requestId: payoutRef.id, driverId: uid, amount: cents / 100, amountCents: cents, status: 'requested', createdAt: new Date().toISOString() });
+    transaction.create(db.doc(`driver_ledger/${uid}/entries/${payoutRef.id}`), { amountCents: -cents, type: 'payout_reserved', requestId: payoutRef.id, createdAt: Timestamp.now() });
+    return { amount: cents / 100, status: 'requested' };
+  });
+});
+
+exports.recordDriverPayout = onCall({ operation: 'recordDriverPayout', region: REGION }, async request => {
+  requireUser(request);
+  if (request.auth.token.admin !== true) throw new HttpsError('permission-denied', 'An operations administrator must record transfers.');
+  const requestId = documentId(request.data?.requestId, 'Payout request'), status = request.data?.status;
+  if (!['paid', 'failed'].includes(status)) throw new HttpsError('invalid-argument', 'Select the actual transfer result.');
+  const reference = cleanText(request.data?.reference, status === 'paid' ? 'Actual transfer reference' : 'Failure reason', 200);
+  return db.runTransaction(async transaction => {
+    const payoutRef = db.doc(`payout_requests/${requestId}`), payout = await transaction.get(payoutRef), data = payout.data();
+    if (!data) throw new HttpsError('not-found', 'Payout request not found.');
+    if (data.status === status && data.transferReference === reference) return { status };
+    if (data.status !== 'requested') throw new HttpsError('failed-precondition', 'This transfer already has a recorded result.');
+    const driverRef = db.doc(`driver_profiles/${data.driverId}`), driver = await transaction.get(driverRef);
+    const cents = data.amountCents, reserved = driver.data()?.reservedEarningsCents;
+    if (!Number.isSafeInteger(cents) || cents <= 0 || !Number.isSafeInteger(reserved) || reserved < cents) throw new HttpsError('failed-precondition', 'Payout ledger needs reconciliation before recording this result.');
+    transaction.update(driverRef, { reservedEarningsCents: reserved - cents, ...(status === 'failed' ? { availableEarningsCents: Number(driver.data().availableEarningsCents || 0) + cents } : {}) });
+    transaction.update(payoutRef, { status, transferReference: reference, recordedBy: request.auth.uid, updatedAt: new Date().toISOString() });
+    transaction.create(db.doc(`driver_ledger/${data.driverId}/entries/${requestId}_result`), { type: status === 'paid' ? 'payout_completed' : 'payout_reversed', amountCents: status === 'paid' ? 0 : cents, transferredCents: status === 'paid' ? cents : 0, requestId, reference, createdAt: Timestamp.now() });
+    return { status };
+  });
+});
+
+exports.createPaymentOrder = onCall({ operation: 'createPaymentOrder', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async (request) => {
+  const uid = requireUser(request);
+  let quote, quoteRef;
+  if (['ride', 'parcel', 'takeover', 'transport'].includes(request.data?.serviceType)) {
+    const quoteId = cleanText(request.data?.details?.quoteId, 'Request a service quote before checkout', 128);
+    if (!/^[a-zA-Z0-9_-]+$/.test(quoteId)) throw new HttpsError('invalid-argument', 'Invalid quote reference.');
+    quoteRef = db.doc(`service_quotes/${quoteId}`);
+    quote = await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(quoteRef), data = snapshot.data();
+      if (!data || data.uid !== uid || data.booking.serviceType !== request.data.serviceType) throw new HttpsError('permission-denied', 'This quote does not belong to your booking.');
+      if (data.expiresAt.toMillis() <= Date.now()) throw new HttpsError('failed-precondition', 'This quote expired. Request a new fare.');
+      if (data.claimed) throw new HttpsError('failed-precondition', 'Checkout has already started for this quote. Check your payment activity or request a new quote.');
+      transaction.update(quoteRef, { claimed: true });
+      return data;
+    });
+  } else quote = await priceAndPrepareBooking(uid, request.data);
+  quote = await applyCoupon(uid, quote, request.data?.couponCode);
+  const booking = quote.booking;
+  const providerOrder = await razorpayRequest('/orders', 'POST', {
+    amount: quote.amount,
+    currency: CURRENCY,
+    receipt: booking.bookingId.slice(0, 40),
+    notes: { customerId: uid, bookingId: booking.bookingId, serviceType: booking.serviceType }
+  });
+  booking.paymentOrderId = providerOrder.id;
+  await db.doc(`payment_attempts/${providerOrder.id}`).create({
+    uid,
+    bookingId: booking.bookingId,
+    booking,
+    items: quote.items,
+    storeId: quote.storeId,
+    restaurantId: quote.restaurantId,
+    amount: quote.amount,
+    currency: CURRENCY,
+    status: 'created',
+    createdAt: Timestamp.now(),
+    expiresAt: Timestamp.fromMillis(Date.now() + 60 * 60 * 1000)
+  });
+  return { orderId: providerOrder.id, keyId: RAZORPAY_KEY_ID.value(), amount: quote.amount, currency: CURRENCY };
+});
+
+async function requireWalletEnabled() {
+  const policy = (await db.doc('platform_config/wallet').get()).data();
+  if (policy?.enabled !== true || !Number.isSafeInteger(policy.maxTopupCents) || policy.maxTopupCents < 100) throw new HttpsError('failed-precondition', 'AllGo wallet funding is not enabled by operations.');
+  return policy;
+}
+
+exports.createWalletTopup = onCall({ operation: 'createWalletTopup', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async request => {
+  const uid = requireUser(request), policy = await requireWalletEnabled(), amount = request.data?.amountCents;
+  if (!Number.isSafeInteger(amount) || amount < 100 || amount > policy.maxTopupCents) throw new HttpsError('invalid-argument', 'Enter an amount within the wallet funding limit.');
+  const account = await db.doc(`users/${uid}`).get();
+  if (!account.exists) throw new HttpsError('failed-precondition', 'Your account profile is unavailable.');
+  const order = await razorpayRequest('/orders', 'POST', { amount, currency: CURRENCY, receipt: `W_${crypto.randomUUID()}`, notes: { customerId: uid, purpose: 'wallet_topup' } });
+  await db.doc(`payment_attempts/${order.id}`).create({ uid, kind: 'wallet_topup', amount, currency: CURRENCY, status: 'created', createdAt: Timestamp.now() });
+  return { orderId: order.id, keyId: RAZORPAY_KEY_ID.value(), amount, currency: CURRENCY };
+});
+
+exports.payWithWallet = onCall({ operation: 'payWithWallet', region: REGION }, async request => {
+  const uid = requireUser(request); await requireWalletEnabled();
+  const requestId = documentId(request.data?.requestId, 'Checkout request');
+  const orderId = `wallet_${uid}_${requestId}`, ref = db.doc(`payment_attempts/${orderId}`);
+  const existing = await ref.get();
+  if (!existing.exists) {
+    let quote;
+    if (['food', 'grocery'].includes(request.data?.booking?.serviceType)) quote = await priceAndPrepareBooking(uid, request.data.booking);
+    else {
+      const quoteRef = db.doc(`service_quotes/${documentId(request.data?.booking?.details?.quoteId, 'Quote ID')}`);
+      quote = await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(quoteRef), data = snapshot.data();
+        if (!data || data.uid !== uid || data.booking.serviceType !== request.data.booking.serviceType || data.expiresAt.toMillis() <= Date.now() || data.claimed) throw new HttpsError('failed-precondition', 'Request a fresh fare before wallet checkout.');
+        transaction.update(quoteRef, { claimed: true }); return data;
+      });
+    }
+    quote = await applyCoupon(uid, quote, request.data?.booking?.couponCode);
+    if (quote.amount !== request.data.expectedAmountCents) throw new HttpsError('failed-precondition', 'The price changed. Refresh and review the current total.');
+    try { await ref.create({ uid, kind: 'wallet_booking', bookingId: quote.booking.bookingId, booking: quote.booking, amount: quote.amount, items: quote.items, restaurantId: quote.restaurantId, storeId: quote.storeId, status: 'created', createdAt: Timestamp.now() }); }
+    catch (error) { if (error.code !== 6) throw error; }
+  }
+  return settleCapturedPayment(orderId, orderId, null, true);
+});
+
+exports.requestAccountDeletion = onCall({ operation: 'requestAccountDeletion', region: REGION }, async request => {
+  const uid = requireUser(request);
+  if (Date.now() / 1000 - request.auth.token.auth_time > 300) throw new HttpsError('failed-precondition', 'Sign out and sign in again before requesting account deletion.');
+  const accountRef = db.doc(`users/${uid}`);
+  return db.runTransaction(async transaction => {
+    const [account, driver, bookings, attempts] = await Promise.all([
+      transaction.get(accountRef), transaction.get(db.doc(`driver_profiles/${uid}`)),
+      transaction.get(db.collection('bookings').where('customerId', '==', uid).where('status', 'in', ['pending', 'accepted', 'preparing', 'ready', 'transit']).limit(1)),
+      transaction.get(db.collection('payment_attempts').where('uid', '==', uid).where('status', 'in', ['processing', 'refund_processing', 'refund_required']).limit(1))
+    ]);
+    if (!account.exists || !bookings.empty || !attempts.empty || driver.data()?.activeBookingId || account.data().walletBalance > 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Resolve active bookings, refunds and account balances with support before deletion.');
+    transaction.set(db.doc(`account_deletions/${uid}`), { uid, status: 'requested', requestedAt: Timestamp.now() }, { merge: true });
+    return { status: 'requested' };
+  });
+});
+
+exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', region: REGION, timeoutSeconds: 540 }, async request => {
+  requireUser(request);
+  if (request.auth.token.admin !== true) throw new HttpsError('permission-denied', 'Operations access is required.');
+  const uid = documentId(request.data?.uid, 'Account ID');
+  if (uid === request.auth.uid) throw new HttpsError('failed-precondition', 'Another operator must process your deletion.');
+  const policy = (await db.doc('platform_config/privacy').get()).data();
+  if (policy?.deletionEnabled !== true || typeof policy.policyUrl !== 'string' || !policy.policyUrl.startsWith('https://')) throw new HttpsError('failed-precondition', 'Publish and configure the retention/deletion policy first.');
+  const deletionRef = db.doc(`account_deletions/${uid}`);
+  await db.runTransaction(async transaction => {
+    const [deletion, account, driver, bookings, attempts] = await Promise.all([
+      transaction.get(deletionRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_profiles/${uid}`)),
+      transaction.get(db.collection('bookings').where('customerId', '==', uid).where('status', 'in', ['pending', 'accepted', 'preparing', 'ready', 'transit']).limit(1)),
+      transaction.get(db.collection('payment_attempts').where('uid', '==', uid).where('status', 'in', ['created', 'processing', 'refund_processing', 'refund_required']).limit(1))
+    ]);
+    if (!deletion.exists || !['requested', 'processing', 'failed'].includes(deletion.data().status)) throw new HttpsError('failed-precondition', 'No pending deletion request.');
+    if (!bookings.empty || !attempts.empty || driver.data()?.activeBookingId || account.data()?.walletBalance > 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
+    transaction.update(deletionRef, { status: 'processing', startedAt: Timestamp.now(), operatorId: request.auth.uid, policyUrl: policy.policyUrl });
+  });
+  try {
+    try { await getAuth(app).updateUser(uid, { disabled: true }); await getAuth(app).revokeRefreshTokens(uid); } catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
+    // Retain financial amounts and references; remove journey/contact content.
+    for (const field of ['customerId', 'driverId']) {
+      let cursor = null;
+      while (true) {
+        let query = db.collection('bookings').where(field, '==', uid).orderBy('__name__').limit(100);
+        if (cursor) query = query.startAfter(cursor);
+        const records = await query.get(); if (records.empty) break;
+        for (const record of records.docs) {
+          await db.recursiveDelete(record.ref.collection('chats'));
+          await Promise.all([db.doc(`booking_codes/${record.id}`).delete(), db.doc(`booking_tracking/${record.id}`).delete(), ...(field === 'customerId' ? [db.doc(`booking_contacts/${record.id}`).delete()] : [])]);
+          await record.ref.update(field === 'customerId' ? { customerName: 'Deleted account', pickupAddress: FieldValue.delete(), dropAddress: FieldValue.delete(), details: FieldValue.delete(), personalDataDeletedAt: Timestamp.now() } : { driverName: 'Deleted account', personalDataDeletedAt: Timestamp.now() });
+        }
+        cursor = records.docs.at(-1);
+      }
+    }
+    for (const [collection, field] of [['payment_attempts', 'uid'], ['service_quotes', 'uid'], ['push_devices', 'uid'], ['support_tickets', 'userId']]) {
+      let cursor = null;
+      while (true) {
+        let query = db.collection(collection).where(field, '==', uid).orderBy('__name__').limit(100);
+        if (cursor) query = query.startAfter(cursor);
+        const records = await query.get(); if (records.empty) break;
+        const batch = db.batch();
+        for (const record of records.docs) collection === 'payment_attempts' ? batch.update(record.ref, { booking: FieldValue.delete(), items: FieldValue.delete(), personalDataDeletedAt: Timestamp.now() }) : batch.delete(record.ref);
+        await batch.commit(); cursor = records.docs.at(-1);
+      }
+    }
+    await db.recursiveDelete(db.doc(`users/${uid}`));
+    await db.recursiveDelete(db.doc(`driver_profiles/${uid}`));
+    try { await getAuth(app).deleteUser(uid); } catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
+    await deletionRef.update({ status: 'completed', completedAt: Timestamp.now() });
+    return { status: 'completed' };
+  } catch (error) {
+    await deletionRef.update({ status: 'failed', updatedAt: Timestamp.now() });
+    throw new HttpsError('internal', 'Deletion stopped. Operations can retry the recorded request.');
+  }
+});
+
+exports.verifyPayment = onCall({ operation: 'verifyPayment', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async (request) => {
+  const uid = requireUser(request);
+  const orderId = cleanText(request.data?.razorpay_order_id, 'Payment order');
+  const paymentId = cleanText(request.data?.razorpay_payment_id, 'Payment reference');
+  const signature = cleanText(request.data?.razorpay_signature, 'Payment signature', 256);
+  const attemptRef = db.doc(`payment_attempts/${orderId}`);
+  const attemptSnap = await attemptRef.get();
+  if (!attemptSnap.exists || attemptSnap.data().uid !== uid) throw new HttpsError('permission-denied', 'Payment does not belong to this account.');
+  if (!validSignature(orderId, paymentId, signature)) throw new HttpsError('permission-denied', 'Payment verification failed.');
+  const payment = await razorpayRequest(`/payments/${encodeURIComponent(paymentId)}`, 'GET');
+  if (payment.status === 'authorized') {
+    await razorpayRequest(`/payments/${encodeURIComponent(paymentId)}/capture`, 'POST', { amount: attemptSnap.data().amount, currency: CURRENCY });
+    const captured = await razorpayRequest(`/payments/${encodeURIComponent(paymentId)}`, 'GET');
+    if (captured.status !== 'captured') return { bookingId: attemptSnap.data().bookingId, status: 'processing' };
+    return settleCapturedPayment(orderId, paymentId, captured);
+  }
+  return settleCapturedPayment(orderId, paymentId, payment);
+});
+
+exports.listPaymentActivity = onCall({ operation: 'listPaymentActivity', region: REGION }, async (request) => {
+  const uid = requireUser(request);
+  const snapshots = await db.collection('payment_attempts').where('uid', '==', uid).orderBy('createdAt', 'desc').limit(30).get();
+  return { attempts: snapshots.docs.map(snapshot => {
+    const data = snapshot.data();
+    return { orderId: snapshot.id, amount: data.amount, currency: data.currency || CURRENCY, serviceType: data.booking?.serviceType || 'wallet top-up', status: data.status, createdAt: data.createdAt.toDate().toISOString(), bookingId: data.status === 'paid' ? data.bookingId || null : null, paymentId: data.paymentId || null, refundStatus: data.refundStatus || null };
+  }) };
+});
+
+exports.recoverPayment = onCall({ operation: 'recoverPayment', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async (request) => {
+  const uid = requireUser(request), orderId = cleanText(request.data?.orderId, 'Payment order', 128);
+  if (!/^order_[a-zA-Z0-9]+$/.test(orderId)) throw new HttpsError('invalid-argument', 'Invalid payment order.');
+  const reference = db.doc(`payment_attempts/${orderId}`), snapshot = await reference.get(), attempt = snapshot.data();
+  if (!attempt || attempt.uid !== uid) throw new HttpsError('permission-denied', 'This payment does not belong to your account.');
+  if (attempt.status === 'paid') return { status: 'paid', bookingId: attempt.bookingId || null };
+  if (['refunded', 'refund_processing', 'refund_required'].includes(attempt.status)) return { status: attempt.status };
+  const collection = await razorpayRequest(`/orders/${encodeURIComponent(orderId)}/payments`, 'GET');
+  let payment = collection.items?.find(item => item.status === 'captured') || collection.items?.find(item => item.status === 'authorized');
+  if (!payment) return { status: 'unpaid' };
+  if (payment.order_id !== orderId || payment.amount !== attempt.amount || payment.currency !== CURRENCY) throw new HttpsError('failed-precondition', 'Provider payment details do not match this checkout. Contact support.');
+  if (payment.amount_refunded > 0) {
+    const status = payment.amount_refunded >= attempt.amount ? 'refunded' : 'refund_required';
+    await reference.update({ status, paymentId: payment.id, updatedAt: Timestamp.now() });
+    return { status };
+  }
+  if (payment.status === 'authorized') {
+    await razorpayRequest(`/payments/${encodeURIComponent(payment.id)}/capture`, 'POST', { amount: attempt.amount, currency: CURRENCY });
+    payment = await razorpayRequest(`/payments/${encodeURIComponent(payment.id)}`, 'GET');
+  }
+  if (payment.status !== 'captured') return { status: 'processing' };
+  return settleCapturedPayment(orderId, payment.id, payment);
+});
+
+async function restoreCancelledInventory(transaction, bookingRef, booking) {
+  if (booking.serviceType !== 'grocery' || booking.inventoryRestored === true || !booking.details?.storeId) return;
+  const items = booking.details.items || [];
+  const refs = items.map(item => db.doc(`grocery_stores/${booking.details.storeId}/products/${item.id}`));
+  const snapshots = await Promise.all(refs.map(ref => transaction.get(ref)));
+  let needsReview = false;
+  snapshots.forEach((snapshot, index) => {
+    if (snapshot.exists && Number.isFinite(snapshot.data().stock) && snapshot.data().stock >= 0) transaction.update(refs[index], { stock: snapshot.data().stock + items[index].quantity });
+    else needsReview = true;
+  });
+  transaction.update(bookingRef, { inventoryRestored: true, inventoryRestoreNeedsReview: needsReview });
+}
+
+exports.cancelPaidBooking = onCall({ operation: 'cancelPaidBooking', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async (request) => {
+  const uid = requireUser(request);
+  const admin = request.auth.token.admin === true;
+  const bookingId = documentId(request.data?.bookingId, 'Booking reference');
+  const bookingRef = db.doc(`bookings/${bookingId}`);
+  let booking;
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(bookingRef);
+    if (!snapshot.exists || (snapshot.data().customerId !== uid && !admin)) throw new HttpsError('permission-denied', 'This order does not belong to your account.');
+    booking = snapshot.data();
+    if (booking.status === 'cancelled' && ['refunded', 'refund_processing'].includes(booking.paymentStatus)) return;
+    if (booking.paymentStatus === 'refund_required') throw new HttpsError('failed-precondition', 'A refund needs support follow-up.');
+    if (booking.paymentStatus === 'refund_processing') throw new HttpsError('already-exists', 'A refund is already being processed.');
+    if (!(admin ? ['pending', 'accepted', 'preparing', 'ready'].includes(booking.status) : booking.status === 'pending') || booking.paymentStatus !== 'paid' || !booking.paymentId) {
+      throw new HttpsError('failed-precondition', 'This order can no longer be cancelled in the app.');
+    }
+    if (booking.paymentOrderId?.startsWith('wallet_')) {
+      const accountRef = db.doc(`users/${booking.customerId}`), attemptRef = db.doc(`payment_attempts/${booking.paymentOrderId}`);
+      const driverRef = booking.driverId ? db.doc(`driver_profiles/${booking.driverId}`) : null;
+      const [account, attempt, driver] = await Promise.all([transaction.get(accountRef), transaction.get(attemptRef), driverRef ? transaction.get(driverRef) : null]);
+      if (!account.exists || attempt.data()?.status !== 'paid') throw new HttpsError('failed-precondition', 'Wallet refund needs account reconciliation.');
+      const amount = attempt.data().amount, balance = Math.round((account.data().walletBalance || 0) * 100);
+      if (!Number.isSafeInteger(balance) || balance < 0) throw new HttpsError('failed-precondition', 'Wallet balance needs reconciliation.');
+      await restoreCancelledInventory(transaction, bookingRef, booking);
+      transaction.update(accountRef, { walletBalance: (balance + amount) / 100 });
+      transaction.create(db.doc(`wallet_ledger/${booking.customerId}/entries/refund_${bookingId}`), { kind: 'refund', amountCents: amount, balanceCents: balance + amount, bookingId, createdAt: new Date().toISOString() });
+      transaction.update(attemptRef, { status: 'refunded', updatedAt: Timestamp.now() });
+      if (driver?.data()?.activeBookingId === bookingId) transaction.update(driverRef, { activeBookingId: null });
+      transaction.update(bookingRef, { status: 'cancelled', paymentStatus: 'refunded', updatedAt: new Date().toISOString() });
+      booking = { ...booking, status: 'cancelled', paymentStatus: 'refunded' }; return;
+    }
+    transaction.update(bookingRef, { paymentStatus: 'refund_processing', updatedAt: new Date().toISOString() });
+  });
+  if (booking.status === 'cancelled') return { status: booking.paymentStatus };
+
+  let attemptRef = null;
+  try {
+    const attemptQuery = await db.collection('payment_attempts').where('paymentId', '==', booking.paymentId).limit(1).get();
+    attemptRef = attemptQuery.empty ? null : attemptQuery.docs[0].ref;
+    const refund = await issueRefund(booking.paymentId, Math.round(booking.price * 100));
+    if (refund.status === 'failed') throw new Error('Refund failed at the provider.');
+    await db.runTransaction(async (transaction) => {
+      const current = await transaction.get(bookingRef);
+      if (!current.exists || (current.data().customerId !== uid && !admin) || current.data().paymentStatus !== 'refund_processing') {
+        throw new HttpsError('failed-precondition', 'Order payment state changed during cancellation.');
+      }
+      const driverRef = current.data().driverId ? db.doc(`driver_profiles/${current.data().driverId}`) : null;
+      const driver = driverRef ? await transaction.get(driverRef) : null;
+      await restoreCancelledInventory(transaction, bookingRef, current.data());
+      if (driver?.data()?.activeBookingId === bookingId) transaction.update(driverRef, { activeBookingId: null });
+      transaction.update(bookingRef, {
+        status: 'cancelled',
+        paymentStatus: refund.status === 'processed' ? 'refunded' : 'refund_processing',
+        updatedAt: new Date().toISOString()
+      });
+      if (attemptRef) transaction.update(attemptRef, { status: refund.status === 'processed' ? 'refunded' : 'refund_processing', refundId: refund.id, refundStatus: refund.status, updatedAt: Timestamp.now() });
+    });
+    return { status: refund.status === 'processed' ? 'cancelled' : 'refund_processing' };
+  } catch (error) {
+    const current = await bookingRef.get();
+    if (current.exists && current.data().status === 'cancelled' && current.data().paymentStatus === 'refunded') {
+      return { status: 'cancelled' };
+    }
+    await db.runTransaction(async transaction => {
+      const latest = await transaction.get(bookingRef);
+      if (latest.data()?.paymentStatus !== 'refunded') {
+        transaction.update(bookingRef, { paymentStatus: 'refund_required', updatedAt: new Date().toISOString() });
+        if (attemptRef) transaction.update(attemptRef, { status: 'refund_required', refundError: 'Refund confirmation requires review', updatedAt: Timestamp.now() });
+      }
+    });
+    throw new HttpsError('internal', 'The refund could not be confirmed automatically. Contact AllGo support before retrying.');
+  }
+});
+
+exports.razorpayWebhook = onRequest({ region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET] }, async (request, response) => {
+  if (request.method !== 'POST') return response.status(405).send('Method not allowed.');
+  const signature = request.header('x-razorpay-signature') || '';
+  const expected = crypto.createHmac('sha256', RAZORPAY_WEBHOOK_SECRET.value()).update(request.rawBody).digest();
+  const actual = Buffer.from(signature, 'hex');
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return response.status(401).send('Invalid signature.');
+  const event = request.body?.event;
+  const payment = request.body?.payload?.payment?.entity;
+  const refund = request.body?.payload?.refund?.entity;
+  if ((event === 'refund.processed' || event === 'refund.failed') && refund?.payment_id) {
+    try {
+      const attemptQuery = await db.collection('payment_attempts').where('paymentId', '==', refund.payment_id).limit(1).get();
+      if (!attemptQuery.empty) {
+        const attemptRef = attemptQuery.docs[0].ref;
+        const attempt = attemptQuery.docs[0].data();
+        const fullRefund = refund.amount === attempt.amount && refund.currency === CURRENCY;
+        const paymentStatus = event === 'refund.processed' && fullRefund ? 'refunded' : 'refund_required';
+        await db.runTransaction(async (transaction) => {
+          const bookingRef = db.doc(`bookings/${attempt.bookingId}`);
+          const latestAttempt = await transaction.get(attemptRef);
+          const bookingSnap = await transaction.get(bookingRef);
+          if (latestAttempt.data()?.status === 'refunded') return;
+          const driverRef = bookingSnap.data()?.driverId ? db.doc(`driver_profiles/${bookingSnap.data().driverId}`) : null;
+          const driver = driverRef ? await transaction.get(driverRef) : null;
+          if (bookingSnap.exists && bookingSnap.data().paymentStatus !== 'refunded') {
+            if (paymentStatus === 'refunded') await restoreCancelledInventory(transaction, bookingRef, bookingSnap.data());
+            if (paymentStatus === 'refunded' && driver?.data()?.activeBookingId === attempt.bookingId) transaction.update(driverRef, { activeBookingId: null });
+            transaction.update(bookingRef, { paymentStatus, ...(paymentStatus === 'refunded' ? { status: 'cancelled' } : {}), updatedAt: new Date().toISOString() });
+          }
+          transaction.update(attemptRef, { status: paymentStatus, refundId: refund.id, refundStatus: event, updatedAt: Timestamp.now() });
+        });
+      }
+      return response.status(200).send('Refund event processed.');
+    } catch (error) {
+      console.error('Razorpay refund event could not be applied:', error);
+      return response.status(500).send('Retry later.');
+    }
+  }
+  if (event !== 'payment.captured' || !payment?.order_id || !payment?.id) return response.status(200).send('Ignored.');
+  try {
+    const attemptSnap = await db.doc(`payment_attempts/${payment.order_id}`).get();
+    if (attemptSnap.exists && ['refunded', 'refund_required', 'refund_processing'].includes(attemptSnap.data().status)) {
+      return response.status(200).send('Payment is already in refund handling.');
+    }
+    await settleCapturedPayment(payment.order_id, payment.id, payment);
+    return response.status(200).send('Processed.');
+  } catch (error) {
+    console.error('Captured Razorpay payment could not be fulfilled:', error);
+    return response.status(500).send('Retry later.');
+  }
+});

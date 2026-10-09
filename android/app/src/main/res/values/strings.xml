@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AllGo</string>
+    <string name="title_activity_main">AllGo</string>
+    <string name="package_name">in.allgo.app</string>
+    <string name="custom_url_scheme">in.allgo.app</string>
+</resources>

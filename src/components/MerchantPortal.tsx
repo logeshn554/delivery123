@@ -4,74 +4,76 @@ import {
   Store, Utensils, ToggleLeft, ToggleRight, DollarSign, PackageCheck
 } from 'lucide-react';
 import { Booking, MenuItem, GroceryProduct } from '../types';
-import { SEED_MENU_ITEMS, SEED_GROCERY_PRODUCTS } from '../data/mockSeeds';
 import { 
-  updateBookingStatus, 
+  advanceMerchantBooking,
   listenToMenuItems, 
   listenToGroceryProducts, 
-  updateMenuItemVegStatus, 
-  updateGroceryProductStock 
+  updateMerchantCatalog
 } from '../data/firestoreHelper';
 
 interface MerchantPortalProps {
   activeBookings: Booking[];
+  merchantId?: string;
+  merchantType?: 'restaurant' | 'grocery';
 }
 
-export default function MerchantPortal({ activeBookings }: MerchantPortalProps) {
-  const [merchantType, setMerchantType] = useState<'restaurant' | 'grocery'>('restaurant');
-  const [activeMenu, setActiveMenu] = useState<MenuItem[]>(SEED_MENU_ITEMS);
-  const [activeStock, setActiveStock] = useState<GroceryProduct[]>(SEED_GROCERY_PRODUCTS);
+export default function MerchantPortal({ activeBookings, merchantId, merchantType }: MerchantPortalProps) {
+  const [activeMenu, setActiveMenu] = useState<MenuItem[]>([]);
+  const [activeStock, setActiveStock] = useState<GroceryProduct[]>([]);
+  const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
 
   // Sync catalog dynamically from Firestore in real-time
   useEffect(() => {
-    const unsubscribeMenu = listenToMenuItems('rest_dominos', (items) => {
-      if (items && items.length > 0) {
-        // Ensure type compatibility and sorting
-        const sorted = [...items].sort((a, b) => a.id.localeCompare(b.id));
-        setActiveMenu(sorted);
-      }
-    });
-
-    const unsubscribeStock = listenToGroceryProducts('store_instamart_1', (prods) => {
-      if (prods && prods.length > 0) {
-        const sorted = [...prods].sort((a, b) => a.id.localeCompare(b.id));
-        setActiveStock(sorted);
-      }
-    });
-
-    return () => {
-      unsubscribeMenu();
-      unsubscribeStock();
-    };
-  }, []);
+    setActiveMenu([]); setActiveStock([]); setError(''); setLoading(Boolean(merchantId));
+    if (!merchantId || !merchantType) return;
+    const failed = () => { setError('Your catalog could not be loaded. Check the business assignment and connection.'); setLoading(false); };
+    return merchantType === 'restaurant'
+      ? listenToMenuItems(merchantId, items => { setActiveMenu(items.sort((a, b) => a.id.localeCompare(b.id))); setLoading(false); }, failed)
+      : listenToGroceryProducts(merchantId, items => { setActiveStock(items.sort((a, b) => a.id.localeCompare(b.id))); setLoading(false); }, failed);
+  }, [merchantId, merchantType]);
 
   // Filter relevant orders
   const foodOrders = activeBookings.filter(b => b.serviceType === 'food' && b.status !== 'completed' && b.status !== 'cancelled');
   const groceryOrders = activeBookings.filter(b => b.serviceType === 'grocery' && b.status !== 'completed' && b.status !== 'cancelled');
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayOrders = activeBookings.filter((booking) => booking.paymentStatus === 'paid' && booking.status !== 'cancelled' && new Date(booking.createdAt).getTime() >= todayStart.getTime());
+  const grossRevenueToday = todayOrders.reduce((sum, booking) => sum + booking.price, 0);
+  const completedToday = todayOrders.filter(order => ['completed', 'delivered'].includes(order.status)).length;
+  const performAction = async (id: string, action: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(id); setError('');
+    try { await action(); } catch (error) { setError(error instanceof Error ? error.message : 'The merchant action could not be completed.'); }
+    finally { setBusy(''); }
+  };
 
   // Toggle item stock state in Firestore
   const handleToggleMenuStock = async (itemId: string) => {
     const item = activeMenu.find(m => m.id === itemId);
     if (item) {
-      await updateMenuItemVegStatus('rest_dominos', itemId, !item.isVeg);
+      await performAction(itemId, () => updateMerchantCatalog(merchantId!, 'restaurant', itemId, { available: item.available === false }));
     }
   };
 
   const handleToggleProductStock = async (prodId: string) => {
-    const prod = activeStock.find(p => p.id === prodId);
-    if (prod) {
-      await updateGroceryProductStock('store_instamart_1', prodId, prod.stock > 0 ? 0 : 50);
-    }
+    const stock = Number(stockInputs[prodId]);
+    if (!Number.isSafeInteger(stock) || stock < 0 || stockInputs[prodId]?.trim() === '') { setError('Enter the actual nonnegative stock count.'); return; }
+    await performAction(prodId, () => updateMerchantCatalog(merchantId!, 'grocery', prodId, { stock }));
   };
 
   // State changes triggered from merchant portal
   const handleAcceptMerchantOrder = async (bookingId: string) => {
-    await updateBookingStatus(bookingId, { status: 'preparing' });
+    await performAction(bookingId, () => advanceMerchantBooking(bookingId, 'preparing'));
   };
 
   const handleMarkOrderReady = async (bookingId: string) => {
-    await updateBookingStatus(bookingId, { status: 'ready' });
+    await performAction(bookingId, () => advanceMerchantBooking(bookingId, 'ready'));
   };
+
+  if (!merchantId || !merchantType) return <section className="p-6"><h1 className="text-lg font-bold">Connect your business</h1><p className="mt-3 text-sm">AllGo operations must assign your restaurant or grocery catalog before orders and stock controls can be opened.</p></section>;
 
   return (
     <div className="bg-slate-900 text-slate-100 h-full flex flex-col font-sans">
@@ -84,40 +86,40 @@ export default function MerchantPortal({ activeBookings }: MerchantPortalProps) 
         </div>
 
         <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
-          <button 
-            onClick={() => setMerchantType('restaurant')}
+          <span
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
               merchantType === 'restaurant' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Utensils className="w-3.5 h-3.5" /> Restaurant
-          </button>
-          <button 
-            onClick={() => setMerchantType('grocery')}
+          </span>
+          <span
             className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
               merchantType === 'grocery' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <ShoppingBag className="w-3.5 h-3.5" /> Instamart Store
-          </button>
+            <ShoppingBag className="w-3.5 h-3.5" /> Grocery store
+          </span>
         </div>
       </div>
 
       {/* Content body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {loading && <p role="status">Loading your catalog…</p>}
+        {error && <p role="alert" className="rounded-xl bg-rose-950 p-3 text-sm text-rose-100">{error}</p>}
         
         {/* Business summary metrics */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
             <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gross Revenue (Today)</p>
-            <h4 className="text-lg font-black text-white mt-1">₹14,250</h4>
-            <span className="text-[9px] text-emerald-400 flex items-center gap-0.5"><TrendingUp className="w-3 h-3" /> +12% vs Yesterday</span>
+            <h4 className="text-lg font-black text-white mt-1">₹{grossRevenueToday.toLocaleString('en-IN')}</h4>
+            <span className="text-[9px] text-slate-400">From today’s food and grocery bookings</span>
           </div>
 
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
-            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Operational Payouts</p>
-            <h4 className="text-lg font-black text-white mt-1">₹11,400</h4>
-            <span className="text-[9px] text-slate-400">Net after 20% platform charge</span>
+            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Completed orders today</p>
+            <h4 className="text-lg font-black text-white mt-1">{completedToday}</h4>
+            <span className="text-[9px] text-slate-400">Confirmed order records</span>
           </div>
         </div>
 
@@ -152,7 +154,7 @@ export default function MerchantPortal({ activeBookings }: MerchantPortalProps) 
                   <div className="space-y-1.5 text-xs text-slate-300">
                     {ord.details?.items?.map((it: any, idx: number) => (
                       <div key={idx} className="flex justify-between">
-                        <span>{it.name} <span className="text-slate-400">× {it.quantity}</span></span>
+                        <span>{it.name}{it.variantName && <span className="text-slate-400"> · {it.variantName}</span>} <span className="text-slate-400">× {it.quantity}</span></span>
                         <span>₹{it.price * it.quantity}</span>
                       </div>
                     ))}
@@ -162,6 +164,7 @@ export default function MerchantPortal({ activeBookings }: MerchantPortalProps) 
                   <div className="pt-2 border-t border-slate-700/50 flex gap-2">
                     {ord.status === 'pending' && (
                       <button 
+                        disabled={Boolean(busy)}
                         onClick={() => handleAcceptMerchantOrder(ord.bookingId)}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2 rounded-lg"
                       >
@@ -171,6 +174,7 @@ export default function MerchantPortal({ activeBookings }: MerchantPortalProps) 
 
                     {ord.status === 'preparing' && (
                       <button 
+                        disabled={Boolean(busy)}
                         onClick={() => handleMarkOrderReady(ord.bookingId)}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg"
                       >
@@ -198,7 +202,7 @@ export default function MerchantPortal({ activeBookings }: MerchantPortalProps) 
 
           {merchantType === 'restaurant' ? (
             <div className="space-y-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
-              {activeMenu.slice(0, 4).map(item => (
+              {activeMenu.map(item => (
                 <div key={item.id} className="flex justify-between items-center py-2 border-b border-slate-700/50 last:border-none text-xs">
                   <div>
                     <h5 className="font-bold text-slate-200">{item.name}</h5>
@@ -206,12 +210,13 @@ export default function MerchantPortal({ activeBookings }: MerchantPortalProps) 
                   </div>
                   
                   <button 
+                    disabled={Boolean(busy)}
                     onClick={() => handleToggleMenuStock(item.id)}
                     className={`px-3 py-1 rounded-lg text-[10px] font-bold ${
-                      item.isVeg ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-600/15 text-rose-400 border border-rose-500/30'
+                      item.available !== false ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-600/15 text-rose-400 border border-rose-500/30'
                     }`}
                   >
-                    {item.isVeg ? 'IN STOCK' : 'SOLD OUT'}
+                    {item.available !== false ? 'IN STOCK' : 'SOLD OUT'}
                   </button>
                 </div>
               ))}
@@ -225,14 +230,7 @@ export default function MerchantPortal({ activeBookings }: MerchantPortalProps) 
                     <p className="text-[10px] text-slate-400">{prod.unit} · ₹{prod.price}</p>
                   </div>
                   
-                  <button 
-                    onClick={() => handleToggleProductStock(prod.id)}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-bold ${
-                      prod.stock > 0 ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30' : 'bg-rose-600/15 text-rose-400 border border-rose-500/30'
-                    }`}
-                  >
-                    {prod.stock > 0 ? `IN STOCK (${prod.stock})` : 'SOLD OUT'}
-                  </button>
+                  <div className="flex items-end gap-2"><label className="text-[10px] text-slate-300">Actual stock · current {prod.stock}<input type="number" min="0" step="1" value={stockInputs[prod.id] ?? ''} onChange={event => setStockInputs(current => ({ ...current, [prod.id]: event.target.value }))} className="mt-1 block w-20 rounded-lg bg-slate-950 p-2 text-base" /></label><button disabled={Boolean(busy) || stockInputs[prod.id] === undefined} onClick={() => void handleToggleProductStock(prod.id)} className="min-h-11 rounded-lg bg-blue-600 px-3 font-bold disabled:opacity-50">Save</button></div>
                 </div>
               ))}
             </div>

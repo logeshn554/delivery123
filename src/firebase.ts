@@ -1,13 +1,44 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
+import { initializeAppCheck, CustomProvider, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAppCheck } from '@capacitor-firebase/app-check';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const clientConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
+};
+for (const field of ['apiKey', 'appId', 'projectId', 'authDomain'] as const) {
+  if (!clientConfig[field]?.trim()) throw new Error(`Firebase configuration is missing ${field}.`);
+}
+const app = getApps().length ? getApp() : initializeApp(clientConfig);
+if (import.meta.env.VITE_APP_CHECK_ENABLED === 'true') {
+  if (Capacitor.isNativePlatform()) {
+    const ready = FirebaseAppCheck.initialize({ debugToken: import.meta.env.DEV && import.meta.env.VITE_APP_CHECK_DEBUG === 'true', isTokenAutoRefreshEnabled: true });
+    initializeAppCheck(app, { isTokenAutoRefreshEnabled: true, provider: new CustomProvider({ getToken: async () => {
+      await ready;
+      const result = await FirebaseAppCheck.getToken({ forceRefresh: false });
+      if (!result.token || !Number.isFinite(result.expireTimeMillis)) throw new Error('Device attestation did not return a valid token.');
+      return { token: result.token, expireTimeMillis: result.expireTimeMillis! };
+    } }) });
+  } else {
+    const siteKey = import.meta.env.VITE_APP_CHECK_SITE_KEY;
+    if (!siteKey) throw new Error('Web App Check site key is missing.');
+    initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true });
+  }
+}
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+export const db = getFirestore(app, import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const functions = getFunctions(app, 'asia-south1');
 export const googleProvider = new GoogleAuthProvider();
 
 // Error diagnostic helper as specified in firebase-integration-rpc skill
@@ -33,29 +64,7 @@ interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Hardened Error:', JSON.stringify(errInfo, null, 2));
-  throw new Error(JSON.stringify(errInfo));
+  console.error('Firestore request failed', { operationType, path, code: (error as { code?: string })?.code || 'unknown' });
+  throw error instanceof Error ? error : new Error('The request could not be completed.');
 }
 
-// Perform simple validation connection check
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test_connection', 'ping'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration status. The client appears offline.");
-    }
-  }
-}
-testConnection();

@@ -6,9 +6,32 @@ export interface UserProfile {
   role: 'customer' | 'driver' | 'merchant' | 'admin';
   createdAt: string;
   walletBalance?: number;
+  photoURL?: string;
+  defaultAddressId?: string;
+  defaultAddress?: string;
+  merchantId?: string;
+  merchantType?: 'restaurant' | 'grocery';
+  preferences?: {
+    orderUpdates: boolean;
+    promotions: boolean;
+    language: 'en' | 'ta';
+  };
+}
+
+export interface SavedAddress {
+  id: string;
+  label: string;
+  address: string;
+  createdAt: string;
 }
 
 export interface DriverProfile {
+  supportedServices?: Booking['serviceType'][];
+  rejectedBookingIds?: string[];
+  availableEarningsCents?: number;
+  reservedEarningsCents?: number;
+  activeBookingId?: string | null;
+  earningsDate?: string;
   driverId: string;
   vehicleType: 'bike' | 'auto' | 'car' | 'suv';
   vehicleNo: string;
@@ -17,11 +40,16 @@ export interface DriverProfile {
   online: boolean;
   currentLat?: number;
   currentLng?: number;
+  locationUpdatedAt?: string;
+  locationAccuracyMeters?: number;
   todayEarnings?: number;
   completedJobs?: number;
 }
 
 export interface Restaurant {
+  description?: string;
+  openingHours?: string;
+  acceptingOrders?: boolean;
   id: string;
   name: string;
   cuisine: string;
@@ -33,17 +61,25 @@ export interface Restaurant {
 }
 
 export interface MenuItem {
+  ingredients?: string;
+  allergens?: string[];
+  servingSize?: string;
   id: string;
   restaurantId: string;
   name: string;
   price: number;
   isVeg: boolean;
+  available?: boolean;
   category: string;
   description: string;
   image: string;
+  variants?: { id: string; label: string; price: number; available?: boolean }[];
 }
 
 export interface GroceryStore {
+  description?: string;
+  openingHours?: string;
+  acceptingOrders?: boolean;
   id: string;
   name: string;
   address: string;
@@ -53,6 +89,12 @@ export interface GroceryStore {
 }
 
 export interface GroceryProduct {
+  description?: string;
+  brand?: string;
+  ingredients?: string;
+  allergens?: string[];
+  storageInstructions?: string;
+  countryOfOrigin?: string;
   id: string;
   storeId: string;
   name: string;
@@ -64,6 +106,7 @@ export interface GroceryProduct {
 }
 
 export interface Booking {
+  driverPayout?: number;
   bookingId: string;
   customerId: string;
   customerName: string;
@@ -71,22 +114,51 @@ export interface Booking {
   status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'transit' | 'delivered' | 'completed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
+  completedAt?: string;
   price: number;
   pickupAddress?: string;
   dropAddress?: string;
-  driverId?: string;
+  driverId?: string | null;
   driverName?: string;
+  merchantId?: string;
   otp?: string;
+  paymentStatus?: 'paid' | 'refund_processing' | 'refunded' | 'refund_required';
+  paymentMethod?: 'upi' | 'card' | 'netbanking' | 'wallet' | 'emi' | 'other';
+  paymentOrderId?: string;
+  paymentId?: string;
   details?: BookingDetails;
 }
 
 export interface BookingDetails {
+  restaurantId?: string;
+  restaurantName?: string;
+  storeId?: string;
+  parcelDescription?: string;
+  fragile?: boolean;
+  declaredValue?: number;
+  restrictedItemsConfirmed?: boolean;
+  parcelContacts?: { senderName: string; senderPhone: string; recipientName: string; recipientPhone: string };
+  quoteId?: string;
+  pickupPlaceId?: string;
+  dropPlaceId?: string;
+  pickupLocation?: { lat: number; lng: number };
+  dropLocation?: { lat: number; lng: number };
+  pickupZoneId?: string;
+  dropZoneId?: string;
+  routeProvider?: string;
+  takeoverOption?: string;
+  preferredDate?: string;
+  deliveryMode?: string;
+  weightKg?: number;
+  parcelType?: string;
   // Food & Grocery orders details
   items?: {
     id: string;
     name: string;
     price: number;
     quantity: number;
+    variantId?: string;
+    variantName?: string;
   }[];
   notes?: string;
 

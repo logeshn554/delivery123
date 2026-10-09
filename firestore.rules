@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // 2. PRIMITIVE GLOBAL HELPERS
     function isSignedIn() {
-      return request.auth != null;
+      return request.auth != null && (!exists(/databases/$(database)/documents/account_deletions/$(request.auth.uid)) || get(/databases/$(database)/documents/account_deletions/$(request.auth.uid)).data.status == 'requested');
     }
 
     function isOwner(userId) {
@@ -20,47 +20,82 @@ service cloud.firestore {
       return isSignedIn() && (driverId == request.auth.uid || driverId == request.auth.uid + '_drv');
     }
 
+    function isVerifiedOnlineDriver() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver'
+        && get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data.status == 'verified'
+        && get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data.online == true;
+    }
+
+    function canReceiveBooking(data) {
+      let driver = get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data;
+      return isVerifiedOnlineDriver() && data.driverId == null && data.serviceType in driver.get('supportedServices', [])
+        && ((data.serviceType in ['food', 'grocery'] && data.status == 'ready') || (!(data.serviceType in ['food', 'grocery']) && data.status == 'pending'))
+        && (data.serviceType != 'ride' || data.details.vehicleType == driver.vehicleType);
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
-    function isEmailAdmin() {
-      return isSignedIn() && (
-        (request.auth.token.keys().hasAll(['email']) && (
-          request.auth.token.email == 'logeshlogesh.n554@gmail.com' ||
-          request.auth.token.email == 'logesh.al23@bitsathy.ac.in' ||
-          request.auth.token.email.matches('.*@allgo\\.in')
-        )) ||
-        // Document-based admin role fallback for anonymous guest simulation sessions
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.get('admin', false) == true;
     }
 
     function incoming() {
       return request.resource.data;
     }
 
+    function isMerchantFor(data) {
+      let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isSignedIn() && account.role == 'merchant'
+        && account.get('merchantId', '') != ''
+        && data.get('merchantId', '') == account.get('merchantId', '')
+        && ((account.get('merchantType', '') == 'restaurant' && data.serviceType == 'food') || (account.get('merchantType', '') == 'grocery' && data.serviceType == 'grocery'));
+    }
+
     function existing() {
       return resource.data;
+    }
+
+    function canAccessBooking(bookingId) {
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      return isSignedIn() && (
+        booking.customerId == request.auth.uid ||
+        booking.driverId == request.auth.uid ||
+        booking.driverId == request.auth.uid + '_drv' ||
+        isMerchantFor(booking) ||
+        canReceiveBooking(booking) ||
+        isAdmin()
+      );
     }
 
     // 3. VALIDATION HELPERS BY COLLECTION
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'email', 'role']) 
-        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'merchantId', 'merchantType'])
         && data.uid == request.auth.uid
         && data.name is string && data.name.size() <= 100
         && data.email is string && data.email.size() <= 100
         && (data.role == 'customer' || data.role == 'driver' || data.role == 'merchant' || data.role == 'admin')
         && (!data.keys().hasAny(['phone']) || (data.phone is string && data.phone.size() <= 20))
-        && (!data.keys().hasAny(['walletBalance']) || (data.walletBalance is int || data.walletBalance is float));
+        && (!data.keys().hasAny(['walletBalance']) || (data.walletBalance is int || data.walletBalance is float))
+        && (!data.keys().hasAny(['defaultAddressId']) || (data.defaultAddressId is string && data.defaultAddressId.size() <= 128))
+        && (!data.keys().hasAny(['defaultAddress']) || (data.defaultAddress is string && data.defaultAddress.size() <= 300))
+        && (!data.keys().hasAny(['preferences']) || (
+          data.preferences is map
+          && data.preferences.keys().hasAll(['orderUpdates', 'promotions', 'language'])
+          && data.preferences.keys().hasOnly(['orderUpdates', 'promotions', 'language'])
+          && data.preferences.orderUpdates is bool
+          && data.preferences.promotions is bool
+          && (data.preferences.language == 'en' || data.preferences.language == 'ta')
+        ));
     }
 
     function isValidDriverProfile(data, driverId) {
       return data.keys().hasAll(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online'])
-        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs'])
+        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs', 'activeBookingId', 'earningsDate', 'rejectedBookingIds', 'availableEarningsCents', 'reservedEarningsCents', 'supportedServices', 'locationUpdatedAt', 'locationAccuracyMeters'])
         && data.driverId == driverId
         && (data.vehicleType == 'bike' || data.vehicleType == 'auto' || data.vehicleType == 'car' || data.vehicleType == 'suv')
         && data.vehicleNo is string && data.vehicleNo.size() <= 30
@@ -75,7 +110,7 @@ service cloud.firestore {
 
     function isValidBooking(data) {
       return data.keys().hasAll(['bookingId', 'customerId', 'customerName', 'serviceType', 'status', 'price'])
-        && data.keys().hasOnly(['bookingId', 'customerId', 'customerName', 'serviceType', 'status', 'price', 'createdAt', 'updatedAt', 'pickupAddress', 'dropAddress', 'driverId', 'driverName', 'otp', 'details'])
+        && data.keys().hasOnly(['bookingId', 'customerId', 'customerName', 'serviceType', 'status', 'price', 'createdAt', 'updatedAt', 'pickupAddress', 'dropAddress', 'driverId', 'driverName', 'otp', 'paymentStatus', 'paymentMethod', 'paymentOrderId', 'paymentId', 'details', 'driverPayout'])
         && data.bookingId is string && data.bookingId.size() <= 100
         && data.customerId == request.auth.uid
         && data.customerName is string && data.customerName.size() <= 100
@@ -84,9 +119,13 @@ service cloud.firestore {
         && (data.price is int || data.price is float)
         && (!data.keys().hasAny(['pickupAddress']) || (data.pickupAddress is string && data.pickupAddress.size() <= 300))
         && (!data.keys().hasAny(['dropAddress']) || (data.dropAddress is string && data.dropAddress.size() <= 300))
-        && (!data.keys().hasAny(['driverId']) || (data.driverId is string && data.driverId.size() <= 100))
+        && (!data.keys().hasAny(['driverId']) || data.driverId == null || (data.driverId is string && data.driverId.size() <= 100))
         && (!data.keys().hasAny(['driverName']) || (data.driverName is string && data.driverName.size() <= 100))
-        && (!data.keys().hasAny(['otp']) || (data.otp is string && data.otp.size() <= 10));
+        && (!data.keys().hasAny(['otp']) || (data.otp is string && data.otp.size() <= 10))
+        && (!data.keys().hasAny(['paymentStatus']) || data.paymentStatus == 'paid' || data.paymentStatus == 'refund_processing' || data.paymentStatus == 'refunded' || data.paymentStatus == 'refund_required')
+        && (!data.keys().hasAny(['paymentMethod']) || data.paymentMethod == 'upi' || data.paymentMethod == 'card' || data.paymentMethod == 'netbanking' || data.paymentMethod == 'wallet' || data.paymentMethod == 'emi' || data.paymentMethod == 'other')
+        && (!data.keys().hasAny(['paymentOrderId']) || (data.paymentOrderId is string && data.paymentOrderId.size() <= 100))
+        && (!data.keys().hasAny(['paymentId']) || (data.paymentId is string && data.paymentId.size() <= 100));
     }
 
     function isValidSupportTicket(data) {
@@ -103,83 +142,160 @@ service cloud.firestore {
 
     // USERS COLLECTION
     match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if isEmailAdmin();
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
-      allow update: if isSignedIn() && (isEmailAdmin() || (isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role));
-      allow delete: if isEmailAdmin();
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType']);
+      allow update: if isSignedIn() && ((isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role && incoming().walletBalance == existing().walletBalance && incoming().get('merchantId', null) == existing().get('merchantId', null) && incoming().get('merchantType', null) == existing().get('merchantType', null)));
+      allow delete: if isAdmin();
+
+      match /addresses/{addressId} {
+        function validAddress(data) {
+          return data.keys().hasAll(['label', 'address', 'createdAt'])
+            && data.keys().hasOnly(['label', 'address', 'createdAt'])
+            && data.label is string && data.label.size() > 0 && data.label.size() <= 30
+            && data.address is string && data.address.size() > 0 && data.address.size() <= 300
+            && data.createdAt is string && data.createdAt.size() <= 40;
+        }
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && validAddress(incoming());
+        allow update: if isOwner(userId) && validAddress(incoming())
+          && incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId);
+      }
     }
 
     // DRIVER PROFILES
     match /driver_profiles/{driverId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isDriverOwner(driverId) && isValidDriverProfile(incoming(), driverId);
+      allow get: if isOwner(driverId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isDriverOwner(driverId)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver'
+        && isValidDriverProfile(incoming(), driverId)
+        && incoming().status == 'pending' && incoming().online == false
+        && incoming().todayEarnings == 0 && incoming().completedJobs == 0
+        && incoming().get('availableEarningsCents', 0) == 0 && incoming().get('reservedEarningsCents', 0) == 0
+        && incoming().get('rejectedBookingIds', []) == [] && incoming().get('supportedServices', []) == []
+        && !('activeBookingId' in incoming());
       allow update: if isSignedIn() && (
-        isEmailAdmin() || 
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'online', 'supportedServices']) && incoming().status in ['pending', 'verified', 'rejected'] && incoming().online == false && incoming().supportedServices is list) || 
         (isDriverOwner(driverId) && isValidDriverProfile(incoming(), driverId) && (
           // Drivers can update online state or coordinates, but can't self-approve verification status
+          incoming().get('currentLat', null) == existing().get('currentLat', null) &&
+          incoming().get('currentLng', null) == existing().get('currentLng', null) &&
+          incoming().get('locationUpdatedAt', null) == existing().get('locationUpdatedAt', null) &&
+          incoming().get('locationAccuracyMeters', null) == existing().get('locationAccuracyMeters', null) &&
           incoming().status == existing().status &&
           incoming().todayEarnings == existing().todayEarnings &&
-          incoming().completedJobs == existing().completedJobs
+          incoming().completedJobs == existing().completedJobs &&
+          incoming().get('activeBookingId', null) == existing().get('activeBookingId', null) &&
+          incoming().get('rejectedBookingIds', []) == existing().get('rejectedBookingIds', []) &&
+          incoming().get('availableEarningsCents', 0) == existing().get('availableEarningsCents', 0) &&
+          incoming().get('reservedEarningsCents', 0) == existing().get('reservedEarningsCents', 0) &&
+          incoming().get('supportedServices', []) == existing().get('supportedServices', []) &&
+          (existing().status != 'verified' || (incoming().vehicleType == existing().vehicleType && incoming().vehicleNo == existing().vehicleNo && incoming().licenseNo == existing().licenseNo)) &&
+          incoming().get('earningsDate', null) == existing().get('earningsDate', null)
         ))
       );
-      allow delete: if isEmailAdmin();
+      allow delete: if isAdmin();
     }
 
     // RESTAURANTS & SUB-COLLECTIONS
     match /restaurants/{restaurantId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
 
       match /menu_items/{itemId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow write: if isAdmin();
       }
     }
 
     // GROCERY STORES & SUB-COLLECTIONS
     match /grocery_stores/{storeId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
 
       match /products/{productId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow write: if isAdmin();
       }
     }
 
     // BOOKINGS (Unified transactional records)
     match /bookings/{bookingId} {
-      allow get: if isSignedIn();
+      allow get: if canAccessBooking(bookingId);
       allow list: if isSignedIn() && (
         resource.data.customerId == request.auth.uid || 
         resource.data.driverId == request.auth.uid || 
         resource.data.driverId == request.auth.uid + '_drv' ||
-        isEmailAdmin()
+        isMerchantFor(resource.data) ||
+        canReceiveBooking(resource.data) ||
+        isAdmin()
       );
-      allow create: if isSignedIn() && isValidBooking(incoming());
-      allow update: if isSignedIn() && (
-        isEmailAdmin() || 
-        (existing().customerId == request.auth.uid && isValidBooking(incoming()) && incoming().customerId == existing().customerId) ||
-        (existing().driverId == request.auth.uid + '_drv') ||
-        (existing().driverId == request.auth.uid) ||
-        (incoming().driverId == request.auth.uid + '_drv' && existing().driverId == null) // Allow driver to claim booking
-      );
-      allow delete: if isEmailAdmin();
+      // Customer bookings are created by the verified payment Cloud Function only.
+      allow create: if false;
+      // Driver transitions and settlement use transactional Cloud Functions.
+      allow update, delete: if false;
 
       match /chats/{chatId} {
-        allow read, write: if isSignedIn();
+        function canChat() {
+          let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+          return isSignedIn() && (booking.customerId == request.auth.uid || booking.driverId == request.auth.uid || isAdmin());
+        }
+        allow read: if canChat();
+        allow create: if false;
+        allow update, delete: if false;
       }
+    }
+
+    match /booking_tracking/{bookingId} {
+      allow get: if isSignedIn() && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customerId == request.auth.uid || get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid || isAdmin());
+      allow list, write: if false;
+    }
+
+    match /booking_contacts/{bookingId} {
+      // Sender/recipient phones are private, including while a job is offered to partners.
+      allow get: if isSignedIn() && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customerId == request.auth.uid || get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid || isAdmin());
+      allow list, write: if false;
+    }
+
+    match /wallet_ledger/{userId}/entries/{entryId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false;
+    }
+    match /account_deletions/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if false;
+    }
+
+    match /booking_codes/{bookingId} {
+      allow get, list: if isSignedIn() && resource.data.customerId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Payment attempts are private to trusted Cloud Functions (Admin SDK bypasses these rules).
+    match /payment_attempts/{attemptId} {
+      allow read, write: if false;
     }
 
     // SUPPORT TICKETS
     match /support_tickets/{ticketId} {
-      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isEmailAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isEmailAdmin());
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidSupportTicket(incoming());
-      allow update: if isEmailAdmin();
-      allow delete: if isEmailAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /payout_requests/{requestId} {
+      allow create: if false;
+      allow get, list: if isSignedIn() && (resource.data.driverId == request.auth.uid || isAdmin());
+      allow update, delete: if false;
+    }
+
+    match /driver_ledger/{driverId}/entries/{entryId} {
+      allow read: if isOwner(driverId) || isAdmin();
+      allow write: if false;
     }
   }
 }
