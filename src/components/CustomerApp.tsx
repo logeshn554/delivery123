@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { Checkout } from 'capacitor-razorpay';
+import { openPaymentCheckout } from '../payments';
 import ServiceBookingScreen from './ServiceBookingScreen';
 import ParcelBookingScreen from './ParcelBookingScreen';
+import TransportBookingScreen from './TransportBookingScreen';
 import ShopAgainScreen from './ShopAgainScreen';
 import CatalogDetails, { type CatalogPage } from './CatalogDetails';
 import CheckoutReviewScreen from './CheckoutReviewScreen';
 import OrderTrackingScreen from './OrderTrackingScreen';
 import ParcelOrderDetails from './ParcelOrderDetails';
+import TransportOrderDetails from './TransportOrderDetails';
 import PaymentRecoveryPanel from './PaymentRecoveryPanel';
 import WalletPanel from './WalletPanel';
 import CustomerPages, { customerPages, type CustomerPage } from './CustomerPages';
 import { enableOrderNotifications } from '../nativeNotifications';
-import { 
+import {
   Search, MapPin, Bell, User, Clock, Star, ArrowRight, ArrowLeft, ShoppingBag, Heart,
-  Map, Truck, Shield, AlertCircle, Sparkles, Check, CheckCircle2, Ticket, CreditCard, 
+  Map, Truck, Shield, AlertCircle, Sparkles, Check, CheckCircle2, Ticket, CreditCard,
   HelpCircle, LogOut, ChevronRight, CheckSquare, Plus, Minus, Filter, Phone, PhoneCall, Car, Navigation, Send, MessageSquare,
   Utensils, Package, Bike, UserRound, UserRoundCog, House, ClipboardList, LifeBuoy, Settings, ShoppingCart, Trash2
 } from 'lucide-react';
 import { Booking, Restaurant, MenuItem, GroceryStore, GroceryProduct, SupportTicket } from '../types';
-import { 
+import {
   createSupportTicket,
-  sendChatMessage, 
+  sendChatMessage,
   listenToChatMessages,
   listenToRestaurants,
   listenToMenuItems,
@@ -33,11 +34,13 @@ import {
   deleteSavedAddress,
   updateUserAddress,
   updateUserPreferences,
-  startOnlinePayment, payWithWallet, requestAccountDeletion, previewCartCoupon,
+  updateUserFavorites,
+  startOnlinePayment, payWithWallet, requestAccountDeletion, previewCartCoupon, getCartQuote,
   confirmOnlinePayment,
   requestBookingCancellation,
 } from '../data/firestoreHelper';
 import { SavedAddress, UserProfile } from '../types';
+
 
 interface CustomerAppProps {
   userId: string;
@@ -109,12 +112,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [extraPage, setExtraPage] = useState<CustomerPage>('help');
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { contentRef.current?.scrollTo({ top: 0, behavior: 'auto' }); }, [currentTab, extraPage]);
-  const openPage = (page: CustomerPage) => { setExtraPage(page); setActiveWorkflow('none'); setCurrentTab('more'); }; 
+  const openPage = (page: CustomerPage) => { setExtraPage(page); setActiveWorkflow('none'); setCurrentTab('more'); };
   const [activeWorkflow, setActiveWorkflow] = useState<'none' | 'food' | 'grocery' | 'ride' | 'parcel' | 'takeover' | 'transport'>('none');
 
   // Address and Search (Prefilled via automatic Geolocation reverse-lookup)
   const [deliveryAddress, setDeliveryAddress] = useState(userProfile?.defaultAddress || "");
   const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addressDraft, setAddressDraft] = useState('');
+  useEffect(() => { if (showAddressModal) setAddressDraft(deliveryAddress); }, [showAddressModal]);
   const [addressSaving, setAddressSaving] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [addressLabel, setAddressLabel] = useState('Home');
@@ -127,11 +132,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [vegetarianOnly, setVegetarianOnly] = useState(false);
   const [favoriteCatalogIds, setFavoriteCatalogIds] = useState<string[]>(() => {
+    if (Array.isArray(userProfile?.favorites)) return userProfile.favorites.filter(id => typeof id === 'string');
     try {
       const stored = JSON.parse(localStorage.getItem(`allgo-favorites-${userId}`) || '[]');
       return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [];
     } catch { return []; }
   });
+  const favoriteRevision = useRef(0);
+  useEffect(() => { if (Array.isArray(userProfile?.favorites)) setFavoriteCatalogIds(userProfile.favorites.filter(id => typeof id === 'string')); }, [userProfile?.favorites]);
 
   // Keep deliveryAddress synchronized if detectedAddress updates
   useEffect(() => {
@@ -143,21 +151,21 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   }, [userProfile?.defaultAddress]);
 
   const handleSaveAddress = async () => {
-    if (!deliveryAddress.trim()) return;
+    if (!addressDraft.trim()) return;
     setAddressSaving(true);
     try {
-      const savedAddress = savedAddresses.find((address) => address.address === deliveryAddress.trim());
+      const savedAddress = savedAddresses.find((address) => address.address === addressDraft.trim());
       if (savedAddress) {
-        await updateUserAddress(userId, deliveryAddress, savedAddress.id);
+        await updateUserAddress(userId, addressDraft, savedAddress.id);
       } else {
         if (savedAddresses.length >= 10) {
           alert('You can save up to 10 addresses. Remove an old address to add another.');
           return;
         }
-        await saveUserAddress(userId, addressLabel, deliveryAddress);
+        await saveUserAddress(userId, addressLabel, addressDraft);
       }
-      setDeliveryAddress(deliveryAddress.trim());
-      setPickupSpot(deliveryAddress.trim());
+      setDeliveryAddress(addressDraft.trim());
+      setPickupSpot(addressDraft.trim());
       setShowAddressModal(false);
     } catch {
       alert('We could not save this address. Please try again.');
@@ -227,6 +235,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [grocerySort, setGrocerySort] = useState('name');
   const [inStockOnly, setInStockOnly] = useState(true);
   const [showCheckoutReview, setShowCheckoutReview] = useState(false);
+  const [cartQuote, setCartQuote] = useState<Awaited<ReturnType<typeof getCartQuote>> | null>(null);
+  const [cartQuoteError, setCartQuoteError] = useState('');
+  const [cartQuoteBusy, setCartQuoteBusy] = useState(false);
   useEffect(() => { if (currentTab !== 'cart') setShowCheckoutReview(false); }, [currentTab]);
   const [useWallet, setUseWallet] = useState(false);
   const [couponCode, setCouponCode] = useState('');
@@ -234,6 +245,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [couponError, setCouponError] = useState('');
   const [couponBusy, setCouponBusy] = useState(false);
   const couponRevision = useRef(0);
+  useEffect(() => {
+    setCartQuote(null); setCartQuoteError('');
+    if (!showCheckoutReview || !cartService || !cart.length || !deliveryAddress.trim()) return;
+    let active = true; setCartQuoteBusy(true);
+    const details = { restaurantId: cartService === 'food' ? cartSourceId : undefined, storeId: cartService === 'grocery' ? cartSourceId : undefined, notes: orderNotes.trim(), items: cart.map(line => ({ id: line.item.id, quantity: line.quantity, ...(line.variant ? { variantId: line.variant.id } : {}) })) };
+    void getCartQuote({ serviceType: cartService, pickupAddress: deliveryAddress, details }, coupon?.code).then(quote => { if (active) setCartQuote(quote); }).catch(error => { if (active) setCartQuoteError(error instanceof Error ? error.message : 'Could not confirm delivery coverage and charges.'); }).finally(() => { if (active) setCartQuoteBusy(false); });
+    return () => { active = false; };
+  }, [showCheckoutReview, cartService, cart, cartSourceId, deliveryAddress, coupon?.code, orderNotes]);
   const walletRequest = useRef({ fingerprint: '', id: '' });
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [preferences, setPreferences] = useState(userProfile?.preferences || { orderUpdates: true, promotions: false, language: 'en' as const });
@@ -255,7 +274,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   useEffect(() => {
     if (userProfile?.preferences) setPreferences(userProfile.preferences);
   }, [userProfile?.preferences]);
-  
+
   // Rides states
   const [pickupSpot, setPickupSpot] = useState(detectedAddress || "");
   const [dropSpot, setDropSpot] = useState("");
@@ -408,9 +427,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   };
 
   const toggleFavorite = (catalogId: string) => {
-    setFavoriteCatalogIds((current) => current.includes(catalogId)
-      ? current.filter((id) => id !== catalogId)
-      : [...current, catalogId]);
+    const previous = favoriteCatalogIds;
+    const next = previous.includes(catalogId) ? previous.filter(id => id !== catalogId) : [...previous, catalogId];
+    const revision = ++favoriteRevision.current;
+    setFavoriteCatalogIds(next);
+    void updateUserFavorites(userId, next).catch(error => { if (revision === favoriteRevision.current) setFavoriteCatalogIds(previous); alert(error instanceof Error ? error.message : 'Saved items could not be updated.'); });
   };
 
   const handleSavePreferences = async (next: typeof preferences) => {
@@ -465,7 +486,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     }
     if (paymentBusy || couponBusy) return;
     const appliedCoupon = ['food', 'grocery'].includes(serviceType) ? coupon : null;
-    price = Math.round(price * 100 - (appliedCoupon?.discountCents || 0)) / 100;
+    if (['food','grocery'].includes(serviceType)) {
+      if (!cartQuote || cartQuoteBusy || cartQuoteError) return;
+      price = cartQuote.amount / 100;
+    } else price = Math.round(price * 100 - (appliedCoupon?.discountCents || 0)) / 100;
     if (useWallet) {
       setPaymentBusy(true);
       const draft = { couponCode: appliedCoupon?.code, serviceType, customerName: userName, pickupAddress: route?.pickupAddress ?? deliveryAddress, dropAddress: route?.dropAddress ?? '', details: extraDetails };
@@ -479,10 +503,6 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         setSuccessBookingId(result.bookingId); setActiveWorkflow('none'); setSelectedOrderId(result.bookingId); setCurrentTab('orders');
       } catch (error) { alert(error instanceof Error ? error.message : 'Wallet checkout failed.'); }
       finally { setPaymentBusy(false); }
-      return;
-    }
-    if (!Capacitor.isNativePlatform()) {
-      alert('Secure payment checkout is available in the AllGo Android and iOS apps.');
       return;
     }
     setPaymentBusy(true);
@@ -511,14 +531,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         theme: { color: '#4f46e5' },
         retry: { enabled: true, max_count: 3 }
       };
-      const checkout = await Checkout.open(checkoutOptions as Parameters<typeof Checkout.open>[0]);
-      const rawResponse = (checkout as { response?: unknown }).response ?? checkout;
-      const paymentResponse = typeof rawResponse === 'string' ? JSON.parse(rawResponse) : rawResponse as Record<string, string>;
-      const confirmation = {
-        razorpay_order_id: paymentResponse.razorpay_order_id,
-        razorpay_payment_id: paymentResponse.razorpay_payment_id,
-        razorpay_signature: paymentResponse.razorpay_signature
-      };
+      const confirmation = await openPaymentCheckout(checkoutOptions);
       if (!confirmation.razorpay_order_id || !confirmation.razorpay_payment_id || !confirmation.razorpay_signature) {
         throw new Error('The payment provider did not return a complete receipt. No booking was created.');
       }
@@ -626,12 +639,12 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
   return (
       <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative select-none">
-      
+
       {/* REAL-TIME MESSAGING POPUP DRAWER */}
       {activeChatBookingId && (
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end z-40 animate-fadeIn">
           <div className="bg-white rounded-t-3xl h-[85%] flex flex-col shadow-2xl animate-slideUp">
-            
+
             {/* Chat header */}
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-3xl">
               <div className="flex items-center gap-2">
@@ -677,15 +690,15 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
             {/* Chat Input Footer Form */}
             <form onSubmit={handleSendChatMessage} className="p-3 bg-white border-t border-slate-100 flex gap-2 shrink-0">
-              <input 
-                type="text" 
-                placeholder="Type your message..." 
+              <input
+                type="text"
+                placeholder="Type your message..."
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 className="flex-1 bg-slate-50 border border-slate-100 text-xs rounded-xl px-3.5 py-2.5 outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white"
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl flex items-center justify-center shrink-0 transition-transform active:scale-95"
               >
                 <Send className="w-4 h-4" />
@@ -711,7 +724,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <p className="text-[10px] font-semibold text-slate-500">{deliveryAddress || detectedAddress || 'Choose delivery address'}</p>
             </div>
           </button>
-          
+
           <div className="flex items-center gap-2">
             <button aria-label="View notifications" onClick={() => openPage('notifications')} className="relative p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-50 transition-colors">
               <Bell className="w-5 h-5" />
@@ -725,9 +738,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {activeWorkflow === 'none' && currentTab === 'home' && (
           <div className="relative mt-3">
             <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search food, groceries, rides, parcels..." 
+            <input
+              type="text"
+              placeholder="Search food, groceries, rides, parcels..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-100/90 text-slate-800 placeholder-slate-400 text-xs rounded-xl pl-9 pr-4 py-3 border-none outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white transition-all"
@@ -750,7 +763,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
         {currentTab === 'home' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
-            
+
             <section className="home-promo">
               <div><span className="promo-kicker">GOOD FOOD. GOOD MOOD.</span><h2>Your next favourite<br />is a tap away.</h2><button onClick={() => setActiveWorkflow('food')}>Explore food <ArrowRight size={15} /></button></div>
               <div className="promo-art" aria-hidden="true"><Utensils size={58} /><span>Fresh finds</span></div>
@@ -810,7 +823,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <button onClick={() => setVegetarianOnly((value) => !value)} aria-pressed={vegetarianOnly} className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${vegetarianOnly ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>Vegetarian</button>
               {selectedRestaurant && <div className="flex gap-1.5 overflow-x-auto">
               {["All", ...new Set(menuItemsList.filter((item) => item.restaurantId === selectedRestaurant.id).map((item) => item.category))].map(cat => (
-                <button 
+                <button
                   key={cat}
                   onClick={() => setSelectedFoodCategory(cat)}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors ${
@@ -830,7 +843,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                   const matchesQuery = `${rest.name} ${rest.cuisine} ${rest.address}`.toLowerCase().includes(foodSearch.trim().toLowerCase());
                   return matchesQuery && (!showFavoritesOnly || favoriteCatalogIds.includes(`restaurant:${rest.id}`)) && (!vegetarianOnly || rest.pureVeg);
                 }).sort((a,b) => foodSort === 'rating' ? (b.rating || 0)-(a.rating || 0) : a.name.localeCompare(b.name)).map(rest => (
-                  <div 
+                  <div
                     key={rest.id}
                     className="relative bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
                   >
@@ -864,7 +877,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
                 <div className="space-y-3 mb-6">
                   {menuLoading && <p role="status" className="catalog-empty">Loading this restaurant’s menu…</p>}
-                  {menuItemsList.filter(it => it.restaurantId === selectedRestaurant.id && it.available !== false && (selectedFoodCategory === 'All' || it.category === selectedFoodCategory) && (!foodSearch.trim() || `${it.name} ${it.description} ${it.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) && (!vegetarianOnly || it.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`product:${it.id}`))).map(item => {
+                  {menuItemsList.filter(it => it.restaurantId === selectedRestaurant.id && it.available !== false && (selectedFoodCategory === 'All' || it.category === selectedFoodCategory) && (!foodSearch.trim() || `${it.name} ${it.description} ${it.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) && (!vegetarianOnly || it.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`dish:${it.id}`))).map(item => {
                     const availableVariants = item.variants?.filter(variant => variant.available !== false) || [];
                     const variant = availableVariants.find(option => option.id === selectedFoodVariants[item.id]) || availableVariants[0];
                     const qty = cart.find(c => c.item.id === item.id && c.variant?.id === variant?.id)?.quantity || 0;
@@ -876,9 +889,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                           <p className="text-xs font-black text-slate-900 mt-0.5">₹{variant?.price ?? item.price}</p>
                           {availableVariants.length > 0 && <label className="mt-2 block text-[11px] font-semibold text-slate-600">Option<select aria-label={`${item.name} option`} value={variant?.id || ''} onChange={event => setSelectedFoodVariants(current => ({ ...current, [item.id]: event.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"><option value="" disabled>Choose an option</option>{availableVariants.map(option => <option key={option.id} value={option.id}>{option.label} · ₹{option.price}</option>)}</select></label>}
                         </div>
-                        
+
                         <div>
-                          <button aria-label={`${favoriteCatalogIds.includes(`product:${item.id}`) ? 'Remove' : 'Save'} ${item.name}`} onClick={() => toggleFavorite(`product:${item.id}`)} className="mb-2 block ml-auto text-rose-500"><Heart size={16} fill={favoriteCatalogIds.includes(`product:${item.id}`) ? 'currentColor' : 'none'} /></button>
+                          <button aria-label={`${favoriteCatalogIds.includes(`dish:${item.id}`) ? 'Remove' : 'Save'} ${item.name}`} onClick={() => toggleFavorite(`dish:${item.id}`)} className="mb-2 block ml-auto text-rose-500"><Heart size={16} fill={favoriteCatalogIds.includes(`dish:${item.id}`) ? 'currentColor' : 'none'} /></button>
                           {qty === 0 ? (
                             <button disabled={item.variants?.length ? !variant : false} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)} className="bg-orange-500 text-white text-xs px-3 py-1 rounded-lg disabled:opacity-50">Add</button>
                           ) : (
@@ -892,14 +905,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                       </div>
                     );
                   })}
-                  {!menuLoading && menuItemsList.filter(it => it.restaurantId === selectedRestaurant.id && it.available !== false && (selectedFoodCategory === 'All' || it.category === selectedFoodCategory) && (!foodSearch.trim() || `${it.name} ${it.description} ${it.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) && (!vegetarianOnly || it.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`product:${it.id}`))).length === 0 && <p className="rounded-xl border border-dashed border-slate-200 bg-white p-5 text-center text-xs text-slate-500">No available dishes match these filters.</p>}
+                  {!menuLoading && menuItemsList.filter(it => it.restaurantId === selectedRestaurant.id && it.available !== false && (selectedFoodCategory === 'All' || it.category === selectedFoodCategory) && (!foodSearch.trim() || `${it.name} ${it.description} ${it.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) && (!vegetarianOnly || it.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`dish:${it.id}`))).length === 0 && <p className="rounded-xl border border-dashed border-slate-200 bg-white p-5 text-center text-xs text-slate-500">No available dishes match these filters.</p>}
                 </div>
 
                 {cart.length > 0 && (
                   <div className="sticky bottom-0 bg-white border-t p-3 -mx-4">
                     <div className="mb-1 flex justify-between items-center">
                       <div><h4 className="text-sm font-black text-slate-800">Items total: ₹{getCartTotal()}</h4><p className="text-[10px] text-slate-500">Secure online payment in app</p></div>
-                      <button 
+                      <button
                         onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}
                         className="bg-orange-500 text-white text-xs py-2 px-4 rounded-xl"
                       >
@@ -981,7 +994,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <div className="sticky bottom-0 bg-white border-t p-3 -mx-4">
                 <div className="flex justify-between items-center">
                   <div><h4 className="text-sm font-black text-slate-800">Items total: ₹{getCartTotal()}</h4><p className="text-[10px] text-slate-500">Secure online payment in app</p></div>
-                  <button 
+                  <button
                     onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}
                     className="bg-emerald-600 text-white text-xs py-2 px-4 rounded-xl"
                   >
@@ -996,7 +1009,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {/* WORKFLOW: RIDE BOOKING */}
         {(currentTab === 'cart' || ['ride', 'parcel', 'takeover', 'transport'].includes(activeWorkflow)) && <label className="flex min-h-11 items-center gap-3 rounded-xl border bg-white p-3 text-xs font-bold"><input type="checkbox" checked={useWallet} disabled={paymentBusy} onChange={event => setUseWallet(event.target.checked)} /> Pay with AllGo wallet (₹{userProfile?.walletBalance || 0} available)</label>}
         {activeWorkflow === 'parcel' && <ParcelBookingScreen customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft,price) => handleCheckout('parcel',price,draft.details,{pickupAddress:draft.pickupAddress,dropAddress:draft.dropAddress})}/> }
-        {(['ride', 'takeover', 'transport'] as const).map(service => activeWorkflow === service && <ServiceBookingScreen key={service} service={service} customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout(service, price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />)}
+        {(['ride', 'takeover'] as const).map(service => activeWorkflow === service && <ServiceBookingScreen key={service} service={service} customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout(service, price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />)}
+        {activeWorkflow === 'transport' && <TransportBookingScreen customerName={userName} initialAddress={deliveryAddress} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout('transport', price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />}
 
         {/* CART AND CHECKOUT REVIEW */}
         {currentTab === 'cart' && activeWorkflow === 'none' && (
@@ -1042,7 +1056,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             {selectedOrderId && activeBookings.find((booking) => booking.bookingId === selectedOrderId) && (() => {
               const bk = activeBookings.find((booking) => booking.bookingId === selectedOrderId)!;
               const items = Array.isArray(bk.details?.items) ? bk.details.items : [];
-              return <><OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} /><ParcelOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-emerald-700">{bk.paymentStatus || 'Legacy record'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Payment reference: {bk.paymentId}</p>}{bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
+              return <><OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} /><ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-emerald-700">{bk.paymentStatus || 'Legacy record'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Payment reference: {bk.paymentId}</p>}{bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
             })()}
 
             {!selectedOrderId && activeBookings.length === 0 ? (
@@ -1102,7 +1116,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                     </div>
 
                     {bk.driverId && (
-                      <button 
+                      <button
                         onClick={() => setActiveChatBookingId(bk.bookingId)}
                         className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-blue-500/10"
                       >
@@ -1147,7 +1161,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           </form>
         )}
 
-        {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} />}
+        {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} products={productsList} menuItems={menuItemsList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} />}
 
         {/* TAB 5: PROFILE */}
         {currentTab === 'profile' && activeWorkflow === 'none' && (
@@ -1172,8 +1186,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
       </div>
 
-      {catalogPage && <CatalogDetails key={catalogPage.kind+catalogPage.id} kind={catalogPage.kind} partner={catalogPage.kind === 'restaurant' || catalogPage.kind === 'dish' ? selectedRestaurant || restaurantsList.find(item => item.id === catalogPage.id) : groceryStoresList.find(item => item.id === selectedStoreId)} item={catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : catalogPage.kind === 'product' ? productsList.find(item => item.id === catalogPage.id) : undefined} saved={favoriteCatalogIds.includes((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : 'product:')+catalogPage.id)} onSave={() => toggleFavorite((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : 'product:')+catalogPage.id)} onBack={() => setCatalogPage(null)} quantityInCart={variantId => cart.find(line => line.item.id === catalogPage.id && line.variant?.id === variantId)?.quantity || 0} onBrowse={() => setCatalogPage(null)} onAdd={(quantity,variant) => { const item = catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : productsList.find(item => item.id === catalogPage.id); if (!item) return false; return handleAddToCart(item,catalogPage.kind === 'dish' ? 'food' : 'grocery',variant,quantity); }} />}
-      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || ''} address={deliveryAddress} notes={orderNotes} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} error={cartCatalogError} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>} 
+      {catalogPage && <CatalogDetails key={catalogPage.kind+catalogPage.id} kind={catalogPage.kind} partner={catalogPage.kind === 'restaurant' || catalogPage.kind === 'dish' ? selectedRestaurant || restaurantsList.find(item => item.id === catalogPage.id) : groceryStoresList.find(item => item.id === selectedStoreId)} item={catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : catalogPage.kind === 'product' ? productsList.find(item => item.id === catalogPage.id) : undefined} saved={favoriteCatalogIds.includes((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onSave={() => toggleFavorite((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onBack={() => setCatalogPage(null)} quantityInCart={variantId => cart.find(line => line.item.id === catalogPage.id && line.variant?.id === variantId)?.quantity || 0} onBrowse={() => setCatalogPage(null)} onAdd={(quantity,variant) => { const item = catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : productsList.find(item => item.id === catalogPage.id); if (!item) return false; return handleAddToCart(item,catalogPage.kind === 'dish' ? 'food' : 'grocery',variant,quantity); }} />}
+      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || ''} address={deliveryAddress} notes={orderNotes} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
 
       {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}
 
@@ -1209,7 +1223,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             <h3 className="mb-1 text-sm font-black text-slate-900">Delivery addresses</h3>
             <p className="mb-4 text-[11px] text-slate-500">Choose a saved place or add a new delivery address.</p>
             {savedAddresses.length > 0 && <div className="mb-4 space-y-2">{savedAddresses.map((address) => <div key={address.id} className={`flex items-center gap-2 rounded-xl border p-3 ${deliveryAddress === address.address ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'}`}><button disabled={addressSaving} onClick={() => void handleSelectSavedAddress(address)} className="min-w-0 flex-1 text-left"><span className="block text-xs font-bold text-slate-800">{address.label}{userProfile?.defaultAddressId === address.id && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-700">Default</span>}</span><span className="mt-1 block text-[10px] text-slate-500">{address.address}</span></button><button aria-label={`Delete ${address.label} address`} onClick={() => void handleDeleteSavedAddress(address)} className="rounded-lg p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={15} /></button></div>)}</div>}
-            <div className="rounded-2xl border border-slate-200 p-3"><h4 className="mb-2 text-xs font-extrabold text-slate-800">Add or update an address</h4><select value={addressLabel} onChange={(event) => setAddressLabel(event.target.value)} className="mb-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs"><option>Home</option><option>Work</option><option>Other</option></select><input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="House, street, area and city" maxLength={300} className="w-full rounded-xl border border-slate-200 p-3 text-xs" /><button onClick={() => void handleSaveAddress()} disabled={!deliveryAddress.trim() || addressSaving} className="my-2 w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white disabled:opacity-50">{addressSaving ? 'Saving…' : 'Save and set as default'}</button></div>
+            <div className="rounded-2xl border border-slate-200 p-3"><h4 className="mb-2 text-xs font-extrabold text-slate-800">Add or update an address</h4><select value={addressLabel} onChange={(event) => setAddressLabel(event.target.value)} className="mb-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs"><option>Home</option><option>Work</option><option>Other</option></select><input value={addressDraft} onChange={(e) => setAddressDraft(e.target.value)} placeholder="House, street, area and city" maxLength={300} className="w-full rounded-xl border border-slate-200 p-3 text-xs" /><button onClick={() => void handleSaveAddress()} disabled={!addressDraft.trim() || addressSaving} className="my-2 w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white disabled:opacity-50">{addressSaving ? 'Saving…' : 'Save and set as default'}</button></div>
             <p className="text-[11px] text-slate-500">Your saved address will be used for food, grocery and parcel deliveries. Enter a pickup and drop address separately when booking a ride.</p>
             <button onClick={() => setShowAddressModal(false)} className="w-full mt-4 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-xl">Close</button>
           </div>

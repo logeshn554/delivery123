@@ -17,6 +17,25 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
 import { Booking, UserProfile, DriverProfile, SavedAddress } from '../types';
 
+export function listenToMerchantHours(id: string, type: 'restaurant' | 'grocery', callback: (value: { weeklyHours?: Record<string, { open: string; close: string }[]>; timeZone?: string; acceptingOrders?: boolean }) => void, onError: (error: unknown) => void) {
+  return onSnapshot(doc(db, type === 'restaurant' ? 'restaurants' : 'grocery_stores', id), snapshot => { if (!snapshot.exists()) { onError(new Error('Business unavailable.')); return; } callback(snapshot.data()); }, onError);
+}
+export async function setMerchantHours(merchantId: string, merchantType: 'restaurant' | 'grocery', weeklyHours: Record<string, { open: string; close: string }[]>, timeZone: string, acceptingOrders: boolean) {
+  return (await httpsCallable(functions, 'setMerchantHours')({ merchantId, merchantType, weeklyHours, timeZone, acceptingOrders })).data;
+}
+export async function saveCatalogItem(merchantId: string, merchantType: 'restaurant' | 'grocery', itemId: string, item: unknown) {
+  return (await httpsCallable(functions, 'saveCatalogItem')({ merchantId, merchantType, itemId, item })).data;
+}
+export async function submitOrderReview(bookingId: string, rating: number, comment: string) {
+  return (await httpsCallable(functions,'submitOrderReview')({bookingId,rating,comment})).data;
+}
+export async function exportAccountPage(section: string, cursor: string | null = null): Promise<{items:unknown[];nextCursor:string|null}> {
+  return (await httpsCallable(functions,'exportAccountPage')({section,cursor})).data as {items:unknown[];nextCursor:string|null};
+}
+export function listenToOrderReviews(uid: string, callback: (reviews: { id:string; bookingId:string; rating:number; comment:string; createdAt:string }[]) => void, onError: (error:unknown)=>void) {
+  return onSnapshot(query(collection(db,'order_reviews'),where('userId','==',uid)),snapshot=>callback(snapshot.docs.map(item=>({id:item.id,...item.data()} as { id:string; bookingId:string; rating:number; comment:string; createdAt:string }))),onError);
+}
+
 /**
  * Fetches user profile or creates it if missing.
  */
@@ -107,6 +126,10 @@ export async function updateUserPreferences(uid: string, preferences: NonNullabl
     throw err;
   }
 }
+export async function updateUserFavorites(uid: string, favorites: string[]) {
+  if (favorites.length > 200 || favorites.some(id => typeof id !== 'string' || !/^(restaurant|store|dish|product):[^/\u0000-\u001f]{1,128}$/.test(id))) throw new Error('Saved items contain an invalid catalog reference.');
+  await updateDoc(doc(db, 'users', uid), { favorites: [...new Set(favorites)] });
+}
 
 /**
  * Updates an existing user role
@@ -161,6 +184,7 @@ export async function updateDriverStatus(driverId: string, updates: Partial<Driv
     await updateDoc(ref, updates);
   } catch (err) {
     handleFirestoreError(err, OperationType.UPDATE, path);
+    throw err;
   }
 }
 
@@ -282,15 +306,18 @@ export function listenToBookings(callback: (bookings: Booking[]) => void) {
 export function listenToCustomerBookings(userId: string, callback: (bookings: Booking[]) => void) {
   const path = 'bookings';
   const q = query(collection(db, path), where('customerId', '==', userId));
-  let bookings: Booking[] = [], codes = new Map<string, string>();
-  const publish = () => callback(bookings.map(booking => ({ ...booking, otp: codes.get(booking.bookingId) })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  let bookings: Booking[] = [], codes = new Map<string, { code?: string; pickupCode?: string }>();
+  const publish = () => callback(bookings.map(booking => ({ ...booking, otp: codes.get(booking.bookingId)?.code, pickupOtp: codes.get(booking.bookingId)?.pickupCode })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
   const stopBookings = onSnapshot(q, snapshot => { bookings = snapshot.docs.map(booking => booking.data() as Booking); publish(); }, console.error);
-  const stopCodes = onSnapshot(query(collection(db, 'booking_codes'), where('customerId', '==', userId)), snapshot => { codes = new Map(snapshot.docs.map(record => [record.id, record.data().code as string])); publish(); }, console.error);
+  const stopCodes = onSnapshot(query(collection(db, 'booking_codes'), where('customerId', '==', userId)), snapshot => { codes = new Map(snapshot.docs.map(record => [record.id, record.data() as { code?: string; pickupCode?: string }])); publish(); }, console.error);
   return () => { stopBookings(); stopCodes(); };
 }
 
 export function listenToMerchantBookings(merchantId: string, merchantType: 'restaurant' | 'grocery', callback: (bookings: Booking[]) => void) {
   return onSnapshot(query(collection(db, 'bookings'), where('merchantId', '==', merchantId), where('serviceType', '==', merchantType === 'restaurant' ? 'food' : 'grocery')), snapshot => callback(snapshot.docs.map(record => record.data() as Booking).sort((a, b) => b.createdAt.localeCompare(a.createdAt))), console.error);
+}
+export function listenToBookingEvents(id: string, callback: (events: { id: string; stage: string; createdAt: string; proofMethod?: string }[]) => void, onError: (error: unknown) => void) {
+  return onSnapshot(collection(db, 'bookings', id, 'events'), snapshot => callback(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as { id: string; stage: string; createdAt: string; proofMethod?: string })).sort((a,b) => a.createdAt.localeCompare(b.createdAt))), onError);
 }
 export async function advanceMerchantBooking(bookingId: string, status: 'preparing' | 'ready') {
   return (await httpsCallable(functions, 'advanceMerchantBooking')({ bookingId, status })).data;
@@ -330,16 +357,18 @@ export function listenToDriverBookings(driverId: string, callback: (bookings: Bo
     if (nextKey !== dispatchKey) {
       stopAvailable?.(); stopAvailable = undefined; dispatchKey = nextKey; available = []; publish();
       if (canReceiveJobs) {
-        const serviceRecords = new Map<string, Booking[]>();
-        const stops = [...supportedServices].map(service => {
-          const constraints = [where('serviceType', '==', service), where('status', '==', ['food', 'grocery'].includes(service) ? 'ready' : 'pending'), where('driverId', '==', null)];
-          if (service === 'ride') constraints.push(where('details.vehicleType', '==', vehicleType));
-          return onSnapshot(query(collection(db, path), ...constraints), snapshot => {
-            serviceRecords.set(service, snapshot.docs.map(record => record.data() as Booking));
-            available = [...serviceRecords.values()].flat(); publish();
-          }, error => handleFirestoreError(error, OperationType.GET, path));
-        });
-        stopAvailable = () => stops.forEach(stop => stop());
+        let stopped = false;
+        let timer: ReturnType<typeof setTimeout>;
+        const load = async () => {
+          try {
+            const result = await httpsCallable<void, Booking[]>(functions, 'listDriverOffers')();
+            if (!stopped) { available = result.data; publish(); }
+          } catch (error) {
+            if (!stopped) { available = []; publish(); console.error('Driver offers could not be loaded.', error); }
+          } finally { if (!stopped) timer = setTimeout(load, 10000); }
+        };
+        void load();
+        stopAvailable = () => { stopped = true; clearTimeout(timer); };
       }
     }
   }, (error) => handleFirestoreError(error, OperationType.GET, `driver_profiles/${driverId}`));
@@ -548,4 +577,7 @@ export function listenToWalletLedger(uid: string, callback: (entries: { id: stri
 
 export async function previewCartCoupon(booking: unknown, code: string) {
   return (await httpsCallable<{ booking: unknown; code: string }, { amount: number; discountCents: number; code: string }>(functions, 'previewCartCoupon')({ booking, code })).data;
+}
+export async function getCartQuote(booking: unknown, code?: string) {
+  return (await httpsCallable<{ booking: unknown; code?: string }, { amount: number; priceBreakdown: import('../types').PriceBreakdown }>(functions, 'getCartQuote')({ booking, code })).data;
 }

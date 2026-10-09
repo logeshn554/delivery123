@@ -25,4 +25,14 @@ function separateParcelContacts(details = {}) {
   const { parcelContacts, ...publicDetails } = details;
   return { parcelContacts, publicDetails };
 }
-module.exports = { validateParcelContents, separateParcelContacts };
+function parcelWeight(weightKg, dimensions, option) {
+  if (!Number.isFinite(weightKg) || weightKg <= 0 || weightKg > 50) throw new Error('Enter a parcel weight between 0 and 50 kg.');
+  if (!dimensions) return { actualWeightKg: weightKg, volumetricWeightKg: 0, billableWeightKg: weightKg };
+  const { lengthCm, widthCm, heightCm } = dimensions;
+  if ([lengthCm, widthCm, heightCm].some(value => !Number.isFinite(value) || value <= 0 || value > 300)) throw new Error('Each package dimension must be between 0 and 300 cm.');
+  if (!Number.isFinite(option.volumetricDivisor) || option.volumetricDivisor <= 0) throw new Error('Volumetric parcel pricing is not configured.');
+  if (option.maxDimensionCm !== undefined && (!Number.isFinite(option.maxDimensionCm) || Math.max(lengthCm, widthCm, heightCm) > option.maxDimensionCm)) throw new Error('The package exceeds this service dimension limit.');
+  const volumetricWeightKg = Math.ceil(lengthCm * widthCm * heightCm / option.volumetricDivisor * 100) / 100;
+  return { dimensions: { lengthCm, widthCm, heightCm }, actualWeightKg: weightKg, volumetricWeightKg, billableWeightKg: Math.max(weightKg, volumetricWeightKg) };
+}
+module.exports = { validateParcelContents, separateParcelContacts, parcelWeight };

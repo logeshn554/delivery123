@@ -1,11 +1,15 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, loadEnv} from 'vite';
+import { contentSecurity } from './scripts/content-security.mjs';
+import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
 
-export default defineConfig(() => {
+export default defineConfig(({ mode, command }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
+  const csp = contentSecurity({ apiUrl: env.VITE_ACCOUNT_API_URL, authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain, development: command === 'serve' });
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), { name:'allgo-content-security', transformIndexHtml(html: string) { return html.replace('ALLGO_CONTENT_SECURITY_POLICY',csp); } }],
     resolve: {
       // Keep Firebase's app singleton shared across firebase/app and Firestore.
       // Duplicate @firebase/app versions cause `Service firestore is not available`.

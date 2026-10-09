@@ -4,6 +4,8 @@ import {
   Store, Utensils, ToggleLeft, ToggleRight, DollarSign, PackageCheck
 } from 'lucide-react';
 import { Booking, MenuItem, GroceryProduct } from '../types';
+import MerchantHoursEditor from './MerchantHoursEditor';
+import MerchantCatalogEditor from './MerchantCatalogEditor';
 import { 
   advanceMerchantBooking,
   listenToMenuItems, 
@@ -105,6 +107,8 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
 
       {/* Content body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        <MerchantHoursEditor id={merchantId} type={merchantType}/>
+        <MerchantCatalogEditor id={merchantId} type={merchantType} items={merchantType === 'restaurant' ? activeMenu : activeStock}/>
         {loading && <p role="status">Loading your catalog…</p>}
         {error && <p role="alert" className="rounded-xl bg-rose-950 p-3 text-sm text-rose-100">{error}</p>}
         

@@ -1,4 +1,5 @@
 import ParcelOrderDetails from './ParcelOrderDetails';
+import TransportOrderDetails from './TransportOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight, 
@@ -25,6 +26,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const [isLoading, setIsLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
   const [otpInput, setOtpInput] = useState("");
+  const [pickupCode, setPickupCode] = useState('');
   const [activeSubView, setActiveSubView] = useState<'orders' | 'wallet' | 'support' | null>(null);
   useEffect(() => {
     const back = (event: Event) => { if (activeSubView) { event.preventDefault(); setActiveSubView(null); } };
@@ -63,15 +65,16 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   // Update online toggle
   const handleToggleOnline = async () => {
-    if (!profile) return;
+    if (!profile || actionBusy) return;
     if (profile.status !== 'verified') {
       alert('Your driver account must be verified by AllGo operations before going online.');
       return;
     }
     const nextState = !profile.online;
-    const updated = { ...profile, online: nextState };
-    setProfile(updated);
-    await updateDriverStatus(userId, { online: nextState });
+    setActionBusy(true);
+    try { await updateDriverStatus(userId, { online: nextState });setProfile(current=>current?{...current,online:nextState}:current); }
+    catch(error) { alert(error instanceof Error?error.message:'Availability could not be updated.'); }
+    finally { setActionBusy(false); }
   };
 
   const handleSubmitVerification = async (event: React.FormEvent) => {
@@ -82,11 +85,19 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     setProfile((current) => current ? { ...current, ...changes } : current);
   };
 
+  // UI-04: navigator.geolocation.watchPosition only works while the app is FOREGROUND.
+  // For reliable background tracking integrate @capacitor/geolocation with background-mode
+  // permission. Without this, location updates stop when the partner backgrounds the app.
   useEffect(() => {
     if (!profile?.online || profile.status !== 'verified' || !navigator.geolocation) return;
-    const watchId = navigator.geolocation.watchPosition(({ coords }) => {
-      void updateDriverLocation(coords.latitude, coords.longitude, coords.accuracy).catch(error => console.error('Location sharing failed', error));
-    }, () => undefined, { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 });
+    const watchId = navigator.geolocation.watchPosition(
+      ({ coords }) => {
+        void updateDriverLocation(coords.latitude, coords.longitude, coords.accuracy)
+          .catch(error => console.error('Location sharing failed (foreground only):', error));
+      },
+      (err) => console.warn('Geolocation unavailable:', err.message),
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 }
+    );
     return () => navigator.geolocation.clearWatch(watchId);
   }, [profile?.online, profile?.status, userId]);
 
@@ -95,6 +106,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   // Find if we already have an assigned active job
   const currentAssignedJob = activeBookings.find(b => b.driverId === userId && b.status !== 'completed' && b.status !== 'delivered' && b.status !== 'cancelled');
+  useEffect(() => { setPickupCode('');setOtpInput(''); },[currentAssignedJob?.bookingId]);
 
   // Real-time Chat synchronization
   useEffect(() => {
@@ -151,7 +163,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const handleAcceptJob = (jobId: string) => performAction(() => acceptDriverBooking(jobId));
   const handleRejectJob = (jobId: string) => performAction(() => rejectDriverBooking(jobId));
   const handleArrivedAtPickup = (jobId: string) => performAction(() => advanceDriverBooking(jobId, 'preparing'));
-  const handleVerifyOTP = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'transit'));
+  const handleVerifyOTP = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'transit', pickupCode));
   const handleCompleteJob = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'completed', otpInput));
 
   // Handle Send Chat message
@@ -409,7 +421,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Navigation</p>
-              <ParcelOrderDetails booking={currentAssignedJob}/>
+              <ParcelOrderDetails booking={currentAssignedJob}/><TransportOrderDetails booking={currentAssignedJob}/>
               <p className="mb-3 text-xs text-slate-700">{currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress || 'Address unavailable'}</p>
               <p className="mb-3 text-[10px] text-slate-400">{profile?.currentLat != null && profile.currentLng != null ? `Last GPS: ${profile.currentLat.toFixed(5)}, ${profile.currentLng.toFixed(5)}` : 'GPS location is not available.'}</p>
               {(currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress) && <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress || '' : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress || '')}`} target="_blank" rel="noreferrer" className="block rounded-lg bg-purple-600 px-3 py-2 text-center text-xs font-bold text-white">Open directions</a>}
@@ -435,6 +447,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {(currentAssignedJob.status === 'preparing' || currentAssignedJob.status === 'ready') && (
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <p className="text-[10px] text-slate-400 mb-1.5 font-semibold">Step 2: Confirm pickup and start delivery.</p>
+                  {['parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-600">Sender pickup code<input aria-label="Sender pickup code" value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-slate-900"/></label>}
                   
                   <div className="flex gap-2">
                     <button 

@@ -6,7 +6,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswor
 import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { auth, googleProvider } from '../firebase';
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
-import { useNeonAccounts, signInAccount } from '../accounts';
+import { useNeonAccounts, signInAccount, forgotPasswordAccount, resetPasswordAccount } from '../accounts';
 
 export function authMessage(error: unknown): string {
   const code = (error as { code?: string })?.code;
@@ -41,6 +41,9 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [resetSent, setResetSent] = useState(false);
+  const [resetCode, setResetCode] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [verificationId, setVerificationId] = useState('');
   const [code, setCode] = useState('');
@@ -63,13 +66,23 @@ export default function AuthScreen() {
     setResendAt(Date.now() + 60000);
     await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: phone, skipNativeAuth: false });
   };
-  const navigate = (next: typeof screen) => { setScreen(next); setError(''); setNotice(''); setPassword(''); };
+  const navigate = (next: typeof screen) => { setScreen(next); setError(''); setNotice(''); setPassword(''); setResetSent(false); setResetCode(''); setResetPassword(''); };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
     setBusy(true); setError(''); setNotice('');
     try {
       if (useNeonAccounts) {
+        if (screen === 'reset') {
+          if (resetSent) {
+            const res = await resetPasswordAccount(resetCode.trim(), resetPassword);
+            navigate('signin'); setNotice(res.message); return;
+          }
+          const res = await forgotPasswordAccount(email.trim());
+          setResetSent(true);
+          setNotice(res.message || 'If an account exists for this email, you will receive a password reset link.');
+          return;
+        }
         if (screen !== 'signin' && screen !== 'signup') throw new Error('Use email and password to sign in.');
         await signInAccount(email.trim(), password, screen === 'signup' ? name.trim() : undefined);
         return;
@@ -128,11 +141,12 @@ export default function AuthScreen() {
           {screen === 'signup' && <label>Full name<input autoComplete="name" required minLength={2} maxLength={100} value={name} disabled={busy} onChange={event => setName(event.target.value)} placeholder="Your full name" /></label>}
           {screen !== 'phone' && <label>Email address<input type="email" autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>}
           {screen !== 'reset' && screen !== 'phone' && <label>Password<div className="auth-password"><input type={visible ? 'text' : 'password'} required minLength={screen === 'signup' ? 8 : 1} autoComplete={screen === 'signup' ? 'new-password' : 'current-password'} value={password} disabled={busy} onChange={event => setPassword(event.target.value)} placeholder={screen === 'signup' ? 'At least 8 characters' : 'Enter your password'} /><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>}
-          {!useNeonAccounts && screen === 'signin' && <button type="button" className="auth-text-link" disabled={busy} onClick={() => navigate('reset')}>Forgot password?</button>}
+          {screen === 'signin' && <button type="button" className="auth-text-link" disabled={busy} onClick={() => navigate('reset')}>Forgot password?</button>}
           {screen === 'phone' && <><label>Phone number<input type="tel" autoComplete="tel" value={phone} disabled={busy || Boolean(verificationId)} onChange={event => setPhone(event.target.value)} placeholder="+91…" required /></label>{verificationId && <label>Verification code<input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value)} required /></label>}{verificationId && <button type="button" disabled={busy} onClick={() => { setVerificationId(''); setCode(''); }}>Change phone or resend code</button>}</>}
           {error && <p role="alert" className="auth-error">{error}</p>}
           {notice && <p role="status" className="auth-notice">{notice}</p>}
-          <button disabled={busy} className="auth-primary" type="submit">{busy ? <><LoaderCircle className="animate-spin" size={18} /> Please wait…</> : <>{screen === 'signup' ? 'Create account' : screen === 'reset' ? 'Send reset link' : screen === 'phone' ? verificationId ? 'Verify code' : 'Send code' : 'Sign in'}<ArrowRight size={18} /></>}</button>
+          {screen === 'reset' && useNeonAccounts && resetSent && <><label>Email reset code<input autoComplete="one-time-code" value={resetCode} onChange={event => setResetCode(event.target.value)} required pattern="[a-f0-9]{64}" disabled={busy} /></label><label>New password<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={resetPassword} onChange={event => setResetPassword(event.target.value)} required disabled={busy} /></label><button type="button" disabled={busy} onClick={() => { setResetSent(false); setResetCode(''); setResetPassword(''); }}>Request another code</button></>}
+          <button disabled={busy} className="auth-primary" type="submit">{busy ? <><LoaderCircle className="animate-spin" size={18} /> Please wait…</> : <>{screen === 'signup' ? 'Create account' : screen === 'reset' ? useNeonAccounts && resetSent ? 'Update password' : 'Send reset instructions' : screen === 'phone' ? verificationId ? 'Verify code' : 'Send code' : 'Sign in'}<ArrowRight size={18} /></>}</button>
         </form>
         {!useNeonAccounts && (!Capacitor.isNativePlatform() || Capacitor.isPluginAvailable('FirebaseAuthentication')) && screen !== 'reset' && screen !== 'phone' && <><div className="auth-divider">or</div><button className="auth-google" disabled={busy} onClick={() => void google()}>Continue with Google</button></>}
         {!useNeonAccounts && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable('FirebaseAuthentication') && screen !== 'reset' && <button className="auth-google" disabled={busy} onClick={() => { navigate('phone'); setVerificationId(''); }}>Continue with phone</button>}

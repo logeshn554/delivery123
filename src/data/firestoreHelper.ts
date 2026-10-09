@@ -1,16 +1,25 @@
 import * as firebase from './firebaseHelper';
-import { useNeonAccounts } from '../accounts';
+import { useNeonAccounts, hasServiceIdentity } from '../accounts';
 import { neonAccountHandlers } from './neonAccounts';
 export * from './firebaseHelper';
+export const listenToMerchantHours = route('listenToMerchantHours');
+export const setMerchantHours = route('setMerchantHours');
+export const saveCatalogItem = route('saveCatalogItem');
+export const submitOrderReview = route('submitOrderReview');
+export const exportAccountPage = route('exportAccountPage');
+export const listenToOrderReviews = route('listenToOrderReviews');
 
 function route<K extends keyof typeof firebase>(name: K): typeof firebase[K] {
   return ((...args: any[]) => {
-    if (!useNeonAccounts) return (firebase[name] as (...args: any[]) => any)(...args);
+    if (!useNeonAccounts || hasServiceIdentity) return (firebase[name] as (...args: any[]) => any)(...args);
     if (neonAccountHandlers[name]) return neonAccountHandlers[name](...args);
-    const error = Object.assign(new Error('This service needs backend configuration before it can be used.'), { code: 'unavailable' });
+    const error = Object.assign(new Error('Service access is not connected. Verify your email and ask the operator to configure the secure account bridge.'), { code: 'unavailable' });
     if (String(name).startsWith('listenTo')) {
-      const onError = args[args.length - 1];
-      if (typeof onError === 'function' && args.length >= 3) queueMicrotask(() => onError(error));
+      const errorPositions: Record<string, number> = { listenToAccountProfile: 2, listenToBookingContacts: 2, listenToDriverLocation: 2, listenToBookingTracking: 2, listenToBookingEvents: 2, listenToPayoutRequests: 2, listenToWalletLedger: 2, listenToRestaurants: 1, listenToGroceryStores: 1, listenToMenuItems: 2, listenToGroceryProducts: 2, listenToMerchantHours: 3 };
+      errorPositions.listenToOrderReviews = 2;
+      const position = errorPositions[String(name)];
+      const onError = position === undefined ? undefined : args[position];
+      if (typeof onError === 'function') queueMicrotask(() => onError(error));
       else console.error(error.message);
       return () => undefined;
     }
@@ -20,12 +29,14 @@ function route<K extends keyof typeof firebase>(name: K): typeof firebase[K] {
 
 export const getOrCreateUserProfile = route('getOrCreateUserProfile');
 export const listenToBookingContacts = route('listenToBookingContacts');
+export const listenToBookingEvents = route('listenToBookingEvents');
 export const updateUserAddress = route('updateUserAddress');
 export const saveAccountName = route('saveAccountName');
 export const listenToSavedAddresses = route('listenToSavedAddresses');
 export const saveUserAddress = route('saveUserAddress');
 export const deleteSavedAddress = route('deleteSavedAddress');
 export const updateUserPreferences = route('updateUserPreferences');
+export const updateUserFavorites = route('updateUserFavorites');
 export const updateUserRole = route('updateUserRole');
 export const getOrCreateDriverProfile = route('getOrCreateDriverProfile');
 export const updateDriverStatus = route('updateDriverStatus');
@@ -73,3 +84,4 @@ export const payWithWallet = route('payWithWallet');
 export const requestAccountDeletion = route('requestAccountDeletion');
 export const listenToWalletLedger = route('listenToWalletLedger');
 export const previewCartCoupon = route('previewCartCoupon');
+export const getCartQuote = route('getCartQuote');

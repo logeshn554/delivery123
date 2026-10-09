@@ -1,4 +1,7 @@
 export interface UserProfile {
+  emailVerified?: boolean;
+  serviceIdentityEnabled?: boolean;
+  favorites?: string[];
   uid: string;
   name: string;
   email: string;
@@ -106,6 +109,7 @@ export interface GroceryProduct {
 }
 
 export interface Booking {
+  priceBreakdown?: PriceBreakdown;
   driverPayout?: number;
   bookingId: string;
   customerId: string;
@@ -122,6 +126,7 @@ export interface Booking {
   driverName?: string;
   merchantId?: string;
   otp?: string;
+  pickupOtp?: string;
   paymentStatus?: 'paid' | 'refund_processing' | 'refunded' | 'refund_required';
   paymentMethod?: 'upi' | 'card' | 'netbanking' | 'wallet' | 'emi' | 'other';
   paymentOrderId?: string;
@@ -129,7 +134,9 @@ export interface Booking {
   details?: BookingDetails;
 }
 
+export interface PriceBreakdown { itemCents: number; deliveryCents: number; packagingCents: number; platformCents: number; taxCents: number; discountCents: number; totalCents: number; }
 export interface BookingDetails {
+  deliveryPlaceId?: string;
   restaurantId?: string;
   restaurantName?: string;
   storeId?: string;
@@ -150,6 +157,14 @@ export interface BookingDetails {
   preferredDate?: string;
   deliveryMode?: string;
   weightKg?: number;
+  dimensions?: { lengthCm: number; widthCm: number; heightCm: number };
+  actualWeightKg?: number;
+  volumetricWeightKg?: number;
+  billableWeightKg?: number;
+  ownershipConfirmed?: boolean;
+  vehicleWeightKg?: number;
+  vehicleDimensions?: { lengthCm: number; widthCm: number; heightCm: number };
+  vehicleCondition?: string;
   parcelType?: string;
   // Food & Grocery orders details
   items?: {

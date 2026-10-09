@@ -36,6 +36,9 @@ export interface ChennaiDriverStat {
   online: boolean;
 }
 
+// UI-05: The original hard-coded demo driver list has been removed.
+// This leaderboard now derives all data from live driverProfiles and activeBookings props.
+// Do NOT re-add hard-coded drivers — this component is used in the admin production dashboard.
 const BASE_CHENNAI_DRIVERS: ChennaiDriverStat[] = [
   {
     id: 'DRV_OMR_01',
@@ -207,26 +210,19 @@ export default function DriverPerformanceLeaderboard({ activeBookings, driverPro
   const [bonusAwardedModal, setBonusAwardedModal] = useState<string | null>(null);
 
   // Merge live driver profiles & booking activity dynamically
+  // UI-05: Never start from the hard-coded BASE_CHENNAI_DRIVERS list (now empty).
+  // All leaderboard data must come from real driverProfiles + activeBookings.
   const mergedDrivers: ChennaiDriverStat[] = useMemo(() => {
-    // Clone baseline
-    const list = [...BASE_CHENNAI_DRIVERS];
+    const list: ChennaiDriverStat[] = [];
 
-    // If driverProfiles contains any live drivers (e.g. from app testing)
     driverProfiles.forEach(dp => {
       const liveBookingEarnings = activeBookings
         .filter(b => (b.driverId === dp.driverId) && (b.status === 'completed' || b.status === 'delivered'))
         .reduce((sum, b) => sum + Math.round(b.price * 0.8), 0);
 
-      const existingIndex = list.findIndex(d => d.id === dp.driverId || d.vehicleNo === dp.vehicleNo);
-      if (existingIndex >= 0) {
-        list[existingIndex] = {
-          ...list[existingIndex],
-          todayEarnings: Math.max(list[existingIndex].todayEarnings, (dp.todayEarnings || 0) + liveBookingEarnings),
-          weeklyEarnings: list[existingIndex].weeklyEarnings + liveBookingEarnings,
-          monthlyEarnings: list[existingIndex].monthlyEarnings + liveBookingEarnings,
-          online: dp.online,
-          completedJobs: list[existingIndex].completedJobs + (dp.completedJobs || 0),
-        };
+      // Build a real stat entry from live profile data only.
+      if (false) {
+        // (placeholder — no baseline list to merge against)
       } else {
         // Add live profile as verified Chennai driver
         const dynamicDriver: ChennaiDriverStat = {

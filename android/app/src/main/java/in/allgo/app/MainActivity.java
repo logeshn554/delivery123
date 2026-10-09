@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
             getBridge().getWebView().getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
         registerPlugin(Checkout.class);
+        registerPlugin(SecureSession.class);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {

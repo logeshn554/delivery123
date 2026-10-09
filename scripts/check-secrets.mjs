@@ -20,6 +20,10 @@ function scan(label, data) {
   if (patterns.some(pattern => pattern.test(data.toString('utf8')))) findings.add(label);
 }
 const paths = git(['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z']).toString('utf8').split('\0').filter(Boolean);
+if (process.argv.includes('--working-tree')) {
+  const files = git(['ls-files','--cached','--others','--exclude-standard','-z']).toString('utf8').split('\0').filter(Boolean);
+  for (const path of files) { if (fs.existsSync(path) && fs.statSync(path).isFile()) scan(`working-tree: ${path}`,fs.readFileSync(path)); }
+}
 for (const path of paths) {
   if (/(^|\/)\.env(?:\.|$)/.test(path) && !path.endsWith('.env.example')) findings.add(path);
   if (/\.(?:jks|keystore|p12|p8|pfx|pem|key)$/i.test(path) || /(?:^|\/)(?:google-services\.json|GoogleService-Info\.plist|service-account[^/]*\.json|\.npmrc)$/.test(path)) findings.add(path);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import PayoutRequests from './PayoutRequests';
 import DeletionRequests from './DeletionRequests';
+import OperationsConsole from './OperationsConsole';
 import { 
   Users, MapPin, ClipboardList, Shield, DollarSign, Search, Check, X, 
   Map, Trash2, ArrowUpRight, CheckCircle2, ListFilter
@@ -14,7 +15,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ activeBookings, driverProfiles }: AdminDashboardProps) {
-  const [filterType, setFilterType] = useState<'all' | 'food' | 'grocery' | 'ride' | 'takeover' | 'transport'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'food' | 'grocery' | 'ride' | 'parcel' | 'takeover' | 'transport'>('all');
   const [searchQuery, setSearchQuery] = useState("");
   const [serviceApprovals, setServiceApprovals] = useState<Record<string, Booking['serviceType'][]>>({});
 
@@ -35,22 +36,36 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
   const todayBookingValue = completedToday.reduce((total, booking) => total + booking.price, 0);
   const customerCount = new Set(activeBookings.map((booking) => booking.customerId)).size;
 
+  const [kycError, setKycError] = React.useState<string | null>(null);
+  const [kycSuccess, setKycSuccess] = React.useState<string | null>(null);
+  const [cancelError, setCancelError] = React.useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = React.useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = React.useState<string | null>(null);
+
+  // UI-07: Replaced window.alert/confirm with inline state-driven messages.
   const handleKYC = async (driverId: string, status: 'verified' | 'rejected') => {
     const services = serviceApprovals[driverId] || [];
-    if (status === 'verified' && !services.length) { alert('Select the services this partner is qualified to perform.'); return; }
+    setKycError(null); setKycSuccess(null);
+    if (status === 'verified' && !services.length) {
+      setKycError('Select the services this partner is qualified to perform before approving.');
+      return;
+    }
     try {
       await updateDriverVerification(driverId, status, services);
+      setKycSuccess('Partner verification status updated.');
     } catch {
-      alert('Unable to update driver verification. Check the admin role and Firestore rules.');
+      setKycError('Unable to update driver verification. Check the admin role and Firestore rules.');
     }
   };
 
-  // Handle Admin cancellation / Refund trigger
   const handleAdminCancel = async (bookingId: string) => {
-    const confirm = window.confirm("Cancel this booking?");
-    if (confirm) {
-      try { await requestBookingCancellation(bookingId); alert('Cancellation submitted with a provider refund request. Check the payment status for completion.'); }
-      catch (error) { alert(error instanceof Error ? error.message : 'Cancellation could not be confirmed. Check payment status before retrying.'); }
+    if (cancelTarget !== bookingId) { setCancelTarget(bookingId); setCancelError(null); setCancelSuccess(null); return; }
+    setCancelError(null); setCancelSuccess(null); setCancelTarget(null);
+    try {
+      await requestBookingCancellation(bookingId);
+      setCancelSuccess('Cancellation submitted. Check the payment status for refund completion.');
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : 'Cancellation could not be confirmed. Check payment status before retrying.');
     }
   };
 
@@ -130,6 +145,8 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md space-y-4">
           <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">KYC Driver Verification</h3>
           
+          {kycError && <p role="alert" style={{color:'#f87171',fontSize:'12px',marginBottom:'8px'}}>{kycError}</p>}
+          {kycSuccess && <p role="status" style={{color:'#4ade80',fontSize:'12px',marginBottom:'8px'}}>{kycSuccess}</p>}
           {pendingKYC.length === 0 ? (
             <div className="text-center py-10">
               <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
@@ -207,6 +224,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
               <option value="food">🍕 Food</option>
               <option value="grocery">🥦 Grocery</option>
               <option value="ride">🚗 Rides</option>
+              <option value="parcel">📦 Parcel</option>
               <option value="takeover">🕵️ Takeover</option>
               <option value="transport">🚛 Transport</option>
             </select>
@@ -283,6 +301,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
         </div>
       </div>
 
+      <OperationsConsole drivers={driverProfiles}/>
     </div>
   );
 }

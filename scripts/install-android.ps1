@@ -9,6 +9,7 @@ $javaDirectories = @(
     Get-ChildItem 'C:\Program Files\Microsoft' -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue
     Get-ChildItem 'C:\Program Files\Java' -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue
     Get-ChildItem 'C:\Program Files\Eclipse Adoptium' -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue
+    if ($env:USERPROFILE) { Get-ChildItem (Join-Path $env:USERPROFILE 'AppData\Local\Programs\Eclipse Adoptium') -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue }
     Get-Item 'C:\Program Files\Android\Android Studio\jbr' -ErrorAction SilentlyContinue
     Get-ChildItem 'C:\Program Files\Amazon Corretto' -Directory -ErrorAction SilentlyContinue
     Get-ChildItem 'C:\Program Files\Zulu' -Directory -ErrorAction SilentlyContinue
@@ -36,6 +37,10 @@ Write-Host "Using Java 21 from $selectedJava"
 if (!(Get-Command adb -ErrorAction SilentlyContinue)) { throw 'adb was not found. Add Android SDK platform-tools to PATH.' }
 $deviceArguments = @()
 if ($DeviceSerial) { $deviceArguments = @('-s', $DeviceSerial) }
+$deviceState = & adb @deviceArguments get-state 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0 -or $deviceState.Trim() -ne 'device') { throw 'ADB cannot use the selected phone. Run adb devices, unlock the phone and accept the USB debugging prompt. If multiple phones are connected, pass -DeviceSerial.' }
+$previousAndroidSerial = $env:ANDROID_SERIAL
+if ($DeviceSerial) { $env:ANDROID_SERIAL = $DeviceSerial }
 Push-Location $projectDirectory
 try {
     & npm.cmd run android:sync
@@ -52,4 +57,4 @@ try {
     & adb @deviceArguments shell monkey -p in.allgo.app 1
     if ($LASTEXITCODE -ne 0) { throw 'AllGo could not be opened on the device.' }
     Write-Host 'AllGo installed and opened. Keep npm run dev:api running in another terminal for USB development.'
-} finally { Pop-Location }
+} finally { Pop-Location; $env:ANDROID_SERIAL = $previousAndroidSerial }

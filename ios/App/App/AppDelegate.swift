@@ -3,6 +3,7 @@ import Capacitor
 import FirebaseCore
 import FirebaseAuth
 import FirebaseMessaging
+import Security
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -63,4 +64,38 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         completionHandler(.newData)
     }
 
+}
+
+@objc(SecureSessionPlugin)
+public class SecureSessionPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "SecureSessionPlugin"
+    public let jsName = "SecureSession"
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "get", returnType: CAPPluginReturnPromise), CAPPluginMethod(name: "set", returnType: CAPPluginReturnPromise), CAPPluginMethod(name: "remove", returnType: CAPPluginReturnPromise)]
+    private var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "in.allgo.app.session", kSecAttrAccount as String: "account"] }
+    @objc func get(_ call: CAPPluginCall) {
+        var request = query; request[kSecReturnData as String] = true; request[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(request as CFDictionary, &item)
+        if status == errSecItemNotFound { call.resolve(["token": NSNull()]); return }
+        guard status == errSecSuccess, let data = item as? Data, let token = String(data: data, encoding: .utf8) else { call.reject("Saved session unavailable. Sign in again."); return }
+        call.resolve(["token": token])
+    }
+    @objc func set(_ call: CAPPluginCall) {
+        guard let token = call.getString("token"), token.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil else { call.reject("Invalid session token."); return }
+        let data = Data(token.utf8)
+        let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+        if status == errSecSuccess { call.resolve(); return }
+        if status != errSecItemNotFound { call.reject("Could not securely save session."); return }
+        var item = query; item[kSecValueData as String] = data; item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { call.reject("Could not securely save session."); return }
+        call.resolve()
+    }
+    @objc func remove(_ call: CAPPluginCall) {
+        let status = SecItemDelete(query as CFDictionary)
+        if status == errSecSuccess || status == errSecItemNotFound { call.resolve() } else { call.reject("Could not remove session.") }
+    }
+}
+@objc(AllGoBridgeViewController)
+class AllGoBridgeViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() { bridge?.registerPluginInstance(SecureSessionPlugin()) }
 }

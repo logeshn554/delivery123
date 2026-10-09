@@ -1,41 +1,58 @@
 import { Capacitor } from '@capacitor/core';
 import type { UserProfile } from './types';
+import { signInWithCustomToken, signOut, setPersistence, inMemoryPersistence } from 'firebase/auth';
+import { auth } from './firebase';
+import { sessionToken, saveSession, clearSession } from './sessionStorage';
 
 export const useNeonAccounts = import.meta.env.VITE_AUTH_PROVIDER === 'neon';
 const base = ((Capacitor.isNativePlatform() ? import.meta.env.VITE_ACCOUNT_API_URL : '') || '').replace(/\/$/, '');
-const tokenKey = 'allgo-account-session';
+export let hasServiceIdentity = false;
 let activeProfile: UserProfile | null = null;
+let sessionGeneration = 0;
 const listeners = new Set<(profile: UserProfile | null) => void>();
 function publish(value: UserProfile | null) { activeProfile = value; listeners.forEach(listener => listener(value)); }
 export async function accountRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   if (Capacitor.isNativePlatform() && !base) throw Object.assign(new Error('The account server address is missing from this app build.'), { code: 'unavailable' });
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const token = localStorage.getItem(tokenKey);
-    const response = await fetch(`${base}/api${path}`, { method, signal: controller.signal, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+    const generation = sessionGeneration;
+    const token = await sessionToken();
+    const response = await fetch(`${base}/api${path}`, { method, credentials: Capacitor.isNativePlatform() ? 'omit' : 'same-origin', signal: controller.signal, headers: { 'Content-Type': 'application/json', ...(Capacitor.isNativePlatform() ? { 'X-AllGo-Native': '1' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const result = await response.json();
     if (!response.ok) {
-      if (result.code === 'auth/session-expired') { localStorage.removeItem(tokenKey); publish(null); }
+      if (result.code === 'auth/session-expired' && generation === sessionGeneration) { sessionGeneration++; await clearSession(); hasServiceIdentity = false; await signOut(auth); publish(null); }
       throw Object.assign(new Error(result.error || 'Account request failed.'), { code: result.code });
     }
     return result;
   } catch (error) {
-    if ((error as { code?: string }).code) throw error;
-    throw Object.assign(new Error('Cannot reach the account server. Keep it running and check the USB connection.'), { code: 'auth/network-request-failed' });
+    if (typeof (error as { code?: unknown }).code === 'string') throw error;
+    throw Object.assign(new Error(controller.signal.aborted ? 'The account server took too long to respond. Please try again.' : 'Cannot reach the account server. Check your connection and that the account server is running.'), { code: 'auth/network-request-failed' });
   } finally { clearTimeout(timeout); }
 }
 export async function signInAccount(email: string, password: string, name?: string) {
-  const result = await accountRequest<{ token: string; profile: UserProfile }>(name === undefined ? '/auth/login' : '/auth/signup', 'POST', { email, password, name });
-  localStorage.setItem(tokenKey, result.token); publish(result.profile); return result.profile;
+  const result = await accountRequest<{ token?: string; profile: UserProfile }>(name === undefined ? '/auth/login' : '/auth/signup', 'POST', { email, password, name });
+  sessionGeneration++; await saveSession(result.token); const profile = await connectServiceIdentity(result.profile); publish(profile); return profile;
+}
+async function connectServiceIdentity(profile: UserProfile): Promise<UserProfile> {
+  hasServiceIdentity = false;
+  if (!profile.serviceIdentityEnabled || !profile.emailVerified) { await signOut(auth); return profile; }
+  const result = await accountRequest<{ customToken: string; profile: UserProfile }>('/auth/service-identity', 'POST');
+  await setPersistence(auth, inMemoryPersistence);
+  const credential = await signInWithCustomToken(auth, result.customToken);
+  if (credential.user.uid !== result.profile.uid) { await signOut(auth); throw new Error('Service account identity did not match. Please sign in again.'); }
+  hasServiceIdentity = true; return result.profile;
 }
 export async function signOutAccount() {
+  const generation = sessionGeneration;
   try { await accountRequest('/auth/logout', 'POST'); }
-  finally { localStorage.removeItem(tokenKey); publish(null); }
+  finally { if (generation === sessionGeneration) { sessionGeneration++; await clearSession(); hasServiceIdentity = false; await signOut(auth); publish(null); } }
 }
 export function watchAccount(listener: (value: UserProfile | null) => void, onError: (error: unknown) => void) {
   let cancelled = false; listeners.add(listener);
-  if (!localStorage.getItem(tokenKey)) listener(null);
-  else void accountRequest<UserProfile>('/account').then(value => { if (!cancelled) publish(value); }).catch(error => { if (!cancelled) onError(error); });
+  const generation = sessionGeneration;
+  void accountRequest<UserProfile>('/account').then(async value => {
+    if (!cancelled && generation === sessionGeneration) { const profile = await connectServiceIdentity(value); if (!cancelled && generation === sessionGeneration) publish(profile); }
+  }).catch(error => { if (!cancelled && generation === sessionGeneration) onError(error); });
   return () => { cancelled = true; listeners.delete(listener); };
 }
 export function pollAccount<T>(path: string, callback: (value: T) => void, onError: (error: unknown) => void = console.error) {
@@ -49,3 +66,10 @@ export function pollAccount<T>(path: string, callback: (value: T) => void, onErr
 }
 export const getAccount = () => accountRequest<UserProfile>('/account');
 export const updateAccount = async (changes: Partial<UserProfile>) => { const value = await accountRequest<UserProfile>('/account', 'PATCH', changes); activeProfile = value; return value; };
+export const forgotPasswordAccount = (email: string) => accountRequest<{ ok: boolean; message: string }>('/auth/forgot-password', 'POST', { email });
+export const resetPasswordAccount = (token: string, newPassword: string) => accountRequest<{ ok: boolean; message: string }>('/auth/reset-password', 'POST', { token, newPassword });
+export const requestEmailVerification = (email: string) => accountRequest<{ ok: boolean; message: string }>('/auth/request-email-verification', 'POST', { email });
+export const verifyEmailAccount = async (token: string) => {
+  const result = await accountRequest<{ ok: boolean; message: string }>('/auth/verify-email', 'POST', { token });
+  const profile = await connectServiceIdentity(await getAccount()); sessionGeneration++; publish(profile); return result;
+};

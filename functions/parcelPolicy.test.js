@@ -1,6 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { validateParcelContents, separateParcelContacts } = require('./parcelPolicy');
+const { parcelWeight } = require('./parcelPolicy');
+test('parcel chargeable weight uses the greater of actual and configured volumetric weight', () => {
+  assert.equal(parcelWeight(1, { lengthCm: 40, widthCm: 30, heightCm: 20 }, { volumetricDivisor: 5000 }).billableWeightKg, 4.8);
+  assert.equal(parcelWeight(8, { lengthCm: 40, widthCm: 30, heightCm: 20 }, { volumetricDivisor: 5000 }).billableWeightKg, 8);
+  assert.throws(() => parcelWeight(1, { lengthCm: -1, widthCm: 30, heightCm: 20 }, { volumetricDivisor: 5000 }));
+  assert.throws(() => parcelWeight(1, { lengthCm: 40, widthCm: 30, heightCm: 20 }, {}));
+});
 const valid = () => ({ parcelContacts: { senderName: 'Sender Example', senderPhone: '+919876543210', recipientName: 'Recipient Example', recipientPhone: '+919876543211' }, parcelDescription: 'Packed books', declaredValue: 500, fragile: false, restrictedItemsConfirmed: true });
 test('parcel metadata keeps canonical fields and ignores untrusted additional fields', () => {
   const input = valid(); input.parcelContacts.role = 'admin'; input.price = 1;

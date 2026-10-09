@@ -2,9 +2,11 @@ import { accountRequest, getAccount, pollAccount, updateAccount } from '../accou
 
 const own = (_uid: string) => getAccount(); // The API derives ownership from the verified session.
 export const neonAccountHandlers: Record<string, (...args: any[]) => any> = {
+  exportAccountPage: (section, cursor) => accountRequest(`/account/export?section=${encodeURIComponent(section)}${cursor?`&cursor=${encodeURIComponent(cursor)}`:''}`),
   getOrCreateUserProfile: own,
   saveAccountName: (_uid, name) => updateAccount({ name }),
   updateUserPreferences: (_uid, preferences) => updateAccount({ preferences }),
+  updateUserFavorites: (_uid, favorites) => updateAccount({ favorites }),
   updateUserAddress: (_uid, defaultAddress, defaultAddressId = '') => updateAccount({ defaultAddress, defaultAddressId }),
   listenToAccountProfile: (_uid, callback, error) => pollAccount('/account', callback, error),
   listenToSavedAddresses: (_uid, callback) => pollAccount('/account/items/addresses', callback),

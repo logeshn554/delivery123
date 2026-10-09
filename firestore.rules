@@ -9,7 +9,13 @@ service cloud.firestore {
 
     // 2. PRIMITIVE GLOBAL HELPERS
     function isSignedIn() {
-      return request.auth != null && (!exists(/databases/$(database)/documents/account_deletions/$(request.auth.uid)) || get(/databases/$(database)/documents/account_deletions/$(request.auth.uid)).data.status == 'requested');
+      return request.auth != null && bridgeSessionValid() && (!exists(/databases/$(database)/documents/account_deletions/$(request.auth.uid)) || get(/databases/$(database)/documents/account_deletions/$(request.auth.uid)).data.status == 'requested');
+    }
+    function bridgeSessionValid() {
+      return !request.auth.token.keys().hasAny(['allgoSession']) ||
+        (exists(/databases/$(database)/documents/bridge_sessions/$(request.auth.token.allgoSession)) &&
+        get(/databases/$(database)/documents/bridge_sessions/$(request.auth.token.allgoSession)).data.uid == request.auth.uid &&
+        get(/databases/$(database)/documents/bridge_sessions/$(request.auth.token.allgoSession)).data.expiresAt > request.time);
     }
 
     function isOwner(userId) {
@@ -65,7 +71,6 @@ service cloud.firestore {
         booking.driverId == request.auth.uid ||
         booking.driverId == request.auth.uid + '_drv' ||
         isMerchantFor(booking) ||
-        canReceiveBooking(booking) ||
         isAdmin()
       );
     }
@@ -74,7 +79,8 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'email', 'role']) 
-        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'merchantId', 'merchantType'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType'])
+        && (!data.keys().hasAny(['favorites']) || (data.favorites is list && data.favorites.size() <= 200))
         && data.uid == request.auth.uid
         && data.name is string && data.name.size() <= 100
         && data.email is string && data.email.size() <= 100
@@ -95,7 +101,7 @@ service cloud.firestore {
 
     function isValidDriverProfile(data, driverId) {
       return data.keys().hasAll(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online'])
-        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs', 'activeBookingId', 'earningsDate', 'rejectedBookingIds', 'availableEarningsCents', 'reservedEarningsCents', 'supportedServices', 'locationUpdatedAt', 'locationAccuracyMeters'])
+        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs', 'activeBookingId', 'earningsDate', 'rejectedBookingIds', 'availableEarningsCents', 'reservedEarningsCents', 'supportedServices', 'locationUpdatedAt', 'locationAccuracyMeters', 'transportCapabilities'])
         && data.driverId == driverId
         && (data.vehicleType == 'bike' || data.vehicleType == 'auto' || data.vehicleType == 'car' || data.vehicleType == 'suv')
         && data.vehicleNo is string && data.vehicleNo.size() <= 30
@@ -175,6 +181,7 @@ service cloud.firestore {
         && incoming().todayEarnings == 0 && incoming().completedJobs == 0
         && incoming().get('availableEarningsCents', 0) == 0 && incoming().get('reservedEarningsCents', 0) == 0
         && incoming().get('rejectedBookingIds', []) == [] && incoming().get('supportedServices', []) == []
+        && !incoming().keys().hasAny(['transportCapabilities'])
         && !('activeBookingId' in incoming());
       allow update: if isSignedIn() && (
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'online', 'supportedServices']) && incoming().status in ['pending', 'verified', 'rejected'] && incoming().online == false && incoming().supportedServices is list) || 
@@ -192,6 +199,7 @@ service cloud.firestore {
           incoming().get('availableEarningsCents', 0) == existing().get('availableEarningsCents', 0) &&
           incoming().get('reservedEarningsCents', 0) == existing().get('reservedEarningsCents', 0) &&
           incoming().get('supportedServices', []) == existing().get('supportedServices', []) &&
+          incoming().get('transportCapabilities', null) == existing().get('transportCapabilities', null) &&
           (existing().status != 'verified' || (incoming().vehicleType == existing().vehicleType && incoming().vehicleNo == existing().vehicleNo && incoming().licenseNo == existing().licenseNo)) &&
           incoming().get('earningsDate', null) == existing().get('earningsDate', null)
         ))
@@ -200,6 +208,9 @@ service cloud.firestore {
     }
 
     // RESTAURANTS & SUB-COLLECTIONS
+    match /operations_audit/{entryId} { allow read: if isAdmin(); allow write: if false; }
+    match /service_zones/{zoneId} { allow read: if isAdmin(); allow write: if false; }
+    match /service_pricing/{serviceId} { allow read: if isAdmin(); allow write: if false; }
     match /restaurants/{restaurantId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -224,18 +235,21 @@ service cloud.firestore {
     // BOOKINGS (Unified transactional records)
     match /bookings/{bookingId} {
       allow get: if canAccessBooking(bookingId);
+      // SEC-04: Drivers must NOT be able to list raw unassigned bookings — full customer PII
+      // (name, address, notes) would be readable before assignment. Dispatch is server-side only.
       allow list: if isSignedIn() && (
-        resource.data.customerId == request.auth.uid || 
-        resource.data.driverId == request.auth.uid || 
+        resource.data.customerId == request.auth.uid ||
+        resource.data.driverId == request.auth.uid ||
         resource.data.driverId == request.auth.uid + '_drv' ||
         isMerchantFor(resource.data) ||
-        canReceiveBooking(resource.data) ||
         isAdmin()
       );
       // Customer bookings are created by the verified payment Cloud Function only.
       allow create: if false;
       // Driver transitions and settlement use transactional Cloud Functions.
       allow update, delete: if false;
+
+      match /events/{eventId} { allow read: if canAccessBooking(bookingId); allow write: if false; }
 
       match /chats/{chatId} {
         function canChat() {
@@ -276,6 +290,10 @@ service cloud.firestore {
     // Payment attempts are private to trusted Cloud Functions (Admin SDK bypasses these rules).
     match /payment_attempts/{attemptId} {
       allow read, write: if false;
+    }
+    match /order_reviews/{reviewId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
     }
 
     // SUPPORT TICKETS

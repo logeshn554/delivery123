@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
-import { Checkout } from 'capacitor-razorpay';
+import { openPaymentCheckout } from '../payments';
 import { confirmOnlinePayment, createWalletTopup, listenToWalletLedger } from '../data/firestoreHelper';
 
 export default function WalletPanel({ uid }: { uid: string }) {
@@ -13,15 +12,12 @@ export default function WalletPanel({ uid }: { uid: string }) {
   useEffect(() => listenToWalletLedger(uid, values => { setEntries(values); setLoading(false); }, () => { setLoading(false); setError('Wallet ledger is unavailable.'); }), [uid]);
   const topup = async () => {
     if (busy) return;
-    if (!Capacitor.isNativePlatform()) { setError('Wallet funding uses secure checkout in the Android and iOS apps.'); return; }
     const cents = Math.round(Number(amount) * 100);
     if (!Number.isSafeInteger(cents) || cents < 100) { setError('Enter a valid amount of at least ₹1.'); return; }
     setBusy(true); setError(''); setNotice('');
     try {
       const order = await createWalletTopup(cents);
-      const checkout = await Checkout.open({ key: order.keyId, amount: String(order.amount), currency: order.currency, order_id: order.orderId, name: 'AllGo', description: 'AllGo wallet funding' } as Parameters<typeof Checkout.open>[0]);
-      const raw = (checkout as { response?: unknown }).response ?? checkout;
-      const receipt = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const receipt = await openPaymentCheckout({ key: order.keyId, amount: String(order.amount), currency: order.currency, order_id: order.orderId, name: 'AllGo', description: 'AllGo wallet funding' });
       const result = await confirmOnlinePayment(receipt as { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string });
       setNotice(result.status === 'paid' ? 'Payment verified. Your wallet ledger has been credited.' : 'Payment is processing. Check payment activity before funding again.');
       setAmount('');

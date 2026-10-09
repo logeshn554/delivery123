@@ -1,8 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, useRef } from 'react';
 import { LogOut } from 'lucide-react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from './firebase';
-import { useNeonAccounts, watchAccount } from './accounts';
+import { useNeonAccounts, watchAccount, hasServiceIdentity } from './accounts';
+import VerifyAccount from './components/VerifyAccount';
 import { initializeNativeNotifications, nativeSignOut } from './nativeNotifications';
 import AuthScreen, { authMessage } from './components/AuthScreen';
 import { getOrCreateUserProfile, listenToAccountProfile, listenToBookings, listenToCustomerBookings, listenToDriverBookings, listenToDriverProfiles, listenToMerchantBookings } from './data/firestoreHelper';
@@ -21,18 +22,19 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
+  const accountUid = useRef<string | null>(null);
 
   useEffect(() => {
-    if (useNeonAccounts) return;
+    if (useNeonAccounts && !hasServiceIdentity) return;
     let disposed = false; let stop: (() => void) | undefined;
     void initializeNativeNotifications().then(cleanup => { if (disposed) cleanup(); else stop = cleanup; }).catch(error => console.error('Native notification initialization failed', error));
     return () => { disposed = true; stop?.(); };
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, hasServiceIdentity]);
 
   useEffect(() => {
     if (useNeonAccounts) {
       setAuthChecking(true); setProfileError('');
-      return watchAccount(profile => { setCurrentUser(profile); setUserProfile(profile); setBookings([]); setDrivers([]); setProfileError(''); setAuthChecking(false); }, error => { setProfileError(authMessage(error)); setAuthChecking(false); });
+      return watchAccount(profile => { if(accountUid.current !== (profile?.uid || null)) { setBookings([]);setDrivers([]);accountUid.current=profile?.uid || null; } setCurrentUser(profile); setUserProfile(profile); setProfileError(''); setAuthChecking(false); }, error => { setProfileError(authMessage(error)); setAuthChecking(false); });
     }
     let active = true;
     let generation = 0;
@@ -73,7 +75,7 @@ export default function App() {
   useEffect(() => {
     if (!currentUser || !userProfile) return;
     return listenToAccountProfile(currentUser.uid, setUserProfile, error => setProfileError(authMessage(error)));
-  }, [currentUser?.uid, Boolean(userProfile)]);
+  }, [currentUser?.uid, Boolean(userProfile), hasServiceIdentity]);
 
   useEffect(() => {
     if (!currentUser || !userProfile) return;
@@ -88,11 +90,12 @@ export default function App() {
           : () => setBookings([]);
     const stopDrivers = userProfile.role === 'admin' ? listenToDriverProfiles(setDrivers) : () => undefined;
     return () => { stopBookings(); stopDrivers(); };
-  }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType]);
+  }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, hasServiceIdentity]);
 
   if (authChecking) return <div className="auth-shell"><section className="auth-panel grid place-content-center text-center"><div className="auth-wordmark">All<span>Go</span></div><p role="status">Opening your account…</p></section></div>;
   if (profileError) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Let’s reconnect.</h1><p role="alert">{profileError}</p><button className="auth-primary" onClick={() => setRetry(value => value + 1)}>Try again</button>{currentUser && <button className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button>}</section></div>;
   if (!currentUser || !userProfile) return <AuthScreen />;
+  if (useNeonAccounts && userProfile.serviceIdentityEnabled && !userProfile.emailVerified) return <VerifyAccount email={userProfile.email} onSignOut={nativeSignOut} />;
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-slate-100 text-slate-900">
