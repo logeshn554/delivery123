@@ -54,6 +54,13 @@ interface CustomerAppProps {
 type CartLine = { item: MenuItem | GroceryProduct; quantity: number; variant?: { id: string; label: string } };
 type CustomerTab = 'home' | 'orders' | 'cart' | 'support' | 'profile' | 'settings' | 'wallet' | 'more';
 
+// Development-only fixtures let the customer UI be exercised before live catalog data exists.
+const demoRestaurant: Restaurant = { id: 'demo-kitchen', name: 'Demo Kitchen', cuisine: 'Indian · Demo menu', image: '', rating: 4.8, deliveryTime: '25–35 min', pureVeg: true, address: 'Demo address · local testing', acceptingOrders: true, description: 'Sample restaurant for local UI testing.' };
+const demoMenuItem: MenuItem = { id: 'demo-paneer-wrap', restaurantId: demoRestaurant.id, name: 'Paneer Tikka Wrap', price: 149, isVeg: true, available: true, category: 'Popular', description: 'Sample food item for testing the cart and checkout flow.', image: '' };
+const demoStore: GroceryStore = { id: 'demo-market', name: 'Demo Fresh Market', address: 'Demo address · local testing', rating: 4.7, deliveryTime: '20–30 min', image: '', acceptingOrders: true, description: 'Sample grocery store for local UI testing.' };
+const demoProduct: GroceryProduct = { id: 'demo-milk', storeId: demoStore.id, name: 'Farm Fresh Milk', price: 68, stock: 20, unit: '500 ml', category: 'Dairy', image: '', description: 'Sample grocery product.' };
+function demoBooking(userId: string, userName: string, serviceType: Booking['serviceType'], index: number): Booking { const now = new Date(); const names: Record<Booking['serviceType'], string> = { food: 'Demo food order', grocery: 'Demo grocery order', ride: 'Demo ride', parcel: 'Demo parcel', takeover: 'Demo personal driver', transport: 'Demo vehicle transport' }; const prices: Record<Booking['serviceType'], number> = { food: 149, grocery: 68, ride: 220, parcel: 180, takeover: 600, transport: 1250 }; return { bookingId: `DEMO-${String(index + 1).padStart(3, '0')}`, customerId: userId, customerName: userName || 'Demo customer', serviceType, status: serviceType === 'food' ? 'preparing' : 'pending', createdAt: new Date(now.getTime() - (index + 1) * 12 * 60 * 1000).toISOString(), updatedAt: now.toISOString(), price: prices[serviceType], pickupAddress: 'Demo pickup address', dropAddress: 'Demo delivery address', merchantId: serviceType === 'food' ? demoRestaurant.id : undefined, driverId: null, driverName: 'Demo delivery partner', paymentStatus: 'paid', paymentMethod: 'other', details: serviceType === 'food' ? { restaurantId: demoRestaurant.id, restaurantName: demoRestaurant.name, items: [{ id: demoMenuItem.id, name: demoMenuItem.name, price: demoMenuItem.price, quantity: 1 }], notes: 'Demo order for UI testing.' } : serviceType === 'grocery' ? { storeId: demoStore.id, items: [{ id: demoProduct.id, name: demoProduct.name, price: demoProduct.price, quantity: 1 }], notes: 'Demo grocery order for UI testing.' } : { notes: `${names[serviceType]} for UI testing.` } }; }
+
 function readCart(userId: string): { items: CartLine[]; service: 'food' | 'grocery' | null } {
   try {
     const stored = JSON.parse(localStorage.getItem(`allgo-cart-${userId}`) || 'null');
@@ -65,7 +72,9 @@ function readCart(userId: string): { items: CartLine[]; service: 'food' | 'groce
   }
 }
 
-export default function CustomerApp({ userId, userName, activeBookings, userProfile, detectedAddress, onSignOut }: CustomerAppProps) {
+export default function CustomerApp({ userId, userName, activeBookings: liveBookings, userProfile, detectedAddress, onSignOut }: CustomerAppProps) {
+  const demoMode = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
+  const activeBookings = demoMode && liveBookings.length === 0 ? (['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'] as Booking['serviceType'][]).map((service, index) => demoBooking(userId, userName, service, index)) : liveBookings;
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [selectedStoreId, setSelectedStoreId] = useState(() => {
     const savedCart = readCart(userId);
@@ -86,9 +95,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const reportCatalogError = (error: unknown) => { console.error('Catalog subscription failed', error); setCatalogError('We could not load the latest catalog. Check your connection and try again.'); setRestaurantsLoading(false); setMenuLoading(false); setGroceryStoresLoading(false); setProductsLoading(false); };
   useEffect(() => {
     setCatalogError(''); setRestaurantsLoading(true); setGroceryStoresLoading(true);
-    const stopRestaurants = listenToRestaurants(restaurants => { setRestaurantsList(restaurants); setRestaurantsLoading(false); }, reportCatalogError);
+    const stopRestaurants = listenToRestaurants(restaurants => { setRestaurantsList(demoMode && restaurants.length === 0 ? [demoRestaurant] : restaurants); setRestaurantsLoading(false); }, reportCatalogError);
     const stopStores = listenToGroceryStores(stores => {
-      setGroceryStoresList(stores);
+      setGroceryStoresList(demoMode && stores.length === 0 ? [demoStore] : stores);
       setGroceryStoresLoading(false);
       setSelectedStoreId(current => stores.some(store => store.id === current) ? current : stores[0]?.id || '');
     }, reportCatalogError);
@@ -98,13 +107,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     setMenuItemsList([]);
     setMenuLoading(Boolean(selectedRestaurant));
     if (!selectedRestaurant) return;
-    return listenToMenuItems(selectedRestaurant.id, items => { setMenuItemsList(items); setMenuLoading(false); }, reportCatalogError);
+    return listenToMenuItems(selectedRestaurant.id, items => { setMenuItemsList(demoMode && selectedRestaurant.id === demoRestaurant.id && items.length === 0 ? [demoMenuItem] : items); setMenuLoading(false); }, reportCatalogError);
   }, [selectedRestaurant?.id, catalogRetry]);
   useEffect(() => {
     setProductsList([]);
     setProductsLoading(Boolean(selectedStoreId));
     if (!selectedStoreId) return;
-    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products); setProductsLoading(false); }, reportCatalogError);
+    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(demoMode && selectedStoreId === demoStore.id && products.length === 0 ? [demoProduct] : products); setProductsLoading(false); }, reportCatalogError);
   }, [selectedStoreId, catalogRetry]);
 
   // Navigation & Screen States
