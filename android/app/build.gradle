@@ -2,8 +2,20 @@ apply plugin: 'com.android.application'
 
 def allgoKeystore = System.getenv('ALLGO_KEYSTORE_PATH')
 def allgoSigningReady = allgoKeystore && System.getenv('ALLGO_KEYSTORE_PASSWORD') && System.getenv('ALLGO_KEY_ALIAS') && System.getenv('ALLGO_KEY_PASSWORD')
-if (project.hasProperty('allgoRequireSigning') && !allgoSigningReady) {
+def releaseRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+if ((releaseRequested || project.hasProperty('allgoRequireSigning')) && !allgoSigningReady) {
     throw new GradleException('Release signing requires all four ALLGO_KEYSTORE_* / ALLGO_KEY_* environment values.')
+}
+if (releaseRequested && (!file('google-services.json').exists() || System.getenv('ALLGO_RELEASE_PREFLIGHT_PASSED') != 'true')) {
+    throw new GradleException('Release requires Firebase registration and a passing environment preflight through the release wrapper.')
+}
+if (releaseRequested) {
+    def metadataFile = file('src/main/assets/public/allgo-build.json')
+    if (!metadataFile.exists()) throw new GradleException('Release web build metadata is missing.')
+    def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
+    if (metadata.demo || !(metadata.mode in ['staging', 'production'])) throw new GradleException('Release cannot package a development or demo bundle.')
+    def registration = new groovy.json.JsonSlurper().parse(file('google-services.json'))
+    if (metadata.projectId != registration.project_info.project_id) throw new GradleException('Web bundle and native Firebase registration project mismatch.')
 }
 
 android {
@@ -48,6 +60,8 @@ repositories {
 }
 
 dependencies {
+    implementation 'com.google.firebase:firebase-auth:23.1.0'
+    implementation 'com.google.firebase:firebase-functions:21.2.1'
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"

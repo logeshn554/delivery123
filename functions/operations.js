@@ -2,6 +2,7 @@ const { validPoint, calculateFare } = require('./bookingPolicy');
 const { cartCharges } = require('./cartPolicy');
 const { validateHours } = require('./merchantPolicy');
 const { catalogItem } = require('./catalogPolicy');
+const { settlementPolicy } = require('./settlementPolicy');
 function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }) {
   const services = ['food','grocery','ride','parcel','takeover','transport'];
   const admin = async request => {
@@ -59,9 +60,12 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
     }),
     configureService: onCall({ operation: 'configureService', region: REGION }, async request => {
       const uid = await admin(request), data = request.data, service = data.serviceType;
+      if (data.reviewed !== true || !Number.isSafeInteger(data.expectedVersion) || data.expectedVersion < 0) throw new HttpsError('invalid-argument', 'Review the rates and include their current version before publishing.');
       if (!services.includes(service) || typeof data.enabled !== 'boolean' || !Array.isArray(data.zoneIds) || !data.zoneIds.length || data.zoneIds.length > 20) throw new HttpsError('invalid-argument', 'Select a service and its delivery zones.');
       const ids = [...new Set(data.zoneIds.map(id => documentId(id, 'Zone ID')))];
       const config = { enabled: data.enabled, zoneIds: ids, updatedAt: Timestamp.now() };
+      try { config.settlement = settlementPolicy(data.settlement); }
+      catch (error) { throw new HttpsError('invalid-argument', error.message); }
       if (['food','grocery'].includes(service)) {
         const delivery = data.delivery;
         try { cartCharges(Math.max(delivery?.minimumBasketCents || 0, 100), 0, delivery); }
@@ -80,11 +84,37 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         }
         if (service === 'parcel') config.intercityEnabled = data.intercityEnabled === true;
       }
+      const changeRef = db.collection('pricing_changes').doc();
       await db.runTransaction(async tx => {
+        const pricingRef = db.doc(`service_pricing/${service}`), current = await tx.get(pricingRef);
+        if ((current.data()?.version || 0) !== data.expectedVersion) throw new HttpsError('aborted', 'Rates changed during review. Reload and review the latest version.');
         const zones = await Promise.all(ids.map(id => tx.get(db.doc(`service_zones/${id}`))));
         if (zones.some(zone => !zone.exists || !zone.data().serviceTypes?.includes(service))) throw new HttpsError('failed-precondition', 'Each zone must be configured for this service.');
-        tx.set(db.doc(`service_pricing/${service}`), config, { merge: true }); audit(tx, uid, 'service_configured', service);
-      }); return { updated: true };
+        tx.create(changeRef, { serviceType: service, expectedVersion: data.expectedVersion, proposedBy: uid, status: 'pending', config, createdAt: Timestamp.now() });
+        audit(tx, uid, 'service_rates_proposed', changeRef.id);
+      }); return { proposed: true, changeId: changeRef.id };
+    }),
+    reviewServiceRates: onCall({ operation: 'reviewServiceRates', region: REGION }, async request => {
+      const uid = await admin(request), data = request.data || {}, id = documentId(data.changeId, 'Rate change');
+      if (!['approved', 'rejected'].includes(data.decision) || data.reviewed !== true) throw new HttpsError('invalid-argument', 'Review the full proposal before deciding.');
+      const reason = cleanText(data.reason, 'Review reason', 500);
+      return db.runTransaction(async tx => {
+        const changeRef = db.doc(`pricing_changes/${id}`), proposal = await tx.get(changeRef), change = proposal.data();
+        if (!change || change.status !== 'pending') throw new HttpsError('failed-precondition', 'This proposal is no longer pending.');
+        if (change.proposedBy === uid) throw new HttpsError('permission-denied', 'A different verified operator must review this rate change.');
+        const pricingRef = db.doc(`service_pricing/${change.serviceType}`), current = await tx.get(pricingRef);
+        if (data.decision === 'approved') {
+          if ((current.data()?.version || 0) !== change.expectedVersion) throw new HttpsError('aborted', 'Published rates changed. Reject this proposal and submit a fresh review.');
+          const zones = await Promise.all(change.config.zoneIds.map(id => tx.get(db.doc(`service_zones/${id}`))));
+          if (zones.some(zone => !zone.exists || !zone.data().serviceTypes?.includes(change.serviceType))) throw new HttpsError('failed-precondition', 'Coverage zones changed during review.');
+          const config = { ...change.config, version: change.expectedVersion + 1, proposedBy: change.proposedBy, approvedBy: uid, updatedAt: Timestamp.now(), changeId: id };
+          tx.set(pricingRef, config);
+          tx.create(pricingRef.collection('versions').doc(String(config.version)), config);
+        }
+        tx.update(changeRef, { status: data.decision, reviewedBy: uid, reviewReason: reason, reviewedAt: Timestamp.now() });
+        audit(tx, uid, `service_rates_${data.decision}`, id);
+        return { status: data.decision };
+      });
     }),
     approveTransportEquipment: onCall({ operation: 'approveTransportEquipment', region: REGION }, async request => {
       const uid = await admin(request), data = request.data, driverId = documentId(data.driverId, 'Driver ID');

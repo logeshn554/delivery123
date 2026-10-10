@@ -20,7 +20,7 @@ All customer services use Razorpay Standard Checkout in the Capacitor Android an
    firebase deploy --only functions,firestore --project golden-polygon-3rrhs
    ```
 
-5. Build and install the native Android/iOS apps. Web builds intentionally do not accept payment.
+5. Build and install the native Android/iOS apps. Web checkout uses Razorpay Standard Checkout when enabled for the merchant account and allowed by its provider configuration. Native and web callbacks both require server verification before a booking is created. Test both platform paths in staging.
 
 ## Current quote rules
 

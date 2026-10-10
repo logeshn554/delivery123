@@ -40,6 +40,7 @@ import {
   requestBookingCancellation,
 } from '../data/firestoreHelper';
 import { SavedAddress, UserProfile } from '../types';
+import { useFeedbackDialog } from './useFeedbackDialog';
 
 
 interface CustomerAppProps {
@@ -54,13 +55,6 @@ interface CustomerAppProps {
 type CartLine = { item: MenuItem | GroceryProduct; quantity: number; variant?: { id: string; label: string } };
 type CustomerTab = 'home' | 'orders' | 'cart' | 'support' | 'profile' | 'settings' | 'wallet' | 'more';
 
-// Development-only fixtures let the customer UI be exercised before live catalog data exists.
-const demoRestaurant: Restaurant = { id: 'demo-kitchen', name: 'Demo Kitchen', cuisine: 'Indian · Demo menu', image: '', rating: 4.8, deliveryTime: '25–35 min', pureVeg: true, address: 'Demo address · local testing', acceptingOrders: true, description: 'Sample restaurant for local UI testing.' };
-const demoMenuItem: MenuItem = { id: 'demo-paneer-wrap', restaurantId: demoRestaurant.id, name: 'Paneer Tikka Wrap', price: 149, isVeg: true, available: true, category: 'Popular', description: 'Sample food item for testing the cart and checkout flow.', image: '' };
-const demoStore: GroceryStore = { id: 'demo-market', name: 'Demo Fresh Market', address: 'Demo address · local testing', rating: 4.7, deliveryTime: '20–30 min', image: '', acceptingOrders: true, description: 'Sample grocery store for local UI testing.' };
-const demoProduct: GroceryProduct = { id: 'demo-milk', storeId: demoStore.id, name: 'Farm Fresh Milk', price: 68, stock: 20, unit: '500 ml', category: 'Dairy', image: '', description: 'Sample grocery product.' };
-function demoBooking(userId: string, userName: string, serviceType: Booking['serviceType'], index: number): Booking { const now = new Date(); const names: Record<Booking['serviceType'], string> = { food: 'Demo food order', grocery: 'Demo grocery order', ride: 'Demo ride', parcel: 'Demo parcel', takeover: 'Demo personal driver', transport: 'Demo vehicle transport' }; const prices: Record<Booking['serviceType'], number> = { food: 149, grocery: 68, ride: 220, parcel: 180, takeover: 600, transport: 1250 }; return { bookingId: `DEMO-${String(index + 1).padStart(3, '0')}`, customerId: userId, customerName: userName || 'Demo customer', serviceType, status: serviceType === 'food' ? 'preparing' : 'pending', createdAt: new Date(now.getTime() - (index + 1) * 12 * 60 * 1000).toISOString(), updatedAt: now.toISOString(), price: prices[serviceType], pickupAddress: 'Demo pickup address', dropAddress: 'Demo delivery address', merchantId: serviceType === 'food' ? demoRestaurant.id : undefined, driverId: null, driverName: 'Demo delivery partner', paymentStatus: 'paid', paymentMethod: 'other', details: serviceType === 'food' ? { restaurantId: demoRestaurant.id, restaurantName: demoRestaurant.name, items: [{ id: demoMenuItem.id, name: demoMenuItem.name, price: demoMenuItem.price, quantity: 1 }], notes: 'Demo order for UI testing.' } : serviceType === 'grocery' ? { storeId: demoStore.id, items: [{ id: demoProduct.id, name: demoProduct.name, price: demoProduct.price, quantity: 1 }], notes: 'Demo grocery order for UI testing.' } : { notes: `${names[serviceType]} for UI testing.` } }; }
-
 function readCart(userId: string): { items: CartLine[]; service: 'food' | 'grocery' | null } {
   try {
     const stored = JSON.parse(localStorage.getItem(`allgo-cart-${userId}`) || 'null');
@@ -72,9 +66,8 @@ function readCart(userId: string): { items: CartLine[]; service: 'food' | 'groce
   }
 }
 
-export default function CustomerApp({ userId, userName, activeBookings: liveBookings, userProfile, detectedAddress, onSignOut }: CustomerAppProps) {
-  const demoMode = import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
-  const activeBookings = demoMode && liveBookings.length === 0 ? (['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'] as Booking['serviceType'][]).map((service, index) => demoBooking(userId, userName, service, index)) : liveBookings;
+export default function CustomerApp({ userId, userName, activeBookings, userProfile, detectedAddress, onSignOut }: CustomerAppProps) {
+  const { alert, confirm, dialog } = useFeedbackDialog();
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [selectedStoreId, setSelectedStoreId] = useState(() => {
     const savedCart = readCart(userId);
@@ -95,9 +88,9 @@ export default function CustomerApp({ userId, userName, activeBookings: liveBook
   const reportCatalogError = (error: unknown) => { console.error('Catalog subscription failed', error); setCatalogError('We could not load the latest catalog. Check your connection and try again.'); setRestaurantsLoading(false); setMenuLoading(false); setGroceryStoresLoading(false); setProductsLoading(false); };
   useEffect(() => {
     setCatalogError(''); setRestaurantsLoading(true); setGroceryStoresLoading(true);
-    const stopRestaurants = listenToRestaurants(restaurants => { setRestaurantsList(demoMode && restaurants.length === 0 ? [demoRestaurant] : restaurants); setRestaurantsLoading(false); }, reportCatalogError);
+    const stopRestaurants = listenToRestaurants(restaurants => { setRestaurantsList(restaurants); setRestaurantsLoading(false); }, reportCatalogError);
     const stopStores = listenToGroceryStores(stores => {
-      setGroceryStoresList(demoMode && stores.length === 0 ? [demoStore] : stores);
+      setGroceryStoresList(stores);
       setGroceryStoresLoading(false);
       setSelectedStoreId(current => stores.some(store => store.id === current) ? current : stores[0]?.id || '');
     }, reportCatalogError);
@@ -107,13 +100,13 @@ export default function CustomerApp({ userId, userName, activeBookings: liveBook
     setMenuItemsList([]);
     setMenuLoading(Boolean(selectedRestaurant));
     if (!selectedRestaurant) return;
-    return listenToMenuItems(selectedRestaurant.id, items => { setMenuItemsList(demoMode && selectedRestaurant.id === demoRestaurant.id && items.length === 0 ? [demoMenuItem] : items); setMenuLoading(false); }, reportCatalogError);
+    return listenToMenuItems(selectedRestaurant.id, items => { setMenuItemsList(items); setMenuLoading(false); }, reportCatalogError);
   }, [selectedRestaurant?.id, catalogRetry]);
   useEffect(() => {
     setProductsList([]);
     setProductsLoading(Boolean(selectedStoreId));
     if (!selectedStoreId) return;
-    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(demoMode && selectedStoreId === demoStore.id && products.length === 0 ? [demoProduct] : products); setProductsLoading(false); }, reportCatalogError);
+    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products); setProductsLoading(false); }, reportCatalogError);
   }, [selectedStoreId, catalogRetry]);
 
   // Navigation & Screen States
@@ -199,7 +192,7 @@ export default function CustomerApp({ userId, userName, activeBookings: liveBook
 
   const handleDeleteSavedAddress = async (address: SavedAddress) => {
     const wasDefault = userProfile?.defaultAddressId === address.id || deliveryAddress === address.address;
-    if (!window.confirm(`Remove your ${address.label} address?`)) return;
+    if (!(await confirm(`Remove your ${address.label} address?`))) return;
     try {
       await deleteSavedAddress(userId, address.id, wasDefault);
       if (wasDefault) {
@@ -456,7 +449,7 @@ export default function CustomerApp({ userId, userName, activeBookings: liveBook
   };
 
   const handleCancelOrder = async (booking: Booking) => {
-    if (booking.status !== 'pending' || booking.paymentStatus !== 'paid' || !window.confirm('Cancel this order? A refund will be requested to your original payment method.')) return;
+    if (booking.status !== 'pending' || booking.paymentStatus !== 'paid' || !(await confirm('Cancel this order? A refund will be requested to your original payment method.'))) return;
     setCancellingOrderId(booking.bookingId);
     try {
       await requestBookingCancellation(booking.bookingId);
@@ -648,6 +641,7 @@ export default function CustomerApp({ userId, userName, activeBookings: liveBook
 
   return (
       <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative select-none">
+      {dialog}
 
       {/* REAL-TIME MESSAGING POPUP DRAWER */}
       {activeChatBookingId && (
@@ -1154,7 +1148,7 @@ export default function CustomerApp({ userId, userName, activeBookings: liveBook
             <div className="flex items-center gap-2"><button aria-label="Back to profile" onClick={() => { setActiveWorkflow('none'); setCurrentTab('profile'); }} className="rounded-lg p-1"><ArrowLeft size={18} /></button><div><h3 className="text-base font-black text-slate-900">Settings</h3><p className="text-[11px] text-slate-500">Manage your AllGo account.</p></div></div>
             <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Account</h4><div className="mt-3 space-y-3 text-xs"><div><p className="text-[10px] text-slate-400">Name</p><p className="font-bold text-slate-800">{userName}</p></div><div><p className="text-[10px] text-slate-400">Email</p><p className="break-all font-bold text-slate-800">{userProfile?.email || 'Not available'}</p></div><div><p className="text-[10px] text-slate-400">Mobile</p><p className="font-bold text-slate-800">{userProfile?.phone || 'Not added'}</p></div><button onClick={() => setShowAddressModal(true)} className="flex w-full items-center justify-between border-t border-slate-100 pt-3 text-left font-bold text-indigo-600"><span className="flex items-center gap-2"><MapPin size={15} /> Delivery address</span><ChevronRight size={15} /></button></div></div>
             <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Communication preferences</h4><button className="mt-3 min-h-11 text-xs font-bold text-indigo-700" onClick={() => void enableOrderNotifications().then(() => alert('Device notifications enabled.')).catch(error => alert(error instanceof Error ? error.message : 'Notification setup failed.'))}>Enable device notifications</button><p className="mt-1 text-[10px] text-slate-500">Choose what AllGo may send to your account. Push notifications require device notification setup.</p><label className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-700"><span>Order updates</span><input type="checkbox" checked={preferences.orderUpdates} disabled={savingPreferences} onChange={(event) => void handleSavePreferences({ ...preferences, orderUpdates: event.target.checked })} className="h-4 w-4 accent-indigo-600" /></label><label className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-700"><span>Offers and product news</span><input type="checkbox" checked={preferences.promotions} disabled={savingPreferences} onChange={(event) => void handleSavePreferences({ ...preferences, promotions: event.target.checked })} className="h-4 w-4 accent-indigo-600" /></label>{savingPreferences && <p className="mt-2 text-[10px] text-indigo-600">Saving preferences…</p>}</div>
-            <div className="rounded-2xl border border-rose-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Privacy and deletion</h4><p className="mt-2 text-xs text-slate-500">Saved addresses can be deleted in Delivery address. Use support to request a copy of your data. Deletion requests require a recent sign-in and settled bookings and balances; required transaction records may be retained under the operator's published policy.</p><button className="mt-3 min-h-11 w-full rounded-lg bg-rose-50 text-xs font-bold text-rose-700" onClick={() => { if (window.confirm('Request deletion of your AllGo account? Resolve active orders and balances first.')) void requestAccountDeletion().then(() => alert('Deletion requested. Support will confirm processing and any records that must be retained.')).catch(error => alert(error instanceof Error ? error.message : 'Deletion request failed.')); }}>Request account deletion</button><h4 className="mt-4 text-xs font-extrabold text-slate-800">Session</h4><p className="mt-1 text-[10px] text-slate-500">Sign out from this device.</p><button onClick={onSignOut} className="mt-3 w-full rounded-xl bg-rose-50 py-2.5 text-xs font-bold text-rose-700">Sign out</button></div>
+<div className="rounded-2xl border border-rose-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Privacy and deletion</h4><p className="mt-2 text-xs text-slate-500">Saved addresses can be deleted in Delivery address. Use support to request a copy of your data. Deletion requests require a recent sign-in and settled bookings and balances; required transaction records may be retained under the operator's published policy.</p><button className="mt-3 min-h-11 w-full rounded-lg bg-rose-50 text-xs font-bold text-rose-700" onClick={async () => { if (await confirm('Request deletion of your AllGo account? Resolve active orders and balances first.')) void requestAccountDeletion().then(() => alert('Deletion requested. Support will confirm processing and any records that must be retained.')).catch(error => alert(error instanceof Error ? error.message : 'Deletion request failed.')); }}>Request account deletion</button><h4 className="mt-4 text-xs font-extrabold text-slate-800">Session</h4><p className="mt-1 text-[10px] text-slate-500">Sign out from this device.</p><button onClick={onSignOut} className="mt-3 w-full rounded-xl bg-rose-50 py-2.5 text-xs font-bold text-rose-700">Sign out</button></div>
           </div>
         )}
 

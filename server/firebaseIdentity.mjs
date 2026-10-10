@@ -23,7 +23,8 @@ export async function bridgeIdentity(pool, account, sessionHash) {
     await client.query('BEGIN');
     const { rows } = await client.query('SELECT * FROM allgo_accounts WHERE id=$1 FOR UPDATE', [account.id]);
     const current = rows[0];
-    let uid = current.profile.firebaseUid;
+    const linked = await client.query('SELECT firebase_uid FROM allgo_identity_links WHERE account_id=$1', [current.id]);
+    let uid = linked.rows[0]?.firebase_uid || current.profile.firebaseUid;
     let user;
     if (uid) user = await auth.getUser(uid);
     else {
@@ -41,10 +42,12 @@ export async function bridgeIdentity(pool, account, sessionHash) {
       await client.query("UPDATE allgo_accounts SET profile=profile || jsonb_build_object('firebaseUid', $2::text) WHERE id=$1", [current.id, uid]);
     }
     if (user.disabled || user.email?.toLowerCase() !== current.email || !user.emailVerified) throw Object.assign(new Error('The service identity is disabled or needs verification.'), { status: 403, code: 'permission-denied' });
+    await client.query('INSERT INTO allgo_identity_links (account_id,firebase_uid) VALUES ($1,$2) ON CONFLICT (account_id) DO NOTHING', [current.id, uid]);
     const profileRef = db.doc(`users/${uid}`);
     await db.runTransaction(async tx => {
       const existing = await tx.get(profileRef);
-      if (!existing.exists) tx.create(profileRef, { uid, name: current.name, email: current.email, role: 'customer', walletBalance: 0, createdAt: current.created_at.toISOString(), ...(current.profile.preferences ? { preferences: current.profile.preferences } : {}), ...(Array.isArray(current.profile.favorites) ? { favorites: current.profile.favorites } : {}), ...(current.profile.defaultAddressId ? { defaultAddressId: current.profile.defaultAddressId } : {}), ...(current.profile.defaultAddress ? { defaultAddress: current.profile.defaultAddress } : {}) });
+if (!existing.exists) tx.create(profileRef, { uid, accountAuthority: 'neon', neonAccountId: current.id, name: current.name, email: current.email, role: 'customer', walletBalance: 0, createdAt: current.created_at.toISOString(), ...(current.profile.preferences ? { preferences: current.profile.preferences } : {}), ...(Array.isArray(current.profile.favorites) ? { favorites: current.profile.favorites } : {}), ...(current.profile.defaultAddressId ? { defaultAddressId: current.profile.defaultAddressId } : {}), ...(current.profile.defaultAddress ? { defaultAddress: current.profile.defaultAddress } : {}) });
+      if (existing.exists) tx.update(profileRef, { accountAuthority: 'neon', neonAccountId: current.id });
     });
     // Migrate only saved addresses, once. Never turn unverified JSON bookings into paid orders.
     if (!current.profile.addressMigrationComplete) {

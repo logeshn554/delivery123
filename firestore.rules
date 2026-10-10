@@ -9,7 +9,12 @@ service cloud.firestore {
 
     // 2. PRIMITIVE GLOBAL HELPERS
     function isSignedIn() {
-      return request.auth != null && bridgeSessionValid() && (!exists(/databases/$(database)/documents/account_deletions/$(request.auth.uid)) || get(/databases/$(database)/documents/account_deletions/$(request.auth.uid)).data.status == 'requested');
+      return request.auth != null && accountActive() && bridgeSessionValid() && (!exists(/databases/$(database)/documents/account_deletions/$(request.auth.uid)) || get(/databases/$(database)/documents/account_deletions/$(request.auth.uid)).data.status == 'requested');
+    }
+    function accountActive() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('suspended', false) == false &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('disabled', false) == false);
     }
     function bridgeSessionValid() {
       return !request.auth.token.keys().hasAny(['allgoSession']) ||
@@ -45,7 +50,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && request.auth.token.get('admin', false) == true;
+      let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isSignedIn() && request.auth.token.get('admin', false) == true
+        && account.role == 'admin' && account.get('suspended', false) == false && account.get('disabled', false) == false;
     }
 
     function incoming() {
@@ -79,7 +86,7 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'email', 'role']) 
-        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType', 'accountAuthority', 'neonAccountId'])
         && (!data.keys().hasAny(['favorites']) || (data.favorites is list && data.favorites.size() <= 200))
         && data.uid == request.auth.uid
         && data.name is string && data.name.size() <= 100
@@ -101,7 +108,7 @@ service cloud.firestore {
 
     function isValidDriverProfile(data, driverId) {
       return data.keys().hasAll(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online'])
-        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs', 'activeBookingId', 'earningsDate', 'rejectedBookingIds', 'availableEarningsCents', 'reservedEarningsCents', 'supportedServices', 'locationUpdatedAt', 'locationAccuracyMeters', 'transportCapabilities'])
+        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs', 'activeBookingId', 'earningsDate', 'rejectedBookingIds', 'availableEarningsCents', 'reservedEarningsCents', 'supportedServices', 'locationUpdatedAt', 'locationAccuracyMeters', 'transportCapabilities', 'locationConsent', 'locationConsentAt'])
         && data.driverId == driverId
         && (data.vehicleType == 'bike' || data.vehicleType == 'auto' || data.vehicleType == 'car' || data.vehicleType == 'suv')
         && data.vehicleNo is string && data.vehicleNo.size() <= 30
@@ -150,8 +157,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType']);
-      allow update: if isSignedIn() && ((isOwner(userId) && isValidUser(incoming()) && incoming().role == existing().role && incoming().walletBalance == existing().walletBalance && incoming().get('merchantId', null) == existing().get('merchantId', null) && incoming().get('merchantType', null) == existing().get('merchantType', null)));
+allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'accountAuthority', 'neonAccountId']);
+      allow update: if isSignedIn() && ((isOwner(userId) && isValidUser(incoming()) && incoming().get('accountAuthority', null) == existing().get('accountAuthority', null) && incoming().get('neonAccountId', null) == existing().get('neonAccountId', null) && incoming().role == existing().role && incoming().walletBalance == existing().walletBalance && incoming().get('merchantId', null) == existing().get('merchantId', null) && incoming().get('merchantType', null) == existing().get('merchantType', null)));
       allow delete: if isAdmin();
 
       match /addresses/{addressId} {
@@ -171,6 +178,10 @@ service cloud.firestore {
     }
 
     // DRIVER PROFILES
+    match /pricing_changes/{changeId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
     match /driver_profiles/{driverId} {
       allow get: if isOwner(driverId) || isAdmin();
       allow list: if isAdmin();
@@ -181,7 +192,7 @@ service cloud.firestore {
         && incoming().todayEarnings == 0 && incoming().completedJobs == 0
         && incoming().get('availableEarningsCents', 0) == 0 && incoming().get('reservedEarningsCents', 0) == 0
         && incoming().get('rejectedBookingIds', []) == [] && incoming().get('supportedServices', []) == []
-        && !incoming().keys().hasAny(['transportCapabilities'])
+        && !incoming().keys().hasAny(['transportCapabilities', 'locationConsent', 'locationConsentAt'])
         && !('activeBookingId' in incoming());
       allow update: if isSignedIn() && (
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'online', 'supportedServices']) && incoming().status in ['pending', 'verified', 'rejected'] && incoming().online == false && incoming().supportedServices is list) || 
@@ -200,6 +211,9 @@ service cloud.firestore {
           incoming().get('reservedEarningsCents', 0) == existing().get('reservedEarningsCents', 0) &&
           incoming().get('supportedServices', []) == existing().get('supportedServices', []) &&
           incoming().get('transportCapabilities', null) == existing().get('transportCapabilities', null) &&
+          incoming().get('locationConsent', false) == existing().get('locationConsent', false) &&
+          incoming().get('locationConsentAt', null) == existing().get('locationConsentAt', null) &&
+          (!incoming().online || incoming().get('locationConsent', false) == true) &&
           (existing().status != 'verified' || (incoming().vehicleType == existing().vehicleType && incoming().vehicleNo == existing().vehicleNo && incoming().licenseNo == existing().licenseNo)) &&
           incoming().get('earningsDate', null) == existing().get('earningsDate', null)
         ))
@@ -211,6 +225,7 @@ service cloud.firestore {
     match /operations_audit/{entryId} { allow read: if isAdmin(); allow write: if false; }
     match /service_zones/{zoneId} { allow read: if isAdmin(); allow write: if false; }
     match /service_pricing/{serviceId} { allow read: if isAdmin(); allow write: if false; }
+    match /service_pricing/{serviceId}/versions/{version} { allow read: if isAdmin(); allow write: if false; }
     match /restaurants/{restaurantId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -313,6 +328,10 @@ service cloud.firestore {
 
     match /driver_ledger/{driverId}/entries/{entryId} {
       allow read: if isOwner(driverId) || isAdmin();
+      allow write: if false;
+    }
+    match /financial_journals/{entryId} {
+      allow read: if isAdmin();
       allow write: if false;
     }
   }

@@ -1,0 +1,14 @@
+{
+  "environment": "staging",
+  "projectId": "",
+  "databaseId": "(default)",
+  "gates": {
+    "A": { "status": "pending", "reviewedBy": "", "verifiedAt": "", "evidence": [] },
+    "B": { "status": "pending", "reviewedBy": "", "verifiedAt": "", "evidence": [] },
+    "C": { "status": "pending", "reviewedBy": "", "verifiedAt": "", "evidence": [] },
+    "D": { "status": "pending", "reviewedBy": "", "verifiedAt": "", "evidence": [] },
+    "E": { "status": "pending", "reviewedBy": "", "verifiedAt": "", "evidence": [] },
+    "F": { "status": "pending", "reviewedBy": "", "verifiedAt": "", "evidence": [] },
+    "G": { "status": "pending", "reviewedBy": "", "verifiedAt": "", "evidence": [] }
+  }
+}

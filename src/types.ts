@@ -45,6 +45,8 @@ export interface DriverProfile {
   currentLng?: number;
   locationUpdatedAt?: string;
   locationAccuracyMeters?: number;
+  locationConsent?: boolean;
+  locationConsentAt?: string;
   todayEarnings?: number;
   completedJobs?: number;
 }
@@ -109,6 +111,10 @@ export interface GroceryProduct {
 }
 
 export interface Booking {
+  settlementContract?: PartnerSettlementContract;
+  driverSettlement?: { version: number; serviceType: Booking['serviceType']; baseCents: number; distanceCents: number; plannedDurationCents: number; waitingCents: number; waitMinutes: number; totalCents: number; capApplied: boolean };
+  arrivedAtPickup?: string;
+  pickupCompletedAt?: string;
   priceBreakdown?: PriceBreakdown;
   driverPayout?: number;
   bookingId: string;
@@ -135,6 +141,18 @@ export interface Booking {
 }
 
 export interface PriceBreakdown { itemCents: number; deliveryCents: number; packagingCents: number; platformCents: number; taxCents: number; discountCents: number; totalCents: number; }
+export interface PartnerSettlementContract {
+  version: number;
+  serviceType: Booking['serviceType'];
+  baseCents: number;
+  perKmCents: number;
+  perMinuteCents: number;
+  minimumCents: number;
+  maxPayoutCents: number;
+  waitingPerMinuteCents: number;
+  maxWaitingMinutes: number;
+  allowZeroPayout: boolean;
+}
 export interface BookingDetails {
   deliveryPlaceId?: string;
   restaurantId?: string;

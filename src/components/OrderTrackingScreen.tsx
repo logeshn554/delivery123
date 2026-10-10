@@ -38,5 +38,6 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
     {routeError && !complete && !cancelled && <p className="page-caption">{routeError}</p>}
     <div className="tracking-partner"><span className="partner-avatar"><Bike size={24} /></span><div><strong>{booking.driverName || 'Your delivery partner'}</strong><small>{booking.driverId ? 'Assigned to your booking' : 'Waiting for assignment'}</small></div>{booking.driverId && !complete && !cancelled && <button aria-label="Chat with partner" onClick={onChat}><MessageSquare size={20} /></button>}</div>
     {booking.otp && !complete && !cancelled && <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Delivery confirmation code</strong><small>Share only after receiving your order.</small></div><b>{booking.otp}</b></div>}
+    {booking.pickupOtp && ['ride', 'takeover'].includes(booking.serviceType) && !complete && !cancelled && <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Trip start code</strong><small>Share at pickup after checking the assigned partner and vehicle.</small></div><b>{booking.pickupOtp}</b></div>}
   </section>;
 }

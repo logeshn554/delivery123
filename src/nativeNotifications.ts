@@ -5,7 +5,9 @@ import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { httpsCallable } from 'firebase/functions';
 import { signOut } from 'firebase/auth';
-import { auth, functions } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, functions } from './firebase';
+import { stopNativeDriverLocation } from './driverLocation';
 
 function openBooking(id: unknown) {
   if (typeof id !== 'string' || !/^ALLGO_[a-zA-Z0-9_-]+$/.test(id)) return;
@@ -26,6 +28,15 @@ export async function enableOrderNotifications() {
   localStorage.setItem('allgo-push-enabled', 'true');
 }
 export async function nativeSignOut() {
+  await stopNativeDriverLocation().catch(() => undefined);
+  // Withdraw server consent while the account session still authorizes the request.
+  // A network failure must not prevent local sign-out; stale fixes expire at dispatch.
+  if (auth.currentUser) {
+    try {
+      const profile = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (profile.data()?.role === 'driver') await httpsCallable(functions, 'setDriverLocationConsent')({ enabled: false });
+    } catch { /* Local tracking is already stopped. */ }
+  }
   if (useNeonAccounts) return signOutAccount();
   try {
     if (Capacitor.isNativePlatform()) {

@@ -8,6 +8,8 @@ coverage/
 .env*
 !.env.example
 !.env.staging.example
+!.env.production.example
+.release/*.local.json
 
 *.jks
 *.keystore

@@ -9,6 +9,8 @@ import { Booking, DriverProfile } from '../types';
 import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages } from '../data/firestoreHelper';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import PayoutRequests from './PayoutRequests';
+import { useFeedbackDialog } from './useFeedbackDialog';
+import { usesAndroidLocation, locationConsent, startNativeDriverLocation, stopNativeDriverLocation, nativeDriverLocationStatus } from '../driverLocation';
 
 interface DriverAppProps {
   userId: string;
@@ -19,6 +21,8 @@ interface DriverAppProps {
 }
 
 export default function DriverApp({ userId, userName, activeBookings, detectedLat, detectedLng }: DriverAppProps) {
+  const { alert, confirm, dialog } = useFeedbackDialog();
+  const [locationMessage, setLocationMessage] = useState('');
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [vehicleType, setVehicleType] = useState<DriverProfile['vehicleType']>('bike');
   const [vehicleNo, setVehicleNo] = useState('');
@@ -71,9 +75,20 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
       return;
     }
     const nextState = !profile.online;
+    if (nextState && !await confirm(usesAndroidLocation ? 'Allow AllGo to share your precise location while you are online, including when the app is in the background? Customers on your assigned job and operations can see it. A phone notification lets you stop sharing. No position history is stored on your phone.' : 'Allow AllGo to share your precise location while you are online? Customers on your assigned job and operations can see it. This device shares only while the app is open.')) return;
     setActionBusy(true);
-    try { await updateDriverStatus(userId, { online: nextState });setProfile(current=>current?{...current,online:nextState}:current); }
-    catch(error) { alert(error instanceof Error?error.message:'Availability could not be updated.'); }
+    try {
+      if (!nextState) await stopNativeDriverLocation();
+      await locationConsent(nextState);
+      await updateDriverStatus(userId, { online: nextState });
+      if (nextState) await startNativeDriverLocation(userId);
+      setProfile(current=>current?{...current,online:nextState,locationConsent:nextState}:current);
+    }
+    catch(error) {
+      await stopNativeDriverLocation().catch(() => undefined);
+      await locationConsent(false).catch(() => undefined);
+      alert(error instanceof Error?error.message:'Availability could not be updated.');
+    }
     finally { setActionBusy(false); }
   };
 
@@ -85,11 +100,9 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     setProfile((current) => current ? { ...current, ...changes } : current);
   };
 
-  // UI-04: navigator.geolocation.watchPosition only works while the app is FOREGROUND.
-  // For reliable background tracking integrate @capacitor/geolocation with background-mode
-  // permission. Without this, location updates stop when the partner backgrounds the app.
+  // Android uploads through a native foreground service; web/iOS currently require an open app.
   useEffect(() => {
-    if (!profile?.online || profile.status !== 'verified' || !navigator.geolocation) return;
+    if (usesAndroidLocation || !profile?.online || !profile.locationConsent || profile.status !== 'verified' || !navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       ({ coords }) => {
         void updateDriverLocation(coords.latitude, coords.longitude, coords.accuracy)
@@ -99,7 +112,14 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
       { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [profile?.online, profile?.status, userId]);
+  }, [profile?.online, profile?.status, profile?.locationConsent, userId]);
+  useEffect(() => {
+    if (!usesAndroidLocation) return;
+    const refresh = () => { void nativeDriverLocationStatus().then(status => setLocationMessage(status ? `${status.running ? 'Sharing active' : 'Sharing stopped'} · ${status.message}` : '')).catch(() => setLocationMessage('Location service unavailable. Update the app.')); };
+    refresh(); const timer = setInterval(refresh, 5000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => { if (profile && (!profile.online || profile.status !== 'verified' || !profile.locationConsent)) void stopNativeDriverLocation().catch(() => undefined); }, [profile?.online, profile?.status, profile?.locationConsent]);
 
   // Find incoming jobs (pending bookings) that match our driver status
   const pendingJobs = activeBookings.filter(b => !b.driverId && b.paymentStatus === 'paid' && (['food', 'grocery'].includes(b.serviceType) ? b.status === 'ready' : b.status === 'pending'));
@@ -183,6 +203,8 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   return (
     <div className="bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
+      {dialog}
+      {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{usesAndroidLocation ? locationMessage : 'Location sharing requires this app to stay open on this device.'}</p>{usesAndroidLocation && <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
       
       {/* 2.5 POPUP OVERLAY DRAWER FOR SUB-VIEWS */}
       {activeSubView && (
@@ -320,8 +342,8 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                     <h4 className="text-xs font-bold text-slate-700">File Dispatch Dispute</h4>
                     <p className="text-[10px] text-slate-400">Report delays, vehicle issues or customer safety concerns to operations.</p>
                     <div className="space-y-2">
-                      <input value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" placeholder="Dispute Subject" className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-white focus:border-purple-500 transition-colors" />
-                      <textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} placeholder="Please describe the delay event..." rows={3} className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-white focus:border-purple-500 transition-colors" />
+                      <input value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" placeholder="Dispute Subject" className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" />
+                      <textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} placeholder="Please describe the delay event..." rows={3} className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" />
                       <button 
                         type="button" 
                         onClick={async () => {
@@ -428,7 +450,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
             </div>
 
             {/* Fulfillment checklists */}
-            {['accepted', 'preparing'].includes(currentAssignedJob.status) && <button disabled={actionBusy} onClick={() => { if (window.confirm('Release this job for another partner?')) void handleRejectJob(currentAssignedJob.bookingId); }} className="w-full rounded-xl border border-rose-200 py-3 text-xs font-bold text-rose-700">Release job for reassignment</button>}
+            {['accepted', 'preparing'].includes(currentAssignedJob.status) && <button disabled={actionBusy} onClick={() => { void confirm('Release this job for another partner?').then(approved => { if (approved) void handleRejectJob(currentAssignedJob.bookingId); }); }} className="w-full rounded-xl border border-rose-200 py-3 text-xs font-bold text-rose-700">Release job for reassignment</button>}
             <div className="pt-2 border-t border-slate-200 space-y-3">
               
               {currentAssignedJob.status === 'accepted' && (
@@ -447,7 +469,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {(currentAssignedJob.status === 'preparing' || currentAssignedJob.status === 'ready') && (
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <p className="text-[10px] text-slate-400 mb-1.5 font-semibold">Step 2: Confirm pickup and start delivery.</p>
-                  {['parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-600">Sender pickup code<input aria-label="Sender pickup code" value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-slate-900"/></label>}
+                  {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-600">Customer pickup/start code<input aria-label="Customer pickup or trip start code" value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-slate-900"/></label>}
                   
                   <div className="flex gap-2">
                     <button 
@@ -522,7 +544,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                   placeholder="Type updates to customer..."
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-slate-100 border border-slate-200 rounded-lg text-xs px-2.5 py-2 text-white outline-none focus:border-purple-500 transition-colors"
+                  className="flex-1 bg-slate-100 border border-slate-200 rounded-lg text-xs px-2.5 py-2 text-slate-900 outline-none focus:border-purple-500 transition-colors"
                 />
                 <button 
                   type="submit" 
@@ -599,9 +621,9 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
           </h4>
           <p className="text-slate-300">Document review status: <strong className="capitalize">{profile?.status || 'pending'}</strong></p>
           {profile?.status !== 'verified' && <form onSubmit={handleSubmitVerification} className="space-y-2">
-            <select value={vehicleType} onChange={(event) => setVehicleType(event.target.value as DriverProfile['vehicleType'])} className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-white"><option value="bike">Motorbike</option><option value="auto">Auto rickshaw</option><option value="car">Car</option><option value="suv">SUV</option></select>
-            <input value={vehicleNo} onChange={(event) => setVehicleNo(event.target.value)} placeholder="Vehicle registration number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-white" />
-            <input value={licenseNo} onChange={(event) => setLicenseNo(event.target.value)} placeholder="Driving licence number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-white" />
+            <select value={vehicleType} onChange={(event) => setVehicleType(event.target.value as DriverProfile['vehicleType'])} className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900"><option value="bike">Motorbike</option><option value="auto">Auto rickshaw</option><option value="car">Car</option><option value="suv">SUV</option></select>
+            <input value={vehicleNo} onChange={(event) => setVehicleNo(event.target.value)} placeholder="Vehicle registration number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900" />
+            <input value={licenseNo} onChange={(event) => setLicenseNo(event.target.value)} placeholder="Driving licence number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900" />
             <button type="submit" className="w-full rounded-lg bg-purple-600 py-2 text-xs font-bold text-white">Save details for review</button>
           </form>}
         </div>

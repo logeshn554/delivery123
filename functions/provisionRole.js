@@ -4,10 +4,10 @@ const { getAuth } = require('firebase-admin/auth');
 const { getFirestore } = require('firebase-admin/firestore');
 const option = name => process.argv.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 const projectId = option('project'), uid = option('uid'), role = option('role');
-if (!projectId || !uid || !['customer', 'driver', 'merchant', 'admin'].includes(role)) throw new Error('Provide --project, --uid and --role.');
+if (!projectId || !uid || !option('database') || !['customer', 'driver', 'merchant', 'admin'].includes(role)) throw new Error('Provide --project, --database, --uid and --role.');
 if (/[\/\x00-\x1f]/.test(uid)) throw new Error('Invalid account ID.');
 const app = initializeApp({ credential: applicationDefault(), projectId });
-const db = getFirestore(app, option('database') || 'ai-studio-33ff364a-171b-472c-93a0-dd18e20cf1e4');
+const db = getFirestore(app, option('database'));
 async function run() {
   const identity = await getAuth(app).getUser(uid);
   const ref = db.doc(`users/${uid}`), profile = await ref.get();

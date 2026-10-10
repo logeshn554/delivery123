@@ -8,6 +8,12 @@ import { FirebaseAppCheck } from '@capacitor-firebase/app-check';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase
+const releaseEnvironment = ['staging', 'production'].includes(import.meta.env.MODE);
+if (releaseEnvironment) {
+  for (const key of ['VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_APP_ID', 'VITE_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_AUTH_DOMAIN', 'VITE_FIREBASE_DATABASE_ID', 'VITE_FIREBASE_MESSAGING_SENDER_ID']) {
+    if (!import.meta.env[key]?.trim()) throw new Error(`Release Firebase configuration is missing ${key}.`);
+  }
+}
 const clientConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfig.apiKey,
   appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,

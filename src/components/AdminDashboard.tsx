@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PayoutRequests from './PayoutRequests';
 import DeletionRequests from './DeletionRequests';
 import OperationsConsole from './OperationsConsole';
+import FinanceJournalPanel from './FinanceJournalPanel';
 import { 
   Users, MapPin, ClipboardList, Shield, DollarSign, Search, Check, X, 
   Map, Trash2, ArrowUpRight, CheckCircle2, ListFilter
@@ -97,7 +98,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
         
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-md">
           <div className="flex justify-between items-center text-slate-400">
-            <span className="text-[10px] uppercase font-bold tracking-wider">Total Revenue</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider">Completed booking value (GMV)</span>
             <span className="text-emerald-400 text-xs font-bold">Today</span>
           </div>
           <h3 className="text-2xl font-black text-white mt-1.5">₹{todayBookingValue.toLocaleString('en-IN')}</h3>
@@ -302,6 +303,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
       </div>
 
       <OperationsConsole drivers={driverProfiles}/>
+      <FinanceJournalPanel/>
     </div>
   );
 }

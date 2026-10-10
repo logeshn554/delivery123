@@ -6,12 +6,15 @@ import { fileURLToPath } from 'node:url';
 import { identityBridgeEnabled, bridgeIdentity, revokeBridgeSessions } from './firebaseIdentity.mjs';
 import { readSessionCookie, sessionCookieName, cookieOptions } from './sessionPolicy.mjs';
 
-config({ path: fileURLToPath(new URL('../.env.local', import.meta.url)), quiet: true });
+const environment = process.env.ALLGO_ENVIRONMENT;
+if (environment && !['staging', 'production'].includes(environment)) throw new Error('ALLGO_ENVIRONMENT must be staging or production.');
+config({ path: fileURLToPath(new URL(environment ? `../.env.${environment}.local` : '../.env.local', import.meta.url)), quiet: true });
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env.local before starting the account server.');
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000, max: 5 });
 pool.on('error', () => console.error('Account database connection failed.'));
 const app = express();
 const production = process.env.NODE_ENV === 'production';
+if (production && (!environment || !identityBridgeEnabled() || !process.env.FIREBASE_PROJECT_ID || !process.env.FIRESTORE_DATABASE_ID)) throw new Error('Release accounts require an explicit environment and canonical Firebase identity bridge.');
 if (production && !process.env.ACCOUNT_ALLOWED_ORIGINS) throw new Error('Production requires explicit ACCOUNT_ALLOWED_ORIGINS.');
 app.disable('x-powered-by');
 const origins = new Set((process.env.ACCOUNT_ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3003,https://localhost,http://localhost,capacitor://localhost').split(','));
@@ -79,6 +82,11 @@ await pool.query(`CREATE TABLE IF NOT EXISTS allgo_accounts (
 CREATE TABLE IF NOT EXISTS allgo_sessions (
   token_hash text PRIMARY KEY, account_id uuid NOT NULL REFERENCES allgo_accounts(id) ON DELETE CASCADE,
   expires_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS allgo_identity_links (
+  account_id uuid PRIMARY KEY REFERENCES allgo_accounts(id),
+  firebase_uid text UNIQUE NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE TABLE IF NOT EXISTS allgo_account_items (
   id uuid PRIMARY KEY, account_id uuid NOT NULL REFERENCES allgo_accounts(id) ON DELETE CASCADE,
@@ -331,5 +339,7 @@ app.use((error, _req, res, _next) => {
   if (status >= 500) console.error('Account request failed:', error.code || 'database-unavailable');
   res.status(status).json({ error: status >= 500 ? 'Account services are unavailable. Please try again.' : error.message, code: error.code && status < 500 ? error.code : 'unavailable' });
 });
-const port = Number(process.env.ACCOUNT_API_PORT || 3004);
-app.listen(port, '127.0.0.1', () => console.log(`AllGo account API ready at http://localhost:${port}`));
+const port = Number(process.env.ACCOUNT_API_PORT || process.env.PORT || 3004);
+const host = process.env.ACCOUNT_API_HOST || '127.0.0.1';
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('ACCOUNT_API_PORT must be a valid TCP port.');
+app.listen(port, host, () => console.log(`AllGo account API ready on port ${port}`));
