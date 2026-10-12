@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./design-system/tokens.css";
 
 :root {
   color-scheme: light;
@@ -111,6 +112,68 @@ button:disabled { opacity: .6; cursor: wait; }
 .catalog-empty { display: grid; gap: 10px; justify-items: start; padding: 22px; background: #f8f5ff; border-radius: 20px; color: #78668d; font-size: 13px; line-height: 1.5; }
 .catalog-empty strong { color: #3a285a; }
 .catalog-empty button { color: #5130ef; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.catalog-state { display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 20px; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); color: var(--allgo-ink); }
+.catalog-state-icon { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border-radius: 14px; background: #fff1e9; color: var(--allgo-food); }
+.catalog-state-copy { min-width: 0; flex: 1; }
+.catalog-state-copy h3 { margin: 1px 0 5px; font-size: 15px; line-height: 1.35; font-weight: 750; }
+.catalog-state-copy p { margin: 0; color: var(--allgo-muted); font-size: 13px; line-height: 1.55; }
+.catalog-state-action { display: flex; flex-shrink: 0; align-items: center; }
+.catalog-state-action button { min-width: var(--allgo-touch-target); min-height: var(--allgo-touch-target); border-radius: 12px; padding: 0 14px; background: var(--allgo-brand); color: white; font-size: 13px; font-weight: 700; }
+.catalog-state-loading .catalog-state-icon svg { animation: catalog-pulse 1.2s ease-in-out infinite; }
+.catalog-state-error { border-color: #f4d7d6; background: #fffafa; }
+.catalog-state-error .catalog-state-icon { color: #b83232; background: #fff0ef; }
+.catalog-state-no-results .catalog-state-icon { color: #726a81; background: #f3f1f5; }
+@keyframes catalog-pulse { 50% { opacity: .4; transform: scale(.92); } }
+.food-page { display: grid; gap: 20px; color: var(--allgo-ink); }
+.food-page-heading { display: flex; align-items: center; gap: 12px; }
+.food-page-heading h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 800; letter-spacing: -.65px; }
+.food-page-heading p { margin: 4px 0 0; color: var(--allgo-muted); font-size: 13px; }
+.food-back { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 14px; background: #f4f2f7; color: #34303e; }
+.food-order-again { min-height: 44px; margin-left: auto; padding: 0 12px; color: var(--allgo-brand); font-size: 13px; font-weight: 700; }
+.food-search { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 15px; border: 1px solid var(--allgo-border); border-radius: 16px; background: white; color: #76717e; }
+.food-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--allgo-ink); font-size: 16px; }
+.food-filter-row { display: flex; gap: 9px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: none; }
+.food-filter-row::-webkit-scrollbar { display: none; }
+.food-filter-chip { min-height: var(--allgo-touch-target); flex: 0 0 auto; border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 15px; background: white; color: #5d5865; font-size: 13px; font-weight: 650; }
+.food-filter-chip[aria-pressed="true"] { border-color: #e8a17a; background: #fff1e9; color: #a94e22; }
+.food-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.food-section-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.35px; }
+.food-section-head p { margin: 4px 0 0; color: var(--allgo-muted); font-size: 12px; }
+.food-sort { display: flex; align-items: center; gap: 6px; color: #696472; font-size: 12px; }
+.food-sort select { max-width: 145px; min-height: var(--allgo-touch-target); border: 1px solid var(--allgo-border); border-radius: 12px; padding: 0 9px; background: white; color: var(--allgo-ink); }
+.food-restaurant-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,250px),1fr)); gap: 14px; }
+.food-restaurant-card { position: relative; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; box-shadow: 0 3px 12px #24133a08; }
+.food-restaurant-open { display: block; width: 100%; min-height: 0; text-align: left; }
+.food-restaurant-open img, .food-restaurant-image-fallback { display: grid; width: 100%; height: 158px; place-items: center; object-fit: cover; background: #f4f0f5; color: #9b92a3; }
+.catalog-image-fallback { display: grid; place-items: center; }
+.food-restaurant-copy { padding: 14px; }
+.food-restaurant-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.food-restaurant-title h3 { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 750; }
+.food-restaurant-title span { flex: 0 0 auto; color: #57515e; font-size: 12px; font-weight: 700; }
+.food-restaurant-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; color: #716b78; font-size: 12px; }
+.food-restaurant-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.food-restaurant-favorite { position: absolute; top: 10px; right: 10px; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffffffed; color: #ca4265; box-shadow: 0 2px 10px #24133a20; }
+.food-menu-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,270px),1fr)); gap: 12px; }
+.food-menu-card { display: flex; min-width: 0; gap: 12px; padding: 12px; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; }
+.food-menu-image, .food-menu-image-fallback { width: 82px; height: 82px; flex: 0 0 82px; border-radius: 14px; object-fit: cover; background: #f4f0f5; }
+.food-menu-image-fallback { display: grid; place-items: center; color: #9b92a3; }
+.food-menu-copy { min-width: 0; flex: 1; }
+.food-menu-copy h3 { margin: 4px 0; font-size: 14px; line-height: 1.35; font-weight: 750; }
+.food-menu-copy p { margin: 0; color: #706a77; font-size: 12px; line-height: 1.45; }
+.food-menu-price { margin-top: 8px !important; color: #282431 !important; font-weight: 750; }
+.food-menu-actions { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 6px; }
+.food-menu-actions button { min-width: 44px; min-height: 44px; border-radius: 12px; }
+.food-menu-copy select { min-height: var(--allgo-touch-target); }
+.food-add { padding: 0 13px; border: 1px solid #e8a17a; background: white; color: #a94e22; font-weight: 750; }
+.food-quantity { display: flex; align-items: center; gap: 3px; border: 1px solid #efcbb8; border-radius: 12px; background: #fff7f2; color: #a94e22; }
+.food-quantity button { width: 40px; color: #a94e22; font-size: 19px; }
+.food-quantity span { min-width: 20px; text-align: center; font-size: 13px; font-weight: 750; }
+.food-cart-dock { position: sticky; bottom: max(8px,env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #352947; border-radius: 18px; background: #282235; color: white; box-shadow: 0 8px 24px #20192d30; }
+.food-cart-dock p { margin: 2px 0 0; color: #d4cedc; font-size: 12px; }
+.food-cart-dock button { min-height: 44px; padding: 0 15px; border-radius: 12px; background: var(--allgo-food); color: white; font-size: 13px; font-weight: 750; }
+.food-address-summary { min-width: 0; max-width: min(54vw,360px); }
+.food-address-summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 380px) { .catalog-state { padding: 16px; gap: 10px; } .catalog-state-action { align-self: flex-end; } .catalog-state-action button { padding-inline: 10px; } .food-restaurant-open img, .food-restaurant-image-fallback { height: 138px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 .mobile-page-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
