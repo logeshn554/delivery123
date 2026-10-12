@@ -13,9 +13,9 @@ const source = await readFile(filename, 'utf8');
 const compiled = new Module(filename);
 compiled.filename = filename; compiled.paths = Module._nodeModulePaths(path.dirname(filename));
 // Expose internal services only inside this test process; production exports stay unchanged.
-compiled._compile(`${source}\nmodule.exports.testServices = { settleCapturedPayment, reconcileProviderRefund, applyCoupon, reconcilePaymentIntent };`, filename);
-const { settleCapturedPayment, reconcileProviderRefund, applyCoupon, reconcilePaymentIntent } = compiled.exports.testServices;
-const { getFirestore, Timestamp } = require('firebase-admin/firestore');
+compiled._compile(`${source}\nmodule.exports.testServices = { settleCapturedPayment, reconcileProviderRefund, applyCoupon, reconcilePaymentIntent, checkPendingRefund };`, filename);
+const { settleCapturedPayment, reconcileProviderRefund, applyCoupon, reconcilePaymentIntent, checkPendingRefund } = compiled.exports.testServices;
+const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 const { getApp } = require('firebase-admin/app');
 const db = getFirestore(getApp(), '(default)');
 beforeEach(async () => {
@@ -26,6 +26,386 @@ beforeEach(async () => {
 });
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
+
+test('partner intake prevents duplicate active applications and never grants roles', async () => {
+  const data = { applicationId: 'application1', type: 'driver', name: 'Applicant', city: 'City', phone: '+919876543210', consent: true };
+  await assert.rejects(callable('submitPartnerApplication', 'customer', { ...data, consent: false }), error => error.code === 'invalid-argument');
+  const results = await Promise.allSettled([callable('submitPartnerApplication', 'customer', data), callable('submitPartnerApplication', 'customer', { ...data, applicationId: 'application2' })]);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  const rows = await db.collection('partner_applications').get(), id = rows.docs[0].id;
+  await callable('submitPartnerApplication', 'customer', { ...data, applicationId: id });
+  assert.equal(rows.size, 1); assert.equal(rows.docs[0].data().phoneVerified, false);
+  assert.equal((await db.doc('users/customer').get()).data().role, 'customer');
+  await assert.rejects(callable('submitPartnerApplication', 'customer', { ...data, applicationId: id, name: 'Changed' }), error => error.code === 'already-exists');
+});
+
+test('partner reviews, corrections and withdrawal are scoped, revision checked and replay safe', async () => {
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('users/other').set({ role: 'customer' });
+  const input = { applicationId: 'application1', type: 'restaurant', name: 'Applicant', city: 'City', phone: '+919876543210', consent: true };
+  await callable('submitPartnerApplication', 'customer', input);
+  const review = { applicationId: 'application1', action: 'needs_information', reason: 'Correct operating city', expectedRevision: 0, requestId: 'review1' };
+  await assert.rejects(callable('reviewPartnerApplication', 'other', review, true), error => error.code === 'permission-denied');
+  await callable('reviewPartnerApplication', 'admin', review, true); await callable('reviewPartnerApplication', 'admin', review, true);
+  const amendment = { ...input, city: 'Corrected City', expectedRevision: 1, requestId: 'amend1' };
+  await assert.rejects(callable('amendPartnerApplication', 'other', amendment), error => error.code === 'permission-denied');
+  await assert.rejects(callable('amendPartnerApplication', 'customer', { ...amendment, expectedRevision: 0 }), error => error.code === 'aborted');
+  await callable('amendPartnerApplication', 'customer', amendment); await callable('amendPartnerApplication', 'customer', amendment);
+  await assert.rejects(callable('reviewPartnerApplication', 'admin', { ...review, requestId: 'stale' }, true), error => error.code === 'aborted');
+  await callable('reviewPartnerApplication', 'customer', { ...review, action: 'withdrawn', expectedRevision: 2, requestId: 'withdraw1' });
+  await assert.rejects(callable('amendPartnerApplication', 'customer', { ...amendment, expectedRevision: 3, requestId: 'closed' }), error => error.code === 'failed-precondition');
+  const exported = await callable('exportAccountPage', 'customer', { section: 'partner_events', parentId: 'application1' });
+  assert.equal(exported.items.length, 4);
+  await assert.rejects(callable('exportAccountPage', 'other', { section: 'partner_events', parentId: 'application1' }), error => error.code === 'permission-denied');
+  await callable('submitPartnerApplication', 'customer', { ...input, applicationId: 'replacement' });
+  assert.equal((await db.doc('users/customer').get()).data().role, 'customer');
+});
+
+test('business setup is operations scoped, replay-safe, closed and cannot overwrite existing data', async () => {
+  await db.doc('users/admin').set({ role: 'admin' });
+  const data = { merchantId: 'newShop', merchantType: 'grocery', name: 'New Shop', address: 'Registered business address', timeZone: 'Asia/Kolkata', reason: 'Prepare registered partner review', requestId: 'setup1', acceptingOrders: true };
+  await assert.rejects(callable('createMerchantBusiness', 'customer', data), error => error.code === 'permission-denied');
+  await callable('createMerchantBusiness', 'admin', data, true);
+  await callable('createMerchantBusiness', 'admin', data, true);
+  const record = (await db.doc('grocery_stores/newShop').get()).data();
+  assert.equal(record.name, 'New Shop'); assert.equal(record.acceptingOrders, false); assert.equal(record.onboardingStatus, 'draft');
+  const { merchantOpen } = require('../functions/merchantPolicy.js');
+  assert.equal(merchantOpen({ ...record, acceptingOrders: true }), false);
+  await assert.rejects(callable('createMerchantBusiness', 'admin', { ...data, requestId: 'another', name: 'Overwrite' }, true), error => error.code === 'already-exists');
+  assert.equal((await db.doc('grocery_stores/newShop').get()).data().name, 'New Shop');
+  assert.equal((await db.collection('merchant_setup_requests').get()).size, 1);
+});
+
+test('merchant closure calendars enforce ownership, valid dates, stale revisions and request replay', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'restaurant' });
+  await db.doc('restaurants/shop').set({ name: 'Shop' });
+  const data = { merchantType: 'restaurant', merchantId: 'shop', closedDates: ['2026-10-11'], expectedRevision: 0, requestId: 'closure1', reason: 'Scheduled closure' };
+  await assert.rejects(callable('setMerchantClosures', 'customer', data), error => error.code === 'permission-denied');
+  await assert.rejects(callable('setMerchantClosures', 'merchant', { ...data, closedDates: ['2026-02-30'] }), error => error.code === 'invalid-argument');
+  await callable('setMerchantClosures', 'merchant', data); await callable('setMerchantClosures', 'merchant', data);
+  assert.equal((await db.doc('restaurants/shop').get()).data().closureRevision, 1);
+  assert.equal((await db.collection('restaurants/shop/closure_history').get()).size, 1);
+  await assert.rejects(callable('setMerchantClosures', 'merchant', { ...data, requestId: 'stale' }), error => error.code === 'aborted');
+  await assert.rejects(callable('setMerchantClosures', 'merchant', { ...data, reason: 'Changed' }), error => error.code === 'already-exists');
+});
+
+test('stale merchant edits cannot replace checkout inventory reservations', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('grocery_stores/shop').set({ name: 'Fixture grocery business', acceptingOrders: true });
+  const ref = db.doc('grocery_stores/shop/products/item');
+  await ref.update({ stock: 2 });
+  await walletAttempt('stock_edit_race');
+  await settleCapturedPayment('stock_edit_race', 'wallet_stock_edit_race', null, true);
+  assert.equal((await ref.get()).data().stock, 1);
+  const quick = { merchantType: 'grocery', catalogId: 'shop', itemId: 'item', stock: 2, expectedStock: 2 };
+  await assert.rejects(callable('updateMerchantCatalog', 'merchant', quick), error => error.code === 'aborted');
+  const item = { name: 'Test item', category: 'Groceries', price: 100, stock: 2, expectedStock: 2, unit: 'pack' };
+  await assert.rejects(callable('saveCatalogItem', 'merchant', { merchantId: 'shop', merchantType: 'grocery', itemId: 'item', item }), error => error.code === 'aborted');
+  assert.equal((await ref.get()).data().stock, 1);
+  await callable('updateMerchantCatalog', 'merchant', { ...quick, expectedStock: 1 });
+  assert.equal((await ref.get()).data().stock, 2);
+  await callable('saveCatalogItem', 'merchant', { merchantId: 'shop', merchantType: 'grocery', itemId: 'item', item: { ...item, expectedStock: 2, stock: 3 } });
+  assert.equal((await ref.get()).data().stock, 3);
+  assert.equal((await db.collection('bookings').get()).size, 1);
+});
+
+test('picking rejects corrupt revisions and serializes simultaneous line updates without losing confirmations', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  const ref = db.doc('bookings/revision-picking'), base = { customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 60, details: { items: [{ id: 'milk', quantity: 1 }, { id: 'rice', quantity: 1 }] } };
+  for (const revision of [null, NaN, -1, 0.5, '0', Number.MAX_SAFE_INTEGER]) {
+    await ref.set({ ...base, picking: { revision, lines: {} } });
+    await assert.rejects(callable('confirmGroceryPicking', 'merchant', { bookingId: ref.id, lineIndex: 0, quantity: 1, expectedRevision: Number.isSafeInteger(revision) && revision >= 0 ? revision : 0, requestId: 'corrupt' }), error => error.code === 'failed-precondition');
+    assert.equal((await ref.collection('events').get()).size, 0);
+  }
+  await ref.set(base);
+  const commands = [0, 1].map(lineIndex => ({ bookingId: ref.id, lineIndex, quantity: 1, expectedRevision: 0, requestId: `line-${lineIndex}` }));
+  const results = await Promise.allSettled(commands.map(data => callable('confirmGroceryPicking', 'merchant', data)));
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  const losingIndex = results.findIndex(result => result.status === 'rejected');
+  assert.equal(results[losingIndex].reason.code, 'aborted');
+  assert.equal((await ref.get()).data().picking.revision, 1);
+  await callable('confirmGroceryPicking', 'merchant', { ...commands[losingIndex], expectedRevision: 1, requestId: 'refreshed' });
+  const picked = (await ref.get()).data().picking;
+  assert.equal(picked.revision, 2); assert.equal(picked.lines['0'].itemId, 'milk'); assert.equal(picked.lines['1'].itemId, 'rice');
+  assert.equal((await ref.collection('events').get()).size, 2);
+});
+
+test('malformed grocery lines cannot be confirmed or declared ready', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  const ref = db.doc('bookings/malformed-picking');
+  for (const item of [null, { quantity: 2 }, { id: ' ', quantity: 2 }]) {
+    await ref.set({ customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 60, details: { items: [item] }, picking: { revision: 0, lines: { '0': { quantity: 2 } } } });
+    await assert.rejects(callable('confirmGroceryPicking', 'merchant', { bookingId: ref.id, lineIndex: 0, quantity: 2, expectedRevision: 0, requestId: 'bad-line' }), error => error.code === 'failed-precondition');
+    await assert.rejects(callable('advanceMerchantBooking', 'merchant', { bookingId: ref.id, status: 'ready' }), error => error.code === 'failed-precondition');
+    assert.equal((await ref.get()).data().status, 'preparing');
+    assert.equal((await ref.get()).data().price, 60);
+    assert.equal((await ref.collection('events').get()).size, 0);
+  }
+});
+
+test('grocery readiness requires scoped full picking with revision checks and replay-safe history', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('users/otherStore').set({ role: 'merchant', merchantId: 'other', merchantType: 'grocery' });
+  await db.doc('bookings/picking').set({ customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 60, details: { items: [{ id: 'milk', name: 'Milk', quantity: 2, price: 30 }] } });
+  const data = { bookingId: 'picking', lineIndex: 0, quantity: 1, expectedRevision: 0, requestId: 'pick1' };
+  await assert.rejects(callable('confirmGroceryPicking', 'otherStore', data), error => error.code === 'permission-denied');
+  await assert.rejects(callable('advanceMerchantBooking', 'merchant', { bookingId: 'picking', status: 'ready' }), error => error.code === 'failed-precondition');
+  await callable('confirmGroceryPicking', 'merchant', data); await callable('confirmGroceryPicking', 'merchant', data);
+  await assert.rejects(callable('advanceMerchantBooking', 'merchant', { bookingId: 'picking', status: 'ready' }), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('confirmGroceryPicking', 'merchant', { ...data, quantity: 2, requestId: 'stale' }), error => error.code === 'aborted');
+  await callable('confirmGroceryPicking', 'merchant', { ...data, quantity: 2, expectedRevision: 1, requestId: 'pick2' });
+  await callable('advanceMerchantBooking', 'merchant', { bookingId: 'picking', status: 'ready' });
+  const booking = (await db.doc('bookings/picking').get()).data();
+  assert.equal(booking.status, 'ready'); assert.equal(booking.price, 60); assert.equal(booking.picking.revision, 2);
+  assert.ok(booking.dispatchStartedAt);
+  assert.equal((await db.collection('bookings/picking/events').get()).size, 3);
+});
+
+test('booking deletion redacts free text while retaining finance and stage evidence', async () => {
+  const { redactBookingHistory } = require('../functions/bookingRedaction.js'), ref = db.doc('bookings/redaction');
+  await ref.set({ customerId: 'customer', status: 'completed', price: 100, exception: { kind: 'delay', reason: 'Personal details', resolution: 'Personal details', status: 'resolved' }, preparation: { reason: 'Personal details', expectedReadyAt: '2026-10-11' } });
+  await ref.collection('events').doc('event').set({ stage: 'exception_resolved', actorId: 'admin', reason: 'Personal details', revision: 2 });
+  await redactBookingHistory(db, ref, 'customer', true, FieldValue);
+  await redactBookingHistory(db, ref, 'customer', true, FieldValue);
+  const booking = (await ref.get()).data(), event = (await ref.collection('events').doc('event').get()).data();
+  assert.equal(booking.price, 100); assert.equal(booking.status, 'completed'); assert.equal(booking.exception.reason, undefined); assert.equal(booking.exception.resolution, undefined); assert.equal(booking.preparation.reason, undefined);
+  assert.equal(event.reason, undefined); assert.equal(event.stage, 'exception_resolved'); assert.equal(event.revision, 2);
+});
+
+test('data exports include scoped support history and public payment fields without credential leakage', async () => {
+  await db.doc('support_tickets/exportCase').set({ userId: 'customer' });
+  await db.doc('support_tickets/exportCase/messages/reply').set({ text: 'Account reply' });
+  await db.doc('support_tickets/exportCase/events/event').set({ stage: 'created' });
+  await db.doc('users/other').set({ role: 'customer' });
+  assert.equal((await callable('exportAccountPage', 'customer', { section: 'support_messages', parentId: 'exportCase' })).items[0].text, 'Account reply');
+  await assert.rejects(callable('exportAccountPage', 'other', { section: 'support_events', parentId: 'exportCase' }), error => error.code === 'permission-denied');
+  await db.doc('payment_attempts/order_export').set({ uid: 'customer', amount: 100, status: 'paid', providerSecret: 'never-export', razorpay_signature: 'never-export' });
+  const record = (await callable('exportAccountPage', 'customer', { section: 'payments' })).items[0];
+  assert.equal(record.amountCents, 100); assert.equal(record.providerSecret, undefined); assert.equal(record.razorpay_signature, undefined);
+  assert.equal((await callable('exportAccountPage', 'other', { section: 'payments' })).items.length, 0);
+});
+
+test('dispatch timeout is idempotent, rechecks assignment and restarts search only after operations review', async () => {
+  const { escalateDispatch } = require('../functions/dispatchRecovery.js'), ref = db.doc('bookings/timeout');
+  await db.doc('users/admin').set({ role: 'admin' });
+  const now = Date.now(), policy = { services: { parcel: { maxWaitMinutes: 10 } } };
+  await ref.set({ customerId: 'customer', driverId: null, serviceType: 'parcel', paymentStatus: 'paid', status: 'pending', createdAt: new Date(now - 600001).toISOString() });
+  const result = await Promise.all([escalateDispatch(db, ref, policy, now), escalateDispatch(db, ref, policy, now)]);
+  assert.equal(result.filter(Boolean).length, 1);
+  assert.equal((await ref.collection('events').get()).size, 1);
+  assert.equal((await ref.get()).data().exception.kind, 'no_partner');
+  await callable('resolveBookingException', 'admin', { bookingId: 'timeout', requestId: 'retry1', expectedRevision: 1, reason: 'Partner availability checked; search again' }, true);
+  assert.equal(await escalateDispatch(db, ref, policy, Date.now()), false);
+  await ref.update({ driverId: 'driver', dispatchStartedAt: new Date(now - 600001).toISOString() });
+  assert.equal(await escalateDispatch(db, ref, policy, Date.now()), false);
+});
+
+test('dispatch policy requires current staff, revision checks and immutable replay-safe history', async () => {
+  await db.doc('users/admin').set({ role: 'admin' });
+  const data = { service: 'parcel', maxWaitMinutes: 15, expectedVersion: 0, requestId: 'policy1', reason: 'Approved operating target' };
+  await assert.rejects(callable('setDispatchPolicy', 'customer', data), error => error.code === 'permission-denied');
+  await callable('setDispatchPolicy', 'admin', data, true);
+  await callable('setDispatchPolicy', 'admin', data, true);
+  assert.equal((await callable('getDispatchPolicy', 'admin', {}, true)).version, 1);
+  await assert.rejects(callable('setDispatchPolicy', 'admin', { ...data, requestId: 'stale' }, true), error => error.code === 'aborted');
+  await assert.rejects(callable('setDispatchPolicy', 'admin', { ...data, maxWaitMinutes: 20 }, true), error => error.code === 'already-exists');
+  await callable('setDispatchPolicy', 'admin', { ...data, requestId: 'disable', expectedVersion: 1, maxWaitMinutes: null }, true);
+  assert.deepEqual((await callable('getDispatchPolicy', 'admin', {}, true)).services, {});
+  assert.equal((await db.collection('platform_config/dispatch/history').get()).size, 2);
+});
+
+test('refund review reconciles missing provider events without initiating another refund', async () => {
+  const ref = db.doc('payment_attempts/order_refundReview');
+  await ref.set({ uid: 'customer', kind: 'wallet_topup', amount: 10000, paymentId: 'pay_refundReview', status: 'refund_processing' });
+  await db.doc('users/admin').set({ role: 'admin' });
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async (url, options) => {
+      if (!String(url).startsWith('https://api.razorpay.com/')) return originalFetch(url, options);
+      assert.equal(options.method, 'GET');
+      return Response.json({ id: 'pay_refundReview', order_id: 'order_refundReview', amount: 10000, currency: 'INR', amount_refunded: 10000 });
+    };
+    await assert.rejects(callable('reviewPendingRefund', 'customer', { orderId: ref.id }), error => error.code === 'permission-denied');
+    assert.equal((await callable('reviewPendingRefund', 'admin', { orderId: ref.id }, true)).status, 'refunded');
+    assert.equal((await checkPendingRefund(ref)).status, 'refunded');
+    assert.equal((await db.collection('financial_journals').get()).size, 2);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('provider cancellation persists refund intent before calling Razorpay and posts the verified refund journal', async () => {
+  const attemptRef = db.doc('payment_attempts/order_cancelTest'), bookingRef = db.doc('bookings/cancelTest');
+  await attemptRef.set({ uid: 'customer', bookingId: 'cancelTest', amount: 10000, paymentId: 'pay_cancelTest', status: 'paid' });
+  await bookingRef.set({ customerId: 'customer', serviceType: 'parcel', status: 'pending', price: 100, paymentStatus: 'paid', paymentOrderId: 'order_cancelTest', paymentId: 'pay_cancelTest' });
+  const originalFetch = globalThis.fetch; let posts = 0;
+  try {
+    globalThis.fetch = async (url, options) => {
+      if (!String(url).startsWith('https://api.razorpay.com/')) return originalFetch(url, options);
+      if (options.method === 'POST') {
+        posts++;
+        assert.equal((await attemptRef.get()).data().status, 'refund_processing');
+        assert.equal((await bookingRef.get()).data().paymentStatus, 'refund_processing');
+        assert.ok(options.headers['X-Refund-Idempotency']);
+        return Response.json({ id: 'rfnd_cancelTest', status: 'processed' });
+      }
+      return Response.json({ id: 'pay_cancelTest', order_id: 'order_cancelTest', amount: 10000, currency: 'INR', amount_refunded: 10000 });
+    };
+    assert.equal((await callable('cancelPaidBooking', 'customer', { bookingId: 'cancelTest' })).status, 'cancelled');
+    assert.equal((await bookingRef.get()).data().paymentStatus, 'refunded');
+    await callable('cancelPaidBooking', 'customer', { bookingId: 'cancelTest' });
+    assert.equal(posts, 1);
+    assert.equal((await db.doc('financial_journals/refund_order_cancelTest_10000').get()).exists, true);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('booking problems pause fulfillment, retain custody and require current operations review', async () => {
+  await db.doc('users/driver').set({ role: 'driver' });
+  await db.doc('users/other').set({ role: 'customer' });
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'failed' });
+  await db.doc('bookings/failed').set({ customerId: 'customer', driverId: 'driver', serviceType: 'parcel', status: 'transit', paymentStatus: 'paid', updatedAt: new Date().toISOString() });
+  const report = { bookingId: 'failed', requestId: 'report1', kind: 'failed_delivery', reason: 'Recipient is unavailable' };
+  await assert.rejects(callable('reportBookingException', 'other', report), error => error.code === 'permission-denied');
+  await callable('reportBookingException', 'driver', report);
+  await callable('reportBookingException', 'driver', report);
+  assert.equal((await db.collection('bookings/failed/events').get()).size, 1);
+  assert.equal((await db.doc('driver_profiles/driver').get()).data().activeBookingId, 'failed');
+  await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: 'failed', status: 'completed', otp: '1234' }), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('rejectDriverBooking', 'driver', { bookingId: 'failed' }), error => error.code === 'failed-precondition');
+  const resolve = { bookingId: 'failed', requestId: 'resolve1', expectedRevision: 1, reason: 'Recipient contacted and available; continue delivery' };
+  await assert.rejects(callable('resolveBookingException', 'customer', resolve), error => error.code === 'permission-denied');
+  await assert.rejects(callable('resolveBookingException', 'admin', { ...resolve, expectedRevision: 2 }, true), error => error.code === 'aborted');
+  await callable('resolveBookingException', 'admin', resolve, true);
+  await callable('resolveBookingException', 'admin', resolve, true);
+  assert.equal((await db.doc('bookings/failed').get()).data().exception.status, 'resolved');
+  assert.equal((await db.collection('bookings/failed/events').get()).size, 2);
+  await db.doc('users/admin').update({ role: 'customer' });
+  await assert.rejects(callable('resolveBookingException', 'admin', resolve, true), error => error.code === 'permission-denied');
+});
+
+test('booking problem reports reject stage mismatches and unassigned merchant access', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantType: 'grocery' });
+  await db.doc('bookings/queued').set({ customerId: 'customer', serviceType: 'grocery', status: 'pending', paymentStatus: 'paid' });
+  const report = { bookingId: 'queued', requestId: 'report1', kind: 'failed_delivery', reason: 'Unavailable' };
+  await assert.rejects(callable('reportBookingException', 'merchant', report), error => error.code === 'permission-denied');
+  await assert.rejects(callable('reportBookingException', 'customer', report), error => error.code === 'failed-precondition');
+  await db.doc('bookings/queued').update({ status: 'completed' });
+  await assert.rejects(callable('reportBookingException', 'customer', { ...report, kind: 'damage' }), error => error.code === 'failed-precondition');
+});
+
+test('global catalog search checks live stock, availability and item names across partners', async () => {
+  const { syncSearchDocument } = require('../functions/catalogSearch.js');
+  await Promise.all(['food', 'grocery'].map(service => db.doc(`service_pricing/${service}`).set({ enabled: true })));
+  await db.doc('restaurants/kitchen').set({ name: 'Kitchen', acceptingOrders: true });
+  await db.doc('restaurants/kitchen/menu_items/milk').set({ name: 'Milk pudding', price: 80, available: true });
+  await db.doc('grocery_stores/shop').set({ name: 'Shop', acceptingOrders: true });
+  await db.doc('grocery_stores/shop/products/milk').set({ name: 'Milk carton', price: 30, stock: 2 });
+  await Promise.all([syncSearchDocument(db, 'food', 'kitchen', 'milk'), syncSearchDocument(db, 'grocery', 'shop', 'milk')]);
+  const search = () => callable('searchPublishedCatalog', 'customer', { text: 'mil' });
+  assert.equal((await search()).items.length, 2);
+  await db.doc('grocery_stores/shop/products/milk').update({ stock: 0 });
+  assert.deepEqual((await search()).items.map(item => item.service), ['food']);
+  await db.doc('restaurants/kitchen/menu_items/milk').update({ name: 'Rice pudding' });
+  assert.equal((await search()).items.length, 0); // Stale search index cannot expose an obsolete match.
+  await db.doc('grocery_stores/shop/products/milk').update({ stock: 2 });
+  await db.doc('grocery_stores/shop').update({ acceptingOrders: false });
+  assert.equal((await search()).items.length, 0);
+  await db.doc('restaurants/kitchen/menu_items/milk').delete();
+  await syncSearchDocument(db, 'food', 'kitchen', 'milk');
+  assert.equal((await db.collection('catalog_search').get()).size, 1);
+});
+test('support cases enforce order ownership and preserve scoped reply and resolution history', async () => {
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('users/other').set({ role: 'customer' });
+  await db.doc('bookings/support_order').set({ customerId: 'customer', serviceType: 'food' });
+  await db.doc('platform_config/support').set({ firstResponseMinutes: 30 });
+  const create = { ticketId: 'case1', subject: 'Missing item', message: 'One item is missing', category: 'missing_item', bookingId: 'support_order' };
+  await assert.rejects(callable('createSupportCase', 'other', create), error => error.code === 'permission-denied');
+  await callable('createSupportCase', 'customer', create);
+  await callable('createSupportCase', 'customer', create);
+  assert.ok((await db.doc('support_tickets/case1').get()).data().firstResponseDueAt);
+  await assert.rejects(callable('postSupportMessage', 'other', { ticketId: 'case1', requestId: 'reply', text: 'Private' }), error => error.code === 'permission-denied');
+  await assert.rejects(callable('postSupportMessage', 'admin', { ticketId: 'case1', requestId: 'reply', text: 'Investigating' }, true), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('reviewSupportCase', 'customer', { ticketId: 'case1', requestId: 'resolve', action: 'resolve', reason: 'Done', expectedRevision: 0 }), error => error.code === 'permission-denied');
+  await callable('reviewSupportCase', 'admin', { ticketId: 'case1', requestId: 'claim', action: 'claim', reason: 'Assigned to me', expectedRevision: 0 }, true);
+  const reply = { ticketId: 'case1', requestId: 'reply', text: 'We are investigating your missing item.' };
+  await callable('postSupportMessage', 'admin', reply, true); await callable('postSupportMessage', 'admin', reply, true);
+  assert.equal((await db.collection('support_tickets/case1/messages').get()).size, 1);
+  await callable('reviewSupportCase', 'customer', { ticketId: 'case1', requestId: 'escalate', action: 'escalate', reason: 'Please review urgently', expectedRevision: 1 });
+  await assert.rejects(callable('reviewSupportCase', 'admin', { ticketId: 'case1', requestId: 'stale', action: 'resolve', reason: 'Reviewed', expectedRevision: 1 }, true), error => error.code === 'aborted');
+  await callable('reviewSupportCase', 'admin', { ticketId: 'case1', requestId: 'resolve', action: 'resolve', reason: 'Replacement arranged; no refund issued by this case action.', expectedRevision: 2 }, true);
+  await assert.rejects(callable('postSupportMessage', 'customer', { ticketId: 'case1', requestId: 'closed_reply', text: 'Still missing' }), error => error.code === 'failed-precondition');
+  await callable('reviewSupportCase', 'customer', { ticketId: 'case1', requestId: 'reopen', action: 'reopen', reason: 'Replacement was not received', expectedRevision: 3 });
+  const ticket = (await db.doc('support_tickets/case1').get()).data();
+  assert.equal(ticket.status, 'open'); assert.equal(ticket.assignedTo, null);
+  assert.equal((await db.collection('support_tickets/case1/events').get()).size, 5);
+});
+test('wallet funding creates one durable provider intent across concurrent retries and amount changes', async () => {
+  await db.doc('platform_config/wallet').set({ enabled: true, maxTopupCents: 100000 });
+  const data = { amountCents: 10000, requestId: '11111111-1111-4111-8111-111111111111' };
+  const originalFetch = globalThis.fetch; let creates = 0;
+  try {
+    globalThis.fetch = async (url, options) => {
+      if (!String(url).startsWith('https://api.razorpay.com/')) return originalFetch(url, options);
+      creates++;
+      assert.equal((await db.doc(`payment_intents/${data.requestId}`).get()).data().status, 'creating');
+      return new Response(JSON.stringify({ id: 'order_topup1', amount: 10000, currency: 'INR' }));
+    };
+    await Promise.allSettled([callable('createWalletTopup', 'customer', data), callable('createWalletTopup', 'customer', data)]);
+    assert.equal(creates, 1);
+    const retry = await callable('createWalletTopup', 'customer', data);
+    assert.equal(retry.orderId, 'order_topup1'); assert.equal(retry.paid, false); assert.equal(creates, 1);
+    await assert.rejects(callable('createWalletTopup', 'customer', { ...data, amountCents: 20000 }), error => error.code === 'permission-denied');
+    await db.doc('payment_attempts/order_topup1').update({ status: 'paid' });
+    assert.equal((await callable('createWalletTopup', 'customer', data)).paid, true);
+  } finally { globalThis.fetch = originalFetch; }
+});
+test('uncertain wallet funding reconciles the exact receipt without making another provider order', async () => {
+  await db.doc('platform_config/wallet').set({ enabled: true, maxTopupCents: 100000 });
+  const data = { amountCents: 5000, requestId: '22222222-2222-4222-8222-222222222222' }, ref = db.doc(`payment_intents/${data.requestId}`);
+  const originalFetch = globalThis.fetch; let creates = 0;
+  try {
+    globalThis.fetch = async (url, options) => {
+      if (!String(url).startsWith('https://api.razorpay.com/')) return originalFetch(url, options);
+      if (options?.method === 'POST') { creates++; throw new Error('Provider timeout'); }
+      return new Response(JSON.stringify({ items: [{ id: 'order_topupRecovered', receipt: `W_${data.requestId}`, amount: 5000, currency: 'INR', notes: { customerId: 'customer', purpose: 'wallet_topup' } }] }));
+    };
+    await assert.rejects(callable('createWalletTopup', 'customer', data), error => error.code === 'unavailable');
+    await assert.rejects(callable('createWalletTopup', 'customer', data), error => error.code === 'unavailable');
+    assert.equal(creates, 1);
+    await ref.update({ createdAt: Timestamp.fromMillis(Date.now() - 120000) });
+    assert.equal(await reconcilePaymentIntent(ref), 'order_topupRecovered');
+    assert.equal((await db.doc('payment_attempts/order_topupRecovered').get()).data().kind, 'wallet_topup');
+    assert.equal((await callable('createWalletTopup', 'customer', data)).orderId, 'order_topupRecovered');
+    assert.equal(creates, 1);
+  } finally { globalThis.fetch = originalFetch; }
+});
+test('merchant estimates are scoped, bounded and idempotent with immutable history', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'restaurant' });
+  await db.doc('bookings/prep').set({ merchantId: 'shop', serviceType: 'food', status: 'pending', paymentStatus: 'paid', driverId: null });
+  const request = { bookingId: 'prep', requestId: 'request1', minutes: 20, reason: 'Preparing fresh' };
+  await assert.rejects(callable('updateMerchantPreparation', 'customer', request), error => error.code === 'permission-denied');
+  await assert.rejects(callable('updateMerchantPreparation', 'merchant', { ...request, minutes: 241 }), error => error.code === 'invalid-argument');
+  const [a,b] = await Promise.all([callable('updateMerchantPreparation', 'merchant', request), callable('updateMerchantPreparation', 'merchant', request)]);
+  assert.equal(a.expectedReadyAt, b.expectedReadyAt);
+  assert.equal((await db.doc('bookings/prep').get()).data().preparation.revision, 1);
+  assert.equal((await db.collection('bookings/prep/events').get()).size, 1);
+  await assert.rejects(callable('updateMerchantPreparation', 'merchant', { ...request, minutes: 25 }), error => error.code === 'already-exists');
+  await db.doc('bookings/prep').update({ status: 'ready' });
+  await assert.rejects(callable('updateMerchantPreparation', 'merchant', { ...request, requestId: 'request2' }), error => error.code === 'failed-precondition');
+});
+test('earning estimates use locked compensation, never customer price, and require assignment', async () => {
+  await db.doc('users/driver').set({ role: 'driver' });
+  await db.doc('users/other_driver').set({ role: 'driver' });
+  const booking = { serviceType: 'ride', status: 'accepted', driverId: 'driver', price: 9999, details: { estimatedKm: 5 }, settlementContract: { serviceType: 'ride', version: 3, baseCents: 1000, perKmCents: 200, maxPayoutCents: 5000 } };
+  await db.doc('bookings/earning_test').set(booking);
+  const estimate = await callable('getDriverEarningEstimate', 'driver', { bookingId: 'earning_test' });
+  assert.equal(estimate.totalCents, 2000);
+  assert.equal(estimate.settled, false);
+  await assert.rejects(callable('getDriverEarningEstimate', 'customer', { bookingId: 'earning_test' }), error => error.code === 'permission-denied');
+  await assert.rejects(callable('getDriverEarningEstimate', 'other_driver', { bookingId: 'earning_test' }), error => error.code === 'permission-denied');
+  await db.doc('bookings/earning_test').update({ settlementContract: null });
+  await assert.rejects(callable('getDriverEarningEstimate', 'driver', { bookingId: 'earning_test' }), error => error.code === 'failed-precondition');
+});
 test('definite provider rejection releases a quote; uncertain creation retains its claim for reconciliation', async () => {
   const originalFetch = globalThis.fetch;
   const quote = { uid: 'customer', amount: 10000, expiresAt: Timestamp.fromMillis(Date.now() + 60000), claimed: false, couponLocked: true, items: [], booking: { bookingId: 'ALLGO_provider_failure', serviceType: 'ride', price: 100 } };
@@ -184,6 +564,24 @@ async function walletAttempt(id, uid = 'customer', couponCode) {
   await db.doc(`payment_attempts/${id}`).set({ uid, kind: 'wallet_booking', bookingId, amount, storeId: 'shop', items, status: 'created', booking: { bookingId, customerId: uid, customerName: 'Test customer', serviceType: 'grocery', status: 'pending', price: amount / 100, driverId: null, createdAt: new Date().toISOString(), settlementContract: { serviceType: 'grocery', version: 1, baseCents: 2000, maxPayoutCents: 10000 }, details: { storeId: 'shop', items }, otp: '2468', ...(couponCode ? { couponCode, couponDiscountCents: 2000 } : {}) } });
   return bookingId;
 }
+test('merchant rejection is business scoped and refunds an unaccepted wallet order exactly once', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('users/wrong').set({ role: 'merchant', merchantId: 'other', merchantType: 'grocery' });
+  const bookingId = await walletAttempt('wallet_merchantReject');
+  await settleCapturedPayment('wallet_merchantReject', 'wallet_paymentReject', null, true);
+  await db.doc(`bookings/${bookingId}`).update({ merchantId: 'shop', paymentStatus: 'paid' });
+  const request = { bookingId, reason: 'Item unavailable before preparation' };
+  await assert.rejects(callable('rejectMerchantBooking', 'wrong', request), error => error.code === 'permission-denied');
+  await callable('rejectMerchantBooking', 'merchant', request);
+  await callable('rejectMerchantBooking', 'merchant', request);
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1000);
+  assert.equal((await db.doc('grocery_stores/shop/products/item').get()).data().stock, 10);
+  assert.equal((await db.doc(`bookings/${bookingId}`).get()).data().status, 'cancelled');
+  const event = (await db.doc(`bookings/${bookingId}/events/cancellation_requested`).get()).data();
+  assert.equal(event.stage, 'merchant_rejected'); assert.equal(event.reason, request.reason);
+  assert.equal((await db.collection('wallet_ledger/customer/entries').get()).docs.filter(record => record.data().kind === 'refund').length, 1);
+});
+
 test('concurrent confirmations create one booking, wallet debit and inventory reservation', async () => {
   await walletAttempt('same');
   const results = await Promise.all(Array.from({ length: 4 }, () => settleCapturedPayment('same', 'wallet_same', null, true)));
@@ -196,6 +594,29 @@ test('concurrent confirmations create one booking, wallet debit and inventory re
   const record = (await db.doc('financial_journals/allocate_same').get()).data();
   assert.equal(record.amountCents, 10000);
   assert.equal(record.lines.reduce((total, line) => total + line.debitCents - line.creditCents, 0), 0);
+});
+
+for (const failure of ['exhausted', 'expired']) test(`captured payment with ${failure} stock refunds through provider evidence and balanced journals`, async () => {
+  const orderId = 'order_stockRefund', paymentId = 'pay_stockRefund';
+  await walletAttempt(orderId);
+  const ref = db.doc(`payment_attempts/${orderId}`);
+  await ref.update({ kind: 'booking' });
+  await db.doc('grocery_stores/shop/products/item').update(failure === 'expired' ? { expiresAt: '2020-01-01T00:00:00.000Z' } : { stock: 0 });
+  const originalFetch = globalThis.fetch; let creates = 0;
+  try {
+    globalThis.fetch = async (url, options) => {
+      if (!String(url).startsWith('https://api.razorpay.com/')) return originalFetch(url, options);
+      if (options.method === 'POST') { creates++; assert.equal((await ref.get()).data().status, 'refund_processing'); return Response.json({ id: 'rfnd_stockRefund', status: 'processed' }); }
+      return Response.json({ id: paymentId, order_id: orderId, amount: 10000, currency: 'INR', amount_refunded: 10000 });
+    };
+    await assert.rejects(settleCapturedPayment(orderId, paymentId, { id: paymentId, status: 'captured', order_id: orderId, amount: 10000, currency: 'INR' }), error => error.code === 'failed-precondition');
+    assert.equal((await ref.get()).data().status, 'refunded');
+    assert.equal((await ref.get()).data().refundedAmountCents, 10000);
+    assert.equal((await db.collection('bookings').get()).size, 0);
+    assert.equal((await db.doc('financial_journals/refund_order_stockRefund_10000').get()).exists, true);
+    assert.equal(creates, 1);
+    assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1000);
+  } finally { globalThis.fetch = originalFetch; }
 });
 test('concurrent orders cannot both reserve the last stock item', async () => {
   await db.doc('grocery_stores/shop/products/item').update({ stock: 1 });

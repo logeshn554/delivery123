@@ -18,11 +18,15 @@ else try {
   if (acceptance.environment !== environment || acceptance.projectId !== env.FIREBASE_PROJECT_ID || acceptance.databaseId !== env.FIRESTORE_DATABASE_ID) errors.push('Acceptance evidence does not identify the selected environment and database.');
 } catch { errors.push('Acceptance evidence cannot be parsed.'); }
 if (!fs.existsSync(otherFile)) errors.push('Both staging and production environment configurations are required to verify resource separation.');
-const required = ['DATABASE_URL','FIREBASE_PROJECT_ID','FIRESTORE_DATABASE_ID','VITE_FIREBASE_PROJECT_ID','VITE_FIREBASE_DATABASE_ID','VITE_FIREBASE_APP_ID','VITE_FIREBASE_API_KEY','VITE_FIREBASE_AUTH_DOMAIN','VITE_FIREBASE_MESSAGING_SENDER_ID','VITE_ACCOUNT_API_URL','ACCOUNT_ALLOWED_ORIGINS','ACCOUNT_EMAIL_API_KEY','ACCOUNT_EMAIL_FROM','VITE_APP_CHECK_SITE_KEY','VITE_SUPPORT_EMAIL','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL'];
+const required = ['DATABASE_URL','FIREBASE_PROJECT_ID','FIRESTORE_DATABASE_ID','VITE_FIREBASE_PROJECT_ID','VITE_FIREBASE_DATABASE_ID','VITE_FIREBASE_APP_ID','VITE_FIREBASE_API_KEY','VITE_FIREBASE_AUTH_DOMAIN','VITE_FIREBASE_MESSAGING_SENDER_ID','VITE_ACCOUNT_API_URL','ACCOUNT_ALLOWED_ORIGINS','ACCOUNT_EMAIL_API_KEY','ACCOUNT_EMAIL_FROM','ACCOUNT_PUBLIC_WEB_ORIGIN','VITE_APP_CHECK_SITE_KEY','VITE_SUPPORT_EMAIL','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL'];
 for(const key of required) if(!env[key]?.trim())errors.push(`${key} is missing from the ${environment} configuration.`);
-for(const key of ['VITE_ACCOUNT_API_URL','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL']) {
+if (!env.EVIDENCE_STORAGE_BUCKET?.trim()) errors.push('The private document storage bucket is missing.');
+if (!env.EVIDENCE_SCANNER_HOST?.trim() || !/^[A-Za-z0-9.-]+\.[A-Za-z0-9.-]+$/.test(env.EVIDENCE_SCANNER_HOST) || !Number.isInteger(Number(env.EVIDENCE_SCANNER_PORT)) || Number(env.EVIDENCE_SCANNER_PORT) < 1 || Number(env.EVIDENCE_SCANNER_PORT) > 65535) errors.push('The verified private scanner hostname and TLS port are missing or invalid.');
+if (env.EVIDENCE_STORAGE_BUCKET && env.EVIDENCE_STORAGE_BUCKET === other.EVIDENCE_STORAGE_BUCKET) errors.push('Staging and production cannot share private document storage.');
+for(const key of ['VITE_ACCOUNT_API_URL','ACCOUNT_PUBLIC_WEB_ORIGIN','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL']) {
   try {const url=new URL(env[key]);if(url.protocol!=='https:'||url.username||url.password||['localhost','127.0.0.1','0.0.0.0','[::1]'].includes(url.hostname))throw new Error();} catch{errors.push(`${key} must use a deployed HTTPS URL.`);}
 }
+try { const origin = new URL(env.ACCOUNT_PUBLIC_WEB_ORIGIN); if (origin.pathname !== '/' || origin.search || origin.hash || !(env.ACCOUNT_ALLOWED_ORIGINS || '').split(',').map(value => value.trim()).includes(origin.origin)) errors.push('Account email origin must be an allowed web origin with no path/query/fragment.'); } catch { errors.push('Account email origin is invalid.'); }
 if(env.FIREBASE_PROJECT_ID!==env.VITE_FIREBASE_PROJECT_ID || env.FIRESTORE_DATABASE_ID!==env.VITE_FIREBASE_DATABASE_ID)errors.push('Client and account-server Firebase identity configuration must match.');
 for(const key of ['DATABASE_URL','FIREBASE_PROJECT_ID','ACCOUNT_EMAIL_API_KEY'])if(env[key]&&other[key]===env[key])errors.push(`${key} is shared between staging and production.`);
 try { const selected = new URL(env.DATABASE_URL), alternate = new URL(other.DATABASE_URL); if (selected.hostname === alternate.hostname && selected.pathname === alternate.pathname) errors.push('Staging and production must use separate database resources, independent of credential differences.'); } catch { /* Missing values are reported above. */ }
@@ -35,12 +39,19 @@ else try {
   const cli = JSON.parse(fs.readFileSync(cliFile, 'utf8'));
   const databases = Array.isArray(cli.firestore) ? cli.firestore : [cli.firestore];
   if (databases.length !== 1 || databases[0]?.database !== env.FIRESTORE_DATABASE_ID) errors.push('Firebase CLI rules/indexes database differs from the selected runtime database.');
+  if (!Array.isArray(cli.storage) || cli.storage.length !== 1 || cli.storage[0]?.target !== 'private-evidence' || cli.storage[0]?.rules !== 'storage.rules') errors.push('Private document rules require the explicit private-evidence deploy target.');
 } catch { errors.push('Environment Firebase CLI configuration cannot be parsed.'); }
+try {
+  const resources = JSON.parse(fs.readFileSync('.firebaserc', 'utf8')).targets?.[env.FIREBASE_PROJECT_ID]?.storage?.['private-evidence'];
+  if (!Array.isArray(resources) || resources.length !== 1 || resources[0] !== env.EVIDENCE_STORAGE_BUCKET) errors.push('The private-evidence deploy target must identify exactly the configured document bucket.');
+} catch { errors.push('Private storage deploy targets cannot be verified.'); }
 const functionFile = `functions/.env.${env.FIREBASE_PROJECT_ID}`;
 if (!fs.existsSync(functionFile)) errors.push('Project-specific Functions runtime configuration is missing.');
 else {
   const runtime = parse(fs.readFileSync(functionFile));
   if(runtime.FIRESTORE_DATABASE_ID !== env.FIRESTORE_DATABASE_ID || runtime.ALLGO_ENVIRONMENT !== environment || runtime.REQUIRE_APP_CHECK !== 'true') errors.push('Functions database, environment and App Check enforcement differ from the selected release.');
+  if (!runtime.EVIDENCE_STORAGE_BUCKET || runtime.EVIDENCE_STORAGE_BUCKET !== env.EVIDENCE_STORAGE_BUCKET) errors.push('Functions private document bucket differs from the selected release.');
+  if (runtime.EVIDENCE_SCANNER_HOST !== env.EVIDENCE_SCANNER_HOST || runtime.EVIDENCE_SCANNER_PORT !== env.EVIDENCE_SCANNER_PORT) errors.push('Functions private scanner endpoint differs from the selected release.');
 }
 if((env.ACCOUNT_ALLOWED_ORIGINS||'').split(',').some(origin=>origin.trim()==='*'||origin.trim().startsWith('http://')))errors.push('Release account origins must be explicit secure web/native origins.');
 for(const [label,path] of [['Android Firebase registration','android/app/google-services.json'],['iOS Firebase registration','ios/App/App/GoogleService-Info.plist']])if(!fs.existsSync(path))errors.push(`${label} is missing.`);

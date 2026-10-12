@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeft, Heart, MapPin, Clock, Minus, Plus, ShoppingBag, AlertCircle } from 'lucide-react';
 import type { Restaurant, GroceryStore, MenuItem, GroceryProduct } from '../types';
+import { productWithinExpiry } from '../data/productExpiry';
 
 export type CatalogPage = { kind: 'restaurant' | 'store' | 'dish' | 'product'; id: string };
 export default function CatalogDetails({ kind, partner, item, saved, onSave, onBack, onAdd, onBrowse, quantityInCart }: {
@@ -16,7 +17,7 @@ export default function CatalogDetails({ kind, partner, item, saved, onSave, onB
   const variant = variants.find(option => option.id === variantId) || variants[0];
   const currentQuantity = quantityInCart(variant?.id);
   const cap = Math.max(0, Math.min(30, product ? product.stock : 30) - currentQuantity);
-  const available = item && (dish ? dish.available !== false && (!dish.variants?.length || Boolean(variant)) : Boolean(product && product.stock > 0));
+  const available = item && (dish ? dish.available !== false && (!dish.variants?.length || Boolean(variant)) : Boolean(product && product.stock > 0 && productWithinExpiry(product)));
   const data = item || partner;
   const price = variant?.price ?? item?.price ?? 0;
   return <section className="service-detail safe-area-top safe-area-bottom" role="dialog" aria-modal="true" aria-label={data?.name || 'Catalog details'}>
@@ -30,6 +31,7 @@ export default function CatalogDetails({ kind, partner, item, saved, onSave, onB
           {dish && <p className="service-tag">{dish.isVeg ? 'Vegetarian' : 'Non-vegetarian'}</p>}
           {variants.length > 0 && <fieldset className="allgo-card"><legend className="sr-only">Choose an option</legend><h2>Choose your option</h2>{variants.map(option => <label className="service-option" key={option.id}><input type="radio" name="dish-variant" value={option.id} checked={variant?.id === option.id} onChange={() => { setVariantId(option.id); setQuantity(1); }}/><span>{option.label}</span><strong>₹{option.price}</strong></label>)}</fieldset>}
           {item && <article className="allgo-card"><h2>{isFood ? 'Ingredients & dietary information' : 'Product information'}</h2>{product?.brand && <p>Brand: {product.brand}</p>}{item.ingredients && <p>Ingredients: {item.ingredients}</p>}<p>{item.allergens?.length ? `Declared allergens: ${item.allergens.join(', ')}` : 'The partner has not supplied allergen information.'}</p>{product?.storageInstructions && <p>Storage: {product.storageInstructions}</p>}{product?.countryOfOrigin && <p>Origin: {product.countryOfOrigin}</p>}{product && <p>Currently listed stock: {product.stock} packs. Availability is checked again before payment.</p>}<small>Details are supplied by the partner. Check the product label or contact the partner about dietary requirements before ordering.</small></article>}
+          {product?.expiresAt && <p>Partner-declared inventory deadline: {Number.isFinite(Date.parse(product.expiresAt)) ? new Date(product.expiresAt).toLocaleString() : 'Invalid deadline; ordering is unavailable'}. Check the label on the delivered product.</p>}
           {item && !available && <p role="status" className="allgo-feedback error">This item is currently unavailable.</p>}
           {!item && partner && <button className="allgo-action" onClick={onBrowse} disabled={partner.acceptingOrders === false}>Browse {kind === 'restaurant' ? 'menu' : 'products'}</button>}
         </div></>}

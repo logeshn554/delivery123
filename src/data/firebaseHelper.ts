@@ -15,7 +15,7 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
-import { Booking, UserProfile, DriverProfile, SavedAddress } from '../types';
+import { Booking, UserProfile, DriverProfile, SavedAddress, SupportTicket } from '../types';
 
 export function listenToMerchantHours(id: string, type: 'restaurant' | 'grocery', callback: (value: { weeklyHours?: Record<string, { open: string; close: string }[]>; timeZone?: string; acceptingOrders?: boolean }) => void, onError: (error: unknown) => void) {
   return onSnapshot(doc(db, type === 'restaurant' ? 'restaurants' : 'grocery_stores', id), snapshot => { if (!snapshot.exists()) { onError(new Error('Business unavailable.')); return; } callback(snapshot.data()); }, onError);
@@ -29,8 +29,8 @@ export async function saveCatalogItem(merchantId: string, merchantType: 'restaur
 export async function submitOrderReview(bookingId: string, rating: number, comment: string) {
   return (await httpsCallable(functions,'submitOrderReview')({bookingId,rating,comment})).data;
 }
-export async function exportAccountPage(section: string, cursor: string | null = null): Promise<{items:unknown[];nextCursor:string|null}> {
-  return (await httpsCallable(functions,'exportAccountPage')({section,cursor})).data as {items:unknown[];nextCursor:string|null};
+export async function exportAccountPage(section: string, cursor: string | null = null, parentId?: string): Promise<{items:unknown[];nextCursor:string|null}> {
+  return (await httpsCallable(functions,'exportAccountPage')({section,cursor,...(parentId ? { parentId } : {})})).data as {items:unknown[];nextCursor:string|null};
 }
 export function listenToOrderReviews(uid: string, callback: (reviews: { id:string; bookingId:string; rating:number; comment:string; createdAt:string }[]) => void, onError: (error:unknown)=>void) {
   return onSnapshot(query(collection(db,'order_reviews'),where('userId','==',uid)),snapshot=>callback(snapshot.docs.map(item=>({id:item.id,...item.data()} as { id:string; bookingId:string; rating:number; comment:string; createdAt:string }))),onError);
@@ -89,12 +89,12 @@ export function listenToSavedAddresses(uid: string, callback: (addresses: SavedA
   }, (err) => handleFirestoreError(err, OperationType.GET, path));
 }
 
-export async function saveUserAddress(uid: string, label: string, address: string) {
+export async function saveUserAddress(uid: string, label: string, address: string, deliveryDetails?: SavedAddress['deliveryDetails']) {
   const path = `users/${uid}/addresses`;
   try {
     const addressRef = doc(collection(db, 'users', uid, 'addresses'));
     const batch = writeBatch(db);
-    batch.set(addressRef, { label: label.trim(), address: address.trim(), createdAt: new Date().toISOString() });
+    batch.set(addressRef, { label: label.trim(), address: address.trim(), ...(deliveryDetails ? { deliveryDetails } : {}), createdAt: new Date().toISOString() });
     batch.update(doc(db, 'users', uid), { defaultAddressId: addressRef.id, defaultAddress: address.trim() });
     await batch.commit();
     return addressRef.id;
@@ -189,7 +189,7 @@ export async function updateDriverStatus(driverId: string, updates: Partial<Driv
 }
 
 export async function updateDriverVerification(driverId: string, status: DriverProfile['status'], supportedServices: Booking['serviceType'][] = []) {
-  return updateDriverStatus(driverId, { status, online: false, supportedServices });
+  throw new Error('Use the audited driver eligibility review with the actual application and document references.');
 }
 
 /**
@@ -259,6 +259,9 @@ export async function requestBookingCancellation(bookingId: string) {
   const result = await cancelBooking({ bookingId });
   return result.data;
 }
+export async function rejectMerchantBooking(bookingId: string, reason: string) {
+  return (await httpsCallable(functions, 'rejectMerchantBooking')({ bookingId, reason })).data;
+}
 
 export type PaymentActivity = { orderId: string; amount: number; currency: string; serviceType: string; status: string; createdAt: string; bookingId: string | null; paymentId: string | null; refundStatus: string | null };
 export async function listPaymentActivity(): Promise<PaymentActivity[]> {
@@ -266,6 +269,13 @@ export async function listPaymentActivity(): Promise<PaymentActivity[]> {
 }
 export async function recoverPayment(orderId: string) {
   return (await httpsCallable<{ orderId: string }, { status: string; bookingId?: string }>(functions, 'recoverPayment')({ orderId })).data;
+}
+
+export async function reportBookingException(data: { bookingId: string; requestId: string; kind: string; reason: string }) {
+  return (await httpsCallable(functions, 'reportBookingException')(data)).data;
+}
+export async function resolveBookingException(data: { bookingId: string; requestId: string; expectedRevision: number; reason: string }) {
+  return (await httpsCallable(functions, 'resolveBookingException')(data)).data;
 }
 
 /**
@@ -322,7 +332,7 @@ export function listenToBookingEvents(id: string, callback: (events: { id: strin
 export async function advanceMerchantBooking(bookingId: string, status: 'preparing' | 'ready') {
   return (await httpsCallable(functions, 'advanceMerchantBooking')({ bookingId, status })).data;
 }
-export async function updateMerchantCatalog(catalogId: string, merchantType: 'restaurant' | 'grocery', itemId: string, changes: { available?: boolean; stock?: number }) {
+export async function updateMerchantCatalog(catalogId: string, merchantType: 'restaurant' | 'grocery', itemId: string, changes: { available?: boolean; stock?: number; expectedStock?: number }) {
   return (await httpsCallable(functions, 'updateMerchantCatalog')({ catalogId, merchantType, itemId, ...changes })).data;
 }
 
@@ -432,7 +442,7 @@ export function listenToRestaurants(callback: (rests: any[]) => void, onError: (
     snapshot.forEach((doc) => {
       list.push({ ...doc.data(), id: doc.id });
     });
-    callback(list);
+    callback(list.filter(item => !item.onboardingStatus || item.onboardingStatus === 'approved'));
   }, (err) => {
     onError(err);
   });
@@ -464,7 +474,7 @@ export function listenToGroceryStores(callback: (stores: any[]) => void, onError
     snapshot.forEach((doc) => {
       list.push({ ...doc.data(), id: doc.id });
     });
-    callback(list);
+    callback(list.filter(item => !item.onboardingStatus || item.onboardingStatus === 'approved'));
   }, (err) => {
     onError(err);
   });
@@ -490,47 +500,28 @@ export function listenToGroceryProducts(storeId: string, callback: (prods: any[]
  * Updates menu item availability without mutating dietary metadata.
  */
 export async function updateMenuItemAvailability(restaurantId: string, itemId: string, available: boolean) {
-  const path = `restaurants/${restaurantId}/menu_items/${itemId}`;
-  try {
-    await updateDoc(doc(db, 'restaurants', restaurantId, 'menu_items', itemId), { available });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, path);
-  }
+  return (await httpsCallable(functions, 'updateMerchantCatalog')({ merchantType: 'restaurant', catalogId: restaurantId, itemId, available })).data;
 }
 
 /**
  * Updates grocery product stock level in Firestore
  */
-export async function updateGroceryProductStock(storeId: string, productId: string, stock: number) {
-  const path = `grocery_stores/${storeId}/products/${productId}`;
-  try {
-    await updateDoc(doc(db, 'grocery_stores', storeId, 'products', productId), { stock });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, path);
-  }
+export async function updateGroceryProductStock(storeId: string, productId: string, stock: number, expectedStock: number) {
+  return (await httpsCallable(functions, 'updateMerchantCatalog')({ merchantType: 'grocery', catalogId: storeId, itemId: productId, stock, expectedStock })).data;
 }
 
-export async function createSupportTicket(ticket: { ticketId: string; userId: string; subject: string; message: string }) {
-  const path = `support_tickets/${ticket.ticketId}`;
-  try {
-    await setDoc(doc(db, 'support_tickets', ticket.ticketId), {
-      ...ticket,
-      status: 'open',
-      createdAt: new Date().toISOString()
-    });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.CREATE, path);
-  }
+export async function createSupportTicket(ticket: { ticketId: string; userId: string; subject: string; message: string; bookingId?: string; category?: string }) {
+  return (await httpsCallable(functions, 'createSupportCase')(ticket)).data;
 }
 
-export function listenToSupportTickets(userId: string, callback: (tickets: { ticketId: string; userId: string; subject: string; message: string; status: 'open' | 'resolved'; createdAt: string }[]) => void) {
+export function listenToSupportTickets(userId: string, callback: (tickets: SupportTicket[]) => void, onError?: (error: unknown) => void) {
   const path = 'support_tickets';
   const q = query(collection(db, path), where('userId', '==', userId));
   return onSnapshot(q, (snapshot) => {
-    const tickets = snapshot.docs.map((ticket) => ticket.data() as { ticketId: string; userId: string; subject: string; message: string; status: 'open' | 'resolved'; createdAt: string });
+    const tickets = snapshot.docs.map((ticket) => ticket.data() as SupportTicket);
     tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(tickets);
-  }, (error) => handleFirestoreError(error, OperationType.GET, path));
+  }, (error) => { if (onError) onError(error); else handleFirestoreError(error, OperationType.GET, path); });
 }
 
 export async function createPayoutRequest(request: { requestId: string; driverId: string; amount: number }) {
@@ -562,8 +553,8 @@ export async function reverseServiceLocation(lat: number, lng: number): Promise<
   return (await httpsCallable<{ location: { lat: number; lng: number } }, { locations: ServiceLocation[] }>(functions, 'reverseServiceLocation')({ location: { lat, lng } })).data.locations;
 }
 
-export async function createWalletTopup(amountCents: number) {
-  return (await httpsCallable<{ amountCents: number }, { orderId: string; keyId: string; amount: number; currency: string }>(functions, 'createWalletTopup')({ amountCents })).data;
+export async function createWalletTopup(amountCents: number, requestId: string) {
+  return (await httpsCallable<{ amountCents: number; requestId: string }, { orderId: string; keyId: string; amount: number; currency: string; paid: boolean }>(functions, 'createWalletTopup')({ amountCents, requestId })).data;
 }
 export async function payWithWallet(booking: unknown, expectedAmountCents: number, requestId: string) {
   return (await httpsCallable<{ booking: unknown; expectedAmountCents: number; requestId: string }, { status: string; bookingId: string }>(functions, 'payWithWallet')({ booking, expectedAmountCents, requestId })).data;

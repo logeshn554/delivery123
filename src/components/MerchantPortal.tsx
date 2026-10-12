@@ -5,7 +5,12 @@ import {
 } from 'lucide-react';
 import { Booking, MenuItem, GroceryProduct } from '../types';
 import MerchantHoursEditor from './MerchantHoursEditor';
+import MerchantClosuresEditor from './MerchantClosuresEditor';
 import MerchantCatalogEditor from './MerchantCatalogEditor';
+import MerchantPreparationEditor from './MerchantPreparationEditor';
+import BookingExceptionPanel from './BookingExceptionPanel';
+import MerchantRejection from './MerchantRejection';
+import GroceryPickingEditor from './GroceryPickingEditor';
 import { 
   advanceMerchantBooking,
   listenToMenuItems, 
@@ -23,13 +28,14 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   const [activeMenu, setActiveMenu] = useState<MenuItem[]>([]);
   const [activeStock, setActiveStock] = useState<GroceryProduct[]>([]);
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
+  const [stockBaselines, setStockBaselines] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
 
   // Sync catalog dynamically from Firestore in real-time
   useEffect(() => {
-    setActiveMenu([]); setActiveStock([]); setError(''); setLoading(Boolean(merchantId));
+    setActiveMenu([]); setActiveStock([]); setStockInputs({}); setStockBaselines({}); setError(''); setLoading(Boolean(merchantId));
     if (!merchantId || !merchantType) return;
     const failed = () => { setError('Your catalog could not be loaded. Check the business assignment and connection.'); setLoading(false); };
     return merchantType === 'restaurant'
@@ -63,7 +69,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   const handleToggleProductStock = async (prodId: string) => {
     const stock = Number(stockInputs[prodId]);
     if (!Number.isSafeInteger(stock) || stock < 0 || stockInputs[prodId]?.trim() === '') { setError('Enter the actual nonnegative stock count.'); return; }
-    await performAction(prodId, () => updateMerchantCatalog(merchantId!, 'grocery', prodId, { stock }));
+    await performAction(prodId, () => updateMerchantCatalog(merchantId!, 'grocery', prodId, { stock, expectedStock: stockBaselines[prodId] }));
   };
 
   // State changes triggered from merchant portal
@@ -108,6 +114,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
       {/* Content body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         <MerchantHoursEditor id={merchantId} type={merchantType}/>
+        <MerchantClosuresEditor id={merchantId} type={merchantType}/>
         <MerchantCatalogEditor id={merchantId} type={merchantType} items={merchantType === 'restaurant' ? activeMenu : activeStock}/>
         {loading && <p role="status">Loading your catalog…</p>}
         {error && <p role="alert" className="rounded-xl bg-rose-950 p-3 text-sm text-rose-100">{error}</p>}
@@ -143,6 +150,9 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
             <div className="space-y-3">
               {(merchantType === 'restaurant' ? foodOrders : groceryOrders).map(ord => (
                 <div key={ord.bookingId} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+                  <BookingExceptionPanel booking={ord}/>
+                  {ord.status === 'pending' && !ord.driverId && ord.paymentStatus === 'paid' && <MerchantRejection bookingId={ord.bookingId}/>}
+                  <MerchantPreparationEditor booking={ord}/>
                   <div className="flex justify-between items-start pb-2 border-b border-slate-700">
                     <div>
                       <span className="text-[10px] font-bold text-blue-400 font-mono">{ord.bookingId}</span>
@@ -165,6 +175,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                   </div>
 
                   {/* Actions depending on state */}
+                  <GroceryPickingEditor booking={ord}/>
                   <div className="pt-2 border-t border-slate-700/50 flex gap-2">
                     {ord.status === 'pending' && (
                       <button 
@@ -178,7 +189,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
 
                     {ord.status === 'preparing' && (
                       <button 
-                        disabled={Boolean(busy)}
+                        disabled={Boolean(busy) || ord.exception?.status === 'open' || ord.serviceType === 'grocery' && !ord.details?.items?.every((item, index) => ord.picking?.lines[String(index)]?.itemId === item.id && ord.picking.lines[String(index)].quantity === item.quantity)}
                         onClick={() => handleMarkOrderReady(ord.bookingId)}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg"
                       >
@@ -234,7 +245,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                     <p className="text-[10px] text-slate-400">{prod.unit} · ₹{prod.price}</p>
                   </div>
                   
-                  <div className="flex items-end gap-2"><label className="text-[10px] text-slate-300">Actual stock · current {prod.stock}<input type="number" min="0" step="1" value={stockInputs[prod.id] ?? ''} onChange={event => setStockInputs(current => ({ ...current, [prod.id]: event.target.value }))} className="mt-1 block w-20 rounded-lg bg-slate-950 p-2 text-base" /></label><button disabled={Boolean(busy) || stockInputs[prod.id] === undefined} onClick={() => void handleToggleProductStock(prod.id)} className="min-h-11 rounded-lg bg-blue-600 px-3 font-bold disabled:opacity-50">Save</button></div>
+                  <div className="flex items-end gap-2"><label className="text-[10px] text-slate-300">Unreserved stock · current {prod.stock}<input type="number" min="0" step="1" value={stockInputs[prod.id] ?? ''} onChange={event => { const value = event.target.value; setStockBaselines(current => ({ ...current, [prod.id]: prod.stock })); setStockInputs(current => ({ ...current, [prod.id]: value })); }} className="mt-1 block w-20 rounded-lg bg-slate-950 p-2 text-base" /></label><button disabled={Boolean(busy) || stockInputs[prod.id] === undefined} onClick={() => void handleToggleProductStock(prod.id)} className="min-h-11 rounded-lg bg-blue-600 px-3 font-bold disabled:opacity-50">Save</button></div>
                 </div>
               ))}
             </div>

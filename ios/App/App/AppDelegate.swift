@@ -10,6 +10,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = SceneDelegate.self
+        return configuration
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         if FirebaseApp.app() == nil && Bundle.main.url(forResource: "GoogleService-Info", withExtension: "plist") != nil { FirebaseApp.configure() }
         return true
@@ -40,7 +46,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // Called when the app was launched with a url. Feel free to add additional processing here,
         // but if you want the App API to support tracking app url opens, make sure to keep this call
-        if Auth.auth().canHandle(url) { return true }
+        if FirebaseApp.app() != nil && Auth.auth().canHandle(url) { return true }
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
     }
 
@@ -52,15 +58,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        Auth.auth().setAPNSToken(deviceToken, type: .unknown)
-        Messaging.messaging().apnsToken = deviceToken
+        if FirebaseApp.app() != nil {
+            Auth.auth().setAPNSToken(deviceToken, type: .unknown)
+            Messaging.messaging().apnsToken = deviceToken
+        }
         NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
     }
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
     }
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-        if Auth.auth().canHandleNotification(userInfo) { completionHandler(.noData); return }
+        if FirebaseApp.app() != nil && Auth.auth().canHandleNotification(userInfo) { completionHandler(.noData); return }
         completionHandler(.newData)
     }
 

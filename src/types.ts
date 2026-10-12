@@ -22,6 +22,7 @@ export interface UserProfile {
 }
 
 export interface SavedAddress {
+  deliveryDetails?: { building: string; landmark: string; instructions: string };
   id: string;
   label: string;
   address: string;
@@ -100,6 +101,7 @@ export interface GroceryProduct {
   allergens?: string[];
   storageInstructions?: string;
   countryOfOrigin?: string;
+  expiresAt?: string | null;
   id: string;
   storeId: string;
   name: string;
@@ -111,6 +113,10 @@ export interface GroceryProduct {
 }
 
 export interface Booking {
+  picking?: { revision: number; lines: Record<string, { itemId: string; quantity: number }>; updatedAt: string };
+  exception?: { kind: string; reason: string; status: 'open' | 'resolved'; revision: number; reportedBy: string; reportedAt: string; resolution?: string; resolvedBy?: string; resolvedAt?: string };
+  preparation?: { expectedReadyAt: string; reason: string; revision: number; updatedAt: string };
+  offerExpiresAt?: string;
   settlementContract?: PartnerSettlementContract;
   driverSettlement?: { version: number; serviceType: Booking['serviceType']; baseCents: number; distanceCents: number; plannedDurationCents: number; waitingCents: number; waitMinutes: number; totalCents: number; capApplied: boolean };
   arrivedAtPickup?: string;
@@ -216,10 +222,18 @@ export interface BookingDetails {
 }
 
 export interface SupportTicket {
+  messageRevision?: number;
+  bookingId?: string | null;
+  category?: string;
+  assignedTo?: string | null;
+  revision?: number;
+  resolution?: string | null;
+  firstResponseDueAt?: string | null;
+  firstResponseAt?: string;
   ticketId: string;
   userId: string;
   subject: string;
   message: string;
-  status: 'open' | 'resolved';
+  status: 'open' | 'in_progress' | 'escalated' | 'resolved';
   createdAt: string;
 }

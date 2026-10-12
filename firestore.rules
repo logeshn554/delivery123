@@ -164,7 +164,13 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
       match /addresses/{addressId} {
         function validAddress(data) {
           return data.keys().hasAll(['label', 'address', 'createdAt'])
-            && data.keys().hasOnly(['label', 'address', 'createdAt'])
+            && data.keys().hasOnly(['label', 'address', 'createdAt', 'deliveryDetails'])
+            && (!('deliveryDetails' in data) || (data.deliveryDetails is map
+              && data.deliveryDetails.keys().hasAll(['building', 'landmark', 'instructions'])
+              && data.deliveryDetails.keys().hasOnly(['building', 'landmark', 'instructions'])
+              && data.deliveryDetails.building is string && data.deliveryDetails.building.size() <= 80
+              && data.deliveryDetails.landmark is string && data.deliveryDetails.landmark.size() <= 80
+              && data.deliveryDetails.instructions is string && data.deliveryDetails.instructions.size() <= 120))
             && data.label is string && data.label.size() > 0 && data.label.size() <= 30
             && data.address is string && data.address.size() > 0 && data.address.size() <= 300
             && data.createdAt is string && data.createdAt.size() <= 40;
@@ -195,7 +201,6 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
         && !incoming().keys().hasAny(['transportCapabilities', 'locationConsent', 'locationConsentAt'])
         && !('activeBookingId' in incoming());
       allow update: if isSignedIn() && (
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'online', 'supportedServices']) && incoming().status in ['pending', 'verified', 'rejected'] && incoming().online == false && incoming().supportedServices is list) || 
         (isDriverOwner(driverId) && isValidDriverProfile(incoming(), driverId) && (
           // Drivers can update online state or coordinates, but can't self-approve verification status
           incoming().get('currentLat', null) == existing().get('currentLat', null) &&
@@ -218,32 +223,51 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
           incoming().get('earningsDate', null) == existing().get('earningsDate', null)
         ))
       );
-      allow delete: if isAdmin();
+      allow delete: if false;
+    }
+
+    match /driver_eligibility/{driverId} {
+      allow read: if isAdmin();
+      allow write: if false;
+      match /events/{eventId} { allow read: if isAdmin(); allow write: if false; }
     }
 
     // RESTAURANTS & SUB-COLLECTIONS
     match /operations_audit/{entryId} { allow read: if isAdmin(); allow write: if false; }
+    match /partner_applications/{applicationId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+      match /events/{eventId} {
+        allow read: if isSignedIn() && (get(/databases/$(database)/documents/partner_applications/$(applicationId)).data.userId == request.auth.uid || isAdmin());
+        allow write: if false;
+      }
+    }
+    match /partner_evidence/{evidenceId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /evidence_audit/{entryId} { allow read: if isAdmin(); allow write: if false; }
     match /service_zones/{zoneId} { allow read: if isAdmin(); allow write: if false; }
     match /service_pricing/{serviceId} { allow read: if isAdmin(); allow write: if false; }
     match /service_pricing/{serviceId}/versions/{version} { allow read: if isAdmin(); allow write: if false; }
     match /restaurants/{restaurantId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if false;
 
       match /menu_items/{itemId} {
         allow read: if true;
-        allow write: if isAdmin();
+        allow write: if false;
       }
     }
 
     // GROCERY STORES & SUB-COLLECTIONS
     match /grocery_stores/{storeId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if false;
 
       match /products/{productId} {
         allow read: if true;
-        allow write: if isAdmin();
+        allow write: if false;
       }
     }
 
@@ -315,9 +339,12 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
     match /support_tickets/{ticketId} {
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && isValidSupportTicket(incoming());
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create, update, delete: if false;
+      match /{subcollection}/{entryId} {
+        allow get, list: if subcollection in ['messages', 'events'] && isSignedIn()
+          && (get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid || isAdmin());
+        allow write: if false;
+      }
     }
 
     match /payout_requests/{requestId} {

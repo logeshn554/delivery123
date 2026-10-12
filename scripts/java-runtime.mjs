@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { readdirSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 export function findJava21() {
@@ -14,7 +14,10 @@ export function findJava21() {
   for (const candidate of candidates.filter(Boolean)) {
     const result = spawnSync(candidate, ['-version'], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
     const major = /version "(\d+)/.exec(`${result.stdout || ''}${result.stderr || ''}`)?.[1];
-    if (result.status === 0 && Number(major) === 21) return candidate;
+    if (result.status === 0 && Number(major) === 21) {
+      const location = path.isAbsolute(candidate) ? candidate : spawnSync(process.platform === 'win32' ? 'where.exe' : 'which', [candidate], { encoding: 'utf8', windowsHide: true, timeout: 5000 }).stdout?.trim().split(/\r?\n/)[0];
+      if (location) { try { return realpathSync(location); } catch {} }
+    }
   }
   throw new Error('Java 21 was not found. Set JAVA_HOME_21 to your JDK 21 directory.');
 }

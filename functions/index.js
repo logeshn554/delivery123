@@ -16,6 +16,21 @@ const { cartCharges } = require('./cartPolicy');
 const { merchantOpen, validateHours } = require('./merchantPolicy');
 const { validateTransport, carrierSuitable } = require('./transportPolicy');
 const { operationsFunctions } = require('./operations');
+const { supportFunctions } = require('./support');
+const { bookingExceptionFunctions } = require('./bookingExceptions');
+const { dispatchRecoveryFunctions } = require('./dispatchRecovery');
+const { redactBookingHistory } = require('./bookingRedaction');
+const { fullyPicked, groceryPickingFunctions } = require('./groceryPicking');
+const { productWithinExpiry } = require('./productExpiry');
+const { assertStockBaseline } = require('./stockBaseline');
+const { partnerApplicationFunctions } = require('./partnerApplications');
+const { partnerEvidenceFunctions } = require('./partnerEvidence');
+const { evidenceScanningFunctions } = require('./evidenceScanning');
+const { evidenceReviewFunctions } = require('./evidenceReview');
+const { driverEligibilityFunctions } = require('./driverEligibility');
+const { scanBytes } = require('./clamScanner');
+const { getStorage } = require('firebase-admin/storage');
+const { catalogSearchFunctions } = require('./catalogSearch');
 const { contractFor, driverTransition, merchantTransition } = require('./fulfillmentPolicy');
 const { journal } = require('./journalPolicy');
 const { addCents } = require('./moneyPolicy');
@@ -29,9 +44,28 @@ const RAZORPAY_KEY_ID = defineSecret('RAZORPAY_KEY_ID');
 const RAZORPAY_KEY_SECRET = defineSecret('RAZORPAY_KEY_SECRET');
 const RAZORPAY_WEBHOOK_SECRET = defineSecret('RAZORPAY_WEBHOOK_SECRET');
 const MAPS_API_KEY = defineSecret('MAPS_API_KEY');
+const EVIDENCE_SCANNER_CA = defineSecret('EVIDENCE_SCANNER_CA');
+const EVIDENCE_SCANNER_CLIENT_CERT = defineSecret('EVIDENCE_SCANNER_CLIENT_CERT');
+const EVIDENCE_SCANNER_CLIENT_KEY = defineSecret('EVIDENCE_SCANNER_CLIENT_KEY');
 const REGION = 'asia-south1';
 const CURRENCY = 'INR';
 Object.assign(exports, operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }));
+Object.assign(exports, supportFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
+Object.assign(exports, bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
+Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, HttpsError, documentId, cleanText }));
+Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId }));
+Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
+Object.assign(exports, driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
+function evidenceBucket(name) {
+  const configured = process.env.EVIDENCE_STORAGE_BUCKET;
+  if (!configured || name && name !== configured) throw new HttpsError('failed-precondition', 'The private document bucket is not configured for this environment.');
+  return getStorage(app).bucket(configured);
+}
+const evidenceServices = partnerEvidenceFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getBucket: evidenceBucket });
+Object.assign(exports, evidenceServices.exports);
+Object.assign(exports, evidenceReviewFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
+Object.assign(exports, evidenceScanningFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, getBucket: evidenceBucket, scannerSecrets: [EVIDENCE_SCANNER_CA, EVIDENCE_SCANNER_CLIENT_CERT, EVIDENCE_SCANNER_CLIENT_KEY], scan: bytes => scanBytes(bytes, { host: process.env.EVIDENCE_SCANNER_HOST, port: Number(process.env.EVIDENCE_SCANNER_PORT), ca: EVIDENCE_SCANNER_CA.value(), cert: EVIDENCE_SCANNER_CLIENT_CERT.value(), key: EVIDENCE_SCANNER_CLIENT_KEY.value() }) }));
+Object.assign(exports, catalogSearchFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, HttpsError, documentId, cleanText }));
 
 function onCall(options, handler) {
   const { operation, ...platformOptions } = options;
@@ -39,7 +73,7 @@ function onCall(options, handler) {
     const endpoint = operation || 'callable';
     const identity = request.auth?.uid || `ip_${crypto.createHash('sha256').update(request.rawRequest.ip || 'unknown').digest('hex')}`;
     const bucket = Math.floor(Date.now() / 60000);
-    const limit = /Payment|Wallet|Coupon|ServiceQuote|ServiceLocations|TrackingRoute/.test(endpoint) ? 15 : /Location/.test(endpoint) ? 30 : 60;
+    const limit = /Payment|Wallet|Coupon|ServiceQuote|ServiceLocations|TrackingRoute|PublishedCatalog/.test(endpoint) ? 15 : /Location/.test(endpoint) ? 30 : 60;
     const ref = db.doc(`rate_limits/${crypto.createHash('sha256').update(`${identity}:${endpoint}:${bucket}`).digest('hex')}`);
     await db.runTransaction(async transaction => {
       const record = await transaction.get(ref);
@@ -114,7 +148,7 @@ exports.unregisterPushDevice = onCall({ operation: 'unregisterPushDevice', regio
 });
 exports.notifyBookingChange = onDocumentWritten({ region: REGION, database: databaseId, document: 'bookings/{bookingId}', retry: true }, async event => {
   const booking = event.data?.after.data(), previous = event.data?.before.data();
-  if (!booking || (previous && previous.status === booking.status && previous.driverId === booking.driverId && previous.paymentStatus === booking.paymentStatus)) return;
+  if (!booking || (previous && previous.status === booking.status && previous.driverId === booking.driverId && previous.paymentStatus === booking.paymentStatus && previous.preparation?.revision === booking.preparation?.revision && previous.exception?.revision === booking.exception?.revision)) return;
   const recipients = [...new Set([booking.customerId, booking.driverId].filter(Boolean))];
   for (const uid of recipients) {
     const account = await db.doc(`users/${uid}`).get();
@@ -130,6 +164,27 @@ exports.notifyBookingChange = onDocumentWritten({ region: REGION, database: data
   }
 });
 
+exports.updateMerchantPreparation = onCall({ operation: 'updateMerchantPreparation', region: REGION }, async request => {
+  const uid = requireUser(request), id = documentId(request.data?.bookingId, 'Booking ID'), command = documentId(request.data?.requestId, 'Request ID');
+  const minutes = request.data?.minutes, reason = cleanText(request.data?.reason, 'Preparation update reason', 300);
+  if (!Number.isSafeInteger(minutes) || minutes < 1 || minutes > 240) throw new HttpsError('invalid-argument', 'Preparation must be between 1 and 240 minutes.');
+  return db.runTransaction(async tx => {
+    const ref = db.doc(`bookings/${id}`), eventRef = ref.collection('events').doc(`preparation_${uid}_${command}`);
+    const [profile, snapshot, prior] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(eventRef)]);
+    const merchant = profile.data(), booking = snapshot.data();
+    if (merchant?.role !== 'merchant' || !merchant.merchantId || !['restaurant', 'grocery'].includes(merchant.merchantType) || booking?.merchantId !== merchant.merchantId || booking?.serviceType !== (merchant.merchantType === 'restaurant' ? 'food' : 'grocery')) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
+    if (prior.exists) {
+      if (prior.data().minutes !== minutes || prior.data().reason !== reason) throw new HttpsError('already-exists', 'This request was already used for a different preparation update.');
+      return { saved: true, expectedReadyAt: prior.data().expectedReadyAt };
+    }
+    if (!['pending', 'preparing'].includes(booking.status) || booking.paymentStatus !== 'paid' || booking.driverId) throw new HttpsError('failed-precondition', 'Preparation timing cannot change after handover readiness or cancellation.');
+    const now = new Date().toISOString(), expectedReadyAt = new Date(Date.now() + minutes * 60000).toISOString(), revision = (booking.preparation?.revision || 0) + 1;
+    tx.update(ref, { preparation: { expectedReadyAt, reason, revision, updatedAt: now }, updatedAt: now });
+    tx.create(eventRef, { stage: 'preparation_estimate_updated', actorRole: 'merchant', actorId: uid, minutes, reason, expectedReadyAt, revision, createdAt: now });
+    return { saved: true, expectedReadyAt };
+  });
+});
+
 exports.advanceMerchantBooking = onCall({ operation: 'advanceMerchantBooking', region: REGION }, async request => {
   const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID'), next = request.data?.status;
   if (!['preparing', 'ready'].includes(next)) throw new HttpsError('invalid-argument', 'Invalid merchant transition.');
@@ -140,9 +195,11 @@ exports.advanceMerchantBooking = onCall({ operation: 'advanceMerchantBooking', r
     const service = merchant?.merchantType === 'restaurant' ? 'food' : 'grocery';
     if (!merchant || merchant.role !== 'merchant' || !merchant.merchantId || !['restaurant', 'grocery'].includes(merchant.merchantType) || !booking || booking.merchantId !== merchant.merchantId || booking.serviceType !== service) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
     if (booking.status === next) return { status: next };
+    if (booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (booking.paymentStatus !== 'paid' || booking.driverId || booking.status !== (next === 'preparing' ? 'pending' : 'preparing')) throw new HttpsError('failed-precondition', 'The order changed. Refresh before continuing.');
     const stage = merchantTransition(booking.serviceType, booking.status, next);
-    transaction.update(bookingRef, { status: next, updatedAt: new Date().toISOString() });
+    if (booking.serviceType === 'grocery' && next === 'ready' && !fullyPicked(booking)) throw new HttpsError('failed-precondition', 'Confirm all reserved grocery quantities before marking this order ready. Report missing items for review.');
+    transaction.update(bookingRef, { status: next, ...(next === 'ready' ? { dispatchStartedAt: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
     transaction.create(db.doc(`bookings/${bookingId}/events/merchant_${next}`), { stage, actorRole: 'merchant', actorId: uid, createdAt: new Date().toISOString() });
     return { status: next };
   });
@@ -153,14 +210,16 @@ exports.updateMerchantCatalog = onCall({ operation: 'updateMerchantCatalog', reg
   if (!['restaurant', 'grocery'].includes(type)) throw new HttpsError('invalid-argument', 'Invalid catalog type.');
   const catalogId = documentId(request.data?.catalogId, 'Catalog ID'), itemId = documentId(request.data?.itemId, 'Item ID');
   const changes = type === 'restaurant' ? { available: request.data.available } : { stock: request.data.stock };
-  if (type === 'restaurant' ? typeof changes.available !== 'boolean' : !Number.isSafeInteger(changes.stock) || changes.stock < 0) throw new HttpsError('invalid-argument', 'Enter a valid availability or stock value.');
+  if (type === 'restaurant' ? typeof changes.available !== 'boolean' : !Number.isSafeInteger(changes.stock) || changes.stock < 0 || changes.stock > 1000000) throw new HttpsError('invalid-argument', 'Enter a valid availability or stock value.');
   return db.runTransaction(async transaction => {
     const parentPath = type === 'restaurant' ? `restaurants/${catalogId}` : `grocery_stores/${catalogId}`;
     const itemRef = db.doc(`${parentPath}/${type === 'restaurant' ? 'menu_items' : 'products'}/${itemId}`);
     const [account, parent, item] = await Promise.all([transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(parentPath)), transaction.get(itemRef)]);
-    if (account.data()?.role !== 'merchant' || account.data().merchantId !== catalogId || account.data().merchantType !== type) throw new HttpsError('permission-denied', 'This catalog is not assigned to your business.');
+    if (!(request.auth.token.admin === true && account.data()?.role === 'admin' || account.data()?.role === 'merchant' && account.data().merchantId === catalogId && account.data().merchantType === type)) throw new HttpsError('permission-denied', 'This catalog is not assigned to your business.');
     if (!parent.exists || !item.exists) throw new HttpsError('not-found', 'The catalog item is unavailable.');
+    if (type === 'grocery') assertStockBaseline(item.data().stock, request.data.expectedStock, HttpsError);
     transaction.update(itemRef, changes);
+    transaction.create(db.collection('operations_audit').doc(), { operatorId: uid, action: 'catalog_availability_updated', target: itemRef.path, changes, createdAt: Timestamp.now() });
     return { updated: true };
   });
 });
@@ -217,7 +276,7 @@ async function priceAndPrepareBooking(uid, input) {
       if (!doc.exists) throw new HttpsError('failed-precondition', 'An item in your cart is no longer available.');
       const catalogItem = doc.data();
       if (serviceType === 'food' && catalogItem.available === false) throw new HttpsError('failed-precondition', `${catalogItem.name || 'An item'} is sold out.`);
-      if (serviceType === 'grocery' && (!Number.isFinite(catalogItem.stock) || catalogItem.stock < requested.quantity)) {
+      if (serviceType === 'grocery' && (!productWithinExpiry(catalogItem) || !Number.isFinite(catalogItem.stock) || catalogItem.stock < requested.quantity)) {
         throw new HttpsError('failed-precondition', `${catalogItem.name || 'An item'} has insufficient stock.`);
       }
       let unitPrice = catalogItem.price;
@@ -497,7 +556,7 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
         stockRefs = attempt.items.map((item) => db.doc(`grocery_stores/${attempt.storeId}/products/${item.id}`));
         stockSnaps = await Promise.all(stockRefs.map((ref) => transaction.get(ref)));
         for (let index = 0; index < stockSnaps.length; index += 1) {
-          if (!stockSnaps[index].exists || !Number.isSafeInteger(stockSnaps[index].data().stock) || stockSnaps[index].data().stock < attempt.items[index].quantity) {
+          if (!stockSnaps[index].exists || !productWithinExpiry(stockSnaps[index].data()) || !Number.isSafeInteger(stockSnaps[index].data().stock) || stockSnaps[index].data().stock < attempt.items[index].quantity) {
             throw new HttpsError('failed-precondition', 'Stock changed while payment was processing.');
           }
         }
@@ -551,9 +610,10 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
         const refund = await issueRefund(paymentId, attempt.amount);
         await db.runTransaction(async transaction => {
           const snapshot = await transaction.get(attemptRef);
-          if (snapshot.data()?.status !== 'refunded') transaction.update(attemptRef, { status: refund.status === 'processed' ? 'refunded' : refund.status === 'failed' ? 'refund_required' : 'refund_processing', refundId: refund.id, refundStatus: refund.status, updatedAt: Timestamp.now() });
+          if (snapshot.data()?.status !== 'refunded') transaction.update(attemptRef, { status: refund.status === 'failed' ? 'refund_required' : 'refund_processing', refundId: refund.id, refundStatus: refund.status, updatedAt: Timestamp.now() });
         });
         if (refund.status === 'failed') throw new Error('Refund provider reported a failure.');
+        await checkPendingRefund(attemptRef);
       } catch (refundError) {
         await db.runTransaction(async transaction => {
           const latest = await transaction.get(attemptRef);
@@ -650,6 +710,17 @@ exports.getServiceQuote = onCall({ operation: 'getServiceQuote', region: REGION,
   return { quoteId: quoteRef.id, amount: quote.amount, currency: CURRENCY, price: quote.amount / 100, expiresAt: expiresAt.toDate().toISOString(), estimatedKm: quote.booking.details.estimatedKm, estimatedMinutes: quote.booking.details.estimatedMinutes };
 });
 
+exports.getDriverEarningEstimate = onCall({ operation: 'getDriverEarningEstimate', region: REGION }, async request => {
+  const uid = requireUser(request), id = documentId(request.data?.bookingId, 'Booking ID');
+  const [booking, account] = await Promise.all([db.doc(`bookings/${id}`).get(), db.doc(`users/${uid}`).get()]);
+  if (account.data()?.role !== 'driver' || booking.data()?.driverId !== uid) throw new HttpsError('permission-denied', 'Only the assigned partner can view this earning estimate.');
+  try {
+    const data = booking.data();
+    const estimate = data.driverSettlement || calculateDriverSettlement(data);
+    return { ...estimate, settled: ['completed', 'delivered'].includes(data.status) && !!data.driverSettlement };
+  } catch { throw new HttpsError('failed-precondition', 'Operations must review the partner contract before earnings can be estimated.'); }
+});
+
 exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGION }, async request => {
   const uid = requireUser(request);
   const [account, profile] = await Promise.all([db.doc(`users/${uid}`).get(), db.doc(`driver_profiles/${uid}`).get()]);
@@ -662,7 +733,7 @@ exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGIO
   const snapshots = await Promise.all(services.flatMap(service => nearZones.filter(zone => zone.data().serviceTypes?.includes(service)).map(zone => db.collection('bookings').where('serviceType', '==', service).where('status', '==', ['food', 'grocery'].includes(service) ? 'ready' : 'pending').where('driverId', '==', null).where('details.pickupZoneId', '==', zone.id).limit(100).get())));
   const candidates = [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(doc => [doc.id, doc])).values()].filter(document => {
     const booking = document.data();
-    return pickupEligibility(driver, booking) !== null && booking.paymentStatus === 'paid' && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities,booking.details));
+    return booking.exception?.status !== 'open' && pickupEligibility(driver, booking) !== null && booking.paymentStatus === 'paid' && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities,booking.details));
   }).sort((a, b) => pickupEligibility(driver, a.data()) - pickupEligibility(driver, b.data())).slice(0, 30);
   const expiresAt = Timestamp.fromMillis(Date.now() + 30000);
   const batch = db.batch();
@@ -684,7 +755,7 @@ exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region:
     const data = booking.data();
     if (!offer.exists || offer.data().expiresAt.toMillis() <= Date.now() || offer.data().bookingVersion !== (data?.updatedAt || data?.createdAt) || !data || pickupEligibility(driver.data(), data) === null) throw new HttpsError('failed-precondition', 'This pickup offer expired or your location is stale. Refresh offers.');
     const dispatchable = data && (['food', 'grocery'].includes(data.serviceType) ? data.status === 'ready' : data.status === 'pending');
-    if (!dispatchable || data.driverId || data.paymentStatus !== 'paid' || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available.');
+    if (!dispatchable || data.driverId || data.exception?.status === 'open' || data.paymentStatus !== 'paid' || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available.');
     if (data.serviceType === 'ride' && data.details?.vehicleType !== driver.data().vehicleType) throw new HttpsError('failed-precondition', 'Your verified vehicle does not match this ride.');
     // A customer's vehicle class is not the carrier's equipment class.
     // Operations must approve transport equipment separately from ordinary ride vehicles.
@@ -713,6 +784,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     const data = booking.data();
     if (!data || data.driverId !== uid || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'This job is not assigned to you.');
     if (data.paymentStatus !== 'paid') throw new HttpsError('failed-precondition', 'This job is in payment or cancellation review. Contact operations.');
+    if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
     if (data.status === next) return { status: next };
     const transition = driverTransition(data.serviceType, data.status, next);
@@ -763,10 +835,11 @@ exports.rejectDriverBooking = onCall({ operation: 'rejectDriverBooking', region:
     const data = booking.data();
     if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified' || !data) throw new HttpsError('permission-denied', 'This job is unavailable.');
     if (data.driverId && data.driverId !== uid) throw new HttpsError('permission-denied', 'This job belongs to another partner.');
+    if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Keep custody of this job until operations resolves the reported problem.');
     if (!['pending', 'ready', 'accepted', 'preparing'].includes(data.status) || data.paymentStatus !== 'paid') throw new HttpsError('failed-precondition', 'This job cannot be rejected at its current stage. Contact operations.');
     const rejectedBookingIds = [...new Set([...(driver.data().rejectedBookingIds || []), bookingId])].slice(-100);
     transaction.update(driverRef, { rejectedBookingIds, ...(data.driverId === uid ? { activeBookingId: null } : {}) });
-    if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', updatedAt: new Date().toISOString() });
+    if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', dispatchStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     transaction.set(db.doc(`dispatch_events/${crypto.randomUUID()}`), { bookingId, driverId: uid, action: 'rejected', createdAt: Timestamp.now() });
     return { status: 'rejected' };
   });
@@ -887,12 +960,44 @@ async function requireWalletEnabled() {
 
 exports.createWalletTopup = onCall({ operation: 'createWalletTopup', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async request => {
   const uid = requireUser(request), policy = await requireWalletEnabled(), amount = request.data?.amountCents;
+  const requestId = documentId(request.data?.requestId, 'Funding request');
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(requestId)) throw new HttpsError('invalid-argument', 'Use a unique funding request identifier.');
   if (!Number.isSafeInteger(amount) || amount < 100 || amount > policy.maxTopupCents) throw new HttpsError('invalid-argument', 'Enter an amount within the wallet funding limit.');
   const account = await db.doc(`users/${uid}`).get();
   if (!account.exists) throw new HttpsError('failed-precondition', 'Your account profile is unavailable.');
-  const order = await razorpayRequest('/orders', 'POST', { amount, currency: CURRENCY, receipt: `W_${crypto.randomUUID()}`, notes: { customerId: uid, purpose: 'wallet_topup' } });
-  await db.doc(`payment_attempts/${order.id}`).create({ uid, kind: 'wallet_topup', amount, currency: CURRENCY, status: 'created', createdAt: Timestamp.now() });
-  return { orderId: order.id, keyId: RAZORPAY_KEY_ID.value(), amount, currency: CURRENCY };
+  const ref = db.doc(`payment_intents/${requestId}`), receipt = `W_${requestId}`;
+  const existing = await db.runTransaction(async tx => {
+    const snapshot = await tx.get(ref), current = snapshot.data();
+    if (current) {
+      if (current.uid !== uid || current.kind !== 'wallet_topup' || current.amount !== amount) throw new HttpsError('permission-denied', 'This funding request belongs to a different account or amount.');
+      // Only a definite provider rejection permits another creation attempt.
+      if (current.status !== 'provider_rejected') return current;
+      tx.update(ref, { status: 'creating', updatedAt: Timestamp.now() });
+      return null;
+    }
+    tx.create(ref, { uid, kind: 'wallet_topup', amount, receipt, status: 'creating', createdAt: Timestamp.now() });
+    return null;
+  });
+  if (existing) {
+    if (existing.status !== 'created' || !existing.providerOrderId) throw new HttpsError('unavailable', `Funding needs reconciliation. Check payment activity using reference ${requestId} before starting another payment.`);
+    const attempt = (await db.doc(`payment_attempts/${existing.providerOrderId}`).get()).data();
+    if (!attempt || attempt.uid !== uid || attempt.kind !== 'wallet_topup' || attempt.amount !== amount) throw new HttpsError('failed-precondition', 'Funding records require reconciliation.');
+    if (!['created', 'paid'].includes(attempt.status)) throw new HttpsError('failed-precondition', 'This funding payment is in refund handling. Check payment activity.');
+    return { orderId: existing.providerOrderId, keyId: RAZORPAY_KEY_ID.value(), amount, currency: CURRENCY, paid: attempt.status === 'paid' };
+  }
+  let order;
+  try { order = await razorpayRequest('/orders', 'POST', { amount, currency: CURRENCY, receipt, notes: { customerId: uid, purpose: 'wallet_topup' } }); }
+  catch (error) {
+    await ref.update({ status: [400, 401, 403, 404, 422].includes(error.providerStatus) ? 'provider_rejected' : 'reconciliation_required', updatedAt: Timestamp.now() });
+    throw new HttpsError('unavailable', `Funding could not start. Retry the same request or check payment activity using reference ${requestId}.`);
+  }
+  await ref.update({ status: 'provider_created', providerOrderId: order.id, updatedAt: Timestamp.now() });
+  await db.runTransaction(async tx => {
+    const attemptRef = db.doc(`payment_attempts/${order.id}`), snapshot = await tx.get(attemptRef);
+    if (!snapshot.exists) tx.create(attemptRef, { uid, kind: 'wallet_topup', amount, currency: CURRENCY, status: 'created', createdAt: Timestamp.now() });
+    tx.update(ref, { status: 'created', updatedAt: Timestamp.now() });
+  });
+  return { orderId: order.id, keyId: RAZORPAY_KEY_ID.value(), amount, currency: CURRENCY, paid: false };
 });
 
 exports.payWithWallet = onCall({ operation: 'payWithWallet', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
@@ -998,18 +1103,22 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
         const records = await query.get(); if (records.empty) break;
         for (const record of records.docs) {
           await db.recursiveDelete(record.ref.collection('chats'));
+          await redactBookingHistory(db, record.ref, uid, field === 'customerId', FieldValue);
           await Promise.all([db.doc(`booking_codes/${record.id}`).delete(), db.doc(`booking_tracking/${record.id}`).delete(), ...(field === 'customerId' ? [db.doc(`booking_contacts/${record.id}`).delete()] : [])]);
           await record.ref.update(field === 'customerId' ? { customerName: 'Deleted account', pickupAddress: FieldValue.delete(), dropAddress: FieldValue.delete(), details: FieldValue.delete(), personalDataDeletedAt: Timestamp.now() } : { driverName: 'Deleted account', personalDataDeletedAt: Timestamp.now() });
         }
         cursor = records.docs.at(-1);
       }
     }
-    for (const [collection, field] of [['payment_attempts', 'uid'], ['payment_intents', 'uid'], ['service_quotes', 'uid'], ['push_devices', 'uid'], ['bridge_sessions', 'uid'], ['order_reviews', 'userId'], ['support_tickets', 'userId']]) {
+    for (const [collection, field] of [['payment_attempts', 'uid'], ['payment_intents', 'uid'], ['service_quotes', 'uid'], ['push_devices', 'uid'], ['bridge_sessions', 'uid'], ['order_reviews', 'userId'], ['support_tickets', 'userId'], ['partner_applications', 'userId'], ['partner_application_slots', 'userId'], ['partner_evidence', 'userId']]) {
       let cursor = null;
       while (true) {
         let query = db.collection(collection).where(field, '==', uid).orderBy('__name__').limit(100);
         if (cursor) query = query.startAfter(cursor);
         const records = await query.get(); if (records.empty) break;
+        // Deleting a parent does not delete its reply/history subcollections.
+        if (['support_tickets', 'partner_applications'].includes(collection)) for (const record of records.docs) await db.recursiveDelete(record.ref);
+        if (collection === 'partner_evidence') for (const record of records.docs) await evidenceServices.deleteEvidence(record.ref);
         const batch = db.batch();
         for (const record of records.docs) ['payment_attempts', 'payment_intents'].includes(collection) ? batch.update(record.ref, { booking: FieldValue.delete(), items: FieldValue.delete(), quote: FieldValue.delete(), personalDataDeletedAt: Timestamp.now() }) : batch.delete(record.ref);
         await batch.commit(); cursor = records.docs.at(-1);
@@ -1017,6 +1126,8 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
     }
     await db.recursiveDelete(db.doc(`users/${uid}`));
     await db.recursiveDelete(db.doc(`driver_profiles/${uid}`));
+    await db.recursiveDelete(db.doc(`driver_eligibility/${uid}`));
+    await db.doc(`evidence_quotas/${uid}`).delete();
     try { await getAuth(app).deleteUser(uid); } catch (error) { if (error.code !== 'auth/user-not-found') throw error; }
     const linked = (await deletionRef.get()).data()?.neonAccountId;
     const status = linked ? 'firebase_completed' : 'completed';
@@ -1051,7 +1162,7 @@ exports.listPaymentActivity = onCall({ operation: 'listPaymentActivity', region:
   const uid = requireUser(request);
   const snapshots = await db.collection('payment_attempts').where('uid', '==', uid).orderBy('createdAt', 'desc').limit(30).get();
   const intents = await db.collection('payment_intents').where('uid', '==', uid).orderBy('createdAt', 'desc').limit(30).get();
-  const unresolved = intents.docs.filter(doc => ['creating', 'provider_created', 'reconciliation_required', 'manual_review'].includes(doc.data().status)).map(doc => { const data = doc.data(); return { orderId: doc.id, amount: data.quote?.amount || 0, currency: CURRENCY, serviceType: data.quote?.booking?.serviceType || 'checkout', status: data.status, createdAt: data.createdAt.toDate().toISOString(), bookingId: null, paymentId: null, refundStatus: null }; });
+  const unresolved = intents.docs.filter(doc => ['creating', 'provider_created', 'reconciliation_required', 'manual_review'].includes(doc.data().status)).map(doc => { const data = doc.data(); return { orderId: doc.id, amount: data.amount || data.quote?.amount || 0, currency: CURRENCY, serviceType: data.kind === 'wallet_topup' ? 'wallet top-up' : data.quote?.booking?.serviceType || 'checkout', status: data.status, createdAt: data.createdAt.toDate().toISOString(), bookingId: null, paymentId: null, refundStatus: null }; });
   return { attempts: [...unresolved, ...snapshots.docs.map(snapshot => {
     const data = snapshot.data();
     return { orderId: snapshot.id, amount: data.amount, currency: data.currency || CURRENCY, serviceType: data.booking?.serviceType || 'wallet top-up', status: data.status, createdAt: data.createdAt.toDate().toISOString(), bookingId: data.status === 'paid' ? data.bookingId || null : null, paymentId: data.paymentId || null, refundStatus: data.refundStatus || null };
@@ -1060,11 +1171,11 @@ exports.listPaymentActivity = onCall({ operation: 'listPaymentActivity', region:
 
 async function reconcilePaymentIntent(ref) {
   const intent = (await ref.get()).data();
-  if (!intent?.quote?.booking || !['creating', 'provider_created', 'reconciliation_required'].includes(intent.status)) return null;
+  if ((!intent?.quote?.booking && intent?.kind !== 'wallet_topup') || !['creating', 'provider_created', 'reconciliation_required'].includes(intent.status)) return null;
   if (intent.createdAt.toMillis() > Date.now() - 60000) return null;
-  const quote = intent.quote, receipt = quote.booking.bookingId.slice(0, 40);
+  const topup = intent.kind === 'wallet_topup', quote = intent.quote, receipt = topup ? intent.receipt : quote.booking.bookingId.slice(0, 40), amount = topup ? intent.amount : quote.amount;
   const result = intent.providerOrderId ? { items: [await razorpayRequest(`/orders/${encodeURIComponent(intent.providerOrderId)}`, 'GET')] } : await razorpayRequest(`/orders?receipt=${encodeURIComponent(receipt)}&count=100`, 'GET');
-  const matching = result.items?.filter(order => order.receipt === receipt && order.amount === quote.amount && order.currency === CURRENCY && order.notes?.customerId === intent.uid && order.notes?.bookingId === quote.booking.bookingId) || [];
+  const matching = result.items?.filter(order => order.receipt === receipt && order.amount === amount && order.currency === CURRENCY && order.notes?.customerId === intent.uid && (topup ? order.notes?.purpose === 'wallet_topup' : order.notes?.bookingId === quote.booking.bookingId)) || [];
   if (matching.length !== 1) {
     await ref.update({ status: matching.length > 1 || Date.now() - intent.createdAt.toMillis() > 86400000 ? 'manual_review' : 'reconciliation_required', checkedAt: Timestamp.now() });
     return null;
@@ -1072,7 +1183,8 @@ async function reconcilePaymentIntent(ref) {
   const order = matching[0];
   await db.runTransaction(async tx => {
     const attemptRef = db.doc(`payment_attempts/${order.id}`), existing = await tx.get(attemptRef);
-    if (!existing.exists) tx.create(attemptRef, { uid: intent.uid, bookingId: quote.booking.bookingId, booking: { ...quote.booking, paymentOrderId: order.id }, items: quote.items || [], storeId: quote.storeId || null, restaurantId: quote.restaurantId || null, amount: quote.amount, currency: CURRENCY, status: 'created', createdAt: intent.createdAt, expiresAt: Timestamp.fromMillis(Date.now() + 3600000) });
+    if (existing.exists && (existing.data().uid !== intent.uid || existing.data().amount !== amount || (topup ? existing.data().kind !== 'wallet_topup' : existing.data().bookingId !== quote.booking.bookingId))) throw new HttpsError('failed-precondition', 'Provider order conflicts with the existing financial record.');
+    if (!existing.exists) tx.create(attemptRef, topup ? { uid: intent.uid, kind: 'wallet_topup', amount, currency: CURRENCY, status: 'created', createdAt: intent.createdAt } : { uid: intent.uid, bookingId: quote.booking.bookingId, booking: { ...quote.booking, paymentOrderId: order.id }, items: quote.items || [], storeId: quote.storeId || null, restaurantId: quote.restaurantId || null, amount: quote.amount, currency: CURRENCY, status: 'created', createdAt: intent.createdAt, expiresAt: Timestamp.fromMillis(Date.now() + 3600000) });
     tx.update(ref, { status: 'created', providerOrderId: order.id, reconciledAt: Timestamp.now() });
   });
   return order.id;
@@ -1164,6 +1276,45 @@ exports.recoverPayment = onCall({ operation: 'recoverPayment', region: REGION, s
   return settleCapturedPayment(orderId, payment.id, payment);
 });
 
+async function checkPendingRefund(attemptRef) {
+  const attempt = (await attemptRef.get()).data();
+  if (!attempt || !['refund_processing', 'refund_required'].includes(attempt.status)) return { status: attempt?.status || 'missing' };
+  if (!/^pay_[a-zA-Z0-9]+$/.test(attempt.paymentId || '') || !/^order_[a-zA-Z0-9]+$/.test(attemptRef.id)) return { status: 'manual_review' };
+  // Only reconcile provider evidence. An uncertain refund must never cause a new refund request here.
+  const payment = await razorpayRequest(`/payments/${encodeURIComponent(attempt.paymentId)}`, 'GET');
+  if (payment.id !== attempt.paymentId || payment.order_id !== attemptRef.id || payment.amount !== attempt.amount || payment.currency !== CURRENCY) throw new HttpsError('failed-precondition', 'Provider evidence does not match the financial record.');
+  if (payment.amount_refunded > 0) return reconcileProviderRefund(attemptRef, payment, `scheduled_${attemptRef.id}_${payment.amount_refunded}`);
+  await attemptRef.update({ refundCheckedAt: Timestamp.now() });
+  return { status: attempt.status };
+}
+
+exports.reconcilePendingRefunds = onSchedule({ schedule: 'every 5 minutes', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET], timeoutSeconds: 540, maxInstances: 1 }, async () => {
+  const cursorRef = db.doc('reconciliation_cursors/refunds'), cursor = (await cursorRef.get()).data()?.lastId;
+  let query = db.collection('payment_attempts').where('status', 'in', ['refund_processing', 'refund_required']).orderBy('__name__').limit(50);
+  if (cursor) query = query.startAfter(cursor);
+  const page = await query.get();
+  for (const attempt of page.docs) {
+    try { await checkPendingRefund(attempt.ref); }
+    catch { console.error('Refund reconciliation needs review', { orderId: attempt.id }); }
+  }
+  await cursorRef.set({ lastId: page.size === 50 ? page.docs.at(-1).id : null, checkedAt: Timestamp.now() });
+});
+
+exports.reviewPendingRefund = onCall({ operation: 'reviewPendingRefund', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async request => {
+  requireUser(request);
+  if (request.auth.token.admin !== true) throw new HttpsError('permission-denied', 'Operations authorization is required.');
+  return checkPendingRefund(db.doc(`payment_attempts/${documentId(request.data?.orderId, 'Payment order')}`));
+});
+
+exports.listPendingRefunds = onCall({ operation: 'listPendingRefunds', region: REGION }, async request => {
+  requireUser(request);
+  if (request.auth.token.admin !== true) throw new HttpsError('permission-denied', 'Operations authorization is required.');
+  let query = db.collection('payment_attempts').where('status', 'in', ['refund_processing', 'refund_required']).orderBy('__name__').limit(51);
+  if (request.data?.cursor) query = query.startAfter(documentId(request.data.cursor, 'Refund cursor'));
+  const records = await query.get(), page = records.docs.slice(0, 50);
+  return { items: page.map(record => { const data = record.data(); return { orderId: record.id, bookingId: data.bookingId || null, amountCents: data.amount, status: data.status, refundedAmountCents: data.refundedAmountCents || 0, checkedAt: data.refundCheckedAt?.toDate().toISOString() || null }; }), nextCursor: records.size > 50 ? page.at(-1).id : null };
+});
+
 async function restoreCancelledInventory(transaction, bookingRef, booking) {
   if (booking.serviceType !== 'grocery' || booking.inventoryRestored === true || !booking.details?.storeId) return;
   const items = booking.details.items || [];
@@ -1177,19 +1328,23 @@ async function restoreCancelledInventory(transaction, bookingRef, booking) {
   transaction.update(bookingRef, { inventoryRestored: true, inventoryRestoreNeedsReview: needsReview });
 }
 
-exports.cancelPaidBooking = onCall({ operation: 'cancelPaidBooking', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async (request) => {
+async function cancelPaidBooking(request, merchantRefusal = false) {
   const uid = requireUser(request);
   const admin = request.auth.token.admin === true;
+  const refusalReason = merchantRefusal ? cleanText(request.data?.reason, 'Rejection reason', 500) : null;
+  const merchantOwns = (account, record) => account?.role === 'merchant' && !!account.merchantId && account.merchantId === record?.merchantId && (account.merchantType === 'restaurant' ? record.serviceType === 'food' : account.merchantType === 'grocery' && record.serviceType === 'grocery');
   const bookingId = documentId(request.data?.bookingId, 'Booking reference');
   const bookingRef = db.doc(`bookings/${bookingId}`);
   let booking;
+  let attemptRef = null;
   await db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(bookingRef);
-    if (!snapshot.exists || (snapshot.data().customerId !== uid && !admin)) throw new HttpsError('permission-denied', 'This order does not belong to your account.');
+    const [snapshot, actor] = await Promise.all([transaction.get(bookingRef), transaction.get(db.doc(`users/${uid}`))]);
+    if (!snapshot.exists || (merchantRefusal ? !merchantOwns(actor.data(), snapshot.data()) : snapshot.data().customerId !== uid && !admin)) throw new HttpsError('permission-denied', 'This order does not belong to your account or business.');
     booking = snapshot.data();
     if (booking.status === 'cancelled' && ['refunded', 'refund_processing'].includes(booking.paymentStatus)) return;
     if (booking.paymentStatus === 'refund_required') throw new HttpsError('failed-precondition', 'A refund needs support follow-up.');
     if (booking.paymentStatus === 'refund_processing') throw new HttpsError('already-exists', 'A refund is already being processed.');
+    if (merchantRefusal && (booking.status !== 'pending' || booking.driverId)) throw new HttpsError('failed-precondition', 'Only an unaccepted order can be rejected. Contact operations for preparation or custody problems.');
     if (!(admin ? ['pending', 'accepted', 'preparing', 'ready'].includes(booking.status) : booking.status === 'pending') || booking.paymentStatus !== 'paid' || !booking.paymentId) {
       throw new HttpsError('failed-precondition', 'This order can no longer be cancelled in the app.');
     }
@@ -1197,7 +1352,7 @@ exports.cancelPaidBooking = onCall({ operation: 'cancelPaidBooking', region: REG
       const accountRef = db.doc(`users/${booking.customerId}`), attemptRef = db.doc(`payment_attempts/${booking.paymentOrderId}`);
       const driverRef = booking.driverId ? db.doc(`driver_profiles/${booking.driverId}`) : null;
       const [account, attempt, driver] = await Promise.all([transaction.get(accountRef), transaction.get(attemptRef), driverRef ? transaction.get(driverRef) : null]);
-      if (!account.exists || attempt.data()?.status !== 'paid') throw new HttpsError('failed-precondition', 'Wallet refund needs account reconciliation.');
+      if (!account.exists || attempt.data()?.status !== 'paid' || attempt.data().uid !== booking.customerId || attempt.data().bookingId !== bookingId || attempt.data().amount !== Math.round(booking.price * 100)) throw new HttpsError('failed-precondition', 'Wallet refund needs account reconciliation.');
       const amount = attempt.data().amount, balance = Math.round((account.data().walletBalance || 0) * 100);
       if (!Number.isSafeInteger(balance) || !Number.isSafeInteger(amount) || amount <= 0) throw new HttpsError('failed-precondition', 'Wallet balance needs reconciliation.');
       const nextBalance = addCents(balance, amount);
@@ -1207,22 +1362,27 @@ exports.cancelPaidBooking = onCall({ operation: 'cancelPaidBooking', region: REG
       transaction.create(db.doc(`financial_journals/wallet_refund_${bookingId}`), journal('wallet_booking_refund', 'booking_funds_unallocated', 'wallet_liability', amount, { bookingId, customerId: booking.customerId, orderId: booking.paymentOrderId }));
       transaction.update(attemptRef, { status: 'refunded', updatedAt: Timestamp.now() });
       if (driver?.data()?.activeBookingId === bookingId) transaction.update(driverRef, { activeBookingId: null });
+      transaction.create(bookingRef.collection('events').doc('cancellation_requested'), { stage: merchantRefusal ? 'merchant_rejected' : 'cancellation_requested', actorId: uid, actorRole: merchantRefusal ? 'merchant' : admin ? 'admin' : 'customer', ...(refusalReason ? { reason: refusalReason } : {}), createdAt: new Date().toISOString() });
       transaction.update(bookingRef, { status: 'cancelled', paymentStatus: 'refunded', updatedAt: new Date().toISOString() });
       booking = { ...booking, status: 'cancelled', paymentStatus: 'refunded' }; return;
     }
+    if (!/^order_[a-zA-Z0-9]+$/.test(booking.paymentOrderId || '')) throw new HttpsError('failed-precondition', 'The payment order needs financial reconciliation.');
+    attemptRef = db.doc(`payment_attempts/${booking.paymentOrderId}`);
+    const attempt = (await transaction.get(attemptRef)).data();
+    if (!attempt || attempt.uid !== booking.customerId || attempt.bookingId !== bookingId || attempt.paymentId !== booking.paymentId || attempt.status !== 'paid' || attempt.amount !== Math.round(booking.price * 100)) throw new HttpsError('failed-precondition', 'The payment records need financial reconciliation.');
+    // Persist both sides before the provider call; a process crash remains discoverable by the refund worker.
+    transaction.update(attemptRef, { status: 'refund_processing', refundRequestedAmountCents: attempt.amount, updatedAt: Timestamp.now() });
+    transaction.create(bookingRef.collection('events').doc('cancellation_requested'), { stage: merchantRefusal ? 'merchant_rejected' : 'cancellation_requested', actorId: uid, actorRole: merchantRefusal ? 'merchant' : admin ? 'admin' : 'customer', ...(refusalReason ? { reason: refusalReason } : {}), createdAt: new Date().toISOString() });
     transaction.update(bookingRef, { paymentStatus: 'refund_processing', updatedAt: new Date().toISOString() });
   });
   if (booking.status === 'cancelled') return { status: booking.paymentStatus };
 
-  let attemptRef = null;
   try {
-    const attemptQuery = await db.collection('payment_attempts').where('paymentId', '==', booking.paymentId).limit(1).get();
-    attemptRef = attemptQuery.empty ? null : attemptQuery.docs[0].ref;
     const refund = await issueRefund(booking.paymentId, Math.round(booking.price * 100));
     if (refund.status === 'failed') throw new Error('Refund failed at the provider.');
     await db.runTransaction(async (transaction) => {
-      const current = await transaction.get(bookingRef);
-      if (!current.exists || (current.data().customerId !== uid && !admin) || current.data().paymentStatus !== 'refund_processing') {
+      const [current, actor] = await Promise.all([transaction.get(bookingRef), transaction.get(db.doc(`users/${uid}`))]);
+      if (!current.exists || (merchantRefusal ? !merchantOwns(actor.data(), current.data()) : current.data().customerId !== uid && !admin) || current.data().paymentStatus !== 'refund_processing') {
         throw new HttpsError('failed-precondition', 'Order payment state changed during cancellation.');
       }
       const driverRef = current.data().driverId ? db.doc(`driver_profiles/${current.data().driverId}`) : null;
@@ -1231,12 +1391,13 @@ exports.cancelPaidBooking = onCall({ operation: 'cancelPaidBooking', region: REG
       if (driver?.data()?.activeBookingId === bookingId) transaction.update(driverRef, { activeBookingId: null });
       transaction.update(bookingRef, {
         status: 'cancelled',
-        paymentStatus: refund.status === 'processed' ? 'refunded' : 'refund_processing',
+        paymentStatus: 'refund_processing',
         updatedAt: new Date().toISOString()
       });
-      if (attemptRef) transaction.update(attemptRef, { status: refund.status === 'processed' ? 'refunded' : 'refund_processing', refundId: refund.id, refundStatus: refund.status, updatedAt: Timestamp.now() });
+      if (attemptRef) transaction.update(attemptRef, { status: 'refund_processing', refundId: refund.id, refundStatus: refund.status, updatedAt: Timestamp.now() });
     });
-    return { status: refund.status === 'processed' ? 'cancelled' : 'refund_processing' };
+    const result = await checkPendingRefund(attemptRef);
+    return { status: result.status === 'refunded' ? 'cancelled' : 'refund_processing' };
   } catch (error) {
     const current = await bookingRef.get();
     if (current.exists && current.data().status === 'cancelled' && current.data().paymentStatus === 'refunded') {
@@ -1251,7 +1412,9 @@ exports.cancelPaidBooking = onCall({ operation: 'cancelPaidBooking', region: REG
     });
     throw new HttpsError('internal', 'The refund could not be confirmed automatically. Contact AllGo support before retrying.');
   }
-});
+}
+exports.cancelPaidBooking = onCall({ operation: 'cancelPaidBooking', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, request => cancelPaidBooking(request));
+exports.rejectMerchantBooking = onCall({ operation: 'rejectMerchantBooking', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, request => cancelPaidBooking(request, true));
 
 exports.razorpayWebhook = onRequest({ region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET] }, async (request, response) => {
   if (request.method !== 'POST') return response.status(405).send('Method not allowed.');
@@ -1271,7 +1434,7 @@ exports.razorpayWebhook = onRequest({ region: REGION, secrets: [RAZORPAY_KEY_ID,
       }
       return response.status(200).send('Refund event processed.');
     } catch (error) {
-      console.error('Razorpay refund event could not be applied:', error);
+      console.error('Razorpay refund event could not be applied', { code: error instanceof HttpsError ? error.code : 'internal' });
       return response.status(500).send('Retry later.');
     }
   }
@@ -1285,7 +1448,7 @@ exports.razorpayWebhook = onRequest({ region: REGION, secrets: [RAZORPAY_KEY_ID,
     else await settleCapturedPayment(payment.order_id, payment.id, currentPayment);
     return response.status(200).send('Processed.');
   } catch (error) {
-    console.error('Captured Razorpay payment could not be fulfilled:', error);
+    console.error('Captured Razorpay payment could not be fulfilled', { code: error instanceof HttpsError ? error.code : 'internal' });
     return response.status(500).send('Retry later.');
   }
 });

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { openPaymentCheckout } from '../payments';
+import { productWithinExpiry } from '../data/productExpiry';
 import ServiceBookingScreen from './ServiceBookingScreen';
 import ParcelBookingScreen from './ParcelBookingScreen';
 import TransportBookingScreen from './TransportBookingScreen';
@@ -11,6 +12,10 @@ import ParcelOrderDetails from './ParcelOrderDetails';
 import TransportOrderDetails from './TransportOrderDetails';
 import PaymentRecoveryPanel from './PaymentRecoveryPanel';
 import WalletPanel from './WalletPanel';
+import SupportCasePanel from './SupportCasePanel';
+import GlobalCatalogSearch from './GlobalCatalogSearch';
+import OrderSynchronization from './OrderSynchronization';
+import LocationPicker from './LocationPicker';
 import CustomerPages, { customerPages, type CustomerPage } from './CustomerPages';
 import { enableOrderNotifications } from '../nativeNotifications';
 import {
@@ -78,6 +83,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [groceryStoresList, setGroceryStoresList] = useState<GroceryStore[]>([]);
   const [menuItemsList, setMenuItemsList] = useState<MenuItem[]>([]);
   const [productsList, setProductsList] = useState<GroceryProduct[]>([]);
+  useEffect(() => {
+    const deadlines = productsList.map(product => typeof product.expiresAt === 'string' ? Date.parse(product.expiresAt) : NaN).filter(time => Number.isFinite(time) && time > Date.now());
+    if (!deadlines.length) return;
+    const deadline = deadlines.reduce((earliest, time) => Math.min(earliest, time), Infinity);
+    const timer = setTimeout(() => setProductsList(rows => rows.filter(product => productWithinExpiry(product))), Math.min(Math.max(1, deadline - Date.now() + 1), 2147483647));
+    return () => clearTimeout(timer);
+  }, [productsList]);
 
   const [catalogError, setCatalogError] = useState('');
   const [catalogRetry, setCatalogRetry] = useState(0);
@@ -106,7 +118,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     setProductsList([]);
     setProductsLoading(Boolean(selectedStoreId));
     if (!selectedStoreId) return;
-    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products); setProductsLoading(false); }, reportCatalogError);
+    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products.filter(product => productWithinExpiry(product))); setProductsLoading(false); }, reportCatalogError);
   }, [selectedStoreId, catalogRetry]);
 
   // Navigation & Screen States
@@ -124,6 +136,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   useEffect(() => { if (showAddressModal) setAddressDraft(deliveryAddress); }, [showAddressModal]);
   const [addressSaving, setAddressSaving] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [addressBuilding, setAddressBuilding] = useState('');
+  const [addressLandmark, setAddressLandmark] = useState('');
+  const [addressInstructions, setAddressInstructions] = useState('');
+  useEffect(() => { if (showAddressModal) { setAddressBuilding(''); setAddressLandmark(''); setAddressInstructions(''); } }, [showAddressModal]);
+  const [addressLookup, setAddressLookup] = useState(false);
   const [addressLabel, setAddressLabel] = useState('Home');
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
@@ -154,20 +171,22 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
   const handleSaveAddress = async () => {
     if (!addressDraft.trim()) return;
+    const completeAddress = [addressBuilding.trim(), addressDraft.trim(), addressLandmark.trim() ? `Landmark: ${addressLandmark.trim()}` : '', addressInstructions.trim() ? `Instructions: ${addressInstructions.trim()}` : ''].filter(Boolean).join(', ');
+    if (completeAddress.length > 300) { alert('Keep the combined delivery address and instructions within 300 characters.'); return; }
     setAddressSaving(true);
     try {
-      const savedAddress = savedAddresses.find((address) => address.address === addressDraft.trim());
+      const savedAddress = savedAddresses.find((address) => address.address === completeAddress);
       if (savedAddress) {
-        await updateUserAddress(userId, addressDraft, savedAddress.id);
+        await updateUserAddress(userId, completeAddress, savedAddress.id);
       } else {
         if (savedAddresses.length >= 10) {
           alert('You can save up to 10 addresses. Remove an old address to add another.');
           return;
         }
-        await saveUserAddress(userId, addressLabel, addressDraft);
+        await saveUserAddress(userId, addressLabel, completeAddress, { building: addressBuilding.trim(), landmark: addressLandmark.trim(), instructions: addressInstructions.trim() });
       }
-      setDeliveryAddress(addressDraft.trim());
-      setPickupSpot(addressDraft.trim());
+      setDeliveryAddress(completeAddress);
+      setPickupSpot(completeAddress);
       setShowAddressModal(false);
     } catch {
       alert('We could not save this address. Please try again.');
@@ -206,10 +225,16 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
   // Support
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [supportHistoryError, setSupportHistoryError] = useState('');
+  const [supportCaseId, setSupportCaseId] = useState('');
+  const [ticketBooking, setTicketBooking] = useState('');
+  const [ticketCategory, setTicketCategory] = useState('general');
+  const [ticketBusy, setTicketBusy] = useState(false);
+  const supportCommand = useRef<{ payload: string; id: string } | null>(null);
   const [ticketSubject, setTicketSubject] = useState("");
   const [ticketMessage, setTicketMessage] = useState("");
 
-  useEffect(() => listenToSupportTickets(userId, setSupportTickets), [userId]);
+  useEffect(() => { setSupportTickets([]); setSupportHistoryError(''); return listenToSupportTickets(userId, tickets => { setSupportTickets(tickets); setSupportHistoryError(''); }, error => setSupportHistoryError(error instanceof Error ? error.message : 'Support history could not load. Reconnect and try again.')); }, [userId]);
   useEffect(() => listenToSavedAddresses(userId, setSavedAddresses), [userId]);
 
   // Sub-modules selection states
@@ -295,6 +320,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [parcelType, setParcelType] = useState('Documents');
 
   // Confirmation from the verified payment response.
+  const [synchronizedOrder, setSynchronizedOrder] = useState<Booking | null>(null);
+  const onOrderSynchronized = useCallback((booking: Booking) => setSynchronizedOrder(booking), []);
+  const visibleBookings = synchronizedOrder && !activeBookings.some(booking => booking.bookingId === synchronizedOrder.bookingId) ? [...activeBookings, synchronizedOrder] : activeBookings;
   const [successBookingId, setSuccessBookingId] = useState<string | null>(null);
 
   // REAL-TIME MESSAGING CHAT STATES
@@ -597,7 +625,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     if (groceryStoresList.find(entry => entry.id === storeId)?.acceptingOrders === false) { alert('This store is not accepting orders.'); return; }
     const currentItems = cart.map(({ item, quantity }) => {
       const current = (cartCatalog as GroceryProduct[]).find((entry) => entry.id === item.id && entry.storeId === storeId);
-      if (!current || current.stock < quantity) return null;
+      if (!current || !productWithinExpiry(current) || current.stock < quantity) return null;
       return { id: current.id, name: current.name, price: current.price, quantity };
     });
     if (currentItems.some((item) => !item)) {
@@ -615,14 +643,18 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   // Submit support ticket
   const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ticketSubject || !ticketMessage) return;
+    if (ticketBusy || !ticketSubject.trim() || !ticketMessage.trim()) return;
+    setTicketBusy(true);
+    const payload = JSON.stringify([ticketSubject.trim(), ticketMessage.trim(), ticketBooking, ticketCategory]);
+    if (supportCommand.current?.payload !== payload) supportCommand.current = { payload, id: `TCK_${crypto.randomUUID()}` };
     try {
-      await createSupportTicket({ ticketId: `TCK_${crypto.randomUUID()}`, userId, subject: ticketSubject.trim(), message: ticketMessage.trim() });
+      await createSupportTicket({ ticketId: supportCommand.current.id, userId, subject: ticketSubject.trim(), message: ticketMessage.trim(), ...(ticketBooking ? { bookingId: ticketBooking } : {}), category: ticketCategory });
+      supportCommand.current = null; setTicketBooking(''); setTicketCategory('general');
       setTicketSubject("");
       setTicketMessage("");
     } catch {
-      alert('We could not send your support request. Please try again.');
-    }
+      alert('We could not confirm your support request. Retry the same details.');
+    } finally { setTicketBusy(false); }
   };
 
   const latestOpenBooking = activeBookings.find((booking) => !['completed', 'delivered', 'cancelled'].includes(booking.status));
@@ -637,7 +669,6 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   ].filter((item) => item.label.toLowerCase().includes(globalSearchTerm));
   const matchingRestaurants = globalSearchTerm ? restaurantsList.filter((rest) => `${rest.name} ${rest.cuisine}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
   const matchingStores = globalSearchTerm ? groceryStoresList.filter((store) => `${store.name} ${store.address}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
-  const matchingDishes = globalSearchTerm ? menuItemsList.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
 
   return (
       <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative select-none">
@@ -721,7 +752,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             </div>
             <div>
               <div className="flex items-center gap-0.5">
-                <span className="text-sm font-black text-slate-900">Home</span>
+                <span className="text-sm font-black text-slate-900">{savedAddresses.find(address => address.address === deliveryAddress)?.label || 'Delivery address'}</span>
                 <span className="text-[10px] text-slate-400 font-bold">▼</span>
               </div>
               <p className="text-[10px] font-semibold text-slate-500">{deliveryAddress || detectedAddress || 'Choose delivery address'}</p>
@@ -751,9 +782,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             {searchQuery.trim() && <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
               {matchingServiceLinks.map((item) => <button key={item.workflow} onClick={() => { setActiveWorkflow(item.workflow); setSearchQuery(''); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Browse {item.label}</button>)}
               {matchingRestaurants.map((rest) => <button key={`restaurant:${rest.id}`} onClick={() => { setSelectedFoodCategory('All'); setSelectedRestaurant(rest); setFoodSearch(''); setActiveWorkflow('food'); setSearchQuery(''); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{rest.name}</span><span className="ml-2 text-slate-400">Restaurant · {rest.cuisine}</span></button>)}
-              {matchingDishes.map((dish) => <button key={`dish:${dish.id}`} onClick={() => { const restaurant = restaurantsList.find((entry) => entry.id === dish.restaurantId); if (restaurant) { setSelectedRestaurant(restaurant); setSelectedFoodCategory('All'); setFoodSearch(dish.name); setActiveWorkflow('food'); } setSearchQuery(''); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{dish.name}</span><span className="ml-2 text-slate-400">Dish · ₹{dish.price}</span></button>)}
+              <GlobalCatalogSearch text={searchQuery} onChoose={item => {
+                if (item.service === 'food') { const parent = restaurantsList.find(entry => entry.id === item.parentId); if (!parent) { alert('This restaurant listing is unavailable. Reload available partners.'); return; } setSelectedRestaurant(parent); setSelectedFoodCategory('All'); setFoodSearch(item.name); }
+                else { setSelectedStoreId(item.parentId); setSelectedGroceryCategory('All'); setGrocerySearch(item.name); }
+                setShowFavoritesOnly(false); setCurrentTab('home'); setActiveWorkflow(item.service); setSearchQuery('');
+              }}/>
               {matchingStores.map((store) => <button key={`store:${store.id}`} onClick={() => { setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); setGrocerySearch(''); setActiveWorkflow('grocery'); setSearchQuery(''); }} className="block w-full px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{store.name}</span><span className="ml-2 text-slate-400">Grocery store · {store.address}</span></button>)}
-              {matchingServiceLinks.length + matchingRestaurants.length + matchingDishes.length + matchingStores.length === 0 && <p className="p-4 text-xs text-slate-500">No live services or catalogs match “{searchQuery}”.</p>}
+              {matchingServiceLinks.length + matchingRestaurants.length + matchingStores.length === 0 && <p className="p-4 text-xs text-slate-500">No service or partner names match “{searchQuery}”.</p>}
             </div>}
           </div>
         )}
@@ -1040,7 +1075,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 <label className="block rounded-2xl border border-slate-100 bg-white p-4"><span className="text-xs font-extrabold text-slate-800">Delivery instructions <span className="font-normal text-slate-400">(optional)</span></span><textarea value={orderNotes} onChange={(event) => setOrderNotes(event.target.value.slice(0, 500))} maxLength={500} rows={3} placeholder="Door, floor, gate code, or item preparation notes" className="mt-2 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none focus:border-indigo-400"/><span className="mt-1 block text-right text-[10px] text-slate-400">{orderNotes.length}/500</span></label>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4"><div className="flex items-center gap-2 text-xs font-extrabold text-slate-800"><CreditCard size={16} className="text-indigo-600" /> Secure online payment</div><div className="mt-3 flex items-center justify-between rounded-xl bg-indigo-50 p-3"><span className="text-xs font-bold text-indigo-800">UPI · cards · net banking · wallets</span><Shield size={17} className="text-indigo-600" /></div><p className="mt-2 text-[10px] text-slate-500">Choose an available payment method in Razorpay Checkout. AllGo confirms your order only after payment verification.</p></div>
                 <div className="rounded-2xl border bg-white p-4"><label className="text-xs font-bold">Offer code<input value={couponCode} maxLength={40} disabled={couponBusy || paymentBusy} onChange={event => { setCouponCode(event.target.value.toUpperCase()); setCoupon(null); }} className="mt-2 w-full rounded-lg border p-3" /></label><button disabled={couponBusy || paymentBusy || !couponCode.trim()} onClick={() => void applyCartOffer()} className="min-h-11 text-xs font-bold text-indigo-700">{couponBusy ? 'Checking offer…' : 'Apply offer'}</button>{coupon && <p className="text-xs text-emerald-700">{coupon.code} · ₹{coupon.discountCents / 100} discount</p>}{couponError && <p role="alert" className="auth-error">{couponError}</p>}</div>
-                <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Price summary</h4><div className="mt-3 flex justify-between text-xs text-slate-600"><span>Items ({cart.reduce((sum, line) => sum + line.quantity, 0)})</span><span>₹{getCartTotal()}</span></div><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-sm font-black text-slate-900"><span>Amount to pay</span><span>₹{getCartTotal() - (coupon?.discountCents || 0) / 100}</span></div><p className="mt-2 text-[10px] text-slate-500">This is the current item subtotal. Any delivery or platform fees will be shown here once configured for your service area. The server rechecks live catalog prices before checkout.</p></div>
+                <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Price summary</h4><div className="mt-3 flex justify-between text-xs text-slate-600"><span>Items ({cart.reduce((sum, line) => sum + line.quantity, 0)})</span><span>₹{getCartTotal()}</span></div><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-sm font-black text-slate-900"><span>Item subtotal after discount</span><span>₹{getCartTotal() - (coupon?.discountCents || 0) / 100}</span></div><p className="mt-2 text-[10px] text-slate-500">Delivery, packaging, platform fees and tax are excluded from this subtotal. Review the complete server quote on the next screen before authorizing payment.</p></div>
                 {cartCatalogLoading && <p role="status" className="page-caption">Refreshing cart prices and stock…</p>}
                 {cartCatalogError && <div role="alert" className="auth-error">{cartCatalogError}<button className="block min-h-11 font-bold" onClick={() => setCatalogRetry(value => value + 1)}>Try again</button></div>}
                 <button onClick={() => setShowCheckoutReview(true)} disabled={!deliveryAddress.trim() || paymentBusy || couponBusy || cartCatalogLoading || Boolean(cartCatalogError)} className="w-full rounded-xl bg-indigo-600 py-3.5 text-sm font-extrabold text-white disabled:opacity-50">{paymentBusy ? 'Opening secure checkout…' : 'Review delivery & checkout'}</button>
@@ -1054,10 +1089,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {currentTab === 'orders' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
             <div className="flex items-center gap-2">{selectedOrderId && <button aria-label="Back to orders" onClick={() => setSelectedOrderId(null)} className="rounded-lg p-1"><ArrowLeft size={18} /></button>}<h3 className="text-base font-black text-slate-900">{selectedOrderId ? 'Track your order' : 'Orders & tracking'}</h3></div>
-            {successBookingId && <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><span><strong>Payment confirmed.</strong> AllGo order {successBookingId} is now in your order list.</span><button aria-label="Dismiss" onClick={() => setSuccessBookingId(null)} className="rounded-lg px-2 py-1 font-bold hover:bg-emerald-100">×</button></div>}
+            {successBookingId && <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><span><strong>Payment confirmed.</strong> Order reference: {successBookingId}. Details may take a moment to load.</span><button aria-label="Dismiss" onClick={() => setSuccessBookingId(null)} className="rounded-lg px-2 py-1 font-bold hover:bg-emerald-100">×</button></div>}
 
-            {selectedOrderId && activeBookings.find((booking) => booking.bookingId === selectedOrderId) && (() => {
-              const bk = activeBookings.find((booking) => booking.bookingId === selectedOrderId)!;
+            {selectedOrderId && !visibleBookings.some(booking => booking.bookingId === selectedOrderId) && <OrderSynchronization bookingId={selectedOrderId} userId={userId} onFound={onOrderSynchronized} onPayments={() => setCurrentTab('wallet')}/>}
+            {selectedOrderId && visibleBookings.find((booking) => booking.bookingId === selectedOrderId) && (() => {
+              const bk = visibleBookings.find((booking) => booking.bookingId === selectedOrderId)!;
               const items = Array.isArray(bk.details?.items) ? bk.details.items : [];
               return <><OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} /><ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-emerald-700">{bk.paymentStatus || 'Legacy record'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Payment reference: {bk.paymentId}</p>}{bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
             })()}
@@ -1156,11 +1192,12 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {currentTab === 'support' && activeWorkflow === 'none' && (
           <form onSubmit={handleSubmitTicket} className="space-y-3 animate-fadeIn">
             <h3 className="text-sm font-bold text-slate-900">Help & support</h3>
+            {supportHistoryError && <p role="alert" className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">{supportHistoryError}</p>}
                 <p className="text-[11px] text-slate-400">Send a message to the AllGo support team.</p>
-            <input type="text" placeholder="What do you need help with?" value={ticketSubject} onChange={(e) => setTicketSubject(e.target.value)} className="w-full bg-white border p-3 text-xs rounded-xl" required />
-            <textarea placeholder="Tell us what happened..." value={ticketMessage} onChange={(e) => setTicketMessage(e.target.value)} className="w-full bg-white border p-3 text-xs rounded-xl" rows={4} required />
-            <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2.5 rounded-xl transition-colors">Send support request</button>
-            {supportTickets.length > 0 && <section className="space-y-2 pt-3"><h4 className="text-xs font-bold text-slate-600">Your requests</h4>{supportTickets.map((ticket) => <article key={ticket.ticketId} className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-2"><strong className="text-xs text-slate-800">{ticket.subject}</strong><span className="text-[10px] capitalize text-indigo-600">{ticket.status}</span></div><p className="mt-1 text-[11px] text-slate-500">{ticket.message}</p></article>)}</section>}
+            <label className="block text-xs">Related order<select value={ticketBooking} onChange={event => setTicketBooking(event.target.value)} className="block w-full rounded border p-3"><option value="">General account help</option>{activeBookings.map(booking => <option key={booking.bookingId} value={booking.bookingId}>{booking.bookingId} · {booking.serviceType}</option>)}</select></label><label className="block text-xs">Issue type<select value={ticketCategory} onChange={event => setTicketCategory(event.target.value)} className="block w-full rounded border p-3">{['general','payment','cancellation','missing_item','wrong_item','quality','damage','lost','safety','delay'].map(category => <option key={category} value={category}>{category.replaceAll('_',' ')}</option>)}</select></label><input maxLength={150} type="text" placeholder="What do you need help with?" value={ticketSubject} onChange={(e) => setTicketSubject(e.target.value)} className="w-full bg-white border p-3 text-xs rounded-xl" required />
+            <textarea maxLength={2000} placeholder="Tell us what happened..." value={ticketMessage} onChange={(e) => setTicketMessage(e.target.value)} className="w-full bg-white border p-3 text-xs rounded-xl" rows={4} required />
+            <button disabled={ticketBusy} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2.5 rounded-xl transition-colors">{ticketBusy ? 'Sending…' : 'Send support request'}</button>
+            {supportTickets.length > 0 && <section className="space-y-2 pt-3"><h4 className="text-xs font-bold text-slate-600">Your requests</h4>{supportTickets.map((ticket) => <article key={ticket.ticketId} className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-2"><strong className="text-xs text-slate-800">{ticket.subject}</strong><span className="text-[10px] capitalize text-indigo-600">{ticket.status}</span></div><p className="mt-1 text-[11px] text-slate-500">{ticket.message}</p><button type="button" className="mt-2 rounded border p-2 text-xs" onClick={() => setSupportCaseId(value => value === ticket.ticketId ? '' : ticket.ticketId)}>View replies and case history</button>{supportCaseId === ticket.ticketId && <SupportCasePanel ticketId={ticket.ticketId}/>}</article>)}</section>}
           </form>
         )}
 
@@ -1226,7 +1263,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             <h3 className="mb-1 text-sm font-black text-slate-900">Delivery addresses</h3>
             <p className="mb-4 text-[11px] text-slate-500">Choose a saved place or add a new delivery address.</p>
             {savedAddresses.length > 0 && <div className="mb-4 space-y-2">{savedAddresses.map((address) => <div key={address.id} className={`flex items-center gap-2 rounded-xl border p-3 ${deliveryAddress === address.address ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'}`}><button disabled={addressSaving} onClick={() => void handleSelectSavedAddress(address)} className="min-w-0 flex-1 text-left"><span className="block text-xs font-bold text-slate-800">{address.label}{userProfile?.defaultAddressId === address.id && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-700">Default</span>}</span><span className="mt-1 block text-[10px] text-slate-500">{address.address}</span></button><button aria-label={`Delete ${address.label} address`} onClick={() => void handleDeleteSavedAddress(address)} className="rounded-lg p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={15} /></button></div>)}</div>}
-            <div className="rounded-2xl border border-slate-200 p-3"><h4 className="mb-2 text-xs font-extrabold text-slate-800">Add or update an address</h4><select value={addressLabel} onChange={(event) => setAddressLabel(event.target.value)} className="mb-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs"><option>Home</option><option>Work</option><option>Other</option></select><input value={addressDraft} onChange={(e) => setAddressDraft(e.target.value)} placeholder="House, street, area and city" maxLength={300} className="w-full rounded-xl border border-slate-200 p-3 text-xs" /><button onClick={() => void handleSaveAddress()} disabled={!addressDraft.trim() || addressSaving} className="my-2 w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white disabled:opacity-50">{addressSaving ? 'Saving…' : 'Save and set as default'}</button></div>
+            <button className="my-2 rounded-xl border p-3 text-xs font-bold text-indigo-700" onClick={() => setAddressLookup(value => !value)}>Find address or use current location</button>{addressLookup && <LocationPicker label="Delivery location" initialAddress={addressDraft} disabled={addressSaving} onSelect={location => { if (location) setAddressDraft(location.address); }}/>}<div className="rounded-2xl border border-slate-200 p-3"><h4 className="mb-2 text-xs font-extrabold text-slate-800">Add or update an address</h4><select value={addressLabel} onChange={(event) => setAddressLabel(event.target.value)} className="mb-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs"><option>Home</option><option>Work</option><option>Other</option></select><input value={addressDraft} onChange={(e) => setAddressDraft(e.target.value)} placeholder="House, street, area and city" maxLength={300} className="w-full rounded-xl border border-slate-200 p-3 text-xs" /><label className="block mt-2 text-xs font-bold">House / flat / building<input maxLength={80} value={addressBuilding} onChange={event => setAddressBuilding(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><label className="block mt-2 text-xs font-bold">Landmark<input maxLength={80} value={addressLandmark} onChange={event => setAddressLandmark(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><label className="block mt-2 text-xs font-bold">Delivery instructions<textarea maxLength={120} value={addressInstructions} onChange={event => setAddressInstructions(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><button onClick={() => void handleSaveAddress()} disabled={!addressDraft.trim() || addressSaving} className="my-2 w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white disabled:opacity-50">{addressSaving ? 'Saving…' : 'Save and set as default'}</button></div>
             <p className="text-[11px] text-slate-500">Your saved address will be used for food, grocery and parcel deliveries. Enter a pickup and drop address separately when booking a ride.</p>
             <button onClick={() => setShowAddressModal(false)} className="w-full mt-4 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-xl">Close</button>
           </div>

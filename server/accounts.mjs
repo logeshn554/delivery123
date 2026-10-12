@@ -5,6 +5,8 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from
 import { fileURLToPath } from 'node:url';
 import { identityBridgeEnabled, bridgeIdentity, revokeBridgeSessions } from './firebaseIdentity.mjs';
 import { readSessionCookie, sessionCookieName, cookieOptions } from './sessionPolicy.mjs';
+import { accountActionLink } from './accountActionPolicy.mjs';
+import { exportLegacyBookings } from './accountExport.mjs';
 
 const environment = process.env.ALLGO_ENVIRONMENT;
 if (environment && !['staging', 'production'].includes(environment)) throw new Error('ALLGO_ENVIRONMENT must be staging or production.');
@@ -63,10 +65,13 @@ const checkRateLimit = async (ip) => {
 };
 const sendAccountEmail = async (email, token, purpose) => {
   if (!process.env.ACCOUNT_EMAIL_API_KEY || !process.env.ACCOUNT_EMAIL_FROM) throw fail('Account email delivery is not configured. Please contact support.', 503, 'unavailable');
+  let link;
+  try { link = accountActionLink(process.env.ACCOUNT_PUBLIC_WEB_ORIGIN, token, purpose, production); }
+  catch { throw fail('The public account verification website is not configured. Please contact support.', 503, 'unavailable'); }
   const result = await fetch('https://api.resend.com/emails', {
     method: 'POST', signal: AbortSignal.timeout(10000),
     headers: { Authorization: `Bearer ${process.env.ACCOUNT_EMAIL_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: process.env.ACCOUNT_EMAIL_FROM, to: [email], subject: `AllGo ${purpose}`, text: `Your AllGo ${purpose} code is ${token}. Only enter this code in AllGo. If you did not request it, ignore this email.` })
+    body: JSON.stringify({ from: process.env.ACCOUNT_EMAIL_FROM, to: [email], subject: `AllGo ${purpose}`, text: `Open this AllGo ${purpose} link: ${link}\n\nOnly continue if you requested this action. If you did not request it, ignore this email. The link expires and can be used only once.` })
   });
   if (!result.ok) throw fail('Email could not be sent. Please try again later.', 503, 'unavailable');
 };
@@ -276,20 +281,30 @@ app.get('/api/account/export', route(async (req,res) => {
   if (!Object.hasOwn(kinds,section)) throw fail('Choose a valid export section.');
   const cursor = req.query.cursor || '';
   if (typeof cursor !== 'string' || cursor.length > 128) throw fail('Invalid export cursor.');
+  if (section === 'bookings') {
+    return res.json(await exportLegacyBookings(pool, req.account.id, cursor));
+  }
   const {rows} = await pool.query('SELECT id,data,created_at FROM allgo_account_items WHERE account_id=$1 AND kind=$2 AND ($3=\'\' OR id::text>$3) ORDER BY id::text LIMIT 101',[req.account.id,kinds[section],cursor]);
-  const items=rows.slice(0,100).map(row=>({id:row.id,...row.data,createdAt:row.created_at.toISOString()}));
+  const items=rows.slice(0,100).map(row=>({...row.data,id:row.id,createdAt:row.created_at.toISOString()}));
   res.json({items,nextCursor:rows.length>100?items[99].id:null});
 }));
 app.post('/api/account/items/:kind', route(async (req, res) => {
   const kind = req.params.kind, id = randomUUID(); let data;
-  if (kind === 'addresses') data = { label: text(req.body.label, 1, 50, 'address label'), address: text(req.body.address, 3, 500, 'address') };
-  else if (kind === 'support') data = { ticketId: id, subject: text(req.body.subject, 3, 150, 'subject'), message: text(req.body.message, 3, 3000, 'message'), status: 'open' };
+  if (kind === 'addresses') {
+    data = { label: text(req.body.label, 1, 30, 'address label'), address: text(req.body.address, 3, 300, 'address') };
+    if (req.body.deliveryDetails !== undefined) {
+      const details = req.body.deliveryDetails;
+      if (!details || typeof details !== 'object' || Array.isArray(details) || Object.keys(details).some(key => !['building', 'landmark', 'instructions'].includes(key))) throw fail('Invalid delivery details.');
+      data.deliveryDetails = Object.fromEntries([['building',80],['landmark',80],['instructions',120]].map(([key, limit]) => {
+        if (typeof details[key] !== 'string' || details[key].length > limit) throw fail('Invalid delivery details.');
+        return [key,details[key].trim()];
+      }));
+    }
+  }
+  else if (kind === 'support') throw fail('Support requires a connected service session. Sign in again to connect, then retry your request.', 503, 'unavailable');
   else if (kind === 'deletion') data = { status: 'pending', requestedAt: new Date().toISOString() };
   else if (kind === 'partner') {
-    if (!['driver','restaurant','grocery','transport'].includes(req.body.type)) throw fail('Choose a partner type.');
-    const phone = text(req.body.phone, 9, 16, 'phone number');
-    if (!/^\+[1-9]\d{7,14}$/.test(phone)) throw fail('Enter a phone number with country code.');
-    data = { type: req.body.type, phone, name: text(req.body.name, 2, 100, 'name'), city: text(req.body.city, 2, 100, 'city'), status: 'pending' };
+    throw fail('Partner applications require a connected service session. Sign in again to connect, then submit your application.', 503, 'unavailable');
   }
   else if (kind === 'reviews') {
     if (!/^[a-f0-9-]{36}$/.test(req.body.bookingId || '') || !Number.isInteger(req.body.rating) || req.body.rating < 1 || req.body.rating > 5) throw fail('Choose a completed order and a rating from 1 to 5.');

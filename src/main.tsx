@@ -2,8 +2,11 @@ import {createRoot} from 'react-dom/client';
 import { Component, lazy, Suspense, type ReactNode } from 'react';
 import './index.css';
 import ConnectionStatus from './components/ConnectionStatus';
+import { Capacitor } from '@capacitor/core';
 
-const App = import.meta.env.MODE === 'demo' ? lazy(() => import('./demo/DemoSandbox')) : lazy(() => import('./App.tsx'));
+if (Capacitor.isNativePlatform() && import.meta.env.MODE !== 'demo') void import('./data/privateFile').then(module => module.cleanupExpiredPrivateFiles()).catch(() => console.warn('Temporary private file cleanup requires retry.'));
+
+const App = import.meta.env.MODE === 'demo' ? lazy(() => import('./demo/DemoSandbox')) : window.location.pathname === '/account-action' ? lazy(() => import('./components/AccountActionScreen')) : lazy(() => import('./App.tsx'));
 class StartupBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bike, Check, MapPin, MessageSquare, ShieldCheck } from 'lucide-react';
 import type { Booking } from '../types';
+import BookingExceptionPanel from './BookingExceptionPanel';
 import { listenToBookingTracking, getTrackingRoute, type BookingTracking } from '../data/firestoreHelper';
 
 export default function OrderTrackingScreen({ booking, onChat }: { booking: Booking; onChat: () => void }) {
@@ -30,6 +31,9 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const coordinates = fresh && typeof lat === 'number' && Number.isFinite(lat) && Math.abs(lat) <= 90 && typeof lng === 'number' && Number.isFinite(lng) && Math.abs(lng) <= 180;
   const bbox = coordinates ? [lng! - .01, lat! - .01, lng! + .01, lat! + .01].join(',') : '';
   return <section className="tracking-screen">
+    {booking.serviceType === 'grocery' && booking.picking && <p role="status" className="rounded-xl border bg-white p-3 text-sm">Store picking: {booking.details?.items?.filter((item, index) => booking.picking?.lines[String(index)]?.itemId === item.id && booking.picking.lines[String(index)].quantity === item.quantity).length || 0} of {booking.details?.items?.length || 0} order lines fully packed.</p>}
+    <BookingExceptionPanel key={booking.bookingId} booking={booking}/>
+    {booking.preparation && ['pending', 'preparing'].includes(booking.status) && <div className="rounded-xl border bg-white p-4 text-sm" role="status"><strong>Merchant preparation estimate</strong><p>Ready around {new Date(booking.preparation.expectedReadyAt).toLocaleTimeString()}</p><p>{booking.preparation.reason}</p>{Date.parse(booking.preparation.expectedReadyAt) < now && <p className="text-amber-800">The merchant estimate has passed. Preparation is still unconfirmed; check for an update or contact support.</p>}<small>This is the merchant's estimate, not a guaranteed delivery time.</small></div>}
     <div className="tracking-status"><span>{booking.serviceType}</span><h2>{cancelled ? 'Booking cancelled' : complete ? 'All done. Thank you!' : stage === 2 ? 'Your partner is on the way' : stage === 1 ? 'Your booking is being prepared' : 'Finding your delivery partner'}</h2><p>Last order update: {new Date(booking.updatedAt || booking.createdAt).toLocaleString()}</p></div>
     {!cancelled && <ol className="tracking-steps">{['Confirmed', 'Preparing', 'On the way', 'Completed'].map((label, index) => <li key={label} className={index <= stage ? 'done' : ''}><span>{index <= stage ? <Check size={13} /> : index + 1}</span><small>{label}</small></li>)}</ol>}
     <div className="tracking-map">{coordinates ? <iframe title="Delivery partner reported location" src={`https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${lat},${lng}`} loading="lazy" referrerPolicy="no-referrer" /> : <div className="tracking-map-empty"><MapPin size={32} /><strong>{complete ? 'Journey complete' : cancelled ? 'Tracking has ended' : 'Live location will appear here'}</strong><p>{error || (booking.driverId ? 'Waiting for your partner to share their location.' : 'A partner will be assigned after accepting your booking.')}</p></div>}</div>

@@ -3,12 +3,19 @@ import PayoutRequests from './PayoutRequests';
 import DeletionRequests from './DeletionRequests';
 import OperationsConsole from './OperationsConsole';
 import FinanceJournalPanel from './FinanceJournalPanel';
+import SupportOperationsQueue from './SupportOperationsQueue';
+import BookingExceptionPanel from './BookingExceptionPanel';
+import RefundReviewQueue from './RefundReviewQueue';
+import DispatchPolicyEditor from './DispatchPolicyEditor';
+import MerchantBusinessSetup from './MerchantBusinessSetup';
+import PartnerApplicationPanel from './PartnerApplicationPanel';
+import DriverEligibilityReview from './DriverEligibilityReview';
 import { 
   Users, MapPin, ClipboardList, Shield, DollarSign, Search, Check, X, 
   Map, Trash2, ArrowUpRight, CheckCircle2, ListFilter
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
-import { requestBookingCancellation, updateDriverVerification } from '../data/firestoreHelper';
+import { requestBookingCancellation } from '../data/firestoreHelper';
 
 interface AdminDashboardProps {
   activeBookings: Booking[];
@@ -30,7 +37,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
   });
 
   // Handle document approval
-  const pendingKYC = driverProfiles.filter((driver) => driver.status === 'pending');
+  const pendingKYC = driverProfiles.filter((driver) => ['pending', 'rejected'].includes(driver.status));
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const completedToday = activeBookings.filter((booking) => ['completed', 'delivered'].includes(booking.status) && new Date(booking.updatedAt || booking.createdAt).getTime() >= todayStart.getTime());
@@ -43,21 +50,6 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
   const [cancelSuccess, setCancelSuccess] = React.useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = React.useState<string | null>(null);
 
-  // UI-07: Replaced window.alert/confirm with inline state-driven messages.
-  const handleKYC = async (driverId: string, status: 'verified' | 'rejected') => {
-    const services = serviceApprovals[driverId] || [];
-    setKycError(null); setKycSuccess(null);
-    if (status === 'verified' && !services.length) {
-      setKycError('Select the services this partner is qualified to perform before approving.');
-      return;
-    }
-    try {
-      await updateDriverVerification(driverId, status, services);
-      setKycSuccess('Partner verification status updated.');
-    } catch {
-      setKycError('Unable to update driver verification. Check the admin role and Firestore rules.');
-    }
-  };
 
   const handleAdminCancel = async (bookingId: string) => {
     if (cancelTarget !== bookingId) { setCancelTarget(bookingId); setCancelError(null); setCancelSuccess(null); return; }
@@ -170,21 +162,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
                   </div>
 
                   <fieldset className="flex flex-wrap gap-2 text-xs"><legend className="mb-2 text-slate-400">Approve qualified services</legend>{(['food', 'grocery', 'parcel', 'ride', 'takeover', 'transport'] as const).map(service => <label key={service} className="flex items-center gap-1"><input type="checkbox" checked={(serviceApprovals[p.driverId] || []).includes(service)} onChange={event => setServiceApprovals(current => ({ ...current, [p.driverId]: event.target.checked ? [...(current[p.driverId] || []), service] : (current[p.driverId] || []).filter(value => value !== service) }))} />{service}</label>)}</fieldset>
-                  <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-900 pt-2">
-                    <span>Awaiting admin review</span>
-                    <div className="flex gap-1.5">
-                      <button 
-                        onClick={() => handleKYC(p.driverId, 'verified')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white p-1 rounded-md"
-                        title="Approve Driver"
-                      >
-                        <Check className="w-3 h-3" />
-                      </button>
-                      <button onClick={() => handleKYC(p.driverId, 'rejected')} className="bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-md" title="Reject Driver">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
+                  <DriverEligibilityReview driverId={p.driverId} services={serviceApprovals[p.driverId] || []} profile={{ vehicleType: p.vehicleType, vehicleNo: p.vehicleNo, licenseNo: p.licenseNo }}/>
                 </div>
               ))}
             </div>
@@ -304,6 +282,12 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
 
       <OperationsConsole drivers={driverProfiles}/>
       <FinanceJournalPanel/>
+      <RefundReviewQueue/>
+      <DispatchPolicyEditor/>
+      <MerchantBusinessSetup/>
+      <PartnerApplicationPanel staff/>
+      <SupportOperationsQueue/>
+      <section className="space-y-3 rounded-xl border p-4"><h2 className="font-bold">Bookings awaiting problem review</h2>{activeBookings.filter(booking => booking.exception?.status === 'open').map(booking => <div key={booking.bookingId}><h3 className="mb-1 text-xs font-bold">{booking.bookingId} · {booking.serviceType}</h3><BookingExceptionPanel booking={booking} staff/></div>)}{!activeBookings.some(booking => booking.exception?.status === 'open') && <p className="text-sm">No reported problems in the loaded bookings.</p>}</section>
     </div>
   );
 }

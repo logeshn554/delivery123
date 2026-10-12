@@ -1,4 +1,5 @@
 {
+  "storage": [{ "target": "private-evidence", "rules": "storage.rules" }],
   "functions": [{ "source": "functions", "codebase": "default", "runtime": "nodejs22", "ignore": ["node_modules", ".git", "firebase-debug.log"] }],
   "firestore": [{ "database": "(default)", "rules": "firestore.rules", "indexes": "firestore.indexes.json" }]
 }

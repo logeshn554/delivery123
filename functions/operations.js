@@ -1,7 +1,8 @@
 const { validPoint, calculateFare } = require('./bookingPolicy');
 const { cartCharges } = require('./cartPolicy');
-const { validateHours } = require('./merchantPolicy');
+const { validateHours, validateClosedDates } = require('./merchantPolicy');
 const { catalogItem } = require('./catalogPolicy');
+const { assertStockBaseline } = require('./stockBaseline');
 const { settlementPolicy } = require('./settlementPolicy');
 function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }) {
   const services = ['food','grocery','ride','parcel','takeover','transport'];
@@ -11,17 +12,51 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
   };
   const audit = (tx, uid, action, target) => tx.create(db.collection('operations_audit').doc(), { operatorId: uid, action, target, createdAt: Timestamp.now() });
   return {
+    createMerchantBusiness: onCall({ operation: 'createMerchantBusiness', region: REGION }, async request => {
+      const uid = await admin(request), data = request.data || {}, type = data.merchantType, id = documentId(data.merchantId, 'Business ID'), requestId = documentId(data.requestId, 'Request ID');
+      if (!['restaurant', 'grocery'].includes(type)) throw new HttpsError('invalid-argument', 'Choose a business type.');
+      const name = cleanText(data.name, 'Business name', 120), address = cleanText(data.address, 'Business address', 300), reason = cleanText(data.reason, 'Setup reason', 500), timeZone = cleanText(data.timeZone, 'Time zone', 80);
+      try { new Intl.DateTimeFormat('en', { timeZone }).format(); } catch { throw new HttpsError('invalid-argument', 'Choose a valid time zone.'); }
+      const setup = { name, address, timeZone, merchantType: type };
+      return db.runTransaction(async tx => {
+        const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), eventRef = db.doc(`merchant_setup_requests/${requestId}`), [existing, event] = await Promise.all([tx.get(ref), tx.get(eventRef)]);
+        if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || prior.merchantId !== id || prior.reason !== reason || !Object.entries(setup).every(([key, value]) => prior.setup?.[key] === value)) throw new HttpsError('already-exists', 'This setup request reference was already used.'); return { merchantId: id, status: 'draft' }; }
+        if (existing.exists) throw new HttpsError('already-exists', 'This business ID already exists. Existing data was preserved.');
+        tx.create(ref, { ...setup, id, acceptingOrders: false, onboardingStatus: 'draft', weeklyHours: {}, closedDates: [], closureRevision: 0, createdAt: Timestamp.now(), image: '', rating: 0, ratingCount: 0, deliveryTime: '', ...(type === 'restaurant' ? { cuisine: '', pureVeg: false } : {}) });
+        tx.create(eventRef, { actorId: uid, merchantId: id, setup, reason, createdAt: Timestamp.now() });
+        audit(tx, uid, 'merchant_business_created', ref.path);
+        return { merchantId: id, status: 'draft' };
+      });
+    }),
     exportAccountPage: onCall({ operation: 'exportAccountPage', region: REGION }, async request => {
       const uid = request.auth?.uid;
       if (!uid) throw new HttpsError('unauthenticated','Sign in.');
       const data = request.data || {}, section = data.section;
-      const targets = { addresses:db.collection(`users/${uid}/addresses`), bookings:db.collection('bookings').where('customerId','==',uid), wallet:db.collection(`wallet_ledger/${uid}/entries`), reviews:db.collection('order_reviews').where('userId','==',uid), support:db.collection('support_tickets').where('userId','==',uid) };
+      if (section === 'eligibility' || section === 'eligibility_events') {
+        const ref = db.doc(`driver_eligibility/${uid}`), state = await ref.get();
+        if (section === 'eligibility') return { items: state.exists ? [{ ...state.data(), id: uid }] : [], nextCursor: null };
+        if (!state.exists || state.data().driverId !== uid) throw new HttpsError('permission-denied', 'Only your own eligibility history can be exported.');
+        let history = ref.collection('events').orderBy('__name__').limit(101);
+        if (data.cursor) history = history.startAfter(documentId(data.cursor, 'Export cursor'));
+        const page = await history.get(), docs = page.docs.slice(0,100);
+        return { items: docs.map(event => ({ ...event.data(), id: event.id })), nextCursor: page.size > 100 ? docs.at(-1).id : null };
+      }
+      const targets = { addresses:db.collection(`users/${uid}/addresses`), bookings:db.collection('bookings').where('customerId','==',uid), driver_jobs:db.collection('bookings').where('driverId','==',uid), driver_ledger:db.collection(`driver_ledger/${uid}/entries`), payouts:db.collection('payout_requests').where('driverId','==',uid), payments:db.collection('payment_attempts').where('uid','==',uid), wallet:db.collection(`wallet_ledger/${uid}/entries`), reviews:db.collection('order_reviews').where('userId','==',uid), evidence:db.collection('partner_evidence').where('userId','==',uid), partners:db.collection('partner_applications').where('userId','==',uid), support:db.collection('support_tickets').where('userId','==',uid) };
+      if (['support_messages', 'support_events', 'booking_events', 'partner_events'].includes(section)) {
+        const id = documentId(data.parentId, 'Record ID'), support = section.startsWith('support_'), partner = section === 'partner_events', parent = db.doc(`${support ? 'support_tickets' : partner ? 'partner_applications' : 'bookings'}/${id}`), record = (await parent.get()).data();
+        if (!record || (support || partner ? record.userId !== uid : record.customerId !== uid && record.driverId !== uid)) throw new HttpsError('permission-denied', 'Only your own record history can be exported.');
+        targets[section] = parent.collection(section === 'support_messages' ? 'messages' : 'events');
+      }
       if (section === 'profile') { const profile = await db.doc(`users/${uid}`).get();return { items:profile.exists?[{id:uid,...profile.data()}]:[],nextCursor:null }; }
       if (!Object.hasOwn(targets,section)) throw new HttpsError('invalid-argument','Choose a valid export section.');
       let query = targets[section].orderBy('__name__').limit(101);
       if (data.cursor) query = query.startAfter(documentId(data.cursor,'Export cursor'));
       const snapshot = await query.get(), docs = snapshot.docs.slice(0,100);
-      return { items:docs.map(doc=>({id:doc.id,...doc.data()})), nextCursor:snapshot.size>100?docs[99].id:null };
+      return { items:docs.map(doc=> {
+        const record = doc.data();
+        if (section === 'payments') return { id: doc.id, amountCents: record.amount, currency: record.currency || 'INR', status: record.status, kind: record.kind || 'booking', bookingId: record.bookingId || null, refundedAmountCents: record.refundedAmountCents || 0, createdAt: record.createdAt?.toDate().toISOString() || null };
+        return { ...record, id: doc.id };
+      }), nextCursor:snapshot.size>100?docs[99].id:null };
     }),
     submitOrderReview: onCall({ operation: 'submitOrderReview', region: REGION }, async request => {
       const uid = request.auth?.uid, data = request.data || {};
@@ -43,10 +78,12 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       try { item = catalogItem(data.item, type); } catch(error) { throw new HttpsError('invalid-argument', error.message); }
       const parent = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), ref = parent.collection(type === 'restaurant' ? 'menu_items' : 'products').doc(itemId);
       await db.runTransaction(async tx => {
-        const [user, business] = await Promise.all([tx.get(db.doc(`users/${uid}`)),tx.get(parent)]);
+        const [user, business, existing] = await Promise.all([tx.get(db.doc(`users/${uid}`)),tx.get(parent),tx.get(ref)]);
         const owner = user.data();
         if (!(request.auth.token.admin === true && owner?.role === 'admin' || owner?.role === 'merchant' && owner.merchantId === id && owner.merchantType === type)) throw new HttpsError('permission-denied','This catalog is not assigned to you.');
         if (!business.exists) throw new HttpsError('not-found','Business unavailable.');
+        if (type === 'grocery' && existing.exists) assertStockBaseline(existing.data().stock, data.item?.expectedStock, HttpsError);
+        if (type === 'grocery' && !existing.exists && data.item?.expectedStock != null) throw new HttpsError('aborted', 'This product was removed. Refresh before creating a new inventory record.');
         tx.set(ref, {...item, ...(type === 'restaurant' ? { restaurantId:id } : { storeId:id }), updatedAt:Timestamp.now() }, { merge:true });
         audit(tx,uid,'catalog_item_saved',ref.path);
       });
@@ -126,6 +163,23 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         if (driver.data().activeBookingId) throw new HttpsError('failed-precondition', 'Equipment cannot change during an active job.');
         tx.update(ref, { transportCapabilities: capabilities, online: false }); audit(tx, uid, 'transport_equipment_reviewed', driverId);
       }); return { updated: true };
+    }),
+    setMerchantClosures: onCall({ operation: 'setMerchantClosures', region: REGION }, async request => {
+      if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in.');
+      const uid = request.auth.uid, data = request.data || {}, type = data.merchantType, id = documentId(data.merchantId, 'Merchant ID'), requestId = documentId(data.requestId, 'Request ID'), reason = cleanText(data.reason, 'Closure change reason', 500);
+      if (!['restaurant', 'grocery'].includes(type) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) throw new HttpsError('invalid-argument', 'Choose a business type and valid closure revision.');
+      let closedDates; try { closedDates = validateClosedDates(data.closedDates); } catch (error) { throw new HttpsError('invalid-argument', error.message); }
+      return db.runTransaction(async tx => {
+        const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), eventRef = ref.collection('closure_history').doc(requestId), [account, record, event] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(eventRef)]), merchant = account.data();
+        if (!(request.auth.token.admin === true && merchant?.role === 'admin' || merchant?.role === 'merchant' && merchant.merchantId === id && merchant.merchantType === type)) throw new HttpsError('permission-denied', 'This business is not assigned to you.');
+        if (!record.exists) throw new HttpsError('not-found', 'Business unavailable.');
+        if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || JSON.stringify(prior.closedDates) !== JSON.stringify(closedDates) || prior.reason !== reason || prior.expectedRevision !== data.expectedRevision) throw new HttpsError('already-exists', 'This request reference was already used.'); return { revision: prior.revision }; }
+        if ((record.data().closureRevision || 0) !== data.expectedRevision) throw new HttpsError('aborted', 'Closure dates changed. Refresh before saving.');
+        const revision = data.expectedRevision + 1;
+        tx.update(ref, { closedDates, closureRevision: revision });
+        tx.create(eventRef, { actorId: uid, closedDates, previous: record.data().closedDates || [], expectedRevision: data.expectedRevision, revision, reason, createdAt: Timestamp.now() });
+        audit(tx, uid, 'merchant_closures_updated', id); return { revision };
+      });
     }),
     setMerchantHours: onCall({ operation: 'setMerchantHours', region: REGION }, async request => {
       if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in.');

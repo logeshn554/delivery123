@@ -1,7 +1,7 @@
 import { before, after, beforeEach, test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, Timestamp, setLogLevel } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc, Timestamp, setLogLevel } from 'firebase/firestore';
 setLogLevel('silent');
 let env;
 before(async () => { env = await initializeTestEnvironment({ projectId: 'demo-allgo', firestore: { host: '127.0.0.1', port: 8080, rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } }); });
@@ -19,6 +19,74 @@ beforeEach(async () => {
   });
 });
 const dbFor = (uid, claims = {}) => env.authenticatedContext(uid, claims).firestore();
+
+test('even administrators cannot bypass audited driver eligibility through client profile writes', async () => {
+  await assertFails(updateDoc(doc(dbFor('admin', { admin: true }), 'driver_profiles/driver'), { status: 'rejected', online: false, supportedServices: [] }));
+  await assertFails(updateDoc(doc(dbFor('admin', { admin: true }), 'driver_profiles/driver'), { status: 'verified', online: false, supportedServices: ['ride'] }));
+  await assertFails(deleteDoc(doc(dbFor('admin', { admin: true }), 'driver_profiles/driver')));
+  await assertFails(setDoc(doc(dbFor('driver'), 'driver_eligibility/driver'), { status: 'verified', revision: 1 }));
+  await assertFails(setDoc(doc(dbFor('admin', { admin: true }), 'driver_eligibility/driver/events/forged'), { actorId: 'admin' }));
+});
+
+test('private evidence metadata and quota controls cannot be forged or read across accounts', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'partner_evidence/proof'), { userId: 'customer', status: 'quarantined', scanStatus: 'pending' });
+    await setDoc(doc(context.firestore(), 'evidence_quotas/customer'), { userId: 'customer', activeCount: 1 });
+  });
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'partner_evidence/proof')));
+  await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), 'partner_evidence/proof')));
+  await assertFails(getDoc(doc(dbFor('other'), 'partner_evidence/proof')));
+  await assertFails(getDoc(doc(dbFor('other', { admin: true }), 'partner_evidence/proof')));
+  await assertFails(setDoc(doc(dbFor('customer'), 'partner_evidence/proof'), { userId: 'customer', status: 'verified', scanStatus: 'clean' }));
+  await assertFails(updateDoc(doc(dbFor('admin', { admin: true }), 'partner_evidence/proof'), { scanStatus: 'clean' }));
+  await assertFails(updateDoc(doc(dbFor('customer'), 'evidence_quotas/customer'), { activeCount: 0 }));
+  await assertFails(getDoc(doc(dbFor('customer'), 'evidence_quotas/customer')));
+});
+
+test('partner applications and their review history are private server-owned records', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'partner_applications/application'), { userId: 'customer', status: 'submitted' });
+    await setDoc(doc(context.firestore(), 'partner_applications/application/events/submitted'), { actorId: 'customer' });
+  });
+  for (const path of ['partner_applications/application', 'partner_applications/application/events/submitted']) {
+    await assertSucceeds(getDoc(doc(dbFor('customer'), path)));
+    await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), path)));
+    await assertFails(getDoc(doc(dbFor('other'), path)));
+    await assertFails(getDoc(doc(dbFor('other', { admin: true }), path)));
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), path)));
+    await assertFails(setDoc(doc(dbFor('customer'), path), { userId: 'customer', status: 'approved' }));
+    await assertFails(setDoc(doc(dbFor('admin', { admin: true }), path), { userId: 'customer', status: 'approved' }));
+  }
+  await assertSucceeds(getDocs(query(collection(dbFor('customer'), 'partner_applications'), where('userId', '==', 'customer'))));
+  await assertFails(getDocs(collection(dbFor('customer'), 'partner_applications')));
+});
+
+test('catalog and closure writes cannot bypass server validation even with operations claims', async () => {
+  const admin = dbFor('admin', { admin: true });
+  await assertFails(setDoc(doc(admin, 'restaurants/shop'), { name: 'Forged', closedDates: ['bad'] }));
+  await assertFails(setDoc(doc(admin, 'restaurants/shop/menu_items/item'), { price: -100 }));
+  await assertFails(setDoc(doc(admin, 'grocery_stores/shop/products/item'), { stock: -100 }));
+  await assertFails(setDoc(doc(admin, 'grocery_stores/shop/closure_history/forged'), { actorId: 'admin' }));
+});
+test('support conversation and case history are private and cannot be forged or deleted by clients', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'support_tickets/case'), { userId: 'customer', status: 'open' });
+    await setDoc(doc(context.firestore(), 'support_tickets/case/messages/reply'), { text: 'Private reply', actorRole: 'staff' });
+  });
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'support_tickets/case/messages/reply')));
+  await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), 'support_tickets/case/messages/reply')));
+  await assertFails(getDoc(doc(dbFor('other'), 'support_tickets/case/messages/reply')));
+  await assertFails(setDoc(doc(dbFor('customer'), 'support_tickets/case/messages/forged'), { text: 'Fake support', actorRole: 'staff' }));
+  await assertFails(updateDoc(doc(dbFor('admin', { admin: true }), 'support_tickets/case'), { status: 'resolved' }));
+});
+test('structured delivery addresses are owner scoped and reject extra or oversized fields', async () => {
+  const address = { label: 'Work', address: 'Flat 2, Test Street', createdAt: '2026-10-10', deliveryDetails: { building: 'Flat 2', landmark: 'Library', instructions: 'Ring bell' } };
+  await assertSucceeds(setDoc(doc(dbFor('customer'), 'users/customer/addresses/work'), address));
+  await assertFails(getDoc(doc(dbFor('other'), 'users/customer/addresses/work')));
+  await assertFails(setDoc(doc(dbFor('customer'), 'users/customer/addresses/extra'), { ...address, deliveryDetails: { ...address.deliveryDetails, verified: true } }));
+  await assertFails(setDoc(doc(dbFor('customer'), 'users/customer/addresses/long'), { ...address, deliveryDetails: { ...address.deliveryDetails, instructions: 'x'.repeat(121) } }));
+  await assertSucceeds(setDoc(doc(dbFor('customer'), 'users/customer/addresses/legacy'), { label: 'Home', address: 'Test Street', createdAt: '2026-10-10' }));
+});
 test('financial postings and pricing proposals are private, immutable server records', async () => {
   await env.withSecurityRulesDisabled(async context => {
     await setDoc(doc(context.firestore(), 'financial_journals', 'capture'), { amountCents: 10000 });

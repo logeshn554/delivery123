@@ -1,3 +1,4 @@
+const { validExpiry } = require('./productExpiry');
 function catalogItem(input, type) {
   if (!input || typeof input !== 'object' || !['restaurant','grocery'].includes(type)) throw new Error('Invalid catalog item.');
   const text = (key, max, required = false) => { const value = input[key] ?? ''; if (typeof value !== 'string' || value.trim().length > max || required && !value.trim()) throw new Error(`Enter a valid ${key}.`); return value.trim(); };
@@ -18,7 +19,7 @@ function catalogItem(input, type) {
     }
   } else {
     if (!Number.isSafeInteger(input.stock) || input.stock < 0 || input.stock > 1000000) throw new Error('Enter a valid stock count.');
-    Object.assign(result, { stock: input.stock, unit: text('unit',80,true), brand: text('brand',100), storageInstructions: text('storageInstructions',1000), countryOfOrigin: text('countryOfOrigin',100) });
+    Object.assign(result, { stock: input.stock, unit: text('unit',80,true), brand: text('brand',100), storageInstructions: text('storageInstructions',1000), countryOfOrigin: text('countryOfOrigin',100), expiresAt: validExpiry(input.expiresAt) });
   }
   return result;
 }

@@ -9,6 +9,9 @@ import { Booking, DriverProfile } from '../types';
 import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages } from '../data/firestoreHelper';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import PayoutRequests from './PayoutRequests';
+import DriverEarningEstimate from './DriverEarningEstimate';
+import BookingExceptionPanel from './BookingExceptionPanel';
+import AccountDataExport from './AccountDataExport';
 import { useFeedbackDialog } from './useFeedbackDialog';
 import { usesAndroidLocation, locationConsent, startNativeDriverLocation, stopNativeDriverLocation, nativeDriverLocationStatus } from '../driverLocation';
 
@@ -29,8 +32,14 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const [licenseNo, setLicenseNo] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [actionBusy, setActionBusy] = useState(false);
+  const supportRequest = useRef<{ key: string; id: string } | null>(null);
   const [otpInput, setOtpInput] = useState("");
   const [pickupCode, setPickupCode] = useState('');
+  const [offerNow, setOfferNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setOfferNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [activeSubView, setActiveSubView] = useState<'orders' | 'wallet' | 'support' | null>(null);
   useEffect(() => {
     const back = (event: Event) => { if (activeSubView) { event.preventDefault(); setActiveSubView(null); } };
@@ -346,19 +355,23 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                       <textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} placeholder="Please describe the delay event..." rows={3} className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" />
                       <button 
                         type="button" 
-                        onClick={async () => {
+                        disabled={actionBusy}
+                        onClick={() => void performAction(async () => {
                           if (!supportSubject.trim() || !supportMessage.trim()) return;
-                          await createSupportTicket({ ticketId: `DRV_TCK_${Date.now()}`, userId, subject: supportSubject.trim(), message: supportMessage.trim() });
+                          const key = JSON.stringify([userId, supportSubject.trim(), supportMessage.trim(), currentAssignedJob?.bookingId]);
+                          if (supportRequest.current?.key !== key) supportRequest.current = { key, id: crypto.randomUUID() };
+                          await createSupportTicket({ ticketId: supportRequest.current.id, userId, subject: supportSubject.trim(), message: supportMessage.trim(), ...(currentAssignedJob ? { bookingId: currentAssignedJob.bookingId } : {}), category: 'general' });
                           setSupportSubject('');
                           setSupportMessage('');
                           alert('Dispute ticket submitted to operations.');
-                        }}
+                        })}
                         className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-md shadow-purple-600/10"
                       >
                         Submit Dispute Ticket
                       </button>
                     </div>
                   </div>
+                  <div className="rounded-xl bg-white p-3 text-slate-900"><AccountDataExport/></div>
                 </div>
               )}
             </div>
@@ -394,14 +407,14 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
         {/* 1. EARNINGS OVERVIEW METER */}
         <div className="bg-slate-50 border border-slate-700 rounded-2xl p-4 flex justify-between items-center shadow-lg">
           <div>
-            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Today's Earnings</p>
-            <h3 className="text-2xl font-black text-white mt-1">₹{profile?.todayEarnings ? Math.round(profile.todayEarnings) : 0}</h3>
-            <p className="text-[9px] text-slate-400 mt-0.5">Settled earnings from completed deliveries</p>
+            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-600">Today's Earnings</p>
+            <h3 className="text-2xl font-black text-slate-900 mt-1">₹{(profile?.todayEarnings || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+            <p className="text-[9px] text-slate-600 mt-0.5">Settled earnings from completed deliveries</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Completed</p>
+            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-600">Completed</p>
             <h3 className="text-xl font-bold text-slate-700 mt-1">{profile?.completedJobs || 0} jobs</h3>
-          <span className="text-[9px] text-slate-400 font-medium">Earnings and completed jobs update from finished bookings.</span>
+          <span className="text-[9px] text-slate-600 font-medium">Earnings and completed jobs update from finished bookings.</span>
           </div>
         </div>
 
@@ -414,10 +427,10 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                   Active {currentAssignedJob.serviceType} job
                 </span>
                 <p className="text-[9px] font-mono text-slate-400 mt-1">Order Ref: {currentAssignedJob.bookingId}</p>
+                <BookingExceptionPanel key={currentAssignedJob.bookingId} booking={currentAssignedJob}/>
               </div>
               <div className="text-right">
-                <span className="text-sm font-black text-emerald-400 font-mono">₹{Math.round(currentAssignedJob.price)}</span>
-                <p className="text-[9px] text-slate-500 mt-0.5">Your Payout</p>
+                <DriverEarningEstimate booking={currentAssignedJob}/>
               </div>
             </div>
 
@@ -562,7 +575,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">Available Jobs ({pendingJobs.length})</h3>
               {profile?.online && (
-                <span className="text-[9px] bg-slate-50 px-2 py-0.5 rounded-full text-slate-300 animate-pulse">Monitoring Live Feed...</span>
+                <span className="text-[9px] bg-slate-50 px-2 py-0.5 rounded-full text-slate-700">Offers refresh automatically</span>
               )}
             </div>
 
@@ -576,7 +589,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               <div className="text-center py-12 bg-slate-50/40 rounded-2xl border border-slate-200/80">
                 <Clock className="w-10 h-10 text-slate-600 mx-auto mb-2 animate-spin" />
                 <p className="text-xs text-slate-400 font-semibold">Waiting for nearby delivery requests...</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Create a booking on the Customer tab to trigger instant dispatch.</p>
+                <p className="text-[10px] text-slate-600 mt-0.5">Offers depend on coverage, equipment and a fresh location report.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -587,20 +600,21 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                         <span className="bg-blue-900/40 text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded border border-blue-500/20 uppercase">
                           {job.serviceType}
                         </span>
-                        <h4 className="text-xs font-bold text-slate-900 mt-1.5">For Customer: {job.customerName}</h4>
+                        <h4 className="text-xs font-bold text-slate-900 mt-1.5">Ref: {job.bookingId}</h4>
                       </div>
                       <div className="text-right">
-                        <span className="text-xs font-black text-emerald-400">₹{Math.round(job.price)}</span>
-                        <p className="text-[8px] text-slate-400">Order total</p>
+                        <span className="text-xs font-black text-emerald-700">₹{job.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <p className="text-[8px] text-slate-600">Customer charge</p>
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-slate-300 font-medium">Pickup Spot: <span className="text-slate-900">{job.pickupAddress || 'Address unavailable'}</span></p>
+                    <p className="text-[11px] text-slate-600 font-medium">Pickup area: <span className="text-slate-900">{job.pickupAddress || 'Area unavailable'}</span></p>
+                    <p className="text-xs text-slate-700">{job.offerExpiresAt && Date.parse(job.offerExpiresAt) > offerNow ? `Offer expires in ${Math.ceil((Date.parse(job.offerExpiresAt) - offerNow) / 1000)} seconds` : 'Offer expired. Waiting for refreshed availability.'}</p>
 
                     <div className="flex gap-2 pt-2 border-t border-slate-700/50">
                       <button 
-                        disabled={actionBusy}
-                        onClick={() => handleAcceptJob(job.bookingId)}
+                        disabled={actionBusy || !job.offerExpiresAt || !Number.isFinite(Date.parse(job.offerExpiresAt)) || Date.parse(job.offerExpiresAt) <= offerNow}
+                        onClick={() => { if (job.offerExpiresAt && Date.parse(job.offerExpiresAt) > Date.now()) void handleAcceptJob(job.bookingId); }}
                         className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2 rounded-lg"
                       >
                         Accept Dispatch

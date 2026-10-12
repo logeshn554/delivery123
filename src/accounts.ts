@@ -69,6 +69,12 @@ export const updateAccount = async (changes: Partial<UserProfile>) => { const va
 export const forgotPasswordAccount = (email: string) => accountRequest<{ ok: boolean; message: string }>('/auth/forgot-password', 'POST', { email });
 export const resetPasswordAccount = (token: string, newPassword: string) => accountRequest<{ ok: boolean; message: string }>('/auth/reset-password', 'POST', { token, newPassword });
 export const requestEmailVerification = (email: string) => accountRequest<{ ok: boolean; message: string }>('/auth/request-email-verification', 'POST', { email });
+export const refreshAccountVerification = async () => {
+  const profile = await getAccount();
+  if (!profile.emailVerified) throw new Error('Email is not verified yet. Open the link in your email first.');
+  const connected = await connectServiceIdentity(profile); sessionGeneration++; publish(connected);
+  return { message: 'Email verification refreshed.' };
+};
 export const verifyEmailAccount = async (token: string) => {
   const result = await accountRequest<{ ok: boolean; message: string }>('/auth/verify-email', 'POST', { token });
   const profile = await connectServiceIdentity(await getAccount()); sessionGeneration++; publish(profile); return result;
