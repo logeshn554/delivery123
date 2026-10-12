@@ -63,7 +63,7 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 
 ### Delivery implementation evidence
 
-- Branch: `codex/delivery-ui`, stacked on `codex/ride-ui`.
+- Branch: `codex/delivery-ui`, stacked on `codex/ride-ui`; implementation commit `27f0c2a` (`feat(delivery): refine parcel booking and tracking UI`).
 - Changed UI: `src/components/ParcelBookingScreen.tsx`, `src/components/CustomerApp.tsx`, `src/components/OrderTrackingScreen.tsx`, `src/components/ParcelOrderDetails.tsx`, and `src/index.css`.
 - Regression coverage: `src/design-system/parcelTracking.ts` and `tests/ui/parcelTracking.test.ts` verify customer-facing tracking copy/stages for pending, assigned, in-transit, delivered and cancelled bookings.
 - `npm run lint`: passed.
