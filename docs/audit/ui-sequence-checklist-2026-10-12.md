@@ -136,3 +136,12 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 - [ ] Capture and inspect Food, Grocery, Ride and Delivery on mobile and desktop; check keyboard/assistive technology and physical-device behavior. A local Vite server ran on `http://localhost:3000/` and advertised `http://10.10.67.113:3000/`; the in-app browser timed out on both loopback and advertised local network access, so no screenshot or visual acceptance is claimed.
 
 **Resume point:** P0-05 merchant workflow now has code coverage but is blocked from real approval by missing owner policy and provider/business acceptance. Continue with the next unblocked remediation item; keep the four customer UI flows open for browser/device visual review and create the pushed-branch PRs when GitHub integration access is available.
+
+### Merchant operations panel
+
+- [x] Add application-linked closed business setup and policy/evidence review controls to the staff partner application panel.
+- [x] Disable selection of stale, unscanned, unreviewed or expired documents; enforce policy categories and expiry requirements in the UI before approval. The callable remains authoritative.
+- [x] Keep approval separate from merchant role assignment and store opening.
+- [x] Regressions: 2 merchant eligibility UI policy tests; full `npm test` passed (59 Functions, 12 UI, 14 server tests; secret scan passed 325 snapshots), `npm run test:rules` passed 91 tests, lint and build passed.
+- [ ] Inspect actual staff screen at mobile/desktop sizes, keyboard/screen reader and device. Local Vite server is running at `http://localhost:3000/`, but the in-app browser could not reach it; no screenshot is available yet.
+- [ ] Create the GitHub PR for `codex/merchant-review-console`; the integration is currently denying PR creation (HTTP 403). Owner policy and live partner acceptance remain separately blocked as documented above.
