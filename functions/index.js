@@ -83,6 +83,9 @@ function onCall(options, handler) {
       transaction.set(ref, { count: (record.data()?.count || 0) + 1, expiresAt: Timestamp.fromMillis(Date.now() + 120000) });
     });
     if (request.auth?.uid) {
+      if (process.env.ALLGO_ENVIRONMENT && !request.auth.token.allgoSession) {
+        throw new HttpsError('unauthenticated', 'Connect your AllGo account session before using services.');
+      }
       const account = (await db.doc(`users/${request.auth.uid}`).get()).data();
       if (account?.disabled === true || account?.suspended === true) throw new HttpsError('permission-denied', 'This account is suspended. Contact support.');
       if (request.auth.token.admin === true) {

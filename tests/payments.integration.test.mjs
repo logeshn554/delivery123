@@ -27,6 +27,22 @@ beforeEach(async () => {
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
 
+test('release callables require a live Neon bridge session while local Firebase mode remains available', async () => {
+  const previousEnvironment = process.env.ALLGO_ENVIRONMENT;
+  process.env.ALLGO_ENVIRONMENT = 'staging';
+  try {
+    await assert.rejects(callable('listPaymentActivity', 'customer', {}), error => error.code === 'unauthenticated');
+    await db.doc('bridge_sessions/session1').set({ uid: 'customer', expiresAt: Timestamp.fromMillis(Date.now() + 60000) });
+    const result = await compiled.exports.listPaymentActivity.run({ data: {}, auth: { uid: 'customer', token: { allgoSession: 'session1' } }, rawRequest: { ip: '127.0.0.1' } });
+    assert.deepEqual(result.attempts, []);
+  } finally {
+    if (previousEnvironment === undefined) delete process.env.ALLGO_ENVIRONMENT;
+    else process.env.ALLGO_ENVIRONMENT = previousEnvironment;
+  }
+  const localResult = await callable('listPaymentActivity', 'customer', {});
+  assert.deepEqual(localResult.attempts, []);
+});
+
 test('partner intake prevents duplicate active applications and never grants roles', async () => {
   const data = { applicationId: 'application1', type: 'driver', name: 'Applicant', city: 'City', phone: '+919876543210', consent: true };
   await assert.rejects(callable('submitPartnerApplication', 'customer', { ...data, consent: false }), error => error.code === 'invalid-argument');

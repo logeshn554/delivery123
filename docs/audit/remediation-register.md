@@ -1,6 +1,6 @@
 # Audit remediation register
 
-Updated 2026-10-10. Baseline requested audit: commit 489991268ab7164ec05108270aa5cd59025193de. The full supplied report is preserved in source-2026-10-09.md. This register explicitly retains unfinished work; code changes are not production acceptance.
+Updated 2026-10-12. Baseline requested audit: commit 489991268ab7164ec05108270aa5cd59025193de. The full supplied report is preserved in source-2026-10-09.md. This register explicitly retains unfinished work; code changes are not production acceptance.
 
 The user authorized fixing every finding and creating missing environment setup. Live resource creation is currently blocked by missing authenticated owner accounts/tools, business identity, cities, provider onboarding and signing. Substantial implementation remains as listed below. No release gate is accepted.
 
@@ -17,7 +17,7 @@ The user authorized fixing every finding and creating missing environment setup.
 
 | ID | Finding | Status | Work and remaining evidence |
 |---|---|---|---|
-| P0-01 | Two partially overlapping backends require a single authoritative contract. | Partial | Documented ownership; unique identity mapping; legacy SQL fulfillment remains to retire/migrate; full cross-store lifecycle acceptance pending. |
+| P0-01 | Two partially overlapping backends require a single authoritative contract. | Partial | Record authority is documented; unique identity mapping is server-owned; release Functions now require a live Neon-backed bridge session on every callable (local Firebase-only development remains available). Legacy SQL fulfillment reads still need an approved migration/retirement plan; full cross-store lifecycle acceptance remains pending. Evidence: `docs/audit/implementation-2026-10-12.md`. |
 | P0-02 | Production acceptance and provider configurations are absent from evidence. | Blocked on owner setup | Environment templates and evidence gates created; no cloud/provider resources or staging acceptance exists. |
 | P0-03 | Database and project configuration can drift. | Implemented; acceptance pending | Explicit CLI configs, runtime/native database alignment checks, separated databases and release fallback checks. Real resources still needed. |
 | P0-04 | Service identity, payment and booking journey must be tested atomically. | Partial | Durable creation intents, deterministic receipt recovery job, safe claim release and customer recovery implemented. Full payment/fulfillment/outbox and provider settlement acceptance pending. |
