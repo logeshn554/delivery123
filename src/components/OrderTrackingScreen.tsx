@@ -5,8 +5,10 @@ import BookingExceptionPanel from './BookingExceptionPanel';
 import { listenToBookingTracking, getTrackingRoute, type BookingTracking } from '../data/firestoreHelper';
 import { getParcelTrackingPresentation } from '../design-system/parcelTracking';
 import { isFreshTrackingRoute, isFreshTrackingTimestamp } from '../design-system/trackingFreshness';
+import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 
 export default function OrderTrackingScreen({ booking, onChat }: { booking: Booking; onChat: () => void }) {
+  const authority = bookingAuthorityCapabilities(booking);
   const [driver, setDriver] = useState<BookingTracking | null>(null);
   const [error, setError] = useState('');
   const [now, setNow] = useState(Date.now());
@@ -15,16 +17,17 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     let active = true; setRoute(null); setRouteError('');
-    if (!booking.driverId || ['cancelled', 'completed', 'delivered'].includes(booking.status)) return;
+    if (!authority.liveTracking || !booking.driverId || ['cancelled', 'completed', 'delivered'].includes(booking.status)) return;
     const refresh = () => { void getTrackingRoute(booking.bookingId).then(value => { if (active) { setRoute(value); setRouteError(''); } }).catch(() => { if (active) { setRoute(null); setRouteError('Travel estimate unavailable.'); } }); };
     refresh(); const timer = setInterval(refresh, 30000);
     return () => { active = false; clearInterval(timer); };
-  }, [booking.bookingId, booking.driverId, booking.status]);
+  }, [booking.bookingId, booking.driverId, booking.status, booking.recordAuthority]);
   useEffect(() => {
     setDriver(null); setError('');
-    if (!booking.driverId || ['cancelled', 'completed', 'delivered'].includes(booking.status)) return;
+    if (!authority.liveTracking || !booking.driverId || ['cancelled', 'completed', 'delivered'].includes(booking.status)) return;
     return listenToBookingTracking(booking.bookingId, setDriver, () => setError('Live partner location is currently unavailable.'));
-  }, [booking.bookingId, booking.driverId, booking.status]);
+  }, [booking.bookingId, booking.driverId, booking.status, booking.recordAuthority]);
+  if (!authority.liveTracking) return <section className="tracking-screen"><div className="tracking-status" role="status"><span>Historical record</span><h2>Live tracking is unavailable</h2><p>This order came from the legacy account store. Its current delivery status and location are not verified by AllGo’s booking system.</p></div></section>;
   const complete = ['completed', 'delivered'].includes(booking.status);
   const isRide = booking.serviceType === 'ride';
   const isParcel = booking.serviceType === 'parcel';

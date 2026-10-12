@@ -5,6 +5,7 @@ import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from
 import { fileURLToPath } from 'node:url';
 import { identityBridgeEnabled, bridgeIdentity, revokeBridgeSessions } from './firebaseIdentity.mjs';
 import { readSessionCookie, sessionCookieName, cookieOptions } from './sessionPolicy.mjs';
+import { projectLegacyBooking } from './legacyBookingReadModel.mjs';
 import { accountActionLink } from './accountActionPolicy.mjs';
 import { exportLegacyBookings } from './accountExport.mjs';
 
@@ -335,7 +336,7 @@ app.delete('/api/account/items/addresses/:id', route(async (req, res) => {
 }));
 app.get('/api/data/bookings', route(async (req, res) => {
   const { rows } = await pool.query('SELECT id,data FROM allgo_bookings WHERE account_id=$1 ORDER BY created_at DESC', [req.account.id]);
-  res.json(rows.map(row => ({ ...row.data, bookingId: row.id, customerId: req.account.id })));
+  res.json(rows.map(row => projectLegacyBooking(row, req.account.id)));
 }));
 app.get('/api/data/catalog/:kind', route(async (req, res) => {
   if (!['restaurants','menu','groceries','products'].includes(req.params.kind)) throw fail('Unknown catalog.');

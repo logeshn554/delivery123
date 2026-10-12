@@ -51,6 +51,7 @@ import { BundleTrackingScreen } from './BundleTrackingScreen';
 import { CatalogState } from '../design-system/CatalogState';
 import { CatalogImage } from '../design-system/CatalogImage';
 import { filterGroceryProducts, getGroceryCatalogView } from '../design-system/groceryCatalog';
+import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 
 
 interface CustomerAppProps {
@@ -492,7 +493,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   };
 
   const handleCancelOrder = async (booking: Booking) => {
-    if (booking.status !== 'pending' || booking.paymentStatus !== 'paid' || !(await confirm('Cancel this order? A refund will be requested to your original payment method.'))) return;
+    if (booking.recordAuthority === 'legacy_neon' || booking.status !== 'pending' || booking.paymentStatus !== 'paid' || !(await confirm('Cancel this order? A refund will be requested to your original payment method.'))) return;
     setCancellingOrderId(booking.bookingId);
     try {
       await requestBookingCancellation(booking.bookingId);
@@ -672,10 +673,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     } finally { setTicketBusy(false); }
   };
 
-  const latestOpenBooking = activeBookings.find((booking) => !['completed', 'delivered', 'cancelled'].includes(booking.status));
-  const recentRides = activeBookings.filter(booking => booking.serviceType === 'ride' && ['completed', 'delivered'].includes(booking.status))
+  const latestOpenBooking = activeBookings.find((booking) => booking.recordAuthority !== 'legacy_neon' && !['completed', 'delivered', 'cancelled'].includes(booking.status));
+  const recentRides = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'ride' && ['completed', 'delivered'].includes(booking.status))
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 3);
-  const currentParcels = activeBookings.filter(booking => booking.serviceType === 'parcel' && !['completed', 'delivered', 'cancelled'].includes(booking.status))
+  const currentParcels = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'parcel' && !['completed', 'delivered', 'cancelled'].includes(booking.status))
     .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt)).slice(0, 3);
   const globalSearchTerm = searchQuery.trim().toLowerCase();
   const matchingServiceLinks = [
@@ -794,7 +795,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           <div className="flex items-center gap-2">
             <button aria-label="View notifications" onClick={() => openPage('notifications')} className="relative p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-50 transition-colors">
               <Bell className="w-5 h-5" />
-              {activeBookings.some((booking) => !['completed', 'delivered', 'cancelled'].includes(booking.status)) && <span className="absolute top-1.5 right-1.5 bg-rose-500 w-2 h-2 rounded-full border border-white"></span>}
+              {activeBookings.some((booking) => booking.recordAuthority !== 'legacy_neon' && !['completed', 'delivered', 'cancelled'].includes(booking.status)) && <span className="absolute top-1.5 right-1.5 bg-rose-500 w-2 h-2 rounded-full border border-white"></span>}
             </button>
             <button aria-label="Open profile" onClick={() => { setActiveWorkflow('none'); setCurrentTab('profile'); }} className="bg-slate-100 p-2 rounded-xl border border-slate-200"><User className="w-4 h-4 text-slate-700" /></button>
           </div>
@@ -1124,7 +1125,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             {selectedOrderId && visibleBookings.find((booking) => booking.bookingId === selectedOrderId) && (() => {
               const bk = visibleBookings.find((booking) => booking.bookingId === selectedOrderId)!;
               const items = Array.isArray(bk.details?.items) ? bk.details.items : [];
-              return <><OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} /><ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-emerald-700">{bk.paymentStatus || 'Legacy record'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Payment reference: {bk.paymentId}</p>}{bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
+              const authority = bookingAuthorityCapabilities(bk);
+              const legacy = !authority.verifiedPayment;
+              return <>{legacy ? <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" role="status"><strong>Legacy read-only history.</strong> AllGo cannot verify this order against current booking, tracking or payment records.</div> : <OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} />}<ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{legacy ? `Recorded: ${bk.status}` : bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Recorded delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{legacy ? 'Unverified historical data' : bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-amber-800">{legacy ? 'Not verified by payment ledger' : bk.paymentStatus || 'Not recorded'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Recorded payment reference (unverified): {bk.paymentId}</p>}{!legacy && bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{!legacy && bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{!legacy && bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{!legacy && bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{!legacy && bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{!legacy && bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
             })()}
 
             {!selectedOrderId && activeBookings.length === 0 ? (
@@ -1142,13 +1145,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                       <p className="text-[10px] font-mono text-slate-400 mt-1">Ref: #{bk.bookingId}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-black text-slate-900">₹{bk.price}</span>
-                      <p className="text-[9px] text-slate-400 mt-0.5">OTP: <span className="font-bold font-mono text-slate-700">{bk.otp}</span></p>
+                      <span className="text-xs font-black text-slate-900">{bk.recordAuthority === 'legacy_neon' ? 'Recorded: ' : ''}₹{bk.price}</span>
+                      {bk.recordAuthority !== 'legacy_neon' && <p className="text-[9px] text-slate-400 mt-0.5">OTP: <span className="font-bold font-mono text-slate-700">{bk.otp}</span></p>}
                     </div>
                   </div>
 
                   {/* Status Steps tracking */}
-                  <div className="space-y-2.5 text-xs text-slate-700">
+                  {bk.recordAuthority === 'legacy_neon' ? <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Historical record only. Current order progress is not verified.</p> : <div className="space-y-2.5 text-xs text-slate-700">
                     <div className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[8px] font-bold">✓</span>
                       <span>Order Confirmed & Logged</span>
@@ -1171,19 +1174,21 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                     </div>
                     <div className="flex items-center gap-2"><span className={`grid h-3.5 w-3.5 place-items-center rounded-full text-[8px] font-bold ${bk.status === 'delivered' || bk.status === 'completed' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{bk.status === 'delivered' || bk.status === 'completed' ? '✓' : '○'}</span><span className={bk.status === 'delivered' || bk.status === 'completed' ? 'font-bold text-slate-900' : 'text-slate-500'}>{bk.serviceType === 'ride' ? 'Trip completed' : 'Delivered'}</span></div>
                     {bk.status === 'cancelled' && <p className="rounded-lg bg-rose-50 p-2 text-[10px] font-bold text-rose-700">This booking was cancelled.</p>}
-                  </div>
+                  </div>}
 
                   {/* Live Chat with Rider Button (Screen-9 trigger) */}
                   <div className="pt-3 border-t border-slate-50 flex justify-between items-center gap-2">
                     <div>
-                      {bk.driverName ? (
+                      {bk.recordAuthority === 'legacy_neon' ? (
+                        <p className="text-[10px] text-amber-800">Legacy record; driver assignment is unverified.</p>
+                      ) : bk.driverName ? (
                         <p className="text-[10px] text-slate-600 font-bold">Driver: {bk.driverName}</p>
                       ) : (
                         <p className="text-[9px] text-slate-400 italic">Waiting for a verified partner to accept this booking.</p>
                       )}
                     </div>
 
-                    {bk.driverId && (
+                    {bk.recordAuthority !== 'legacy_neon' && bk.driverId && (
                       <button
                         onClick={() => setActiveChatBookingId(bk.bookingId)}
                         className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-blue-500/10"
