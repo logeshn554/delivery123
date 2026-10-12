@@ -242,6 +242,83 @@ button:disabled { opacity: .6; cursor: wait; }
 .grocery-cart-conflict strong { font-size: 13px; }
 .grocery-cart-conflict p { margin: 3px 0 0; color: #705b41; font-size: 12px; line-height: 1.45; }
 .grocery-cart-conflict button { min-width: 44px; min-height: 44px; flex: 0 0 auto; border-radius: 12px; padding: 0 12px; background: #8a5a24; color: white; font-size: 12px; font-weight: 750; }
+.ride-booking-screen { display: grid; gap: 16px; padding-bottom: max(18px,env(safe-area-inset-bottom)); color: var(--allgo-ink); }
+.ride-booking-screen .mobile-page-heading { gap: 12px; margin: 0; }
+.ride-booking-screen .mobile-page-heading button { width: var(--allgo-touch-target); height: var(--allgo-touch-target); flex: 0 0 44px; border-radius: 14px; background: #edf1fb; color: #3655a8; }
+.ride-booking-screen .mobile-page-heading h1 { font-size: 22px; }
+.ride-booking-intro { padding: 20px; border: 1px solid #dce4f8; border-radius: 22px; background: linear-gradient(120deg,#eef3ff,#f7f8fc 70%,#e9effb); }
+.ride-booking-intro > span { color: #4164c8; font-size: 10px; font-weight: 850; letter-spacing: 1.5px; }
+.ride-booking-intro h2 { margin: 7px 0 6px; color: #202b48; font-size: clamp(21px,5vw,28px); line-height: 1.16; font-weight: 800; letter-spacing: -.55px; }
+.ride-booking-intro p { max-width: 430px; margin: 0; color: #5f6a84; font-size: 13px; line-height: 1.5; }
+.ride-recent-section { display: grid; gap: 10px; }
+.ride-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ride-section-heading h2 { margin: 0; color: #273047; font-size: 17px; font-weight: 800; }
+.ride-section-heading p { margin: 3px 0 0; color: #68738b; font-size: 12px; }
+.ride-section-heading > span { display: grid; min-width: 32px; height: 32px; place-items: center; border-radius: 12px; background: #edf1fb; color: #3556ad; font-size: 12px; font-weight: 800; }
+.ride-recent-list { display: grid; gap: 8px; }
+.ride-recent-card { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 12px; border: 1px solid #e2e7f0; border-radius: 16px; background: white; }
+.ride-recent-card > svg { flex: 0 0 19px; color: #4164c8; }
+.ride-recent-card > div:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.ride-recent-card > div:nth-child(2) strong, .ride-recent-card > div:nth-child(2) span { overflow: hidden; color: #30394c; font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.ride-recent-card > div:nth-child(2) span { color: #69738a; }
+.ride-recent-card small { color: #778098; font-size: 10px; }
+.ride-recent-end { display: grid; justify-items: end; gap: 4px; flex: 0 0 auto; }
+.ride-recent-end strong { color: #2e4b9d; font-size: 12px; }
+.ride-recent-end button { min-height: 44px; padding: 0 8px; color: #3557b0; font-size: 11px; font-weight: 750; }
+.ride-recent-empty { margin: 0; padding: 14px; border: 1px dashed #d9dfeb; border-radius: 15px; color: #68738b; background: #f7f9fd; font-size: 12px; line-height: 1.5; }
+.ride-booking-screen form { display: grid; gap: 12px; }
+.ride-route-fields { position: relative; display: grid; gap: 10px; }
+.ride-location-picker { position: relative; z-index: 1; margin: 0; padding: 13px; border-color: #e0e5ef; border-radius: 17px; box-shadow: 0 4px 16px #20355b08; }
+.ride-location-picker:focus-within { border-color: #6481d0; box-shadow: 0 0 0 3px #4164c81f; }
+.ride-location-picker label { color: #353d50; font-size: 13px; }
+.ride-location-picker label > span { gap: 8px; }
+.ride-location-picker label svg { color: #4164c8; }
+.ride-location-picker input { min-height: 48px; border-radius: 12px; border-color: #e6e9f0; background: #fafbfe; }
+.ride-location-picker > button { min-height: var(--allgo-touch-target); color: #3557b0; }
+.ride-location-picker li > button { min-height: var(--allgo-touch-target); overflow-wrap: anywhere; line-height: 1.45; }
+.ride-location-picker > small { color: #69738a; font-size: 11px; }
+.ride-route-connector { position: absolute; z-index: 0; top: 88px; bottom: 88px; left: 27px; width: 2px; border-left: 2px dashed #91a5d7; }
+.ride-booking-screen .form-section-title { margin: 4px 0 0; font-size: 18px; }
+.ride-vehicle-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0; }
+.ride-vehicle-options button { min-height: 108px; gap: 10px; padding: 14px 6px; border-color: #e2e6ef; border-radius: 17px; background: white; color: #596379; }
+.ride-vehicle-options button svg { color: #66738e; }
+.ride-vehicle-options strong { font-size: 13px; }
+.ride-vehicle-options button.selected { border-color: var(--allgo-ride); background: #f0f4ff; color: #2e4b9d; box-shadow: 0 0 0 2px #4164c820; }
+.ride-vehicle-options button.selected svg { color: var(--allgo-ride); }
+.ride-booking-screen .booking-label { gap: 8px; margin: 2px 0; color: #363d4d; font-size: 13px; }
+.ride-booking-screen .booking-label input, .ride-booking-screen .booking-label textarea { min-height: 48px; border-color: #e0e5ef; background: white; font-size: 16px; }
+.ride-booking-screen .page-caption { margin: 0; color: #667087; font-size: 13px; }
+.ride-quote-summary { display: grid; gap: 12px; padding: 16px; border: 1px solid #dce4f8; border-radius: 18px; background: #f7f9ff; }
+.ride-quote-route { display: grid; gap: 8px; }
+.ride-quote-route span { display: flex; min-width: 0; align-items: flex-start; gap: 8px; color: #30384a; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.ride-quote-route svg { flex: 0 0 16px; color: var(--allgo-ride); }
+.ride-quote-summary > p { margin: 0; color: #606b83; font-size: 12px; line-height: 1.45; }
+.ride-booking-screen .quote-review { align-items: flex-start; margin: 0; border: 1px solid #dce4f8; background: #edf2ff; color: #3556ad; }
+.ride-booking-screen .quote-review > svg { flex: 0 0 22px; margin-top: 2px; }
+.ride-booking-screen .quote-review span { color: #3d4c70; }
+.ride-booking-screen .quote-review strong { color: #233e8d; font-size: 30px; }
+.ride-booking-screen .quote-review small { color: #596887; }
+.ride-booking-screen .auth-primary { min-height: 52px; border-radius: 15px; background: linear-gradient(110deg,#4164c8,#324fae); box-shadow: 0 7px 20px #4164c824; }
+.ride-booking-screen :focus-visible { outline-color: #4164c8; }
+.ride-tracking-screen .tracking-status { border: 1px solid #dce4f8; background: linear-gradient(120deg,#eef3ff,#f8f9fc); }
+.ride-tracking-screen .tracking-status > span { color: #4164c8; }
+.ride-tracking-screen .tracking-status h2 { color: #202b48; }
+.ride-trip-summary { display: flex; justify-content: space-between; gap: 14px; padding: 16px; border: 1px solid #e0e6f3; border-radius: 18px; background: white; }
+.ride-trip-summary > div:first-child { display: grid; min-width: 0; gap: 5px; }
+.ride-trip-summary > div:first-child p { margin: 0; color: #30394c; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.ride-trip-summary > div:first-child span { color: #7886a3; font-size: 12px; }
+.ride-trip-summary > div:last-child { display: grid; align-content: start; justify-items: end; gap: 5px; flex: 0 0 auto; }
+.ride-trip-summary small { color: #6a748b; font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+.ride-trip-summary > div:last-child strong { color: #29458f; font-size: 18px; }
+.ride-trip-summary > div:last-child span { color: #626d84; font-size: 11px; }
+.ride-tracking-screen .tracking-steps .done span, .ride-tracking-screen .tracking-steps .done::before { background: var(--allgo-ride); color: white; }
+.ride-tracking-screen .tracking-map { border: 1px solid #dce3f0; }
+.ride-tracking-screen .tracking-map-empty { color: #61749e; }
+.ride-tracking-screen .tracking-map-empty strong { color: #314976; }
+.ride-tracking-screen .partner-avatar { background: #edf2ff; color: var(--allgo-ride); }
+.ride-tracking-screen .tracking-partner button { display: grid; width: 44px; height: 44px; place-items: center; background: #edf2ff; color: var(--allgo-ride); }
+.ride-tracking-screen .tracking-otp { border: 1px solid #dce4f8; background: #eef3ff; color: #3556ad; }
+@media (max-width: 360px) { .ride-booking-intro { padding: 17px; } .ride-location-picker { padding: 11px; } .ride-route-connector { left: 25px; } .ride-vehicle-options { gap: 7px; } .ride-vehicle-options button { min-height: 100px; } }
 @media (max-width: 380px) { .catalog-state { padding: 16px; gap: 10px; } .catalog-state-action { align-self: flex-end; } .catalog-state-action button { padding-inline: 10px; } .food-restaurant-open img, .food-restaurant-image-fallback { height: 138px; } }
 @media (max-width: 360px) { .grocery-hero { min-height: 132px; padding: 17px; } .grocery-hero-mark { width: 52px; height: 52px; flex-basis: 52px; border-radius: 17px; } .grocery-product-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .grocery-product-copy { padding: 10px 9px 7px; } .grocery-product-actions { padding: 0 9px 9px; } .grocery-filter-toolbar { gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }

@@ -27,9 +27,28 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 
 ## Ride
 
-- [ ] Align booking and quote screens with the shared design foundation and supplied ride reference.
-- [ ] Preserve configured vehicle choices, pricing, coverage checks and server quote authority.
-- [ ] Validate location, permission, loading, quote failure and booking recovery states.
+- [x] Apply the shared design foundation to ride route entry, existing vehicle choices and fare review.
+- [x] Preserve the existing address picker, Bike/Auto/Car options, server quote and payment flow; validate server fare, route estimates and quote expiration before display.
+- [x] Add regressions for invalid quotes and exact expiry boundaries; location permission/search and quote failure states continue through the existing picker and server error recovery.
+- [x] Show recent completed rides from the user's booking records and adapt tracking details/status to the actual ride booking, assigned vehicle type and fresh reported driver location.
+- [ ] Extend the reference's vehicle/map presentation only when verified provider data is available; no unprovided driver, ETA, route image or fare has been added.
+- [ ] Validate mobile/desktop layouts, large text, keyboard, screen reader, location permission and live quote recovery; local browser preview remains unavailable.
+- [x] Commit and push a separate Ride feature branch. Draft pull-request creation was attempted but the connected GitHub integration returned HTTP 403 (`Resource not accessible by integration`); compare link is recorded in implementation evidence below.
+
+### Ride implementation evidence
+
+- Branch: `codex/ride-ui`, stacked on `codex/grocery-ui`.
+- Changed UI: `src/components/ServiceBookingScreen.tsx`, `src/components/OrderTrackingScreen.tsx`, `src/components/LocationPicker.tsx`, `src/components/CustomerApp.tsx`, `src/index.css`.
+- Regression coverage: `src/design-system/serviceQuote.ts` and `tests/ui/serviceQuote.test.ts` cover malformed quote data and quote expiry boundaries.
+- `npm run lint`: passed.
+- `npm test`: passed (58 Functions tests, 5 customer UI tests, 12 server tests, secret scan of 310 snapshots).
+- `npm run test:rules`: passed (89 tests, 0 failures).
+- `npm run build`: passed; Vite reports the existing `accounts` chunk at 602.87 kB.
+- `npm run android:sync`: Vite build and Capacitor Android asset sync passed; the wrapper then exited because `ios/App/App/capacitor.config.json` is missing. Native Firebase config is also absent locally.
+- Android `:app:assembleDebug`: passed with JDK 21; this is an unsigned debug build, not device acceptance.
+- `git diff --check`: passed.
+- Visual review, accessibility/device acceptance, provider-configured map experience, and live location/quote recovery remain pending. Local browser preview was unavailable under this session's local-server policy.
+- Pull-request compare: <https://github.com/logeshn554/delivery123/compare/codex/grocery-ui...codex/ride-ui?expand=1>. GitHub API attempt returned HTTP 403, so no pull request has been created.
 
 ## Delivery
 
