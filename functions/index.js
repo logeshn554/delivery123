@@ -29,6 +29,7 @@ const { partnerEvidenceFunctions } = require('./partnerEvidence');
 const { evidenceScanningFunctions } = require('./evidenceScanning');
 const { evidenceReviewFunctions } = require('./evidenceReview');
 const { driverEligibilityFunctions } = require('./driverEligibility');
+const { merchantEligibilityFunctions } = require('./merchantEligibility');
 const { scanBytes } = require('./clamScanner');
 const { getStorage } = require('firebase-admin/storage');
 const { catalogSearchFunctions } = require('./catalogSearch');
@@ -58,6 +59,7 @@ Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGIO
 Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
+Object.assign(exports, merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 function evidenceBucket(name) {
   const configured = process.env.EVIDENCE_STORAGE_BUCKET;
   if (!configured || name && name !== configured) throw new HttpsError('failed-precondition', 'The private document bucket is not configured for this environment.');
