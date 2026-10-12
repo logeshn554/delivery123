@@ -7,6 +7,7 @@ import { Booking, MenuItem, GroceryProduct } from '../types';
 import MerchantHoursEditor from './MerchantHoursEditor';
 import MerchantClosuresEditor from './MerchantClosuresEditor';
 import MerchantCatalogEditor from './MerchantCatalogEditor';
+import StockMovementHistory from './StockMovementHistory';
 import MerchantPreparationEditor from './MerchantPreparationEditor';
 import BookingExceptionPanel from './BookingExceptionPanel';
 import MerchantRejection from './MerchantRejection';
@@ -240,9 +241,10 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
             <div className="space-y-2 bg-slate-800 p-3 rounded-xl border border-slate-700">
               {activeStock.map(prod => (
                 <div key={prod.id} className="flex justify-between items-center py-2 border-b border-slate-700/50 last:border-none text-xs">
-                  <div>
+                  <div className="min-w-0 flex-1 pr-2">
                     <h5 className="font-bold text-slate-200">{prod.name}</h5>
                     <p className="text-[10px] text-slate-400">{prod.unit} · ₹{prod.price}</p>
+                    <StockMovementHistory storeId={merchantId!} productId={prod.id}/>
                   </div>
                   
                   <div className="flex items-end gap-2"><label className="text-[10px] text-slate-300">Unreserved stock · current {prod.stock}<input type="number" min="0" step="1" value={stockInputs[prod.id] ?? ''} onChange={event => { const value = event.target.value; setStockBaselines(current => ({ ...current, [prod.id]: prod.stock })); setStockInputs(current => ({ ...current, [prod.id]: value })); }} className="mt-1 block w-20 rounded-lg bg-slate-950 p-2 text-base" /></label><button disabled={Boolean(busy) || stockInputs[prod.id] === undefined} onClick={() => void handleToggleProductStock(prod.id)} className="min-h-11 rounded-lg bg-blue-600 px-3 font-bold disabled:opacity-50">Save</button></div>

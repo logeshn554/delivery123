@@ -23,6 +23,7 @@ const { redactBookingHistory } = require('./bookingRedaction');
 const { fullyPicked, groceryPickingFunctions } = require('./groceryPicking');
 const { productWithinExpiry } = require('./productExpiry');
 const { assertStockBaseline } = require('./stockBaseline');
+const { recordStockMovement, combineStockLines } = require('./inventoryJournal');
 const { partnerApplicationFunctions } = require('./partnerApplications');
 const { partnerEvidenceFunctions } = require('./partnerEvidence');
 const { evidenceScanningFunctions } = require('./evidenceScanning');
@@ -35,6 +36,7 @@ const { contractFor, driverTransition, merchantTransition } = require('./fulfill
 const { journal } = require('./journalPolicy');
 const { addCents } = require('./moneyPolicy');
 const { settlementPolicy, calculateDriverSettlement } = require('./settlementPolicy');
+const { tripBundleFunctions } = require('./tripBundleFunctions');
 
 const app = initializeApp();
 if (process.env.ALLGO_ENVIRONMENT && !process.env.FIRESTORE_DATABASE_ID) throw new Error('Release Functions require an explicit FIRESTORE_DATABASE_ID.');
@@ -97,7 +99,7 @@ function onCall(options, handler) {
     try { return await handler(request); }
     catch (error) {
       if (error instanceof HttpsError) throw error;
-      console.error('Callable failed', { endpoint, code: error.code || 'internal' });
+      console.error('Callable failed', endpoint, error.message, error.stack);
       throw new HttpsError('internal', 'The request could not be completed. Check its status before retrying.');
     }
   });
@@ -219,6 +221,7 @@ exports.updateMerchantCatalog = onCall({ operation: 'updateMerchantCatalog', reg
     if (!parent.exists || !item.exists) throw new HttpsError('not-found', 'The catalog item is unavailable.');
     if (type === 'grocery') assertStockBaseline(item.data().stock, request.data.expectedStock, HttpsError);
     transaction.update(itemRef, changes);
+    if (type === 'grocery') recordStockMovement(transaction, itemRef, itemRef.collection('stock_events').doc().id, 'adjustment', item.data().stock, changes.stock, { operatorId: uid });
     transaction.create(db.collection('operations_audit').doc(), { operatorId: uid, action: 'catalog_availability_updated', target: itemRef.path, changes, createdAt: Timestamp.now() });
     return { updated: true };
   });
@@ -243,8 +246,8 @@ function normalizeItems(input) {
   return [...merged.values()];
 }
 
-async function priceAndPrepareBooking(uid, input) {
-  const serviceType = input?.serviceType;
+async function priceLeg(uid, input) {
+  const serviceType = input?.serviceType || input?.type;
   const allowed = ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'];
   if (!allowed.includes(serviceType)) throw new HttpsError('invalid-argument', 'Unsupported AllGo service.');
 
@@ -408,28 +411,68 @@ async function priceAndPrepareBooking(uid, input) {
     if (!Number.isSafeInteger(pricingRecord?.version) || pricingRecord.version < 1) throw new Error('Publish a reviewed service rate version before enabling checkout.');
     contract = { ...settlementPolicy(pricingRecord.settlement), version: pricingRecord.version, serviceType };
   } catch (error) { throw new HttpsError('failed-precondition', error.message); }
-  const booking = {
-    bookingId: `ALLGO_${crypto.randomUUID()}`,
-    customerId: uid,
-    customerName,
+  const leg = {
     serviceType,
-    status: 'pending',
-    price: amount / 100,
-    createdAt: now,
-    updatedAt: now,
+    type: serviceType,
     pickupAddress,
     dropAddress,
     driverId: null,
     settlementContract: contract,
     otp: String(crypto.randomInt(1000, 10000)),
     paymentStatus: 'paid',
-    paymentOrderId: '',
-    paymentId: '',
     ...(['food', 'grocery'].includes(serviceType) ? { merchantId: serviceType === 'food' ? details.restaurantId : details.storeId } : {}),
     details
   };
-  if (priceBreakdown) booking.priceBreakdown = priceBreakdown;
-  return { amount, booking, items: details.items || [], storeId: details.storeId || null, restaurantId: details.restaurantId || null };
+  if (priceBreakdown) leg.priceBreakdown = priceBreakdown;
+
+  const legBreakdown = {
+    itemCents: priceBreakdown?.itemCents ?? (serviceType === 'ride' ? 0 : amount),
+    deliveryCents: priceBreakdown?.deliveryCents ?? 0,
+    rideFareCents: serviceType === 'ride' ? amount : 0,
+    detourCents: 0,
+    packagingCents: priceBreakdown?.packagingCents ?? 0,
+    platformCents: priceBreakdown?.platformCents ?? 0,
+    taxCents: priceBreakdown?.taxCents ?? 0,
+    discountCents: priceBreakdown?.discountCents ?? 0,
+    totalCents: amount,
+  };
+
+  return {
+    amount,
+    leg,
+    priceBreakdown: legBreakdown,
+    items: details.items || [],
+    storeId: details.storeId || null,
+    restaurantId: details.restaurantId || null,
+    customerName,
+  };
+}
+
+async function priceAndPrepareBooking(uid, input) {
+  const priced = await priceLeg(uid, input);
+  const now = new Date().toISOString();
+  const booking = {
+    bookingId: `ALLGO_${crypto.randomUUID()}`,
+    customerId: uid,
+    customerName: priced.customerName,
+    serviceType: priced.leg.serviceType,
+    status: 'pending',
+    price: priced.amount / 100,
+    createdAt: now,
+    updatedAt: now,
+    pickupAddress: priced.leg.pickupAddress,
+    dropAddress: priced.leg.dropAddress,
+    driverId: null,
+    settlementContract: priced.leg.settlementContract,
+    otp: priced.leg.otp,
+    paymentStatus: 'paid',
+    paymentOrderId: '',
+    paymentId: '',
+    ...(priced.leg.merchantId ? { merchantId: priced.leg.merchantId } : {}),
+    details: priced.leg.details
+  };
+  if (priced.leg.priceBreakdown) booking.priceBreakdown = priced.leg.priceBreakdown;
+  return { amount: priced.amount, booking, items: priced.items, storeId: priced.storeId, restaurantId: priced.restaurantId };
 }
 
 async function razorpayRequest(path, method, body, extraHeaders = {}) {
@@ -476,6 +519,33 @@ async function applyCoupon(uid, quote, rawCode) {
   if (!Number.isSafeInteger(discount) || discount <= 0 || discount >= quote.amount || quote.amount - discount < 100) throw new HttpsError('failed-precondition', 'This offer has an invalid discount configuration.');
   return { ...quote, amount: quote.amount - discount, booking: { ...quote.booking, price: (quote.amount - discount) / 100, originalPrice: quote.amount / 100, couponCode: code, couponDiscountCents: discount, ...(quote.booking.priceBreakdown ? { priceBreakdown: { ...quote.booking.priceBreakdown, discountCents: discount, totalCents: quote.amount - discount } } : {}) } };
 }
+
+Object.assign(exports, tripBundleFunctions({
+  onCall,
+  onSchedule,
+  onDocumentWritten,
+  db,
+  REGION,
+  databaseId,
+  HttpsError,
+  Timestamp,
+  FieldValue,
+  documentId,
+  cleanText,
+  requireUser,
+  priceLeg,
+  razorpayRequest,
+  validSignature,
+  RAZORPAY_KEY_ID,
+  RAZORPAY_KEY_SECRET,
+  MAPS_API_KEY,
+  recordStockMovement,
+  productWithinExpiry,
+  calculateDriverSettlement,
+  addCents,
+  journal,
+  CURRENCY,
+}));
 
 exports.previewCartCoupon = onCall({ operation: 'previewCartCoupon', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
   const uid = requireUser(request);
@@ -581,7 +651,11 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
         transaction.update(walletRef, { walletBalance: (walletBalance - attempt.amount) / 100 });
         transaction.create(db.doc(`wallet_ledger/${attempt.uid}/entries/${orderId}`), { kind: 'booking', amountCents: -attempt.amount, balanceCents: walletBalance - attempt.amount, bookingId: attempt.bookingId, createdAt: new Date().toISOString() });
       }
-      stockSnaps.forEach((snapshot, index) => transaction.update(stockRefs[index], { stock: snapshot.data().stock - attempt.items[index].quantity }));
+      stockSnaps.forEach((snapshot, index) => {
+        const before = snapshot.data().stock, after = before - attempt.items[index].quantity;
+        transaction.update(stockRefs[index], { stock: after });
+        recordStockMovement(transaction, stockRefs[index], `reserve_${orderId}`, 'reservation', before, after, { bookingId: attempt.bookingId });
+      });
       if (couponRef) {
         transaction.update(couponRef, { redeemedCount: (coupon.data().redeemedCount || 0) + 1 });
         transaction.create(redemptionRef, { uid: attempt.uid, bookingId: booking.bookingId, discountCents: booking.couponDiscountCents, createdAt: Timestamp.now() });
@@ -670,6 +744,21 @@ exports.updateDriverLocation = onCall({ operation: 'updateDriverLocation', regio
     const updatedAt = new Date().toISOString();
     transaction.update(driverRef, { currentLat: location.lat, currentLng: location.lng, locationAccuracyMeters: accuracy, locationUpdatedAt: updatedAt });
     if (booking?.data()?.driverId === uid && !['completed', 'delivered', 'cancelled'].includes(booking.data().status)) transaction.set(db.doc(`booking_tracking/${booking.id}`), { driverId: uid, currentLat: location.lat, currentLng: location.lng, locationAccuracyMeters: accuracy, locationUpdatedAt: updatedAt });
+    if (data.activeBundleId && data.activeLegId) {
+      const bundleTrackingRef = db.doc(`bundle_tracking/${data.activeBundleId}`);
+      transaction.set(bundleTrackingRef, {
+        legs: {
+          [data.activeLegId]: {
+            driverId: uid,
+            currentLat: location.lat,
+            currentLng: location.lng,
+            locationAccuracyMeters: accuracy,
+            locationUpdatedAt: updatedAt,
+          }
+        },
+        updatedAt
+      }, { merge: true });
+    }
     return { accepted: true };
   });
 });
@@ -1317,12 +1406,16 @@ exports.listPendingRefunds = onCall({ operation: 'listPendingRefunds', region: R
 
 async function restoreCancelledInventory(transaction, bookingRef, booking) {
   if (booking.serviceType !== 'grocery' || booking.inventoryRestored === true || !booking.details?.storeId) return;
-  const items = booking.details.items || [];
+  const plan = combineStockLines(booking.details.items), items = plan.items;
   const refs = items.map(item => db.doc(`grocery_stores/${booking.details.storeId}/products/${item.id}`));
   const snapshots = await Promise.all(refs.map(ref => transaction.get(ref)));
-  let needsReview = false;
+  let needsReview = plan.needsReview;
   snapshots.forEach((snapshot, index) => {
-    if (snapshot.exists && Number.isFinite(snapshot.data().stock) && snapshot.data().stock >= 0) transaction.update(refs[index], { stock: snapshot.data().stock + items[index].quantity });
+    if (snapshot.exists && Number.isSafeInteger(snapshot.data().stock) && snapshot.data().stock >= 0 && Number.isSafeInteger(snapshot.data().stock + items[index].quantity)) {
+      const before = snapshot.data().stock, after = before + items[index].quantity;
+      transaction.update(refs[index], { stock: after });
+      recordStockMovement(transaction, refs[index], `return_${bookingRef.id}`, 'return', before, after, { bookingId: bookingRef.id });
+    }
     else needsReview = true;
   });
   transaction.update(bookingRef, { inventoryRestored: true, inventoryRestoreNeedsReview: needsReview });

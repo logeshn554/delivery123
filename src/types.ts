@@ -143,6 +143,8 @@ export interface Booking {
   paymentMethod?: 'upi' | 'card' | 'netbanking' | 'wallet' | 'emi' | 'other';
   paymentOrderId?: string;
   paymentId?: string;
+  bundleId?: string;
+  legId?: string;
   details?: BookingDetails;
 }
 
@@ -236,4 +238,74 @@ export interface SupportTicket {
   message: string;
   status: 'open' | 'in_progress' | 'escalated' | 'resolved';
   createdAt: string;
+}
+
+export type LegType = 'ride' | 'food' | 'grocery' | 'parcel' | 'takeover' | 'transport';
+export type LegStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'transit' | 'delivered' | 'completed' | 'cancelled';
+export type BundleStatus = 'pending' | 'active' | 'partial' | 'completed' | 'cancelled';
+export type FulfillmentMethod = 'ride_driver' | 'separate_partner' | 'self_pickup';
+export type PaymentMethod = 'upi' | 'card' | 'netbanking' | 'wallet';
+
+export interface BundleLegBreakdown {
+  legId: string;
+  type: LegType;
+  itemCents: number;
+  deliveryCents: number;
+  rideFareCents: number;
+  detourCents: number;
+  packagingCents: number;
+  platformCents: number;
+  taxCents: number;
+  discountCents: number;
+  totalCents: number;
+}
+
+export interface BundleLeg {
+  legId: string;
+  legIndex: number;
+  type: LegType;
+  status: LegStatus;
+  merchantId?: string;
+  driverId?: string | null;
+  driverName?: string;
+  pickupAddress: string;
+  dropAddress: string;
+  pickupLocation?: { lat: number; lng: number };
+  dropLocation?: { lat: number; lng: number };
+  fulfillmentMethod?: FulfillmentMethod;
+  fulfillmentDecidedAt?: string;
+  items?: BookingDetails['items'];
+  priceBreakdown: BundleLegBreakdown;
+  settlementContract?: PartnerSettlementContract;
+  otp?: string;
+  pickupOtp?: string;
+  estimatedKm?: number;
+  estimatedMinutes?: number;
+  readyEta?: string;
+  detour?: { addedKm: number; addedMinutes: number; costCents: number };
+  exception?: Booking['exception'];
+  preparation?: Booking['preparation'];
+  picking?: Booking['picking'];
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export interface TripBundle {
+  bundleId: string;
+  status: BundleStatus;
+  customerId: string;
+  customerName: string;
+  totalCents: number;
+  paymentOrderId: string;
+  paymentId: string;
+  paymentMethod?: PaymentMethod;
+  paymentStatus: 'created' | 'paid' | 'partial_refund' | 'refunded';
+  couponCode?: string;
+  couponDiscountCents?: number;
+  breakdown: BundleLegBreakdown[];
+  legCount: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
 }

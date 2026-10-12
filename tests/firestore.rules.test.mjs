@@ -1,7 +1,7 @@
 import { before, after, beforeEach, test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, getDocs, collection, query, where, setDoc, updateDoc, deleteDoc, Timestamp, setLogLevel } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where, orderBy, limit, setDoc, updateDoc, deleteDoc, Timestamp, setLogLevel } from 'firebase/firestore';
 setLogLevel('silent');
 let env;
 before(async () => { env = await initializeTestEnvironment({ projectId: 'demo-allgo', firestore: { host: '127.0.0.1', port: 8080, rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } }); });
@@ -19,6 +19,22 @@ beforeEach(async () => {
   });
 });
 const dbFor = (uid, claims = {}) => env.authenticatedContext(uid, claims).firestore();
+
+test('stock movement records are immutable and private to the grocery owner and operations', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'users/grocer'), { role: 'merchant', merchantType: 'grocery', merchantId: 'shop' });
+    await setDoc(doc(context.firestore(), 'grocery_stores/shop/products/item/stock_events/reservation'), { kind: 'reservation', delta: -1, createdAt: '2026-10-12T00:00:00.000Z' });
+  });
+  const path = 'grocery_stores/shop/products/item/stock_events/reservation';
+  await assertSucceeds(getDoc(doc(dbFor('grocer'), path)));
+  await assertSucceeds(getDocs(query(collection(dbFor('grocer'), 'grocery_stores/shop/products/item/stock_events'), orderBy('createdAt', 'desc'), limit(31))));
+  await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), path)));
+  await assertFails(getDoc(doc(dbFor('customer'), path)));
+  await assertFails(getDocs(query(collection(dbFor('customer'), 'grocery_stores/shop/products/item/stock_events'), orderBy('createdAt', 'desc'), limit(31))));
+  await assertFails(getDoc(doc(dbFor('merchant'), path)));
+  await assertFails(updateDoc(doc(dbFor('grocer'), path), { delta: 99 }));
+  await assertFails(deleteDoc(doc(dbFor('admin', { admin: true }), path)));
+});
 
 test('even administrators cannot bypass audited driver eligibility through client profile writes', async () => {
   await assertFails(updateDoc(doc(dbFor('admin', { admin: true }), 'driver_profiles/driver'), { status: 'rejected', online: false, supportedServices: [] }));
@@ -157,3 +173,82 @@ test('expired and revoked Neon-linked sessions are denied even with an otherwise
   await assertFails(getDoc(doc(dbFor('customer', { allgoSession: 'expired' }), 'bookings', 'assigned')));
   await assertFails(getDoc(doc(dbFor('other', { allgoSession: 'valid' }), 'bookings', 'assigned')));
 });
+
+test('bundle and leg collections enforce ownership, cross-leg driver isolation, and deny forged writes', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'bundles', 'bnd_test'), {
+      bundleId: 'bnd_test',
+      customerId: 'customer',
+      status: 'active',
+      totalCents: 5000,
+    });
+    await setDoc(doc(db, 'bundles/bnd_test/legs/leg_ride'), {
+      legId: 'leg_ride',
+      type: 'ride',
+      status: 'active',
+      driverId: 'driver',
+    });
+    await setDoc(doc(db, 'bundles/bnd_test/legs/leg_food'), {
+      legId: 'leg_food',
+      type: 'food',
+      status: 'ready',
+      driverId: 'driver_2',
+      merchantId: 'shop',
+    });
+    await setDoc(doc(db, 'users/driver_2'), { uid: 'driver_2', role: 'driver', createdAt: '2026-10-09' });
+    await setDoc(doc(db, 'bundle_tracking', 'bnd_test'), {
+      legs: {
+        leg_ride: { driverId: 'driver', currentLat: 13.08, currentLng: 80.27 }
+      }
+    });
+    await setDoc(doc(db, 'bundle_codes', 'bnd_test'), {
+      customerId: 'customer',
+      legs: { leg_ride: { code: '9999' } }
+    });
+    await setDoc(doc(db, 'subscriptions', 'customer'), {
+      uid: 'customer',
+      status: 'active',
+      expiresAt: Timestamp.fromMillis(Date.now() + 86400000),
+    });
+  });
+
+  // 1. Bundle reads: Customer and admin can read; other customer or driver cannot read parent bundle
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'bundles', 'bnd_test')));
+  await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), 'bundles', 'bnd_test')));
+  await assertFails(getDoc(doc(dbFor('other'), 'bundles', 'bnd_test')));
+
+  // 2. Client-written bundle writes or forged status changes are denied
+  await assertFails(setDoc(doc(dbFor('customer'), 'bundles', 'forged_bundle'), { customerId: 'customer', status: 'completed' }));
+  await assertFails(updateDoc(doc(dbFor('customer'), 'bundles', 'bnd_test'), { status: 'completed' }));
+  await assertFails(updateDoc(doc(dbFor('admin', { admin: true }), 'bundles', 'bnd_test'), { status: 'cancelled' }));
+
+  // 3. Leg isolation:
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'bundles/bnd_test/legs/leg_ride')));
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'bundles/bnd_test/legs/leg_food')));
+
+  // Driver 1 reads their assigned ride leg, but is DENIED reading sibling food leg!
+  await assertSucceeds(getDoc(doc(dbFor('driver'), 'bundles/bnd_test/legs/leg_ride')));
+  await assertFails(getDoc(doc(dbFor('driver'), 'bundles/bnd_test/legs/leg_food')));
+
+  // Merchant reads food leg, but is DENIED reading ride leg!
+  await assertSucceeds(getDoc(doc(dbFor('merchant'), 'bundles/bnd_test/legs/leg_food')));
+  await assertFails(getDoc(doc(dbFor('merchant'), 'bundles/bnd_test/legs/leg_ride')));
+
+  // 4. Clients cannot write legs directly
+  await assertFails(setDoc(doc(dbFor('driver'), 'bundles/bnd_test/legs/forged_leg'), { type: 'ride', status: 'completed' }));
+  await assertFails(updateDoc(doc(dbFor('driver'), 'bundles/bnd_test/legs/leg_ride'), { status: 'completed' }));
+
+  // 5. bundle_tracking: customer reads, other is denied, client writes denied
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'bundle_tracking', 'bnd_test')));
+  await assertFails(getDoc(doc(dbFor('other'), 'bundle_tracking', 'bnd_test')));
+  await assertFails(updateDoc(doc(dbFor('customer'), 'bundle_tracking', 'bnd_test'), { updatedAt: '2026-10-12' }));
+
+  // 6. subscriptions: owner and admin read, others denied; client cannot write, admin can write
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'subscriptions', 'customer')));
+  await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), 'subscriptions', 'customer')));
+  await assertFails(getDoc(doc(dbFor('other'), 'subscriptions', 'customer')));
+  await assertFails(setDoc(doc(dbFor('customer'), 'subscriptions', 'customer'), { status: 'active' }));
+  await assertSucceeds(setDoc(doc(dbFor('admin', { admin: true }), 'subscriptions', 'customer_new'), { uid: 'customer_new', status: 'active' }));
+});
+

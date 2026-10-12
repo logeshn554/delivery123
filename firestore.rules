@@ -82,6 +82,25 @@ service cloud.firestore {
       );
     }
 
+    function isMerchantForLeg(data) {
+      let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isSignedIn() && account.role == 'merchant'
+        && account.get('merchantId', '') != ''
+        && data.get('merchantId', '') == account.get('merchantId', '')
+        && ((account.get('merchantType', '') == 'restaurant' && data.type == 'food') || (account.get('merchantType', '') == 'grocery' && data.type == 'grocery'));
+    }
+
+    function canReadLeg(bundleId, legData) {
+      let bundle = get(/databases/$(database)/documents/bundles/$(bundleId)).data;
+      return isSignedIn() && (
+        bundle.customerId == request.auth.uid ||
+        legData.driverId == request.auth.uid ||
+        legData.driverId == request.auth.uid + '_drv' ||
+        isMerchantForLeg(legData) ||
+        isAdmin()
+      );
+    }
+
     // 3. VALIDATION HELPERS BY COLLECTION
 
     function isValidUser(data) {
@@ -268,6 +287,10 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
       match /products/{productId} {
         allow read: if true;
         allow write: if false;
+        match /stock_events/{eventId} {
+          allow read: if isSignedIn() && (isAdmin() || isMerchantFor({'merchantId': storeId, 'serviceType': 'grocery'}));
+          allow write: if false;
+        }
       }
     }
 
@@ -324,6 +347,52 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
     match /booking_codes/{bookingId} {
       allow get, list: if isSignedIn() && resource.data.customerId == request.auth.uid;
       allow write: if false;
+    }
+
+    // TRIP BUNDLES & LEGS
+    match /bundles/{bundleId} {
+      allow read: if isSignedIn() && (resource.data.customerId == request.auth.uid || isAdmin());
+      allow write: if false; // server-only
+
+      match /legs/{legId} {
+        // customer sees all their legs; driver sees only their own leg; merchant sees only their assigned leg
+        allow read: if canReadLeg(bundleId, resource.data);
+        allow write: if false; // server-only
+
+        match /events/{eventId} {
+          allow read: if canReadLeg(bundleId, get(/databases/$(database)/documents/bundles/$(bundleId)/legs/$(legId)).data);
+          allow write: if false;
+        }
+
+        match /chats/{chatId} {
+          allow read: if canReadLeg(bundleId, get(/databases/$(database)/documents/bundles/$(bundleId)/legs/$(legId)).data);
+          allow create: if canReadLeg(bundleId, get(/databases/$(database)/documents/bundles/$(bundleId)/legs/$(legId)).data)
+            && incoming().keys().hasOnly(['senderId', 'senderName', 'text', 'timestamp'])
+            && incoming().senderId == request.auth.uid;
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    match /bundle_tracking/{bundleId} {
+      allow read: if isSignedIn() && (
+        get(/databases/$(database)/documents/bundles/$(bundleId)).data.customerId == request.auth.uid
+        || isAdmin()
+      );
+      allow write: if false;
+    }
+
+    match /bundle_codes/{bundleId} {
+      allow read: if isSignedIn() && (
+        get(/databases/$(database)/documents/bundles/$(bundleId)).data.customerId == request.auth.uid
+        || isAdmin()
+      );
+      allow write: if false;
+    }
+
+    match /subscriptions/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if isAdmin(); // only admins can grant/revoke
     }
 
     // Payment attempts are private to trusted Cloud Functions (Admin SDK bypasses these rules).

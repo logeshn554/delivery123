@@ -15,6 +15,7 @@ Work proceeds in order. Each phase has source implementation, error/empty/loadin
 | 9 | Native authentication and notifications | Android/iOS Google, Apple where supported, phone OTP, push tokens, event notifications and deep links | Source implemented; native/provider acceptance pending |
 | 10 | Production hardening | Rules/roles audit, rate limiting, monitoring, recovery, data retention, deployment environments and release validation | Source implemented; cloud hardening acceptance pending |
 | 11 | Android/iOS delivery | Signed Android build on device; iOS build/signing on macOS; store assets, review requirements, deployment and smoke checks | Build preparation implemented; signing/device acceptance pending |
+| 12 | One Unified Trip Bundle (mingled ride + food + grocery) | Single booking/quote/checkout/tracking; multi-leg bundles; server policy with operator config; driver detours and separate partner fallback; per-leg refunds; COD gate | Source implemented; emulator tests passing (89 rules/emulator, 58 functions); live provider/staging acceptance pending |
 
 ## Design scope
 
@@ -97,3 +98,16 @@ Finish and document one phase before advancing. Review changes against its compl
 
 - Android debug APK, unsigned release APK and unsigned AAB rebuilt successfully from the Firebase-filtered synchronized bundle with JDK 21/SDK 35. `npm run lint`, production Vite build and Cloud Functions syntax checks pass. Added external signing/version environment support and a signing-required build switch. New monogram icons are in `release-assets` for operator review. The web bundle is copied to the iOS source project; native Firebase plugin registration is omitted there until the real plist is supplied.
 - Pending: connected-device acceptance, actual signing identity, native Firebase registration, iOS macOS/Xcode archive, approved store screenshots/listing/privacy policy and cloud deployment. Exact handoff is in `RELEASE_HANDOFF.md`.
+
+## Phase 12 progress
+
+- Source complete: One Unified Trip Bundle feature.
+  - Data model: `bundles/`, child `legs/`, `bundle_tracking/`, `bundle_codes/`, and `subscriptions/` added to Firestore rules with default-deny, role-scoped access control.
+  - Policy modules: `bundlePolicy.js` (derives aggregate bundle status from arbitrary leg status combinations), `bundleFulfillmentPolicy.js` (evaluates en-route driver detours against operator limits in `platform_config/bundle_fulfillment_policy`, falling back to separate partner or self-pickup), `codPolicy.js` (server-side COD eligibility gate against `subscriptions/{uid}`), `perLegRefundPolicy.js` (independent per-leg partial refund calculation with idempotency keys and balanced ledger journals).
+  - Admin callable: `migrateLegacyBookingToBundle` (idempotent, supports dry-run mode).
+  - Refactored `priceAndPrepareBooking` into reusable `priceLeg` while preserving legacy callable behavior and names.
+  - Server callables: `getBundleQuote`, `createBundlePaymentOrder`, `confirmBundleCheckout`, `cancelBundleLeg`, `listBundleLegOffers`, `acceptBundleLegOffer`, `advanceBundleLegDriver`, `confirmDetourPickup`.
+  - Aggregated live tracking: `updateDriverLocation` updates `bundle_tracking/{bundleId}` driver coordinates.
+  - Customer UX: `TripBundleScreen.tsx` (multi-stop builder, real-time quote review, COD badge, unified Razorpay checkout, accessible feedback dialogs), `BundleTrackingScreen.tsx` (live GPS multi-vehicle visualizer, per-leg accordions, leg chat, per-leg cancellation).
+  - Test suites: 58 Functions unit tests passing, 89 rules & emulator integration tests passing (including 10 bundle-specific emulator tests), 12 server unit tests passing. Zero lint errors (`tsc --noEmit`), Vite production build succeeds.
+- Verification status: Local emulator & test verification complete. External acceptance items EXT-B-01 through EXT-B-10 remain pending in staging / live Razorpay / physical device testing. Detailed architecture in `docs/architecture/trip-bundle.md` and audit in `docs/audit/implementation-2026-10-12-bundle.md`.

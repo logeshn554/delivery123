@@ -107,6 +107,27 @@ test('stale merchant edits cannot replace checkout inventory reservations', asyn
   await callable('saveCatalogItem', 'merchant', { merchantId: 'shop', merchantType: 'grocery', itemId: 'item', item: { ...item, expectedStock: 2, stock: 3 } });
   assert.equal((await ref.get()).data().stock, 3);
   assert.equal((await db.collection('bookings').get()).size, 1);
+  const events = await ref.collection('stock_events').get();
+  assert.equal(events.size, 3);
+  assert.equal(events.docs.map(event => event.data().delta).reduce((sum, delta) => sum + delta, 0), 1);
+});
+
+test('legacy duplicate inventory lines return their combined quantity once with an immutable movement', async () => {
+  const bookingId = await walletAttempt('wallet_duplicate_return');
+  const items = [{ id: 'item', name: 'Test item', quantity: 3, price: 100 }];
+  await db.doc('payment_attempts/wallet_duplicate_return').update({ amount: 30000, items, 'booking.price': 300, 'booking.paymentStatus': 'paid', 'booking.details.items': items });
+  await settleCapturedPayment('wallet_duplicate_return', 'wallet_payment_duplicate_return', null, true);
+  const ref = db.doc('grocery_stores/shop/products/item');
+  assert.equal((await ref.get()).data().stock, 7);
+  // Represent an older stored booking with duplicate SKU lines and the same total quantity.
+  await db.doc(`bookings/${bookingId}`).update({ 'details.items': [{ ...items[0], quantity: 1 }, { ...items[0], quantity: 2 }] });
+  await callable('cancelPaidBooking', 'customer', { bookingId });
+  await callable('cancelPaidBooking', 'customer', { bookingId });
+  assert.equal((await ref.get()).data().stock, 10);
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1000);
+  const events = (await ref.collection('stock_events').get()).docs.map(snapshot => snapshot.data());
+  assert.equal(events.length, 2); assert.equal(events.find(event => event.kind === 'return').delta, 3);
+  assert.equal(events.reduce((total, event) => total + event.delta, 0), 0);
 });
 
 test('picking rejects corrupt revisions and serializes simultaneous line updates without losing confirmations', async () => {

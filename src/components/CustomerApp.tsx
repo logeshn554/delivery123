@@ -46,6 +46,8 @@ import {
 } from '../data/firestoreHelper';
 import { SavedAddress, UserProfile } from '../types';
 import { useFeedbackDialog } from './useFeedbackDialog';
+import { TripBundleScreen } from './TripBundleScreen';
+import { BundleTrackingScreen } from './BundleTrackingScreen';
 
 
 interface CustomerAppProps {
@@ -127,7 +129,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { contentRef.current?.scrollTo({ top: 0, behavior: 'auto' }); }, [currentTab, extraPage]);
   const openPage = (page: CustomerPage) => { setExtraPage(page); setActiveWorkflow('none'); setCurrentTab('more'); };
-  const [activeWorkflow, setActiveWorkflow] = useState<'none' | 'food' | 'grocery' | 'ride' | 'parcel' | 'takeover' | 'transport'>('none');
+  const [activeWorkflow, setActiveWorkflow] = useState<'none' | 'food' | 'grocery' | 'ride' | 'parcel' | 'takeover' | 'transport' | 'trip_bundle' | 'bundle_tracking'>('none');
+  const [trackedBundleId, setTrackedBundleId] = useState<string>('');
 
   // Address and Search (Prefilled via automatic Geolocation reverse-lookup)
   const [deliveryAddress, setDeliveryAddress] = useState(userProfile?.defaultAddress || "");
@@ -806,6 +809,28 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <div><span className="promo-kicker">GOOD FOOD. GOOD MOOD.</span><h2>Your next favourite<br />is a tap away.</h2><button onClick={() => setActiveWorkflow('food')}>Explore food <ArrowRight size={15} /></button></div>
               <div className="promo-art" aria-hidden="true"><Utensils size={58} /><span>Fresh finds</span></div>
             </section>
+
+            {/* UNIFIED TRIP BUNDLE HERO CARD */}
+            <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-purple-950 text-white p-5 rounded-2xl border border-indigo-500/30 shadow-xl relative overflow-hidden">
+              <div className="relative z-10 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
+                    ★ ONE UNIFIED TRIP BUNDLE
+                  </span>
+                  <h3 className="text-base font-bold mt-2 text-white">Ride + Food + Groceries in One</h3>
+                  <p className="text-xs text-indigo-200/80 mt-1 max-w-xs">
+                    Order food and store items to pick up or receive while traveling. Single checkout, single payment.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveWorkflow('trip_bundle')}
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition transform active:scale-95"
+                >
+                  Build Bundle →
+                </button>
+              </div>
+            </div>
+
             <div className="section-heading"><h2>What’s on your list?</h2><span>All in AllGo</span></div>
             <div className="service-grid">
               {([
@@ -844,6 +869,23 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         )}
 
         {/* WORKFLOWS */}
+        {activeWorkflow === 'trip_bundle' && (
+          <TripBundleScreen
+            onBack={() => setActiveWorkflow('none')}
+            onOpenTracking={(bId) => {
+              setTrackedBundleId(bId);
+              setActiveWorkflow('bundle_tracking');
+            }}
+          />
+        )}
+
+        {activeWorkflow === 'bundle_tracking' && (
+          <BundleTrackingScreen
+            bundleId={trackedBundleId}
+            onBack={() => setActiveWorkflow('none')}
+          />
+        )}
+
         {activeWorkflow === 'food' && (
           <div className="animate-fadeIn">
             <div className="flex items-center gap-2 mb-4">

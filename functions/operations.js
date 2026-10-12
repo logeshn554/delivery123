@@ -3,6 +3,7 @@ const { cartCharges } = require('./cartPolicy');
 const { validateHours, validateClosedDates } = require('./merchantPolicy');
 const { catalogItem } = require('./catalogPolicy');
 const { assertStockBaseline } = require('./stockBaseline');
+const { recordStockMovement } = require('./inventoryJournal');
 const { settlementPolicy } = require('./settlementPolicy');
 function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }) {
   const services = ['food','grocery','ride','parcel','takeover','transport'];
@@ -74,6 +75,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       const uid = request.auth?.uid;
       if (!uid) throw new HttpsError('unauthenticated', 'Sign in.');
       const data = request.data || {}, type = data.merchantType, id = documentId(data.merchantId, 'Merchant ID'), itemId = documentId(data.itemId, 'Item ID');
+      if (!['restaurant', 'grocery'].includes(type)) throw new HttpsError('invalid-argument', 'Choose a valid catalog type.');
       let item;
       try { item = catalogItem(data.item, type); } catch(error) { throw new HttpsError('invalid-argument', error.message); }
       const parent = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), ref = parent.collection(type === 'restaurant' ? 'menu_items' : 'products').doc(itemId);
@@ -85,6 +87,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         if (type === 'grocery' && existing.exists) assertStockBaseline(existing.data().stock, data.item?.expectedStock, HttpsError);
         if (type === 'grocery' && !existing.exists && data.item?.expectedStock != null) throw new HttpsError('aborted', 'This product was removed. Refresh before creating a new inventory record.');
         tx.set(ref, {...item, ...(type === 'restaurant' ? { restaurantId:id } : { storeId:id }), updatedAt:Timestamp.now() }, { merge:true });
+        if (type === 'grocery') recordStockMovement(tx, ref, ref.collection('stock_events').doc().id, existing.exists ? 'adjustment' : 'opening', existing.exists ? existing.data().stock : 0, item.stock, { operatorId: uid });
         audit(tx,uid,'catalog_item_saved',ref.path);
       });
       return { saved:true, itemId };
