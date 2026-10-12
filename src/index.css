@@ -173,7 +173,77 @@ button:disabled { opacity: .6; cursor: wait; }
 .food-cart-dock button { min-height: 44px; padding: 0 15px; border-radius: 12px; background: var(--allgo-food); color: white; font-size: 13px; font-weight: 750; }
 .food-address-summary { min-width: 0; max-width: min(54vw,360px); }
 .food-address-summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grocery-page { display: grid; gap: 18px; padding-bottom: 16px; color: var(--allgo-ink); }
+.grocery-page .catalog-state-icon { color: var(--allgo-grocery); background: #e9f5ee; }
+.grocery-page .catalog-state-error .catalog-state-icon { color: #b83232; background: #fff0ef; }
+.grocery-page-heading { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.grocery-page-heading > button:first-child { display: grid; width: var(--allgo-touch-target); height: var(--allgo-touch-target); flex: 0 0 44px; place-items: center; border-radius: 14px; background: #edf5ef; color: #245e43; }
+.grocery-page-heading p { margin: 0 0 3px; color: var(--allgo-grocery); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+.grocery-page-heading h1 { margin: 0; font-size: 23px; line-height: 1.2; font-weight: 800; letter-spacing: -.5px; }
+.grocery-reorder { min-height: var(--allgo-touch-target); margin-left: auto; padding: 0 10px; color: var(--allgo-grocery); font-size: 13px; font-weight: 750; }
+.grocery-hero { display: flex; min-height: 150px; align-items: center; justify-content: space-between; gap: 16px; overflow: hidden; padding: 22px; border-radius: 24px; background: linear-gradient(115deg,#e5f1e6 0%,#f4f7eb 72%,#e0eee4 100%); }
+.grocery-hero > div { min-width: 0; max-width: 440px; }
+.grocery-hero-eyebrow { color: #397252; font-size: 11px; font-weight: 750; }
+.grocery-hero h2 { max-width: 330px; margin: 5px 0 7px; color: #183b2a; font-size: clamp(20px,5vw,28px); line-height: 1.15; font-weight: 800; letter-spacing: -.5px; }
+.grocery-hero p { max-width: 360px; margin: 0; color: #536d5b; font-size: 13px; line-height: 1.5; }
+.grocery-hero-mark { display: grid; width: 68px; height: 68px; flex: 0 0 68px; place-items: center; border-radius: 22px; background: #d0e6d4; color: #28744e; }
+.grocery-store-section, .grocery-catalog-section { display: grid; gap: 12px; min-width: 0; }
+.grocery-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.grocery-section-heading h2 { margin: 0; font-size: 18px; line-height: 1.3; font-weight: 800; }
+.grocery-section-heading p { margin: 4px 0 0; color: var(--allgo-muted); font-size: 12px; line-height: 1.45; }
+.grocery-section-heading > span { display: grid; min-width: 32px; height: 32px; place-items: center; border-radius: 12px; background: #edf5ef; color: #286443; font-size: 12px; font-weight: 800; }
+.grocery-store-details { min-width: var(--allgo-touch-target); min-height: var(--allgo-touch-target); border-radius: 12px; color: #216746; font-size: 13px; font-weight: 750; }
+.grocery-store-list { display: flex; gap: 10px; overflow-x: auto; padding: 2px 1px 5px; scrollbar-width: thin; }
+.grocery-store-card { display: flex; min-width: min(78vw,290px); min-height: 104px; flex: 0 0 min(78vw,290px); align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; text-align: left; }
+.grocery-store-card.is-selected { border-color: #60a77a; background: #f3faf4; box-shadow: 0 0 0 2px #dcefe0; }
+.grocery-store-card:disabled { opacity: .55; }
+.grocery-store-image, .grocery-store-image-fallback { display: grid; width: 60px; height: 60px; flex: 0 0 60px; place-items: center; border-radius: 15px; object-fit: cover; background: #eaf3eb; color: #668a70; }
+.grocery-store-copy { display: grid; min-width: 0; gap: 3px; color: #6a706c; font-size: 11px; line-height: 1.4; }
+.grocery-store-copy strong { overflow: hidden; color: #26352b; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.grocery-store-address { overflow: hidden; max-width: 200px; text-overflow: ellipsis; white-space: nowrap; }
+.grocery-store-available { color: #216d43; font-weight: 700; }
+.grocery-store-closed { color: #a43e3e; font-weight: 700; }
+.grocery-search { display: flex; min-height: 50px; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--allgo-border); border-radius: 16px; background: white; color: #6c756e; }
+.grocery-search:focus-within { border-color: var(--allgo-grocery); box-shadow: 0 0 0 3px #20835a22; }
+.grocery-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--allgo-ink); font-size: 16px; }
+.grocery-filter-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.grocery-category-list { display: flex; max-width: 100%; flex: 1 1 100%; gap: 7px; overflow-x: auto; scrollbar-width: none; }
+.grocery-category-list::-webkit-scrollbar { display: none; }
+.grocery-category-list button, .grocery-stock-toggle, .grocery-sort, .grocery-favorites { min-height: var(--allgo-touch-target); flex: 0 0 auto; border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 13px; background: white; color: #4f5d53; font-size: 12px; font-weight: 700; }
+.grocery-category-list button[aria-pressed="true"] { border-color: #2f8453; background: #2f8453; color: white; }
+.grocery-stock-toggle { display: inline-flex; align-items: center; gap: 8px; }
+.grocery-stock-toggle input { width: 18px; height: 18px; accent-color: var(--allgo-grocery); }
+.grocery-sort { display: flex; align-items: center; gap: 6px; }
+.grocery-sort select { max-width: 132px; border: 0; background: transparent; color: #3b493f; font-size: 12px; font-weight: 700; }
+.grocery-favorites { display: inline-flex; align-items: center; gap: 7px; }
+.grocery-favorites[aria-pressed="true"], .grocery-product-save[aria-pressed="true"] { color: #b8405c; }
+.grocery-product-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,155px),1fr)); gap: 12px; }
+.grocery-product-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; box-shadow: 0 3px 12px #193e2708; }
+.grocery-product-visual { position: relative; overflow: hidden; background: #f3f6f1; }
+.grocery-product-image, .grocery-product-image-fallback { display: grid; width: 100%; aspect-ratio: 1.2; place-items: center; object-fit: cover; background: #edf4ed; color: #78927d; }
+.grocery-product-save { position: absolute; top: 8px; right: 8px; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffffffed; color: #716e75; box-shadow: 0 2px 10px #17251b20; }
+.grocery-product-copy { display: grid; min-width: 0; flex: 1; gap: 5px; padding: 12px 12px 8px; }
+.grocery-product-title { min-height: 40px; overflow: hidden; color: #27342b; font-size: 14px; line-height: 1.35; font-weight: 750; text-align: left; }
+.grocery-product-copy p { margin: 0; color: #727a73; font-size: 12px; line-height: 1.4; }
+.grocery-product-copy strong { margin-top: 2px; color: #1f2e23; font-size: 15px; }
+.grocery-stock-in, .grocery-stock-out { width: fit-content; border-radius: 999px; padding: 3px 7px; background: #eaf5ec; color: #27633e; font-size: 11px; font-weight: 700; }
+.grocery-stock-out { background: #f8eeee; color: #9a4141; }
+.grocery-product-actions { padding: 0 12px 12px; }
+.grocery-product-actions > button, .grocery-quantity { display: flex; width: 100%; min-height: var(--allgo-touch-target); align-items: center; justify-content: center; border: 1px solid #4c8b62; border-radius: 12px; background: #fff; color: #286443; font-size: 13px; font-weight: 750; }
+.grocery-product-actions > button:disabled { border-color: #d7ddd8; background: #f3f4f3; color: #747b75; }
+.grocery-quantity { justify-content: space-between; overflow: hidden; background: #eef7ef; }
+.grocery-quantity button { width: 44px; height: 44px; color: #286443; font-size: 20px; }
+.grocery-quantity button:disabled { color: #929992; }
+.grocery-quantity span { font-size: 14px; font-weight: 800; }
+.grocery-cart-dock { position: sticky; bottom: max(8px,env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #245e3e; border-radius: 18px; background: #203b2b; color: white; box-shadow: 0 8px 24px #14251a40; }
+.grocery-cart-dock p { margin: 2px 0 0; color: #d1e2d4; font-size: 12px; }
+.grocery-cart-dock button { min-height: var(--allgo-touch-target); padding: 0 15px; border-radius: 12px; background: #3f9460; color: white; font-size: 13px; font-weight: 750; }
+.grocery-cart-conflict { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid #e7c6a4; border-radius: 16px; background: #fff9ef; color: #533d24; }
+.grocery-cart-conflict strong { font-size: 13px; }
+.grocery-cart-conflict p { margin: 3px 0 0; color: #705b41; font-size: 12px; line-height: 1.45; }
+.grocery-cart-conflict button { min-width: 44px; min-height: 44px; flex: 0 0 auto; border-radius: 12px; padding: 0 12px; background: #8a5a24; color: white; font-size: 12px; font-weight: 750; }
 @media (max-width: 380px) { .catalog-state { padding: 16px; gap: 10px; } .catalog-state-action { align-self: flex-end; } .catalog-state-action button { padding-inline: 10px; } .food-restaurant-open img, .food-restaurant-image-fallback { height: 138px; } }
+@media (max-width: 360px) { .grocery-hero { min-height: 132px; padding: 17px; } .grocery-hero-mark { width: 52px; height: 52px; flex-basis: 52px; border-radius: 17px; } .grocery-product-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .grocery-product-copy { padding: 10px 9px 7px; } .grocery-product-actions { padding: 0 9px 9px; } .grocery-filter-toolbar { gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 .mobile-page-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }

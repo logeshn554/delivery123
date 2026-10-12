@@ -50,6 +50,7 @@ import { TripBundleScreen } from './TripBundleScreen';
 import { BundleTrackingScreen } from './BundleTrackingScreen';
 import { CatalogState } from '../design-system/CatalogState';
 import { CatalogImage } from '../design-system/CatalogImage';
+import { filterGroceryProducts, getGroceryCatalogView } from '../design-system/groceryCatalog';
 
 
 interface CustomerAppProps {
@@ -95,25 +96,28 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     return () => clearTimeout(timer);
   }, [productsList]);
 
-  const [catalogError, setCatalogError] = useState('');
   const [restaurantCatalogError, setRestaurantCatalogError] = useState('');
   const [menuCatalogError, setMenuCatalogError] = useState('');
+  const [groceryStoresError, setGroceryStoresError] = useState('');
+  const [groceryProductsError, setGroceryProductsError] = useState('');
   const [catalogRetry, setCatalogRetry] = useState(0);
   const [restaurantsLoading, setRestaurantsLoading] = useState(true);
   const [menuLoading, setMenuLoading] = useState(false);
   const [groceryStoresLoading, setGroceryStoresLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
-  const reportCatalogError = (error: unknown) => { console.error('Catalog subscription failed', error); setCatalogError('We could not load the latest catalog. Check your connection and try again.'); };
   const reportRestaurantError = (error: unknown) => { console.error('Restaurant catalog subscription failed', error); setRestaurantCatalogError('We could not load restaurants. Check your connection and try again.'); setRestaurantsLoading(false); };
   const reportMenuError = (error: unknown) => { console.error('Menu subscription failed', error); setMenuCatalogError('We could not load this menu. Check your connection and try again.'); setMenuLoading(false); };
+  const reportGroceryStoresError = (error: unknown) => { console.error('Grocery store catalog subscription failed', error); setGroceryStoresError('We could not load grocery stores. Check your connection and try again.'); setGroceryStoresLoading(false); };
+  const reportGroceryProductsError = (error: unknown) => { console.error('Grocery product catalog subscription failed', error); setGroceryProductsError('We could not load this store’s products. Check your connection and try again.'); setProductsLoading(false); };
   useEffect(() => {
-    setCatalogError(''); setRestaurantCatalogError(''); setRestaurantsLoading(true); setGroceryStoresLoading(true);
+    setRestaurantCatalogError(''); setGroceryStoresError(''); setRestaurantsLoading(true); setGroceryStoresLoading(true);
     const stopRestaurants = listenToRestaurants(restaurants => { setRestaurantsList(restaurants); setRestaurantsLoading(false); setRestaurantCatalogError(''); }, reportRestaurantError);
     const stopStores = listenToGroceryStores(stores => {
       setGroceryStoresList(stores);
       setGroceryStoresLoading(false);
+      setGroceryStoresError('');
       setSelectedStoreId(current => stores.some(store => store.id === current) ? current : stores[0]?.id || '');
-    }, reportCatalogError);
+    }, reportGroceryStoresError);
     return () => { stopRestaurants(); stopStores(); };
   }, [catalogRetry]);
   useEffect(() => {
@@ -125,9 +129,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   }, [selectedRestaurant?.id, catalogRetry]);
   useEffect(() => {
     setProductsList([]);
+    setGroceryProductsError('');
     setProductsLoading(Boolean(selectedStoreId));
     if (!selectedStoreId) return;
-    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products.filter(product => productWithinExpiry(product))); setProductsLoading(false); }, reportCatalogError);
+    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products.filter(product => productWithinExpiry(product))); setProductsLoading(false); setGroceryProductsError(''); }, reportGroceryProductsError);
   }, [selectedStoreId, catalogRetry]);
 
   // Navigation & Screen States
@@ -687,6 +692,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     (selectedFoodCategory === 'All' || item.category === selectedFoodCategory) &&
     (!foodSearch.trim() || `${item.name} ${item.description} ${item.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) &&
     (!vegetarianOnly || item.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`dish:${item.id}`)));
+  const groceryFilterOptions = { category: selectedGroceryCategory, query: grocerySearch, favoriteIds: favoriteCatalogIds, favoritesOnly: showFavoritesOnly, inStockOnly, sort: grocerySort as 'name' | 'low' | 'high' };
+  const groceryMatchingProducts = filterGroceryProducts(productsList, { ...groceryFilterOptions, inStockOnly: false });
+  const visibleGroceryProducts = filterGroceryProducts(productsList, groceryFilterOptions);
+  const groceryStoresView = getGroceryCatalogView({ loading: groceryStoresLoading, error: groceryStoresError, selectedStoreId: '', storeCount: groceryStoresList.length, products: [], matchingProducts: [], filteredProducts: [], inStockOnly: true });
+  const groceryCatalogView = getGroceryCatalogView({ loading: productsLoading, error: groceryProductsError, selectedStoreId, storeCount: groceryStoresList.length, products: productsList, matchingProducts: groceryMatchingProducts, filteredProducts: visibleGroceryProducts, inStockOnly });
 
   return (
       <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative select-none">
@@ -815,7 +825,6 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       {/* BODY SCROLLABLE PANELS */}
       <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
 
-        {catalogError && activeWorkflow !== 'food' && <div role="alert" className="mb-4 rounded-2xl bg-rose-50 p-4 text-sm text-rose-800">{catalogError}<button className="block mt-2 font-bold" onClick={() => setCatalogRetry(value => value + 1)}>Try again</button></div>}
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
         {currentTab === 'home' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
@@ -985,81 +994,78 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
         {/* WORKFLOW: GROCERY */}
         {activeWorkflow === 'grocery' && (
-          <div className="animate-fadeIn">
-            <div className="flex items-center gap-2 mb-4">
-              <button onClick={() => setActiveWorkflow('none')} className="p-1 hover:bg-slate-200 rounded-lg">
-                <ArrowLeft className="w-5 h-5 text-slate-700" />
-              </button>
-              <h2 className="text-base font-bold text-slate-900">Groceries</h2><button className="allgo-text ml-auto" onClick={() => setShopAgain('grocery')}>Buy again</button>
-            </div>
+          <div className="grocery-page animate-fadeIn">
+            <header className="grocery-page-heading">
+              <button aria-label="Back to home" onClick={() => setActiveWorkflow('none')}><ArrowLeft size={20} /></button>
+              <div><p>FRESH · LOCAL · ALLGO</p><h1>Groceries</h1></div>
+              <button className="grocery-reorder" onClick={() => setShopAgain('grocery')}>Buy again</button>
+            </header>
 
-            <div className="bg-emerald-600 text-white p-4 rounded-2xl mb-4 relative overflow-hidden">
-              <h3 className="text-sm font-bold font-sans">Fresh Groceries</h3>
-              <p className="text-[10px] text-emerald-100 mt-0.5">Choose a nearby store</p>
-              <ShoppingBag className="absolute right-3 bottom-2 h-10 w-10 opacity-15" />
-            </div>
+            <section className="grocery-hero" aria-label="Grocery delivery">
+              <div><span className="grocery-hero-eyebrow">A simpler way to shop</span><h2>Good food, better choices.</h2><p>Browse products and stock published by grocery partners.</p></div>
+              <span className="grocery-hero-mark" aria-hidden="true"><ShoppingBag size={32} /></span>
+            </section>
+            {cartService === 'grocery' && !productsLoading && !groceryProductsError && cart.some(line => {
+              const product = productsList.find(item => item.id === line.item.id);
+              return !product || !Number.isSafeInteger(product.stock) || product.stock < line.quantity;
+            }) && <div className="grocery-cart-conflict" role="alert"><div><strong>Your cart needs a stock check</strong><p>At least one item is no longer listed or has less stock than your cart quantity.</p></div><button type="button" onClick={() => { setCurrentTab('cart'); setActiveWorkflow('none'); }}>Review cart</button></div>}
 
-            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-              {groceryStoresLoading && <p role="status" className="catalog-empty">Loading nearby stores…</p>}
-              {!groceryStoresLoading && groceryStoresList.length === 0 && <p className="catalog-empty">No grocery stores are available yet. Store details will appear when partners publish their catalogs.</p>}
-              {groceryStoresList.map((store) => <button key={store.id} onClick={() => { const cartStoreId = cart[0] ? (cart[0].item as GroceryProduct).storeId : null; if (cart.length && cartService === 'grocery' && cartStoreId !== store.id) { alert('Empty your cart before changing grocery stores.'); return; } setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); }} className={`min-w-48 rounded-xl border p-3 text-left ${selectedStoreId === store.id ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'}`}><span className="block text-xs font-bold text-slate-800">{store.name}</span><span className="mt-1 block text-[10px] text-slate-500">{store.address}</span></button>)}
-            </div>
+            {groceryStoresView === 'error' ? <CatalogState kind="error" title="Grocery stores could not load" description={groceryStoresError} action={<button onClick={() => setCatalogRetry(value => value + 1)}>Try again</button>} />
+              : groceryStoresView === 'loading' ? <CatalogState kind="loading" title="Finding grocery partners" description="Checking published store listings." />
+                : groceryStoresView === 'no-stores' ? <CatalogState kind="empty" title="No grocery stores are listed yet" description="Grocery store listings will appear here when partners publish an approved catalog." />
+                  : <>
+                    <section className="grocery-store-section" aria-labelledby="grocery-stores-title">
+                      <div className="grocery-section-heading"><div><h2 id="grocery-stores-title">Stores</h2><p>Choose a partner to browse its current catalog.</p></div><span>{groceryStoresList.length}</span></div>
+                      <div className="grocery-store-list">
+                        {groceryStoresList.map((store) => {
+                          const selected = selectedStoreId === store.id;
+                          const cartStoreId = cart[0] ? (cart[0].item as GroceryProduct).storeId : null;
+                          const cartLocksStore = Boolean(cart.length && cartService === 'grocery' && cartStoreId !== store.id);
+                          return <button key={store.id} type="button" aria-pressed={selected} disabled={cartLocksStore} onClick={() => { setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); setGrocerySearch(''); }} className={`grocery-store-card ${selected ? 'is-selected' : ''}`}>
+                            <CatalogImage src={store.image} alt="" className="grocery-store-image" fallback={<ShoppingBag size={22} />} />
+                            <span className="grocery-store-copy"><strong>{store.name}</strong><span className="grocery-store-address" title={store.address}>{store.address}</span>{store.openingHours && <span>Hours: {store.openingHours}</span>}<span className={store.acceptingOrders === false ? 'grocery-store-closed' : store.acceptingOrders === true ? 'grocery-store-available' : ''}>{store.acceptingOrders === false ? 'Not accepting orders' : store.acceptingOrders === true ? 'Accepting orders' : 'Order availability not provided'}</span></span>
+                          </button>;
+                        })}
+                      </div>
+                    </section>
 
-            <div className="mb-3 flex gap-2">
-              <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500"><Search size={14} /><input value={grocerySearch} onChange={(event) => setGrocerySearch(event.target.value)} placeholder="Search products" className="min-w-0 flex-1 outline-none" /></label>
-              <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className={`rounded-xl border px-3 text-xs font-bold ${showFavoritesOnly ? 'border-rose-200 bg-rose-50 text-rose-600' : 'border-slate-200 bg-white text-slate-600'}`}><Heart size={15} className="inline" /> Saved</button>
-            </div>
-            <div className="allgo-card"><div className="flex items-center justify-between"><h3 className="text-sm font-bold">Daily essentials, your way.</h3><button className="allgo-text" disabled={!selectedStoreId} onClick={() => setCatalogPage({kind:'store',id:selectedStoreId})}>Store details</button></div><p className="allgo-muted">Check current stock and pack sizes. Delivery timing is confirmed by the service.</p><label className="allgo-muted mt-3 flex items-center gap-2"><input type="checkbox" checked={inStockOnly} onChange={event=>setInStockOnly(event.target.checked)}/>Only show in-stock items</label><label className="allgo-muted mt-3 flex items-center gap-2">Sort products<select className="rounded-lg border bg-white p-2" value={grocerySort} onChange={event=>setGrocerySort(event.target.value)}><option value="name">Name</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label></div>
-            <div className="mb-3 flex gap-1.5 overflow-x-auto pb-2">
-              {['All', ...new Set(productsList.map((product) => product.category))].map((category) => <button key={category} onClick={() => setSelectedGroceryCategory(category)} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-bold ${selectedGroceryCategory === category ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{category}</button>)}
-            </div>
+                    {selectedStoreId && (() => {
+                      const selectedStore = groceryStoresList.find(store => store.id === selectedStoreId);
+                      return <section className="grocery-catalog-section" aria-labelledby="grocery-catalog-title">
+                        <div className="grocery-section-heading"><div><h2 id="grocery-catalog-title">{selectedStore?.name || 'Store catalog'}</h2><p>{selectedStore?.acceptingOrders === false ? 'This store is currently not accepting orders.' : 'Prices and stock reflect the partner’s published catalog.'}</p></div>{selectedStore && <button aria-label={`View ${selectedStore.name} details`} className="grocery-store-details" onClick={() => setCatalogPage({ kind: 'store', id: selectedStore.id })}>Details</button>}</div>
+                        {productsList.length > 0 && <>
+                          <label className="grocery-search"><Search size={18} aria-hidden="true" /><input aria-label="Search grocery products" value={grocerySearch} onChange={event => setGrocerySearch(event.target.value)} placeholder="Search this store’s catalog" /></label>
+                          <div className="grocery-filter-toolbar">
+                            <div className="grocery-category-list" aria-label="Product categories">{['All', ...new Set(productsList.map(product => product.category).filter(Boolean))].map(category => <button type="button" key={category} aria-pressed={selectedGroceryCategory === category} onClick={() => setSelectedGroceryCategory(category)}>{category}</button>)}</div>
+                            <label className="grocery-stock-toggle"><input type="checkbox" checked={inStockOnly} onChange={event => setInStockOnly(event.target.checked)} />In stock</label>
+                            <label className="grocery-sort">Sort<select aria-label="Sort grocery products" value={grocerySort} onChange={event => setGrocerySort(event.target.value)}><option value="name">Name</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label>
+                            <button type="button" aria-pressed={showFavoritesOnly} className="grocery-favorites" onClick={() => setShowFavoritesOnly(value => !value)}><Heart size={16} aria-hidden="true" />{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
+                          </div>
+                        </>}
 
-            <div className="space-y-3 mb-6">
-              {productsLoading && <p role="status" className="catalog-empty">Loading this store’s products…</p>}
-              {!productsLoading && selectedStoreId && productsList.length === 0 && <p className="catalog-empty">This store has not published any products yet.</p>}
-              {!productsLoading && !selectedStoreId && groceryStoresList.length > 0 && <p className="catalog-empty">Choose a store to see its products.</p>}
-              {productsList.filter((product) => (selectedGroceryCategory === 'All' || product.category === selectedGroceryCategory) && (!grocerySearch.trim() || `${product.name} ${product.category} ${product.unit}`.toLowerCase().includes(grocerySearch.trim().toLowerCase())) && (!showFavoritesOnly || favoriteCatalogIds.includes(`product:${product.id}`)) && (!inStockOnly || product.stock > 0)).sort((a,b) => grocerySort === 'low' ? a.price-b.price : grocerySort === 'high' ? b.price-a.price : a.name.localeCompare(b.name)).map(prod => {
-                const qty = cart.find(c => c.item.id === prod.id)?.quantity || 0;
-                return (
-                  <div key={prod.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center gap-3">
-                    <img src={prod.image} alt={prod.name} className="w-12 h-12 rounded-lg object-cover" />
-                    <div className="flex-1">
-                      <button className="min-h-11 text-left" onClick={() => setCatalogPage({kind:'product', id:prod.id})}><h4 className="text-xs font-bold text-slate-800">{prod.name}</h4><span className="text-[10px] text-emerald-700">Product details →</span></button>
-                      <p className="text-[10px] text-slate-400">{prod.unit}</p>
-                      <p className="text-xs font-black text-slate-900">₹{prod.price}</p>
-                    </div>
+                        {groceryCatalogView === 'loading' ? <CatalogState kind="loading" title="Loading products" description={`Refreshing ${selectedStore?.name || 'this store'}’s current catalog.`} />
+                          : groceryCatalogView === 'error' ? <CatalogState kind="error" title="Products could not load" description={groceryProductsError} action={<button onClick={() => setCatalogRetry(value => value + 1)}>Try again</button>} />
+                            : groceryCatalogView === 'no-products' ? <CatalogState kind="empty" title="No products currently available" description="There are no current products in this store’s catalog." />
+                              : groceryCatalogView === 'no-in-stock' ? <CatalogState kind="empty" title="No matching items in stock" description="The matching catalog items are currently marked out of stock." action={<button onClick={() => setInStockOnly(false)}>Show out-of-stock items</button>} />
+                                : groceryCatalogView === 'no-results' ? <CatalogState kind="no-results" title="No products match" description="Try another search or category, or clear your saved-only filter." action={<button onClick={() => { setGrocerySearch(''); setSelectedGroceryCategory('All'); setShowFavoritesOnly(false); }}>Clear filters</button>} />
+                                  : <div className="grocery-product-grid">{visibleGroceryProducts.map(product => {
+                                    const quantity = cart.find(line => line.item.id === product.id)?.quantity || 0;
+                                    const unavailable = !Number.isSafeInteger(product.stock) || product.stock < 1;
+                                    const atLimit = quantity >= Math.min(30, product.stock);
+                                    const isClosed = selectedStore?.acceptingOrders === false;
+                                    const saved = favoriteCatalogIds.includes(`product:${product.id}`);
+                                    return <article key={product.id} className="grocery-product-card">
+                                      <div className="grocery-product-visual"><CatalogImage src={product.image} alt="" className="grocery-product-image" fallback={<ShoppingBag size={28} />} /><button type="button" aria-label={`${saved ? 'Remove' : 'Save'} ${product.name}`} aria-pressed={saved} className="grocery-product-save" onClick={() => toggleFavorite(`product:${product.id}`)}><Heart size={18} fill={saved ? 'currentColor' : 'none'} /></button></div>
+                                      <div className="grocery-product-copy"><button type="button" className="grocery-product-title" onClick={() => setCatalogPage({ kind: 'product', id: product.id })}>{product.name}</button><p>{product.unit}</p><span className={unavailable ? 'grocery-stock-out' : 'grocery-stock-in'}>{unavailable ? 'Out of stock' : `${product.stock} in stock`}</span><strong>₹{product.price}</strong></div>
+                                      <div className="grocery-product-actions">{quantity === 0 ? <button type="button" disabled={unavailable || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>{isClosed ? 'Store closed' : unavailable ? 'Unavailable' : 'Add to cart'}</button> : <div className="grocery-quantity"><button type="button" aria-label={`Remove one ${product.name}`} onClick={() => handleRemoveFromCart(product)}>-</button><span>{quantity}</span><button type="button" aria-label={`Add one ${product.name}`} disabled={unavailable || atLimit || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>+</button></div>}</div>
+                                    </article>;
+                                  })}</div>}
+                      </section>;
+                    })()}
+                    {!selectedStoreId && <CatalogState kind="empty" title="Choose a grocery store" description="Select one of the published partners above to see its products." />}
+                  </>}
 
-                    <div>
-                      <button aria-label={`${favoriteCatalogIds.includes(`product:${prod.id}`) ? 'Remove' : 'Save'} ${prod.name}`} onClick={() => toggleFavorite(`product:${prod.id}`)} className="mb-2 ml-auto block text-rose-500"><Heart size={16} fill={favoriteCatalogIds.includes(`product:${prod.id}`) ? 'currentColor' : 'none'} /></button>
-                      {qty === 0 ? (
-                        <button disabled={prod.stock <= qty || qty>=30} onClick={() => handleAddToCart(prod, 'grocery')} className="bg-emerald-600 text-white text-xs px-3 py-1 rounded-lg">Add</button>
-                      ) : (
-                        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded-lg text-xs">
-                          <button aria-label={`Remove one ${prod.name}`} onClick={() => handleRemoveFromCart(prod)}>-</button>
-                          <span>{qty}</span>
-                          <button aria-label={`Add one ${prod.name}`} disabled={prod.stock <= qty || qty>=30} onClick={() => handleAddToCart(prod, 'grocery')}>+</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {!productsLoading && productsList.length > 0 && productsList.filter((product) => (selectedGroceryCategory === 'All' || product.category === selectedGroceryCategory) && (!grocerySearch.trim() || `${product.name} ${product.category} ${product.unit}`.toLowerCase().includes(grocerySearch.trim().toLowerCase())) && (!showFavoritesOnly || favoriteCatalogIds.includes(`product:${product.id}`)) && (!inStockOnly || product.stock > 0)).length === 0 && <p className="catalog-empty">No products match these filters.</p>}
-            </div>
-
-            {cart.length > 0 && (
-              <div className="sticky bottom-0 bg-white border-t p-3 -mx-4">
-                <div className="flex justify-between items-center">
-                  <div><h4 className="text-sm font-black text-slate-800">Items total: ₹{getCartTotal()}</h4><p className="text-[10px] text-slate-500">Secure online payment in app</p></div>
-                  <button
-                    onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}
-                    className="bg-emerald-600 text-white text-xs py-2 px-4 rounded-xl"
-                  >
-                    View cart · {cart.reduce((sum, line) => sum + line.quantity, 0)}
-                  </button>
-                </div>
-              </div>
-            )}
+            {cart.length > 0 && cartService === 'grocery' && <div className="grocery-cart-dock"><div><strong>₹{getCartTotal()}</strong><p>{cart.reduce((sum, line) => sum + line.quantity, 0)} items · {groceryStoresList.find(store => store.id === cartSourceId)?.name || 'grocery order'}</p></div><button type="button" onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}>View cart</button></div>}
           </div>
         )}
 
