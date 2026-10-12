@@ -46,6 +46,10 @@ import {
 } from '../data/firestoreHelper';
 import { SavedAddress, UserProfile } from '../types';
 import { useFeedbackDialog } from './useFeedbackDialog';
+import BottomNavigation from '../design-system/BottomNavigation';
+import ServiceDirectory from '../features/discovery/ServiceDirectory';
+import { customerDestination, type CustomerTab } from '../app/customerNavigation';
+import BundleActivity from '../features/activity/BundleActivity';
 import { TripBundleScreen } from './TripBundleScreen';
 import { BundleTrackingScreen } from './BundleTrackingScreen';
 import { CatalogState } from '../design-system/CatalogState';
@@ -64,7 +68,6 @@ interface CustomerAppProps {
 }
 
 type CartLine = { item: MenuItem | GroceryProduct; quantity: number; variant?: { id: string; label: string } };
-type CustomerTab = 'home' | 'orders' | 'cart' | 'support' | 'profile' | 'settings' | 'wallet' | 'more';
 
 function readCart(userId: string): { items: CartLine[]; service: 'food' | 'grocery' | null } {
   try {
@@ -704,7 +707,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const groceryCatalogView = getGroceryCatalogView({ loading: productsLoading, error: groceryProductsError, selectedStoreId, storeCount: groceryStoresList.length, products: productsList, matchingProducts: groceryMatchingProducts, filteredProducts: visibleGroceryProducts, inStockOnly });
 
   return (
-      <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative select-none">
+      <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative">
       {dialog}
 
       {/* REAL-TIME MESSAGING POPUP DRAWER */}
@@ -779,7 +782,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       {/* SECOND PAGE HEADER */}
       <div className="safe-area-top sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white px-4 py-3 shadow-sm">
         <div className="flex items-center justify-between">
-          <button type="button" aria-label={`Choose delivery address. Current address: ${deliveryAddress || detectedAddress || 'not selected'}`} className="flex min-w-0 max-w-[72%] flex-1 items-center gap-2 text-left" onClick={() => setShowAddressModal(true)}>
+          <button type="button" disabled={paymentBusy} aria-label={`Choose delivery address. Current address: ${deliveryAddress || detectedAddress || 'not selected'}`} className="flex min-w-0 max-w-[72%] flex-1 items-center gap-2 text-left" onClick={() => setShowAddressModal(true)}>
             <div className="bg-slate-100 p-2.5 rounded-xl text-slate-800">
               <MapPin className="w-4 h-4" />
             </div>
@@ -793,11 +796,12 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           </button>
 
           <div className="flex items-center gap-2">
-            <button aria-label="View notifications" onClick={() => openPage('notifications')} className="relative p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-50 transition-colors">
+            {cart.length > 0 && ['none', 'food', 'grocery'].includes(activeWorkflow) && <button type="button" disabled={paymentBusy} aria-label={`Open ${cartService || ''} cart, ${cart.reduce((sum, line) => sum + line.quantity, 0)} items`} className="rounded-xl border p-2 text-indigo-700" onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}><ShoppingCart size={20} aria-hidden="true" /></button>}
+            <button disabled={paymentBusy} aria-label="View notifications" onClick={() => openPage('notifications')} className="relative p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-50 transition-colors">
               <Bell className="w-5 h-5" />
               {activeBookings.some((booking) => booking.recordAuthority !== 'legacy_neon' && !['completed', 'delivered', 'cancelled'].includes(booking.status)) && <span className="absolute top-1.5 right-1.5 bg-rose-500 w-2 h-2 rounded-full border border-white"></span>}
             </button>
-            <button aria-label="Open profile" onClick={() => { setActiveWorkflow('none'); setCurrentTab('profile'); }} className="bg-slate-100 p-2 rounded-xl border border-slate-200"><User className="w-4 h-4 text-slate-700" /></button>
+            <button disabled={paymentBusy} aria-label="Open profile" onClick={() => { setActiveWorkflow('none'); setSelectedOrderId(null); setCurrentTab('profile'); }} className="bg-slate-100 p-2 rounded-xl border border-slate-200"><User className="w-4 h-4 text-slate-700" /></button>
           </div>
         </div>
 
@@ -828,9 +832,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       </div>
 
       {/* BODY SCROLLABLE PANELS */}
-      <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
+      <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
 
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
+        {currentTab === 'services' && activeWorkflow === 'none' && <div className="space-y-4">
+          <ServiceDirectory onChoose={service => setActiveWorkflow(service)} />
+          <section className="allgo-unavailable"><h2 className="font-bold">Combined journeys</h2><p>Currently unavailable while partner fulfillment and tracking are completed.</p></section>
+        </div>}
+
         {currentTab === 'home' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
 
@@ -839,38 +848,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <div className="promo-art" aria-hidden="true"><Utensils size={58} /><span>Fresh finds</span></div>
             </section>
 
-            {/* UNIFIED TRIP BUNDLE HERO CARD */}
-            <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-purple-950 text-white p-5 rounded-2xl border border-indigo-500/30 shadow-xl relative overflow-hidden">
-              <div className="relative z-10 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30">
-                    ★ ONE UNIFIED TRIP BUNDLE
-                  </span>
-                  <h3 className="text-base font-bold mt-2 text-white">Ride + Food + Groceries in One</h3>
-                  <p className="text-xs text-indigo-200/80 mt-1 max-w-xs">
-                    Order food and store items to pick up or receive while traveling. Single checkout, single payment.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setActiveWorkflow('trip_bundle')}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 transition transform active:scale-95"
-                >
-                  Build Bundle →
-                </button>
-              </div>
-            </div>
+            <section className="allgo-unavailable" aria-labelledby="combined-journey-title">
+              <h2 id="combined-journey-title" className="font-bold">Combined journeys</h2>
+              <p>Ride, food and grocery stops in one journey are not available yet. Partner fulfillment and tracking must be connected and verified first.</p>
+              <button type="button" disabled>Not available yet</button>
+            </section>
 
-            <div className="section-heading"><h2>What’s on your list?</h2><span>All in AllGo</span></div>
-            <div className="service-grid">
-              {([
-                { id: 'food', label: 'Food', subtitle: 'Find your favourites', Icon: Utensils, color: 'peach' },
-                { id: 'grocery', label: 'Groceries', subtitle: 'Daily essentials', Icon: ShoppingBag, color: 'mint' },
-                { id: 'parcel', label: 'Parcel', subtitle: 'Send with care', Icon: Package, color: 'pink' },
-                { id: 'ride', label: 'Ride', subtitle: 'Get where you need', Icon: Bike, color: 'sky' },
-                { id: 'takeover', label: 'Personal driver', subtitle: 'You relax, we drive', Icon: UserRound, color: 'lavender' },
-                { id: 'transport', label: 'Vehicle transport', subtitle: 'Move between cities', Icon: Truck, color: 'butter' },
-              ] as const).map(({ id, label, subtitle, Icon, color }) => <button key={id} className={'service-tile ' + color} onClick={() => setActiveWorkflow(id)}><span className="service-icon"><Icon size={28} strokeWidth={1.7} /></span><strong>{label}</strong><small>{subtitle}</small></button>)}
-            </div>
+            <ServiceDirectory onChoose={service => setActiveWorkflow(service)} />
             <section className="live-discovery"><div className="section-heading"><h2>Discover restaurants</h2><button onClick={() => setActiveWorkflow('food')}>See all <ArrowRight size={14} /></button></div>
               {restaurantsLoading ? <p role="status" className="catalog-empty">Finding your next favourite…</p> : restaurantsList.length ? <div className="discovery-strip">{restaurantsList.slice(0, 5).map(restaurant => <button key={restaurant.id} className="discovery-card" onClick={() => { setSelectedRestaurant(restaurant); setActiveWorkflow('food'); setFoodSearch(''); }}>
                 {restaurant.image ? <img src={restaurant.image} alt="" loading="lazy" /> : <div className="discovery-placeholder"><Utensils size={32} /></div>}
@@ -1118,6 +1102,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {/* TAB 2: SCREEN 9 (ORDER TRACKING COIMBATORE LIST & LIVE MESSAGING CHAT ENTRY) */}
         {currentTab === 'orders' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
+            {!selectedOrderId && <BundleActivity userId={userId} onOpen={id => { setTrackedBundleId(id); setActiveWorkflow('bundle_tracking'); }} />}
             <div className="flex items-center gap-2">{selectedOrderId && <button aria-label="Back to orders" onClick={() => setSelectedOrderId(null)} className="rounded-lg p-1"><ArrowLeft size={18} /></button>}<h3 className="text-base font-black text-slate-900">{selectedOrderId ? 'Track your order' : 'Orders & tracking'}</h3></div>
             {successBookingId && <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><span><strong>Payment confirmed.</strong> Order reference: {successBookingId}. Details may take a moment to load.</span><button aria-label="Dismiss" onClick={() => setSuccessBookingId(null)} className="rounded-lg px-2 py-1 font-bold hover:bg-emerald-100">×</button></div>}
 
@@ -1215,7 +1200,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {/* ACCOUNT SETTINGS */}
         {currentTab === 'settings' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
-            <div className="flex items-center gap-2"><button aria-label="Back to profile" onClick={() => { setActiveWorkflow('none'); setCurrentTab('profile'); }} className="rounded-lg p-1"><ArrowLeft size={18} /></button><div><h3 className="text-base font-black text-slate-900">Settings</h3><p className="text-[11px] text-slate-500">Manage your AllGo account.</p></div></div>
+            <div className="flex items-center gap-2"><button aria-label="Back to profile" onClick={() => { setActiveWorkflow('none'); setSelectedOrderId(null); setCurrentTab('profile'); }} className="rounded-lg p-1"><ArrowLeft size={18} /></button><div><h3 className="text-base font-black text-slate-900">Settings</h3><p className="text-[11px] text-slate-500">Manage your AllGo account.</p></div></div>
             <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Account</h4><div className="mt-3 space-y-3 text-xs"><div><p className="text-[10px] text-slate-400">Name</p><p className="font-bold text-slate-800">{userName}</p></div><div><p className="text-[10px] text-slate-400">Email</p><p className="break-all font-bold text-slate-800">{userProfile?.email || 'Not available'}</p></div><div><p className="text-[10px] text-slate-400">Mobile</p><p className="font-bold text-slate-800">{userProfile?.phone || 'Not added'}</p></div><button onClick={() => setShowAddressModal(true)} className="flex w-full items-center justify-between border-t border-slate-100 pt-3 text-left font-bold text-indigo-600"><span className="flex items-center gap-2"><MapPin size={15} /> Delivery address</span><ChevronRight size={15} /></button></div></div>
             <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Communication preferences</h4><button className="mt-3 min-h-11 text-xs font-bold text-indigo-700" onClick={() => void enableOrderNotifications().then(() => alert('Device notifications enabled.')).catch(error => alert(error instanceof Error ? error.message : 'Notification setup failed.'))}>Enable device notifications</button><p className="mt-1 text-[10px] text-slate-500">Choose what AllGo may send to your account. Push notifications require device notification setup.</p><label className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-700"><span>Order updates</span><input type="checkbox" checked={preferences.orderUpdates} disabled={savingPreferences} onChange={(event) => void handleSavePreferences({ ...preferences, orderUpdates: event.target.checked })} className="h-4 w-4 accent-indigo-600" /></label><label className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-700"><span>Offers and product news</span><input type="checkbox" checked={preferences.promotions} disabled={savingPreferences} onChange={(event) => void handleSavePreferences({ ...preferences, promotions: event.target.checked })} className="h-4 w-4 accent-indigo-600" /></label>{savingPreferences && <p className="mt-2 text-[10px] text-indigo-600">Saving preferences…</p>}</div>
 <div className="rounded-2xl border border-rose-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Privacy and deletion</h4><p className="mt-2 text-xs text-slate-500">Saved addresses can be deleted in Delivery address. Use support to request a copy of your data. Deletion requests require a recent sign-in and settled bookings and balances; required transaction records may be retained under the operator's published policy.</p><button className="mt-3 min-h-11 w-full rounded-lg bg-rose-50 text-xs font-bold text-rose-700" onClick={async () => { if (await confirm('Request deletion of your AllGo account? Resolve active orders and balances first.')) void requestAccountDeletion().then(() => alert('Deletion requested. Support will confirm processing and any records that must be retained.')).catch(error => alert(error instanceof Error ? error.message : 'Deletion request failed.')); }}>Request account deletion</button><h4 className="mt-4 text-xs font-extrabold text-slate-800">Session</h4><p className="mt-1 text-[10px] text-slate-500">Sign out from this device.</p><button onClick={onSignOut} className="mt-3 w-full rounded-xl bg-rose-50 py-2.5 text-xs font-bold text-rose-700">Sign out</button></div>
@@ -1265,30 +1250,16 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
       {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}
 
-      {/* FIXED BOTTOM NAVIGATION BAR */}
-      <div className="safe-area-bottom absolute bottom-0 left-0 right-0 grid h-[calc(4rem+env(safe-area-inset-bottom))] grid-cols-5 items-center justify-items-center border-t border-slate-100 bg-white shadow-lg shrink-0 z-10">
-        <button onClick={() => { setCurrentTab('home'); setActiveWorkflow('none'); }} className={`flex flex-col items-center cursor-pointer ${currentTab === 'home' && activeWorkflow === 'none' ? 'text-blue-600' : 'text-slate-400'}`}>
-          <House size={20} />
-          <span className="text-[10px] font-bold mt-0.5">Home</span>
-        </button>
-        <button onClick={() => { setCurrentTab('orders'); setActiveWorkflow('none'); }} className={`flex flex-col items-center cursor-pointer ${currentTab === 'orders' ? 'text-blue-600' : 'text-slate-400'}`}>
-          <ClipboardList size={20} />
-          <span className="text-[10px] font-bold mt-0.5">Orders</span>
-        </button>
-        <button onClick={() => { setCurrentTab('cart'); setActiveWorkflow('none'); }} className={`relative flex flex-col items-center cursor-pointer ${currentTab === 'cart' ? 'text-blue-600' : 'text-slate-400'}`}>
-          <ShoppingCart size={20} />
-          {cart.length > 0 && <span className="absolute -right-2 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">{cart.reduce((sum, line) => sum + line.quantity, 0)}</span>}
-          <span className="text-[10px] font-bold mt-0.5">Cart</span>
-        </button>
-        <button onClick={() => { setCurrentTab('support'); setActiveWorkflow('none'); }} className={`flex flex-col items-center cursor-pointer ${currentTab === 'support' ? 'text-blue-600' : 'text-slate-400'}`}>
-          <LifeBuoy size={20} />
-          <span className="text-[10px] font-bold mt-0.5">Support</span>
-        </button>
-        <button onClick={() => { setCurrentTab('profile'); setActiveWorkflow('none'); }} className={`flex flex-col items-center cursor-pointer ${currentTab === 'profile' ? 'text-blue-600' : 'text-slate-400'}`}>
-          <UserRoundCog size={20} />
-          <span className="text-[10px] font-bold mt-0.5">Profile</span>
-        </button>
-      </div>
+      {activeWorkflow === 'none' && !showCheckoutReview && !catalogPage && !shopAgain && !selectedOrderId && <BottomNavigation<CustomerTab>
+        active={customerDestination(currentTab)}
+        items={[
+          { id: 'home', label: 'Home', icon: House },
+          { id: 'services', label: 'Services', icon: ShoppingBag },
+          { id: 'orders', label: 'Activity', icon: ClipboardList },
+          { id: 'profile', label: 'Account', icon: UserRoundCog },
+        ]}
+        onNavigate={tab => { setCurrentTab(tab); setActiveWorkflow('none'); }}
+      />}
 
       {/* ADDRESS CHOOSE MODAL */}
       {showAddressModal && (

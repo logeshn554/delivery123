@@ -29,6 +29,7 @@ test('perLegRefundPolicy - computeLegRefund', () => {
 
   // Transit leg -> cannot cancel
   assert.throws(() => computeLegRefund({ ...cancellableLeg, status: 'transit' }), /already in transit/);
+  for (const status of ['at_merchant_stop', 'unknown', null]) assert.throws(() => computeLegRefund({ ...cancellableLeg, status }), /operations review/);
 
   // Missing or invalid breakdown
   assert.throws(() => computeLegRefund({ ...cancellableLeg, priceBreakdown: null }), /price breakdown is invalid/);
@@ -36,7 +37,9 @@ test('perLegRefundPolicy - computeLegRefund', () => {
 });
 
 test('perLegRefundPolicy - getLegRefundIdempotencyKey', () => {
-  assert.equal(getLegRefundIdempotencyKey('pay_abc123', 'leg_xyz987'), 'pay_abc123:leg:leg_xyz987');
+  assert.match(getLegRefundIdempotencyKey('pay_abc123', 'leg_xyz987'), /^[a-zA-Z0-9_-]{10,}$/);
+  assert.equal(getLegRefundIdempotencyKey('pay_abc123', 'leg_xyz987'), getLegRefundIdempotencyKey('pay_abc123', 'leg_xyz987'));
+  assert.notEqual(getLegRefundIdempotencyKey('pay_abc123', 'leg_xyz987'), getLegRefundIdempotencyKey('pay_other', 'leg_xyz987'));
   assert.throws(() => getLegRefundIdempotencyKey('', 'leg_1'), /required/);
   assert.throws(() => getLegRefundIdempotencyKey('pay_1', ''), /required/);
 });

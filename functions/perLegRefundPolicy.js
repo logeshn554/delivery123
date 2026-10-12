@@ -1,4 +1,5 @@
 const { journal } = require('./journalPolicy');
+const crypto = require('node:crypto');
 
 function computeLegRefund(leg, reason) {
   if (!leg || typeof leg !== 'object') {
@@ -21,6 +22,7 @@ function computeLegRefund(leg, reason) {
   if (leg.status === 'transit') {
     throw new Error('Leg is already in transit and cannot be cancelled.');
   }
+  if (!['pending', 'accepted', 'preparing', 'ready'].includes(leg.status)) throw new Error('This leg state requires operations review before cancellation.');
 
   const breakdown = leg.priceBreakdown;
   if (!breakdown || !Number.isSafeInteger(breakdown.totalCents) || breakdown.totalCents < 0) {
@@ -40,7 +42,7 @@ function getLegRefundIdempotencyKey(paymentId, legId) {
   if (!paymentId || !legId) {
     throw new Error('Both paymentId and legId are required for refund idempotency key.');
   }
-  return `${paymentId}:leg:${legId}`;
+  return crypto.createHash('sha256').update(`${paymentId}:leg:${legId}`).digest('hex');
 }
 
 function buildLegRefundJournal(bundleId, legId, refundCents, references = {}) {

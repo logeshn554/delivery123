@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Module, { createRequire } from 'node:module';
-import { createHmac } from 'node:crypto';
+import { createHmac, createHash } from 'node:crypto';
 
 if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080') {
   throw new Error('Bundle integration tests require the isolated demo emulator.');
@@ -14,6 +14,9 @@ process.env.RAZORPAY_KEY_ID = 'rzp_test_123';
 process.env.RAZORPAY_KEY_SECRET = 'mock_secret';
 
 const originalFetch = globalThis.fetch;
+const refundReceipts = new Map();
+let refundMode = 'processed';
+let refundPosts = 0;
 globalThis.fetch = async (url, options) => {
   if (typeof url === 'string' && url.includes('api.razorpay.com')) {
     if (url.includes('/orders')) {
@@ -23,10 +26,20 @@ globalThis.fetch = async (url, options) => {
       };
     }
     if (url.includes('/refund')) {
-      return {
-        ok: true,
-        json: async () => ({ id: `rfnd_${Date.now()}`, status: 'processed' }),
-      };
+      if (options?.method === 'GET') {
+        const receipt = [...refundReceipts.values()].find(item => url.endsWith(item.id));
+        return { ok: !!receipt, json: async () => receipt || {} };
+      }
+      const key = options.headers['X-Refund-Idempotency'];
+      const body = JSON.parse(options.body);
+      refundPosts++;
+      let receipt = refundReceipts.get(key);
+      if (!receipt) {
+        receipt = { id: `rfnd_${Date.now()}${refundPosts}`, entity: 'refund', amount: body.amount, currency: 'INR', payment_id: url.split('/payments/')[1].split('/')[0], notes: body.notes, status: refundMode === 'pending' ? 'pending' : 'processed' };
+        refundReceipts.set(key, receipt);
+      }
+      if (refundMode === 'lost_response') throw new Error('Simulated lost refund response');
+      return { ok: true, json: async () => receipt };
     }
     return {
       ok: true,
@@ -78,7 +91,35 @@ const callable = (name, uid, data, admin = false) =>
     rawRequest: { ip: '127.0.0.1' },
   });
 
+test('bundle messages enforce participant access, bounded content, replay and throttling', async () => {
+  await db.doc('users/customer_1').set({ uid: 'customer_1', name: 'Verified customer name', role: 'customer' });
+  await db.doc('bundles/chat_bundle').set({ customerId: 'customer_1' });
+  await db.doc('bundles/chat_bundle/legs/own').set({ status: 'ready', type: 'food', merchantId: 'shop', driverId: 'driver_1' });
+  const message = { bundleId: 'chat_bundle', legId: 'own', messageId: 'message_one', text: 'Hello partner' };
+  await assert.rejects(callable('sendBundleLegMessage', 'customer_2', message), /Only current participants/);
+  await assert.rejects(callable('sendBundleLegMessage', 'customer_1', { ...message, senderId: 'driver_1' }), /unsupported fields/);
+  await assert.rejects(callable('sendBundleLegMessage', 'customer_1', { ...message, text: 'x'.repeat(1001) }), /1000 characters/);
+  const [sent, simultaneous] = await Promise.all([
+    callable('sendBundleLegMessage', 'customer_1', message),
+    callable('sendBundleLegMessage', 'customer_1', message),
+  ]);
+  assert.deepEqual(simultaneous, sent);
+  assert.equal(sent.messageId, 'message_one');
+  assert.deepEqual(await callable('sendBundleLegMessage', 'customer_1', message), sent);
+  const saved = (await db.doc('bundles/chat_bundle/legs/own/chats/message_one').get()).data();
+  assert.equal(saved.senderId, 'customer_1');
+  assert.equal(saved.senderName, 'Verified customer name');
+  assert.equal(new Date(saved.timestamp).toISOString(), saved.timestamp);
+  await assert.rejects(callable('sendBundleLegMessage', 'customer_1', { ...message, text: 'Changed payload' }), /already used/);
+  // Seed the throttle explicitly; prior emulator calls may legitimately take >1.5s.
+  await db.doc(`rate_limits/bundle_chat_${createHash('sha256').update('customer_1').digest('hex')}`).set({ bucket: Math.floor(Date.now() / 60000), count: 10, lastSentAt: Date.now() + 60000 });
+  await assert.rejects(callable('sendBundleLegMessage', 'customer_1', { ...message, messageId: 'too_fast' }), /wait before sending/);
+  await db.doc('bundles/chat_bundle/legs/own').update({ status: 'completed' });
+  await assert.rejects(callable('sendBundleLegMessage', 'customer_1', { ...message, messageId: 'after_completion' }), /Only current participants/);
+});
+
 beforeEach(async () => {
+  refundReceipts.clear(); refundMode = 'processed'; refundPosts = 0;
   const response = await fetch('http://127.0.0.1:8080/emulator/v1/projects/demo-allgo/databases/(default)/documents', { method: 'DELETE' });
   assert.equal(response.ok, true);
 
@@ -181,6 +222,49 @@ beforeEach(async () => {
     currentLng: 80.25,
     supportedServices: ['ride', 'food'],
   });
+});
+
+test('refund cancellation keeps unknown outcomes durable and namespaces repeated leg IDs', async () => {
+  await db.doc('grocery_stores/store_1/products/item_1').update({ stock: 1 }); // two prior reservations from three units
+  for (const id of ['one', 'two']) {
+    await db.doc(`bundles/BND_${id}`).set({ customerId: 'customer_1', paymentId: `pay_${id}`, paymentOrderId: `order_${id}`, paymentMethod: 'upi', paymentStatus: 'paid', totalCents: 500 });
+    await db.doc(`bundles/BND_${id}/legs/LEG_1`).set({ legId: 'LEG_1', type: 'grocery', merchantId: 'store_1', items: [{ id: 'item_1', quantity: 1 }], status: 'pending', priceBreakdown: { totalCents: 500 } });
+  }
+  refundMode = 'lost_response';
+  const first = await callable('cancelBundleLeg', 'customer_1', { bundleId: 'BND_one', legId: 'LEG_1' });
+  assert.equal(first.refundStatus, 'reconciliation_required');
+  assert.equal((await db.collection('financial_journals').where('kind', '==', 'bundle_leg_refund').get()).size, 0);
+  assert.equal((await db.doc('bundles/BND_one/legs/LEG_1').get()).data().status, 'cancelled');
+  assert.equal((await db.doc('bundles/BND_one/legs/LEG_1').get()).data().refundStatus, 'reconciliation_required');
+  assert.equal(refundReceipts.size, 1); // provider processed; response lost
+  refundMode = 'processed';
+  const retry = await callable('cancelBundleLeg', 'customer_1', { bundleId: 'BND_one', legId: 'LEG_1' });
+  assert.equal(retry.refundStatus, 'processed');
+  assert.equal(refundReceipts.size, 1); // same stable request, no second provider refund
+  const second = await callable('cancelBundleLeg', 'customer_1', { bundleId: 'BND_two', legId: 'LEG_1' });
+  assert.equal(second.refundStatus, 'processed');
+  assert.equal(refundReceipts.size, 2);
+  const ledger = await db.collection('financial_journals').where('kind', '==', 'bundle_leg_refund').get();
+  assert.equal(ledger.size, 2);
+  assert.equal((await db.doc('grocery_stores/store_1/products/item_1').get()).data().stock, 3);
+  assert.equal((await db.collection('grocery_stores/store_1/products/item_1/stock_events').where('kind', '==', 'return').get()).size, 2);
+  assert.deepEqual(new Set(ledger.docs.map(doc => doc.data().references.bundleId)), new Set(['BND_one', 'BND_two']));
+});
+
+test('pending provider refunds do not post settled money and a stale admin claim cannot review them', async () => {
+  await db.doc('bundles/BND_pending').set({ customerId: 'customer_1', paymentId: 'pay_pending', paymentOrderId: 'order_pending', paymentMethod: 'upi', paymentStatus: 'paid', totalCents: 500 });
+  await db.doc('bundles/BND_pending/legs/LEG_1').set({ legId: 'LEG_1', type: 'ride', status: 'pending', priceBreakdown: { totalCents: 500 } });
+  refundMode = 'pending';
+  const response = await callable('cancelBundleLeg', 'customer_1', { bundleId: 'BND_pending', legId: 'LEG_1' });
+  assert.equal(response.refundStatus, 'provider_pending');
+  assert.equal((await db.collection('financial_journals').where('kind', '==', 'bundle_leg_refund').get()).size, 0);
+  await db.doc('users/staff').set({ role: 'admin' });
+  await assert.rejects(callable('reconcileBundleLegRefund', 'staff', { bundleId: 'BND_pending', legId: 'LEG_1' }), /authorization/);
+  for (const receipt of refundReceipts.values()) receipt.status = 'processed';
+  const reviewed = await callable('reconcileBundleLegRefund', 'staff', { bundleId: 'BND_pending', legId: 'LEG_1' }, true);
+  assert.equal(reviewed.status, 'processed');
+  assert.equal(refundPosts, 1); // reconciliation fetched evidence instead of resubmitting
+  assert.equal((await db.doc('bundles/BND_pending').get()).data().paymentStatus, 'refunded');
 });
 
 after(async () => {

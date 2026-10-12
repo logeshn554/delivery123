@@ -78,7 +78,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .auth-switch { width: 100%; margin-top: 24px; color: #5130ef; font-size: 13px; text-align: center; min-height: 44px; }
 .allgo-customer { background: #fff; }
 .allgo-customer input, .allgo-customer textarea, .allgo-customer select { font-size: 16px; }
-.allgo-customer button { min-height: 36px; }
+.allgo-customer button { min-height: var(--allgo-touch); }
 .allgo-customer .text-\[9px\], .allgo-customer .text-\[10px\] { font-size: 12px; line-height: 1.45; }
 .allgo-customer .text-\[8px\] { font-size: 11px; }
 .home-promo { display: flex; align-items: center; justify-content: space-between; position: relative; overflow: hidden; min-height: 164px; border-radius: 22px; background: linear-gradient(120deg, #f43b55, #ff934a); color: white; padding: 22px; }

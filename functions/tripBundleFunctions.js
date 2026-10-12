@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const { deriveBundleStatus, validateBundleInput, legCanBeEnRouteFulfilled } = require('./bundlePolicy');
 const { decideLegFulfillment } = require('./bundleFulfillmentPolicy');
 const { isCodEligible, assertCodAllowed } = require('./codPolicy');
-const { computeLegRefund, getLegRefundIdempotencyKey, buildLegRefundJournal } = require('./perLegRefundPolicy');
+const { bundleRefundFunctions } = require('./bundleRefunds');
 
 function tripBundleFunctions({
   onCall,
@@ -556,123 +556,7 @@ function tripBundleFunctions({
     return { bundleId, status: 'paid' };
   });
 
-  // C-4: cancelBundleLeg (Per-leg partial Razorpay refund, idempotent)
-  const cancelBundleLeg = onCall({
-    operation: 'cancelBundleLeg',
-    region: REGION,
-    secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET],
-  }, async request => {
-    const uid = requireUser(request);
-    const bundleId = documentId(request.data?.bundleId, 'Bundle ID');
-    const legId = documentId(request.data?.legId, 'Leg ID');
-    const reason = cleanText(request.data?.reason || 'Customer requested leg cancellation', 'Reason', 300);
-
-    const bundleRef = db.doc(`bundles/${bundleId}`);
-    const legRef = db.doc(`bundles/${bundleId}/legs/${legId}`);
-    const refundJournalRef = db.doc(`financial_journals/leg_refund_${legId}`);
-
-    return db.runTransaction(async tx => {
-      const [bundleSnap, legSnap, refundJournalSnap, userSnap] = await Promise.all([
-        tx.get(bundleRef),
-        tx.get(legRef),
-        tx.get(refundJournalRef),
-        tx.get(db.doc(`users/${uid}`)),
-      ]);
-
-      if (!bundleSnap.exists || !legSnap.exists) {
-        throw new HttpsError('not-found', 'Bundle or leg not found.');
-      }
-
-      const bundle = bundleSnap.data();
-      const leg = legSnap.data();
-      const isAdminUser = userSnap.data()?.role === 'admin';
-
-      if (bundle.customerId !== uid && !isAdminUser) {
-        throw new HttpsError('permission-denied', 'You cannot cancel this leg.');
-      }
-
-      // Check double-refund idempotency
-      if (refundJournalSnap.exists) {
-        return { status: 'already_refunded', refundCents: leg.priceBreakdown?.totalCents ?? 0, legId };
-      }
-
-      const calc = computeLegRefund(leg, reason);
-      if (calc.alreadyCancelled) {
-        return { status: 'already_cancelled', refundCents: 0, legId };
-      }
-
-      const refundCents = calc.refundCents;
-
-      // Read grocery product docs BEFORE any writes
-      const legItems = leg.items || leg.details?.items;
-      const legMerchantId = leg.merchantId || leg.details?.storeId;
-      const stockRestores = [];
-      if (leg.type === 'grocery' && legMerchantId && Array.isArray(legItems)) {
-        for (const item of legItems) {
-          const prodRef = db.doc(`grocery_stores/${legMerchantId}/products/${item.id}`);
-          const prodSnap = await tx.get(prodRef);
-          if (prodSnap.exists && Number.isSafeInteger(prodSnap.data().stock)) {
-            stockRestores.push({
-              ref: prodRef,
-              before: prodSnap.data().stock,
-              after: prodSnap.data().stock + item.quantity,
-              item,
-            });
-          }
-        }
-      }
-
-      // If online payment, perform Razorpay partial refund with idempotency key
-      if (bundle.paymentMethod !== 'cash' && bundle.paymentId && bundle.paymentId !== 'COD' && refundCents > 0) {
-        const idempotencyKey = getLegRefundIdempotencyKey(bundle.paymentId, legId);
-        try {
-          await razorpayRequest(`/payments/${encodeURIComponent(bundle.paymentId)}/refund`, 'POST', {
-            amount: refundCents,
-            speed: 'normal',
-            notes: { bundleId, legId },
-          }, { 'X-Refund-Idempotency': idempotencyKey });
-        } catch (err) {
-          throw new HttpsError('internal', `Refund provider error: ${err.message}`);
-        }
-
-        // Post financial journal
-        const j = buildLegRefundJournal(bundleId, legId, refundCents, {
-          customerId: bundle.customerId,
-          orderId: bundle.paymentOrderId,
-          paymentId: bundle.paymentId,
-        });
-        tx.create(refundJournalRef, j);
-      }
-
-      // Restore grocery stock if applicable
-      for (const sr of stockRestores) {
-        tx.update(sr.ref, { stock: sr.after });
-        recordStockMovement(tx, sr.ref, `restore_cancel_${legId}`, 'return', sr.before, sr.after, { bundleId, legId });
-      }
-
-      const now = new Date().toISOString();
-      tx.update(legRef, {
-        status: 'cancelled',
-        cancellationReason: reason,
-        cancelledAt: now,
-        updatedAt: now,
-      });
-
-      tx.set(db.doc(`bundles/${bundleId}/legs/${legId}/events/cancelled_${uid}`), {
-        stage: 'leg_cancelled',
-        actorRole: isAdminUser ? 'admin' : 'customer',
-        actorId: uid,
-        reason,
-        createdAt: now,
-      });
-
-      return {
-        status: 'cancelled',
-        refundCents,
-        legId,
-      };
-    });
-  });
+  const refundCommands = bundleRefundFunctions({ onCall, onSchedule, db, REGION, HttpsError, Timestamp, documentId, cleanText, requireUser, razorpayRequest, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, recordStockMovement });
 
   // D-1: listBundleLegOffers
   const listBundleLegOffers = onCall({ operation: 'listBundleLegOffers', region: REGION }, async request => {
@@ -929,7 +813,7 @@ function tripBundleFunctions({
     getBundleQuote,
     createBundlePaymentOrder,
     confirmBundleCheckout,
-    cancelBundleLeg,
+    ...refundCommands,
     listBundleLegOffers,
     acceptBundleLegOffer,
     advanceBundleLegDriver,

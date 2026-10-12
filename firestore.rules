@@ -101,6 +101,18 @@ service cloud.firestore {
       );
     }
 
+    function canReadBundleChat(bundleId, legData) {
+      let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let bundle = get(/databases/$(database)/documents/bundles/$(bundleId)).data;
+      let active = legData.status in ['pending', 'accepted', 'preparing', 'ready', 'transit', 'at_merchant_stop'];
+      return isSignedIn() && (
+        (account.role == 'customer' && bundle.customerId == request.auth.uid) || isAdmin() ||
+        (active && isMerchantForLeg(legData)) ||
+        (active && account.role == 'driver' && isDriverOwner(legData.get('driverId', '')) &&
+          get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data.status == 'verified')
+      );
+    }
+
     // 3. VALIDATION HELPERS BY COLLECTION
 
     function isValidUser(data) {
@@ -365,10 +377,8 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
         }
 
         match /chats/{chatId} {
-          allow read: if canReadLeg(bundleId, get(/databases/$(database)/documents/bundles/$(bundleId)/legs/$(legId)).data);
-          allow create: if canReadLeg(bundleId, get(/databases/$(database)/documents/bundles/$(bundleId)/legs/$(legId)).data)
-            && incoming().keys().hasOnly(['senderId', 'senderName', 'text', 'timestamp'])
-            && incoming().senderId == request.auth.uid;
+          allow read: if canReadBundleChat(bundleId, get(/databases/$(database)/documents/bundles/$(bundleId)/legs/$(legId)).data);
+          allow create: if false; // authorized, rate-limited server command only
           allow update, delete: if false;
         }
       }

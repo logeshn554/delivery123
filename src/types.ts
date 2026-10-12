@@ -262,6 +262,9 @@ export interface BundleLegBreakdown {
 }
 
 export interface BundleLeg {
+  refundStatus?: 'pending' | 'reconciliation_required' | 'provider_pending' | 'processed' | 'manual_review' | 'not_required';
+  refundId?: string;
+  refundIntentId?: string | null;
   legId: string;
   legIndex: number;
   type: LegType;

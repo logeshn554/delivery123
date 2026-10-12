@@ -20,6 +20,35 @@ beforeEach(async () => {
 });
 const dbFor = (uid, claims = {}) => env.authenticatedContext(uid, claims).firestore();
 
+test('bundle chat is server-written and scoped to current active participants', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'bundles', 'chat_bundle'), { customerId: 'customer' });
+    await setDoc(doc(db, 'bundles/chat_bundle/legs/own'), { status: 'ready', type: 'food', merchantId: 'shop', driverId: 'driver' });
+    await setDoc(doc(db, 'bundles/chat_bundle/legs/sibling'), { status: 'ready', type: 'ride', driverId: 'other_driver' });
+    await setDoc(doc(db, 'bundles/chat_bundle/legs/own/chats/message'), { senderId: 'customer', senderName: 'Customer', text: 'Hello', timestamp: '2026-10-12T00:00:00.000Z' });
+    await setDoc(doc(db, 'bundles/chat_bundle/legs/sibling/chats/message'), { senderId: 'customer', text: 'Private sibling' });
+  });
+  const path = 'bundles/chat_bundle/legs/own/chats/message';
+  for (const uid of ['customer', 'driver', 'merchant']) await assertSucceeds(getDoc(doc(dbFor(uid), path)));
+  await assertFails(getDoc(doc(dbFor('other'), path)));
+  await assertFails(getDoc(doc(dbFor('driver'), 'bundles/chat_bundle/legs/sibling/chats/message')));
+  for (const uid of ['customer', 'driver', 'merchant']) await assertFails(setDoc(doc(dbFor(uid), 'bundles/chat_bundle/legs/own/chats/forged'), { senderId: uid, senderName: uid, text: 'Direct', timestamp: '2026-10-12' }));
+  await env.withSecurityRulesDisabled(async context => { await updateDoc(doc(context.firestore(), 'bundles/chat_bundle/legs/own'), { status: 'completed' }); });
+  await assertFails(getDoc(doc(dbFor('driver'), path)));
+  await assertFails(getDoc(doc(dbFor('merchant'), path)));
+  await assertSucceeds(getDoc(doc(dbFor('customer'), path)));
+});
+
+test('combined journey activity requires an owner-scoped query and denies other accounts', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'bundles', 'history_owned'), { customerId: 'customer', createdAt: '2026-10-12T00:00:00.000Z', status: 'active' });
+  });
+  await assertSucceeds(getDocs(query(collection(dbFor('customer'), 'bundles'), where('customerId', '==', 'customer'), orderBy('createdAt', 'desc'), limit(31))));
+  await assertFails(getDocs(query(collection(dbFor('other'), 'bundles'), where('customerId', '==', 'customer'), orderBy('createdAt', 'desc'), limit(31))));
+  await assertFails(getDocs(query(collection(dbFor('customer'), 'bundles'), orderBy('createdAt', 'desc'), limit(31))));
+});
+
 test('stock movement records are immutable and private to the grocery owner and operations', async () => {
   await env.withSecurityRulesDisabled(async context => {
     await setDoc(doc(context.firestore(), 'users/grocer'), { role: 'merchant', merchantType: 'grocery', merchantId: 'shop' });

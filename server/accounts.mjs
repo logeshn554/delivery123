@@ -8,6 +8,7 @@ import { readSessionCookie, sessionCookieName, cookieOptions } from './sessionPo
 import { projectLegacyBooking } from './legacyBookingReadModel.mjs';
 import { accountActionLink } from './accountActionPolicy.mjs';
 import { exportLegacyBookings } from './accountExport.mjs';
+import { accountOrigins } from './originPolicy.mjs';
 
 const environment = process.env.ALLGO_ENVIRONMENT;
 if (environment && !['staging', 'production'].includes(environment)) throw new Error('ALLGO_ENVIRONMENT must be staging or production.');
@@ -20,7 +21,7 @@ const production = process.env.NODE_ENV === 'production';
 if (production && (!environment || !identityBridgeEnabled() || !process.env.FIREBASE_PROJECT_ID || !process.env.FIRESTORE_DATABASE_ID)) throw new Error('Release accounts require an explicit environment and canonical Firebase identity bridge.');
 if (production && !process.env.ACCOUNT_ALLOWED_ORIGINS) throw new Error('Production requires explicit ACCOUNT_ALLOWED_ORIGINS.');
 app.disable('x-powered-by');
-const origins = new Set((process.env.ACCOUNT_ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:3003,https://localhost,http://localhost,capacitor://localhost').split(','));
+const origins = accountOrigins({ configured: process.env.ACCOUNT_ALLOWED_ORIGINS, production, environment });
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && !origins.has(origin)) return res.status(403).json({ error: 'This app address is not allowed.', code: 'permission-denied' });

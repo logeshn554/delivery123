@@ -98,18 +98,18 @@ export default function App() {
   if (useNeonAccounts && userProfile.serviceIdentityEnabled && !userProfile.emailVerified) return <VerifyAccount email={userProfile.email} onSignOut={nativeSignOut} />;
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-slate-100 text-slate-900">
+    <div className="allgo-workspace">
       {userProfile.role === 'customer' ? (
         <main className="mx-auto h-full w-full max-w-md">
           <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-500">Opening AllGo…</div>}><CustomerApp key={currentUser.uid} userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings.filter((booking) => booking.customerId === currentUser.uid)} userProfile={userProfile} detectedAddress={undefined} onSignOut={() => nativeSignOut()} /></Suspense>
         </main>
       ) : (
         <>
-          <header className="safe-area-top sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
+          <header className="allgo-workspace-header">
             <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-600 px-2.5 py-1 font-black text-white">AllGo</div><span className="text-xs capitalize text-slate-500">{userProfile.role} app</span></div>
-            <button title="Sign out" onClick={() => nativeSignOut()} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"><LogOut size={18} /></button>
+            <button type="button" aria-label="Sign out" title="Sign out" onClick={() => nativeSignOut()} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"><LogOut size={18} /></button>
           </header>
-          <main className={`mx-auto h-[calc(100dvh-3.5rem-env(safe-area-inset-top))] w-full ${userProfile.role === 'admin' ? 'max-w-7xl overflow-auto' : 'max-w-md overflow-hidden'}`}>
+          <main className={`allgo-workspace-main ${userProfile.role === 'admin' ? 'max-w-7xl overflow-auto' : 'max-w-md overflow-hidden'}`}>
             <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-500">Opening AllGo…</div>}>
               {userProfile.role === 'driver' && <DriverApp userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings} detectedLat={undefined} detectedLng={undefined} />}
               {userProfile.role === 'merchant' && <MerchantPortal activeBookings={bookings} merchantId={userProfile.merchantId} merchantType={userProfile.merchantType} />}
