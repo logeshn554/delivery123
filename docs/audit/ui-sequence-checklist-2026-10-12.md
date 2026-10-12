@@ -76,6 +76,20 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 - Visual review/device/accessibility acceptance and live provider quote, map, notification, and proof workflows remain pending. No sample shipments, prices, rates, partner data or delivery promises were added.
 - Pull-request compare: <https://github.com/logeshn554/delivery123/compare/codex/ride-ui...codex/delivery-ui?expand=1>. Draft PR creation returned HTTP 403 (`Resource not accessible by integration`), so no pull request has been created.
 
+### Tracking freshness implementation evidence
+
+- Customer tracking now rejects future-dated and expired driver positions and route estimates; malformed route values and destinations also fail closed. The UI explains when location or route data is outside its live window.
+- Regression coverage: `src/design-system/trackingFreshness.ts` and `tests/ui/trackingFreshness.test.ts`.
+- Branch: `codex/tracking-freshness`, stacked on `codex/delivery-ui`.
+- `npm run lint`: passed.
+- `npm test`: passed (58 Functions tests, 8 UI tests, 12 server tests, secret scan of 314 snapshots).
+- `npm run test:rules`: passed (89 tests, 0 failures). Emulator logs warn that Maps and Razorpay secrets are not configured locally; provider acceptance was not tested.
+- `npm run build`: passed in development mode; existing `accounts` chunk warning (602.87 kB).
+- `node scripts/check-android.mjs`: Android `:app:assembleDebug` passed (`BUILD SUCCESSFUL`, 306 actionable tasks) with JDK 21; unsigned debug build only.
+- `git diff --check`: passed.
+- `npm run android:sync` copied the Android assets and synced 7 plugins; its final preparation wrapper exited because iOS Capacitor config is absent. Android Firebase native config is absent as well.
+- Live location/map/provider acceptance, visual review, accessibility and physical-device acceptance remain pending.
+
 ## Release evidence
 
 - [x] Update the repository remediation register with branch/commit, changed files, command outputs and PR blockers.
