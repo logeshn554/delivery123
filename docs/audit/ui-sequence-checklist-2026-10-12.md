@@ -11,7 +11,8 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 - [x] Truncate long delivery addresses in the app header while retaining the full accessible label and title.
 - [x] Lint, application test suite, Firestore rules suite, production build, Capacitor Android sync build, and Android debug compile passed (evidence recorded below).
 - [ ] Validate narrow/mobile and desktop layouts, keyboard access, image failures and live catalog behavior; local browser preview could not connect under the current browser network policy, so visual acceptance is pending.
-- [x] Commit and publish a draft pull request for review.
+- [x] Commit and push the feature branch for review.
+- [ ] Open a draft pull request: GitHub integration returned HTTP 403 `Resource not accessible by integration`; `gh` CLI is not installed. Branch is pushed; create-PR URL: https://github.com/logeshn554/delivery123/compare/main...codex/food-ui?expand=1
 
 ## Grocery
 
@@ -49,4 +50,4 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 - `:app:assembleDebug` — passed with JDK 21 (`BUILD SUCCESSFUL`, 207 actionable tasks); this is a debug build, not signed release or physical-device acceptance.
 - `git diff --check` — passed.
 - Visual evidence: not captured. The local dev server was available on localhost, but the in-app browser timed out and browser policy prevented a permitted alternate route. Mobile/desktop rendering and accessibility review remain pending.
-- Draft PR: pending publication in this record until a URL is confirmed.
+- Commit: `18ed975` (`feat(food): improve customer discovery UI`). Branch push succeeded. Draft PR creation is blocked by GitHub integration authorization (HTTP 403); the GitHub CLI is unavailable. PR URL: https://github.com/logeshn554/delivery123/compare/main...codex/food-ui?expand=1
