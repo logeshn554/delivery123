@@ -52,9 +52,29 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 
 ## Delivery
 
-- [ ] Align parcel creation and tracking with shared components and supplied delivery reference.
-- [ ] Preserve configured rates, package constraints, handover and tracking authority.
-- [ ] Validate empty, upload, network, status, keyboard and responsive states.
+- [x] Restyle parcel creation around the supplied delivery reference: actual current shipments, four-step booking, route, package, people and quote review.
+- [x] Preserve address resolution, existing package limits/dimensions, local/intercity choice, requested pickup time, private contacts, restriction consent, server quote, payment and handover paths.
+- [x] Display all submitted parcel fields before payment and reject malformed or expired server quotes; regressions cover every parcel booking status used by tracking.
+- [x] Show current shipment summaries and status-specific parcel tracking from real bookings, with actual fare, addresses, package data, private-contact loading/errors and existing handover codes.
+- [ ] Add shipment labels/consignment IDs, custody scans and multi-leg manifests, package photos/signatures, failed delivery/reattempt/return flows and damage/loss claims. The audit calls these open logistics capabilities; no secure parcel evidence or custody service is available to back UI controls yet.
+- [ ] Validate narrow/mobile and desktop rendering, large text, keyboard, assistive technology, location/network/quote recovery and a physical device. Browser preview was unavailable in this session, so visual acceptance is pending.
+- [x] Lint, application tests, Firestore rules tests, development-mode build, Capacitor Android asset sync and Android debug compile passed (evidence below; wrapper limitations recorded).
+- [x] Commit and push a separate Delivery branch. Draft PR creation is blocked by the GitHub integration's HTTP 403; compare link is recorded below.
+
+### Delivery implementation evidence
+
+- Branch: `codex/delivery-ui`, stacked on `codex/ride-ui`.
+- Changed UI: `src/components/ParcelBookingScreen.tsx`, `src/components/CustomerApp.tsx`, `src/components/OrderTrackingScreen.tsx`, `src/components/ParcelOrderDetails.tsx`, and `src/index.css`.
+- Regression coverage: `src/design-system/parcelTracking.ts` and `tests/ui/parcelTracking.test.ts` verify customer-facing tracking copy/stages for pending, assigned, in-transit, delivered and cancelled bookings.
+- `npm run lint`: passed.
+- `npm test`: passed (58 Functions tests, 6 UI tests, 12 server tests, secret scan of 312 snapshots).
+- `npm run test:rules`: passed (89 tests, 0 failures). Emulator logs warn that Maps and Razorpay secrets are not configured locally; provider acceptance was not tested.
+- `npm run build`: passed in development mode; existing `accounts` chunk warning (602.87 kB).
+- `npm run android:sync`: web build and Android Capacitor sync passed with 7 plugins; the wrapper then exited because `ios/App/App/capacitor.config.json` is missing. Android Firebase native config is also absent.
+- `node scripts/check-android.mjs`: passed Android `:app:assembleDebug` (`BUILD SUCCESSFUL`, 306 actionable tasks) with JDK 21; this is an unsigned debug build, not device acceptance.
+- `git diff --check`: passed.
+- Visual review/device/accessibility acceptance and live provider quote, map, notification, and proof workflows remain pending. No sample shipments, prices, rates, partner data or delivery promises were added.
+- Pull-request compare: <https://github.com/logeshn554/delivery123/compare/codex/ride-ui...codex/delivery-ui?expand=1>. Draft PR creation returned HTTP 403 (`Resource not accessible by integration`), so no pull request has been created.
 
 ## Release evidence
 

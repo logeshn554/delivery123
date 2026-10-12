@@ -675,6 +675,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const latestOpenBooking = activeBookings.find((booking) => !['completed', 'delivered', 'cancelled'].includes(booking.status));
   const recentRides = activeBookings.filter(booking => booking.serviceType === 'ride' && ['completed', 'delivered'].includes(booking.status))
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 3);
+  const currentParcels = activeBookings.filter(booking => booking.serviceType === 'parcel' && !['completed', 'delivered', 'cancelled'].includes(booking.status))
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt)).slice(0, 3);
   const globalSearchTerm = searchQuery.trim().toLowerCase();
   const matchingServiceLinks = [
     { label: 'Food delivery', workflow: 'food' as const },
@@ -1073,7 +1075,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
         {/* WORKFLOW: RIDE BOOKING */}
         {(currentTab === 'cart' || ['ride', 'parcel', 'takeover', 'transport'].includes(activeWorkflow)) && <label className="flex min-h-11 items-center gap-3 rounded-xl border bg-white p-3 text-xs font-bold"><input type="checkbox" checked={useWallet} disabled={paymentBusy} onChange={event => setUseWallet(event.target.checked)} /> Pay with AllGo wallet (₹{userProfile?.walletBalance || 0} available)</label>}
-        {activeWorkflow === 'parcel' && <ParcelBookingScreen customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft,price) => handleCheckout('parcel',price,draft.details,{pickupAddress:draft.pickupAddress,dropAddress:draft.dropAddress})}/> }
+        {activeWorkflow === 'parcel' && <ParcelBookingScreen customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} recentShipments={currentParcels} onOpenShipment={bookingId => { setSelectedOrderId(bookingId); setCurrentTab('orders'); setActiveWorkflow('none'); }} onBack={() => setActiveWorkflow('none')} onPay={(draft,price) => handleCheckout('parcel',price,draft.details,{pickupAddress:draft.pickupAddress,dropAddress:draft.dropAddress})}/> }
         {(['ride', 'takeover'] as const).map(service => activeWorkflow === service && <ServiceBookingScreen key={service} service={service} customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} recentRides={service === 'ride' ? recentRides : undefined} onRecentRide={bookingId => { setSelectedOrderId(bookingId); setCurrentTab('orders'); setActiveWorkflow('none'); }} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout(service, price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />)}
         {activeWorkflow === 'transport' && <TransportBookingScreen customerName={userName} initialAddress={deliveryAddress} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout('transport', price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />}
 

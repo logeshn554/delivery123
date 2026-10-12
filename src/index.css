@@ -319,6 +319,117 @@ button:disabled { opacity: .6; cursor: wait; }
 .ride-tracking-screen .tracking-partner button { display: grid; width: 44px; height: 44px; place-items: center; background: #edf2ff; color: var(--allgo-ride); }
 .ride-tracking-screen .tracking-otp { border: 1px solid #dce4f8; background: #eef3ff; color: #3556ad; }
 @media (max-width: 360px) { .ride-booking-intro { padding: 17px; } .ride-location-picker { padding: 11px; } .ride-route-connector { left: 25px; } .ride-vehicle-options { gap: 7px; } .ride-vehicle-options button { min-height: 100px; } }
+.parcel-booking-screen { display: grid; gap: 12px; padding-bottom: max(20px,env(safe-area-inset-bottom)); color: var(--allgo-ink); }
+.parcel-booking-screen .allgo-page-heading { margin: 0 0 4px; }
+.parcel-booking-screen .allgo-page-heading > button { width: var(--allgo-touch-target); height: var(--allgo-touch-target); border-color: #e2def0; color: #6549b6; }
+.parcel-booking-screen .allgo-page-heading p { color: #735cb4; }
+.parcel-booking-screen .allgo-page-heading h1 { color: #26223b; font-size: clamp(20px,5vw,25px); }
+.parcel-current-section { display: grid; gap: 10px; }
+.parcel-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.parcel-section-heading h2 { margin: 0; color: #29263a; font-size: 17px; font-weight: 800; }
+.parcel-section-heading p { margin: 3px 0 0; color: #706c7d; font-size: 12px; }
+.parcel-section-heading > span { display: grid; min-width: 32px; height: 32px; place-items: center; border-radius: 11px; background: #f0edfb; color: #6549b6; font-size: 12px; font-weight: 800; }
+.parcel-current-list { display: grid; gap: 8px; }
+.parcel-current-card { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 11px; border: 1px solid #e7e3ef; border-radius: 16px; background: white; }
+.parcel-current-icon, .parcel-summary-heading > span { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 14px; background: #f0ecfc; color: #7356cb; }
+.parcel-current-route { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.parcel-current-route strong, .parcel-current-route > span { overflow: hidden; color: #363247; font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.parcel-current-route > span { color: #716c7e; }
+.parcel-current-route small { color: #797488; font-size: 9px; line-height: 1.4; }
+.parcel-current-action { display: grid; flex: 0 0 auto; justify-items: end; gap: 2px; }
+.parcel-current-action b { color: #55419f; font-size: 11px; }
+.parcel-current-action button { display: inline-flex; min-height: var(--allgo-touch-target); align-items: center; gap: 2px; padding: 0 2px 0 8px; color: #5d45ae; font-size: 11px; font-weight: 800; }
+.parcel-current-empty { margin: 0; padding: 13px 14px; border: 1px dashed #dcd6ed; border-radius: 15px; background: #fbfaff; color: #706b7d; font-size: 12px; line-height: 1.5; }
+.parcel-booking-screen .parcel-progress { gap: 6px; margin: 0 0 2px; }
+.parcel-booking-screen .parcel-progress span { height: 5px; background: #e8e4f1; }
+.parcel-booking-screen .parcel-progress .done { background: var(--allgo-delivery); }
+.parcel-booking-screen .allgo-form { gap: 14px; }
+.parcel-intro { margin: 0; padding: 19px; border: 1px solid #e3def4; border-radius: 21px; background: linear-gradient(125deg,#f0edff,#faf9fe 70%,#eaf1ff); }
+.parcel-intro > span { color: #7356c5; font-size: 10px; font-weight: 850; letter-spacing: 1.4px; }
+.parcel-intro h2 { margin-top: 8px; color: #28223c; font-size: clamp(21px,5.5vw,27px); font-weight: 820; letter-spacing: -.55px; line-height: 1.17; }
+.parcel-intro > p { margin: 7px 0 14px; color: #686477; font-size: 12px; line-height: 1.55; }
+.parcel-intro > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.parcel-intro > div span { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; border: 1px solid #e5e0f1; border-radius: 999px; padding: 0 10px; background: #ffffffc9; color: #5a4a91; font-size: 10px; font-weight: 750; }
+.parcel-mode-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
+.parcel-mode-picker legend { margin-bottom: 8px; color: #393549; font-size: 12px; font-weight: 800; }
+.parcel-mode-picker > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.parcel-mode-picker button { min-height: 48px; border: 1px solid #e3dfec; border-radius: 14px; background: white; color: #615d6e; font-size: 12px; font-weight: 750; }
+.parcel-mode-picker button[aria-pressed="true"] { border-color: #8b74d6; background: #f3f0ff; color: #5943a2; box-shadow: 0 0 0 2px #7659c91b; }
+.parcel-route-fields { position: relative; display: grid; gap: 10px; }
+.parcel-location-picker { position: relative; z-index: 1; margin: 0; padding: 13px; border-color: #e3dfec; border-radius: 17px; box-shadow: 0 4px 16px #291d4f08; }
+.parcel-location-picker:focus-within { border-color: #8b74d6; box-shadow: 0 0 0 3px #7659c91d; }
+.parcel-location-picker label { color: #393549; font-size: 12px; }
+.parcel-location-picker label > span { gap: 8px; }
+.parcel-location-picker label svg { color: #7659c9; }
+.parcel-location-picker input { min-height: 48px; border-color: #e7e3ef; background: #fcfbff; font-size: 16px; }
+.parcel-location-picker > button, .parcel-location-picker li > button { min-height: var(--allgo-touch-target); color: #624bb0; }
+.parcel-route-fields > span { position: absolute; z-index: 0; top: 82px; bottom: 82px; left: 26px; border-left: 2px dashed #a99bd7; }
+.parcel-step-intro { display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 15px; background: #f7f5ff; }
+.parcel-step-intro > svg { flex: 0 0 24px; color: #7155c1; }
+.parcel-step-intro h2 { color: #302b42; font-size: 15px; font-weight: 800; }
+.parcel-step-intro p { margin: 3px 0 0; font-size: 11px; line-height: 1.5; }
+.parcel-booking-screen .allgo-form > label { gap: 7px; color: #373346; font-size: 12px; }
+.parcel-booking-screen .allgo-form > label input, .parcel-booking-screen .allgo-form > label select, .parcel-booking-screen .allgo-form > label textarea { min-height: 48px; border-color: #e2deeb; border-radius: 12px; background: white; font-size: 16px; }
+.parcel-booking-screen .allgo-form > label small { color: #726e7e; font-size: 10px; font-weight: 450; line-height: 1.5; }
+.parcel-dimensions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; min-width: 0; margin: 0; padding: 13px; border: 1px solid #e6e2ed; border-radius: 16px; background: white; }
+.parcel-dimensions legend { grid-column: 1/-1; padding: 0 5px; color: #3a354a; font-size: 11px; font-weight: 800; }
+.parcel-dimensions label { min-width: 0; color: #5f5a6d; font-size: 10px; }
+.parcel-dimensions input { min-width: 0; min-height: 44px; padding: 8px; font-size: 15px; }
+.parcel-dimensions > p { grid-column: 1/-1; margin: 0; color: #746f80; font-size: 10px; line-height: 1.5; }
+.parcel-fragile { align-items: flex-start; padding: 12px; border: 1px solid #e8e3f0; border-radius: 14px; background: white; }
+.parcel-fragile input, .parcel-confirmation input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: var(--allgo-delivery); }
+.parcel-fragile > span { display: grid; gap: 4px; }
+.parcel-fragile strong { color: #3b354a; font-size: 12px; }
+.parcel-fragile small { color: #766f83; font-size: 10px; font-weight: 450; line-height: 1.45; }
+.parcel-summary { margin: 0; padding: 16px; border-color: #e3dfed; border-radius: 18px; }
+.parcel-summary-heading { display: flex; align-items: center; gap: 11px; margin-bottom: 4px; }
+.parcel-summary-heading > span { width: 42px; height: 42px; flex-basis: 42px; }
+.parcel-summary-heading small { color: #7662bb; font-size: 9px; font-weight: 850; letter-spacing: 1.2px; }
+.parcel-summary-heading h2 { margin-top: 3px; color: #302b40; font-size: 15px; font-weight: 800; }
+.parcel-summary dl { display: grid; grid-template-columns: minmax(82px,.72fr) minmax(0,1.5fr); gap: 9px 12px; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid #f0edf4; }
+.parcel-summary dt { margin: 0; color: #797487; font-size: 10px; }
+.parcel-summary dd { min-width: 0; margin: 0; color: #373347; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.parcel-summary dd small { display: block; color: #766f83; font-size: 9px; }
+.parcel-review-extra { display: block; margin-top: 4px; color: #696477; font-size: 10px; }
+.parcel-review-extra.parcel-fragile-note { color: #8b5e20; font-weight: 750; }
+.parcel-review-notes { white-space: pre-wrap; }
+.parcel-confirmation { align-items: flex-start; padding: 12px; border: 1px solid #e4dfec; border-radius: 14px; background: #fff; line-height: 1.5; }
+.parcel-confirmation span { color: #4f4a5e; font-size: 11px; }
+.parcel-booking-screen .parcel-assurance { margin: 0; font-size: 11px; line-height: 1.5; }
+.parcel-quote-card { display: flex; align-items: flex-start; gap: 12px; padding: 15px; border: 1px solid #dcd4f3; border-radius: 17px; background: linear-gradient(125deg,#f2efff,#fff); color: #5d47ad; }
+.parcel-quote-icon { display: grid; width: 39px; height: 39px; flex: 0 0 39px; place-items: center; border-radius: 13px; background: #e7e0fb; }
+.parcel-quote-card > div:nth-child(2) { min-width: 0; flex: 1; }
+.parcel-quote-card small { color: #695c95; font-size: 9px; font-weight: 800; letter-spacing: .6px; }
+.parcel-quote-card h2 { margin: 3px 0 5px; color: #332465; font-size: 27px; font-weight: 850; }
+.parcel-quote-card p { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: #625c74; font-size: 10px; }
+.parcel-quote-card > svg { flex: 0 0 18px; margin-top: 2px; }
+.parcel-booking-screen .parcel-expired { margin: 0; background: #fff6e7; color: #80551c; }
+.parcel-booking-screen .parcel-primary-action { min-height: 52px; margin-top: 2px; border-radius: 15px; background: linear-gradient(110deg,#7659c9,#5c43aa); box-shadow: 0 7px 18px #7659c926; }
+.parcel-booking-screen :focus-visible { outline-color: #7659c9; }
+.parcel-tracking-status { border: 1px solid #e2def1; background: linear-gradient(125deg,#f2efff,#fafaff); }
+.parcel-tracking-status > span { color: #7356c5; }
+.parcel-tracking-status h2 { color: #302747; }
+.parcel-tracking-summary { display: grid; gap: 14px; padding: 15px; border: 1px solid #e5e1ed; border-radius: 18px; background: #fff; }
+.parcel-track-package { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.parcel-track-package > span { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 14px; background: #f0ecfc; color: #7356c5; }
+.parcel-track-package > div { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.parcel-track-package small, .parcel-track-addresses small { color: #7760b8; font-size: 9px; font-weight: 850; letter-spacing: .8px; }
+.parcel-track-package > div > strong { color: #373148; font-size: 11px; }
+.parcel-track-package p { display: -webkit-box; overflow: hidden; margin: 0; color: #6e697b; font-size: 10px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.parcel-track-package > strong { flex: 0 0 auto; color: #4f3c91; font-size: 12px; }
+.parcel-track-addresses { display: grid; grid-template-columns: minmax(0,1fr) 16px minmax(0,1fr); align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid #f0edf5; }
+.parcel-track-addresses > div { min-width: 0; }
+.parcel-track-addresses p { margin: 4px 0 0; color: #393549; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.parcel-track-addresses > span { width: 16px; border-top: 1px dashed #a89bd0; }
+.parcel-track-declared { margin: -3px 0 0; color: #6f6a7a; font-size: 9px; line-height: 1.4; }
+.parcel-handover-card .allgo-row > svg { color: var(--allgo-delivery); }
+.parcel-handover-card > p { overflow-wrap: anywhere; }
+.parcel-contact-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 15px; padding-top: 14px; border-top: 1px solid #efedf3; }
+.parcel-contact-grid section { min-width: 0; }
+.parcel-contact-grid h3 { color: #393449; font-size: 11px; font-weight: 800; }
+.parcel-contact-grid p { overflow-wrap: anywhere; }
+.parcel-contact-grid a { max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 360px) { .parcel-current-card { gap: 7px; padding: 9px; } .parcel-current-icon { width: 36px; height: 36px; flex-basis: 36px; } .parcel-current-route strong, .parcel-current-route > span { font-size: 10px; } .parcel-current-route small { font-size: 8px; } .parcel-current-action button { padding-left: 4px; font-size: 10px; } .parcel-summary dl { grid-template-columns: 74px minmax(0,1fr); gap: 8px; } .parcel-contact-grid { grid-template-columns: 1fr; } }
 @media (max-width: 380px) { .catalog-state { padding: 16px; gap: 10px; } .catalog-state-action { align-self: flex-end; } .catalog-state-action button { padding-inline: 10px; } .food-restaurant-open img, .food-restaurant-image-fallback { height: 138px; } }
 @media (max-width: 360px) { .grocery-hero { min-height: 132px; padding: 17px; } .grocery-hero-mark { width: 52px; height: 52px; flex-basis: 52px; border-radius: 17px; } .grocery-product-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .grocery-product-copy { padding: 10px 9px 7px; } .grocery-product-actions { padding: 0 9px 9px; } .grocery-filter-toolbar { gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
