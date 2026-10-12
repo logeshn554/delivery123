@@ -113,6 +113,7 @@ export interface GroceryProduct {
 }
 
 export interface Booking {
+  recordAuthority?: 'legacy_neon';
   picking?: { revision: number; lines: Record<string, { itemId: string; quantity: number }>; updatedAt: string };
   exception?: { kind: string; reason: string; status: 'open' | 'resolved'; revision: number; reportedBy: string; reportedAt: string; resolution?: string; resolvedBy?: string; resolvedAt?: string };
   preparation?: { expectedReadyAt: string; reason: string; revision: number; updatedAt: string };

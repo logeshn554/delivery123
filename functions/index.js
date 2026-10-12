@@ -29,6 +29,7 @@ const { partnerEvidenceFunctions } = require('./partnerEvidence');
 const { evidenceScanningFunctions } = require('./evidenceScanning');
 const { evidenceReviewFunctions } = require('./evidenceReview');
 const { driverEligibilityFunctions } = require('./driverEligibility');
+const { merchantEligibilityFunctions } = require('./merchantEligibility');
 const { scanBytes } = require('./clamScanner');
 const { getStorage } = require('firebase-admin/storage');
 const { catalogSearchFunctions } = require('./catalogSearch');
@@ -58,6 +59,7 @@ Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGIO
 Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
+Object.assign(exports, merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 function evidenceBucket(name) {
   const configured = process.env.EVIDENCE_STORAGE_BUCKET;
   if (!configured || name && name !== configured) throw new HttpsError('failed-precondition', 'The private document bucket is not configured for this environment.');
@@ -83,6 +85,9 @@ function onCall(options, handler) {
       transaction.set(ref, { count: (record.data()?.count || 0) + 1, expiresAt: Timestamp.fromMillis(Date.now() + 120000) });
     });
     if (request.auth?.uid) {
+      if (process.env.ALLGO_ENVIRONMENT && !request.auth.token.allgoSession) {
+        throw new HttpsError('unauthenticated', 'Connect your AllGo account session before using services.');
+      }
       const account = (await db.doc(`users/${request.auth.uid}`).get()).data();
       if (account?.disabled === true || account?.suspended === true) throw new HttpsError('permission-denied', 'This account is suspended. Contact support.');
       if (request.auth.token.admin === true) {

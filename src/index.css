@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./design-system/tokens.css";
 
 :root {
   color-scheme: light;
@@ -111,6 +112,326 @@ button:disabled { opacity: .6; cursor: wait; }
 .catalog-empty { display: grid; gap: 10px; justify-items: start; padding: 22px; background: #f8f5ff; border-radius: 20px; color: #78668d; font-size: 13px; line-height: 1.5; }
 .catalog-empty strong { color: #3a285a; }
 .catalog-empty button { color: #5130ef; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+.catalog-state { display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 20px; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); color: var(--allgo-ink); }
+.catalog-state-icon { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border-radius: 14px; background: #fff1e9; color: var(--allgo-food); }
+.catalog-state-copy { min-width: 0; flex: 1; }
+.catalog-state-copy h3 { margin: 1px 0 5px; font-size: 15px; line-height: 1.35; font-weight: 750; }
+.catalog-state-copy p { margin: 0; color: var(--allgo-muted); font-size: 13px; line-height: 1.55; }
+.catalog-state-action { display: flex; flex-shrink: 0; align-items: center; }
+.catalog-state-action button { min-width: var(--allgo-touch-target); min-height: var(--allgo-touch-target); border-radius: 12px; padding: 0 14px; background: var(--allgo-brand); color: white; font-size: 13px; font-weight: 700; }
+.catalog-state-loading .catalog-state-icon svg { animation: catalog-pulse 1.2s ease-in-out infinite; }
+.catalog-state-error { border-color: #f4d7d6; background: #fffafa; }
+.catalog-state-error .catalog-state-icon { color: #b83232; background: #fff0ef; }
+.catalog-state-no-results .catalog-state-icon { color: #726a81; background: #f3f1f5; }
+@keyframes catalog-pulse { 50% { opacity: .4; transform: scale(.92); } }
+.food-page { display: grid; gap: 20px; color: var(--allgo-ink); }
+.food-page-heading { display: flex; align-items: center; gap: 12px; }
+.food-page-heading h1 { margin: 0; font-size: 24px; line-height: 1.2; font-weight: 800; letter-spacing: -.65px; }
+.food-page-heading p { margin: 4px 0 0; color: var(--allgo-muted); font-size: 13px; }
+.food-back { display: grid; width: 44px; height: 44px; flex: 0 0 44px; place-items: center; border-radius: 14px; background: #f4f2f7; color: #34303e; }
+.food-order-again { min-height: 44px; margin-left: auto; padding: 0 12px; color: var(--allgo-brand); font-size: 13px; font-weight: 700; }
+.food-search { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 15px; border: 1px solid var(--allgo-border); border-radius: 16px; background: white; color: #76717e; }
+.food-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--allgo-ink); font-size: 16px; }
+.food-filter-row { display: flex; gap: 9px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: none; }
+.food-filter-row::-webkit-scrollbar { display: none; }
+.food-filter-chip { min-height: var(--allgo-touch-target); flex: 0 0 auto; border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 15px; background: white; color: #5d5865; font-size: 13px; font-weight: 650; }
+.food-filter-chip[aria-pressed="true"] { border-color: #e8a17a; background: #fff1e9; color: #a94e22; }
+.food-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.food-section-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.35px; }
+.food-section-head p { margin: 4px 0 0; color: var(--allgo-muted); font-size: 12px; }
+.food-sort { display: flex; align-items: center; gap: 6px; color: #696472; font-size: 12px; }
+.food-sort select { max-width: 145px; min-height: var(--allgo-touch-target); border: 1px solid var(--allgo-border); border-radius: 12px; padding: 0 9px; background: white; color: var(--allgo-ink); }
+.food-restaurant-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,250px),1fr)); gap: 14px; }
+.food-restaurant-card { position: relative; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; box-shadow: 0 3px 12px #24133a08; }
+.food-restaurant-open { display: block; width: 100%; min-height: 0; text-align: left; }
+.food-restaurant-open img, .food-restaurant-image-fallback { display: grid; width: 100%; height: 158px; place-items: center; object-fit: cover; background: #f4f0f5; color: #9b92a3; }
+.catalog-image-fallback { display: grid; place-items: center; }
+.food-restaurant-copy { padding: 14px; }
+.food-restaurant-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.food-restaurant-title h3 { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 750; }
+.food-restaurant-title span { flex: 0 0 auto; color: #57515e; font-size: 12px; font-weight: 700; }
+.food-restaurant-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; color: #716b78; font-size: 12px; }
+.food-restaurant-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.food-restaurant-favorite { position: absolute; top: 10px; right: 10px; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffffffed; color: #ca4265; box-shadow: 0 2px 10px #24133a20; }
+.food-menu-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,270px),1fr)); gap: 12px; }
+.food-menu-card { display: flex; min-width: 0; gap: 12px; padding: 12px; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; }
+.food-menu-image, .food-menu-image-fallback { width: 82px; height: 82px; flex: 0 0 82px; border-radius: 14px; object-fit: cover; background: #f4f0f5; }
+.food-menu-image-fallback { display: grid; place-items: center; color: #9b92a3; }
+.food-menu-copy { min-width: 0; flex: 1; }
+.food-menu-copy h3 { margin: 4px 0; font-size: 14px; line-height: 1.35; font-weight: 750; }
+.food-menu-copy p { margin: 0; color: #706a77; font-size: 12px; line-height: 1.45; }
+.food-menu-price { margin-top: 8px !important; color: #282431 !important; font-weight: 750; }
+.food-menu-actions { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: 6px; }
+.food-menu-actions button { min-width: 44px; min-height: 44px; border-radius: 12px; }
+.food-menu-copy select { min-height: var(--allgo-touch-target); }
+.food-add { padding: 0 13px; border: 1px solid #e8a17a; background: white; color: #a94e22; font-weight: 750; }
+.food-quantity { display: flex; align-items: center; gap: 3px; border: 1px solid #efcbb8; border-radius: 12px; background: #fff7f2; color: #a94e22; }
+.food-quantity button { width: 40px; color: #a94e22; font-size: 19px; }
+.food-quantity span { min-width: 20px; text-align: center; font-size: 13px; font-weight: 750; }
+.food-cart-dock { position: sticky; bottom: max(8px,env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #352947; border-radius: 18px; background: #282235; color: white; box-shadow: 0 8px 24px #20192d30; }
+.food-cart-dock p { margin: 2px 0 0; color: #d4cedc; font-size: 12px; }
+.food-cart-dock button { min-height: 44px; padding: 0 15px; border-radius: 12px; background: var(--allgo-food); color: white; font-size: 13px; font-weight: 750; }
+.food-address-summary { min-width: 0; max-width: min(54vw,360px); }
+.food-address-summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grocery-page { display: grid; gap: 18px; padding-bottom: 16px; color: var(--allgo-ink); }
+.grocery-page .catalog-state-icon { color: var(--allgo-grocery); background: #e9f5ee; }
+.grocery-page .catalog-state-error .catalog-state-icon { color: #b83232; background: #fff0ef; }
+.grocery-page-heading { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.grocery-page-heading > button:first-child { display: grid; width: var(--allgo-touch-target); height: var(--allgo-touch-target); flex: 0 0 44px; place-items: center; border-radius: 14px; background: #edf5ef; color: #245e43; }
+.grocery-page-heading p { margin: 0 0 3px; color: var(--allgo-grocery); font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }
+.grocery-page-heading h1 { margin: 0; font-size: 23px; line-height: 1.2; font-weight: 800; letter-spacing: -.5px; }
+.grocery-reorder { min-height: var(--allgo-touch-target); margin-left: auto; padding: 0 10px; color: var(--allgo-grocery); font-size: 13px; font-weight: 750; }
+.grocery-hero { display: flex; min-height: 150px; align-items: center; justify-content: space-between; gap: 16px; overflow: hidden; padding: 22px; border-radius: 24px; background: linear-gradient(115deg,#e5f1e6 0%,#f4f7eb 72%,#e0eee4 100%); }
+.grocery-hero > div { min-width: 0; max-width: 440px; }
+.grocery-hero-eyebrow { color: #397252; font-size: 11px; font-weight: 750; }
+.grocery-hero h2 { max-width: 330px; margin: 5px 0 7px; color: #183b2a; font-size: clamp(20px,5vw,28px); line-height: 1.15; font-weight: 800; letter-spacing: -.5px; }
+.grocery-hero p { max-width: 360px; margin: 0; color: #536d5b; font-size: 13px; line-height: 1.5; }
+.grocery-hero-mark { display: grid; width: 68px; height: 68px; flex: 0 0 68px; place-items: center; border-radius: 22px; background: #d0e6d4; color: #28744e; }
+.grocery-store-section, .grocery-catalog-section { display: grid; gap: 12px; min-width: 0; }
+.grocery-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.grocery-section-heading h2 { margin: 0; font-size: 18px; line-height: 1.3; font-weight: 800; }
+.grocery-section-heading p { margin: 4px 0 0; color: var(--allgo-muted); font-size: 12px; line-height: 1.45; }
+.grocery-section-heading > span { display: grid; min-width: 32px; height: 32px; place-items: center; border-radius: 12px; background: #edf5ef; color: #286443; font-size: 12px; font-weight: 800; }
+.grocery-store-details { min-width: var(--allgo-touch-target); min-height: var(--allgo-touch-target); border-radius: 12px; color: #216746; font-size: 13px; font-weight: 750; }
+.grocery-store-list { display: flex; gap: 10px; overflow-x: auto; padding: 2px 1px 5px; scrollbar-width: thin; }
+.grocery-store-card { display: flex; min-width: min(78vw,290px); min-height: 104px; flex: 0 0 min(78vw,290px); align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; text-align: left; }
+.grocery-store-card.is-selected { border-color: #60a77a; background: #f3faf4; box-shadow: 0 0 0 2px #dcefe0; }
+.grocery-store-card:disabled { opacity: .55; }
+.grocery-store-image, .grocery-store-image-fallback { display: grid; width: 60px; height: 60px; flex: 0 0 60px; place-items: center; border-radius: 15px; object-fit: cover; background: #eaf3eb; color: #668a70; }
+.grocery-store-copy { display: grid; min-width: 0; gap: 3px; color: #6a706c; font-size: 11px; line-height: 1.4; }
+.grocery-store-copy strong { overflow: hidden; color: #26352b; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.grocery-store-address { overflow: hidden; max-width: 200px; text-overflow: ellipsis; white-space: nowrap; }
+.grocery-store-available { color: #216d43; font-weight: 700; }
+.grocery-store-closed { color: #a43e3e; font-weight: 700; }
+.grocery-search { display: flex; min-height: 50px; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--allgo-border); border-radius: 16px; background: white; color: #6c756e; }
+.grocery-search:focus-within { border-color: var(--allgo-grocery); box-shadow: 0 0 0 3px #20835a22; }
+.grocery-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--allgo-ink); font-size: 16px; }
+.grocery-filter-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.grocery-category-list { display: flex; max-width: 100%; flex: 1 1 100%; gap: 7px; overflow-x: auto; scrollbar-width: none; }
+.grocery-category-list::-webkit-scrollbar { display: none; }
+.grocery-category-list button, .grocery-stock-toggle, .grocery-sort, .grocery-favorites { min-height: var(--allgo-touch-target); flex: 0 0 auto; border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 13px; background: white; color: #4f5d53; font-size: 12px; font-weight: 700; }
+.grocery-category-list button[aria-pressed="true"] { border-color: #2f8453; background: #2f8453; color: white; }
+.grocery-stock-toggle { display: inline-flex; align-items: center; gap: 8px; }
+.grocery-stock-toggle input { width: 18px; height: 18px; accent-color: var(--allgo-grocery); }
+.grocery-sort { display: flex; align-items: center; gap: 6px; }
+.grocery-sort select { max-width: 132px; border: 0; background: transparent; color: #3b493f; font-size: 12px; font-weight: 700; }
+.grocery-favorites { display: inline-flex; align-items: center; gap: 7px; }
+.grocery-favorites[aria-pressed="true"], .grocery-product-save[aria-pressed="true"] { color: #b8405c; }
+.grocery-product-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,155px),1fr)); gap: 12px; }
+.grocery-product-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: 18px; background: white; box-shadow: 0 3px 12px #193e2708; }
+.grocery-product-visual { position: relative; overflow: hidden; background: #f3f6f1; }
+.grocery-product-image, .grocery-product-image-fallback { display: grid; width: 100%; aspect-ratio: 1.2; place-items: center; object-fit: cover; background: #edf4ed; color: #78927d; }
+.grocery-product-save { position: absolute; top: 8px; right: 8px; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffffffed; color: #716e75; box-shadow: 0 2px 10px #17251b20; }
+.grocery-product-copy { display: grid; min-width: 0; flex: 1; gap: 5px; padding: 12px 12px 8px; }
+.grocery-product-title { min-height: 40px; overflow: hidden; color: #27342b; font-size: 14px; line-height: 1.35; font-weight: 750; text-align: left; }
+.grocery-product-copy p { margin: 0; color: #727a73; font-size: 12px; line-height: 1.4; }
+.grocery-product-copy strong { margin-top: 2px; color: #1f2e23; font-size: 15px; }
+.grocery-stock-in, .grocery-stock-out { width: fit-content; border-radius: 999px; padding: 3px 7px; background: #eaf5ec; color: #27633e; font-size: 11px; font-weight: 700; }
+.grocery-stock-out { background: #f8eeee; color: #9a4141; }
+.grocery-product-actions { padding: 0 12px 12px; }
+.grocery-product-actions > button, .grocery-quantity { display: flex; width: 100%; min-height: var(--allgo-touch-target); align-items: center; justify-content: center; border: 1px solid #4c8b62; border-radius: 12px; background: #fff; color: #286443; font-size: 13px; font-weight: 750; }
+.grocery-product-actions > button:disabled { border-color: #d7ddd8; background: #f3f4f3; color: #747b75; }
+.grocery-quantity { justify-content: space-between; overflow: hidden; background: #eef7ef; }
+.grocery-quantity button { width: 44px; height: 44px; color: #286443; font-size: 20px; }
+.grocery-quantity button:disabled { color: #929992; }
+.grocery-quantity span { font-size: 14px; font-weight: 800; }
+.grocery-cart-dock { position: sticky; bottom: max(8px,env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #245e3e; border-radius: 18px; background: #203b2b; color: white; box-shadow: 0 8px 24px #14251a40; }
+.grocery-cart-dock p { margin: 2px 0 0; color: #d1e2d4; font-size: 12px; }
+.grocery-cart-dock button { min-height: var(--allgo-touch-target); padding: 0 15px; border-radius: 12px; background: #3f9460; color: white; font-size: 13px; font-weight: 750; }
+.grocery-cart-conflict { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid #e7c6a4; border-radius: 16px; background: #fff9ef; color: #533d24; }
+.grocery-cart-conflict strong { font-size: 13px; }
+.grocery-cart-conflict p { margin: 3px 0 0; color: #705b41; font-size: 12px; line-height: 1.45; }
+.grocery-cart-conflict button { min-width: 44px; min-height: 44px; flex: 0 0 auto; border-radius: 12px; padding: 0 12px; background: #8a5a24; color: white; font-size: 12px; font-weight: 750; }
+.ride-booking-screen { display: grid; gap: 16px; padding-bottom: max(18px,env(safe-area-inset-bottom)); color: var(--allgo-ink); }
+.ride-booking-screen .mobile-page-heading { gap: 12px; margin: 0; }
+.ride-booking-screen .mobile-page-heading button { width: var(--allgo-touch-target); height: var(--allgo-touch-target); flex: 0 0 44px; border-radius: 14px; background: #edf1fb; color: #3655a8; }
+.ride-booking-screen .mobile-page-heading h1 { font-size: 22px; }
+.ride-booking-intro { padding: 20px; border: 1px solid #dce4f8; border-radius: 22px; background: linear-gradient(120deg,#eef3ff,#f7f8fc 70%,#e9effb); }
+.ride-booking-intro > span { color: #4164c8; font-size: 10px; font-weight: 850; letter-spacing: 1.5px; }
+.ride-booking-intro h2 { margin: 7px 0 6px; color: #202b48; font-size: clamp(21px,5vw,28px); line-height: 1.16; font-weight: 800; letter-spacing: -.55px; }
+.ride-booking-intro p { max-width: 430px; margin: 0; color: #5f6a84; font-size: 13px; line-height: 1.5; }
+.ride-recent-section { display: grid; gap: 10px; }
+.ride-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ride-section-heading h2 { margin: 0; color: #273047; font-size: 17px; font-weight: 800; }
+.ride-section-heading p { margin: 3px 0 0; color: #68738b; font-size: 12px; }
+.ride-section-heading > span { display: grid; min-width: 32px; height: 32px; place-items: center; border-radius: 12px; background: #edf1fb; color: #3556ad; font-size: 12px; font-weight: 800; }
+.ride-recent-list { display: grid; gap: 8px; }
+.ride-recent-card { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 12px; border: 1px solid #e2e7f0; border-radius: 16px; background: white; }
+.ride-recent-card > svg { flex: 0 0 19px; color: #4164c8; }
+.ride-recent-card > div:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.ride-recent-card > div:nth-child(2) strong, .ride-recent-card > div:nth-child(2) span { overflow: hidden; color: #30394c; font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.ride-recent-card > div:nth-child(2) span { color: #69738a; }
+.ride-recent-card small { color: #778098; font-size: 10px; }
+.ride-recent-end { display: grid; justify-items: end; gap: 4px; flex: 0 0 auto; }
+.ride-recent-end strong { color: #2e4b9d; font-size: 12px; }
+.ride-recent-end button { min-height: 44px; padding: 0 8px; color: #3557b0; font-size: 11px; font-weight: 750; }
+.ride-recent-empty { margin: 0; padding: 14px; border: 1px dashed #d9dfeb; border-radius: 15px; color: #68738b; background: #f7f9fd; font-size: 12px; line-height: 1.5; }
+.ride-booking-screen form { display: grid; gap: 12px; }
+.ride-route-fields { position: relative; display: grid; gap: 10px; }
+.ride-location-picker { position: relative; z-index: 1; margin: 0; padding: 13px; border-color: #e0e5ef; border-radius: 17px; box-shadow: 0 4px 16px #20355b08; }
+.ride-location-picker:focus-within { border-color: #6481d0; box-shadow: 0 0 0 3px #4164c81f; }
+.ride-location-picker label { color: #353d50; font-size: 13px; }
+.ride-location-picker label > span { gap: 8px; }
+.ride-location-picker label svg { color: #4164c8; }
+.ride-location-picker input { min-height: 48px; border-radius: 12px; border-color: #e6e9f0; background: #fafbfe; }
+.ride-location-picker > button { min-height: var(--allgo-touch-target); color: #3557b0; }
+.ride-location-picker li > button { min-height: var(--allgo-touch-target); overflow-wrap: anywhere; line-height: 1.45; }
+.ride-location-picker > small { color: #69738a; font-size: 11px; }
+.ride-route-connector { position: absolute; z-index: 0; top: 88px; bottom: 88px; left: 27px; width: 2px; border-left: 2px dashed #91a5d7; }
+.ride-booking-screen .form-section-title { margin: 4px 0 0; font-size: 18px; }
+.ride-vehicle-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin: 0; }
+.ride-vehicle-options button { min-height: 108px; gap: 10px; padding: 14px 6px; border-color: #e2e6ef; border-radius: 17px; background: white; color: #596379; }
+.ride-vehicle-options button svg { color: #66738e; }
+.ride-vehicle-options strong { font-size: 13px; }
+.ride-vehicle-options button.selected { border-color: var(--allgo-ride); background: #f0f4ff; color: #2e4b9d; box-shadow: 0 0 0 2px #4164c820; }
+.ride-vehicle-options button.selected svg { color: var(--allgo-ride); }
+.ride-booking-screen .booking-label { gap: 8px; margin: 2px 0; color: #363d4d; font-size: 13px; }
+.ride-booking-screen .booking-label input, .ride-booking-screen .booking-label textarea { min-height: 48px; border-color: #e0e5ef; background: white; font-size: 16px; }
+.ride-booking-screen .page-caption { margin: 0; color: #667087; font-size: 13px; }
+.ride-quote-summary { display: grid; gap: 12px; padding: 16px; border: 1px solid #dce4f8; border-radius: 18px; background: #f7f9ff; }
+.ride-quote-route { display: grid; gap: 8px; }
+.ride-quote-route span { display: flex; min-width: 0; align-items: flex-start; gap: 8px; color: #30384a; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.ride-quote-route svg { flex: 0 0 16px; color: var(--allgo-ride); }
+.ride-quote-summary > p { margin: 0; color: #606b83; font-size: 12px; line-height: 1.45; }
+.ride-booking-screen .quote-review { align-items: flex-start; margin: 0; border: 1px solid #dce4f8; background: #edf2ff; color: #3556ad; }
+.ride-booking-screen .quote-review > svg { flex: 0 0 22px; margin-top: 2px; }
+.ride-booking-screen .quote-review span { color: #3d4c70; }
+.ride-booking-screen .quote-review strong { color: #233e8d; font-size: 30px; }
+.ride-booking-screen .quote-review small { color: #596887; }
+.ride-booking-screen .auth-primary { min-height: 52px; border-radius: 15px; background: linear-gradient(110deg,#4164c8,#324fae); box-shadow: 0 7px 20px #4164c824; }
+.ride-booking-screen :focus-visible { outline-color: #4164c8; }
+.ride-tracking-screen .tracking-status { border: 1px solid #dce4f8; background: linear-gradient(120deg,#eef3ff,#f8f9fc); }
+.ride-tracking-screen .tracking-status > span { color: #4164c8; }
+.ride-tracking-screen .tracking-status h2 { color: #202b48; }
+.ride-trip-summary { display: flex; justify-content: space-between; gap: 14px; padding: 16px; border: 1px solid #e0e6f3; border-radius: 18px; background: white; }
+.ride-trip-summary > div:first-child { display: grid; min-width: 0; gap: 5px; }
+.ride-trip-summary > div:first-child p { margin: 0; color: #30394c; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.ride-trip-summary > div:first-child span { color: #7886a3; font-size: 12px; }
+.ride-trip-summary > div:last-child { display: grid; align-content: start; justify-items: end; gap: 5px; flex: 0 0 auto; }
+.ride-trip-summary small { color: #6a748b; font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+.ride-trip-summary > div:last-child strong { color: #29458f; font-size: 18px; }
+.ride-trip-summary > div:last-child span { color: #626d84; font-size: 11px; }
+.ride-tracking-screen .tracking-steps .done span, .ride-tracking-screen .tracking-steps .done::before { background: var(--allgo-ride); color: white; }
+.ride-tracking-screen .tracking-map { border: 1px solid #dce3f0; }
+.ride-tracking-screen .tracking-map-empty { color: #61749e; }
+.ride-tracking-screen .tracking-map-empty strong { color: #314976; }
+.ride-tracking-screen .partner-avatar { background: #edf2ff; color: var(--allgo-ride); }
+.ride-tracking-screen .tracking-partner button { display: grid; width: 44px; height: 44px; place-items: center; background: #edf2ff; color: var(--allgo-ride); }
+.ride-tracking-screen .tracking-otp { border: 1px solid #dce4f8; background: #eef3ff; color: #3556ad; }
+@media (max-width: 360px) { .ride-booking-intro { padding: 17px; } .ride-location-picker { padding: 11px; } .ride-route-connector { left: 25px; } .ride-vehicle-options { gap: 7px; } .ride-vehicle-options button { min-height: 100px; } }
+.parcel-booking-screen { display: grid; gap: 12px; padding-bottom: max(20px,env(safe-area-inset-bottom)); color: var(--allgo-ink); }
+.parcel-booking-screen .allgo-page-heading { margin: 0 0 4px; }
+.parcel-booking-screen .allgo-page-heading > button { width: var(--allgo-touch-target); height: var(--allgo-touch-target); border-color: #e2def0; color: #6549b6; }
+.parcel-booking-screen .allgo-page-heading p { color: #735cb4; }
+.parcel-booking-screen .allgo-page-heading h1 { color: #26223b; font-size: clamp(20px,5vw,25px); }
+.parcel-current-section { display: grid; gap: 10px; }
+.parcel-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.parcel-section-heading h2 { margin: 0; color: #29263a; font-size: 17px; font-weight: 800; }
+.parcel-section-heading p { margin: 3px 0 0; color: #706c7d; font-size: 12px; }
+.parcel-section-heading > span { display: grid; min-width: 32px; height: 32px; place-items: center; border-radius: 11px; background: #f0edfb; color: #6549b6; font-size: 12px; font-weight: 800; }
+.parcel-current-list { display: grid; gap: 8px; }
+.parcel-current-card { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 11px; border: 1px solid #e7e3ef; border-radius: 16px; background: white; }
+.parcel-current-icon, .parcel-summary-heading > span { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border-radius: 14px; background: #f0ecfc; color: #7356cb; }
+.parcel-current-route { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.parcel-current-route strong, .parcel-current-route > span { overflow: hidden; color: #363247; font-size: 11px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.parcel-current-route > span { color: #716c7e; }
+.parcel-current-route small { color: #797488; font-size: 9px; line-height: 1.4; }
+.parcel-current-action { display: grid; flex: 0 0 auto; justify-items: end; gap: 2px; }
+.parcel-current-action b { color: #55419f; font-size: 11px; }
+.parcel-current-action button { display: inline-flex; min-height: var(--allgo-touch-target); align-items: center; gap: 2px; padding: 0 2px 0 8px; color: #5d45ae; font-size: 11px; font-weight: 800; }
+.parcel-current-empty { margin: 0; padding: 13px 14px; border: 1px dashed #dcd6ed; border-radius: 15px; background: #fbfaff; color: #706b7d; font-size: 12px; line-height: 1.5; }
+.parcel-booking-screen .parcel-progress { gap: 6px; margin: 0 0 2px; }
+.parcel-booking-screen .parcel-progress span { height: 5px; background: #e8e4f1; }
+.parcel-booking-screen .parcel-progress .done { background: var(--allgo-delivery); }
+.parcel-booking-screen .allgo-form { gap: 14px; }
+.parcel-intro { margin: 0; padding: 19px; border: 1px solid #e3def4; border-radius: 21px; background: linear-gradient(125deg,#f0edff,#faf9fe 70%,#eaf1ff); }
+.parcel-intro > span { color: #7356c5; font-size: 10px; font-weight: 850; letter-spacing: 1.4px; }
+.parcel-intro h2 { margin-top: 8px; color: #28223c; font-size: clamp(21px,5.5vw,27px); font-weight: 820; letter-spacing: -.55px; line-height: 1.17; }
+.parcel-intro > p { margin: 7px 0 14px; color: #686477; font-size: 12px; line-height: 1.55; }
+.parcel-intro > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.parcel-intro > div span { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; border: 1px solid #e5e0f1; border-radius: 999px; padding: 0 10px; background: #ffffffc9; color: #5a4a91; font-size: 10px; font-weight: 750; }
+.parcel-mode-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
+.parcel-mode-picker legend { margin-bottom: 8px; color: #393549; font-size: 12px; font-weight: 800; }
+.parcel-mode-picker > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.parcel-mode-picker button { min-height: 48px; border: 1px solid #e3dfec; border-radius: 14px; background: white; color: #615d6e; font-size: 12px; font-weight: 750; }
+.parcel-mode-picker button[aria-pressed="true"] { border-color: #8b74d6; background: #f3f0ff; color: #5943a2; box-shadow: 0 0 0 2px #7659c91b; }
+.parcel-route-fields { position: relative; display: grid; gap: 10px; }
+.parcel-location-picker { position: relative; z-index: 1; margin: 0; padding: 13px; border-color: #e3dfec; border-radius: 17px; box-shadow: 0 4px 16px #291d4f08; }
+.parcel-location-picker:focus-within { border-color: #8b74d6; box-shadow: 0 0 0 3px #7659c91d; }
+.parcel-location-picker label { color: #393549; font-size: 12px; }
+.parcel-location-picker label > span { gap: 8px; }
+.parcel-location-picker label svg { color: #7659c9; }
+.parcel-location-picker input { min-height: 48px; border-color: #e7e3ef; background: #fcfbff; font-size: 16px; }
+.parcel-location-picker > button, .parcel-location-picker li > button { min-height: var(--allgo-touch-target); color: #624bb0; }
+.parcel-route-fields > span { position: absolute; z-index: 0; top: 82px; bottom: 82px; left: 26px; border-left: 2px dashed #a99bd7; }
+.parcel-step-intro { display: flex; align-items: flex-start; gap: 12px; margin: 0; padding: 15px; background: #f7f5ff; }
+.parcel-step-intro > svg { flex: 0 0 24px; color: #7155c1; }
+.parcel-step-intro h2 { color: #302b42; font-size: 15px; font-weight: 800; }
+.parcel-step-intro p { margin: 3px 0 0; font-size: 11px; line-height: 1.5; }
+.parcel-booking-screen .allgo-form > label { gap: 7px; color: #373346; font-size: 12px; }
+.parcel-booking-screen .allgo-form > label input, .parcel-booking-screen .allgo-form > label select, .parcel-booking-screen .allgo-form > label textarea { min-height: 48px; border-color: #e2deeb; border-radius: 12px; background: white; font-size: 16px; }
+.parcel-booking-screen .allgo-form > label small { color: #726e7e; font-size: 10px; font-weight: 450; line-height: 1.5; }
+.parcel-dimensions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; min-width: 0; margin: 0; padding: 13px; border: 1px solid #e6e2ed; border-radius: 16px; background: white; }
+.parcel-dimensions legend { grid-column: 1/-1; padding: 0 5px; color: #3a354a; font-size: 11px; font-weight: 800; }
+.parcel-dimensions label { min-width: 0; color: #5f5a6d; font-size: 10px; }
+.parcel-dimensions input { min-width: 0; min-height: 44px; padding: 8px; font-size: 15px; }
+.parcel-dimensions > p { grid-column: 1/-1; margin: 0; color: #746f80; font-size: 10px; line-height: 1.5; }
+.parcel-fragile { align-items: flex-start; padding: 12px; border: 1px solid #e8e3f0; border-radius: 14px; background: white; }
+.parcel-fragile input, .parcel-confirmation input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: var(--allgo-delivery); }
+.parcel-fragile > span { display: grid; gap: 4px; }
+.parcel-fragile strong { color: #3b354a; font-size: 12px; }
+.parcel-fragile small { color: #766f83; font-size: 10px; font-weight: 450; line-height: 1.45; }
+.parcel-summary { margin: 0; padding: 16px; border-color: #e3dfed; border-radius: 18px; }
+.parcel-summary-heading { display: flex; align-items: center; gap: 11px; margin-bottom: 4px; }
+.parcel-summary-heading > span { width: 42px; height: 42px; flex-basis: 42px; }
+.parcel-summary-heading small { color: #7662bb; font-size: 9px; font-weight: 850; letter-spacing: 1.2px; }
+.parcel-summary-heading h2 { margin-top: 3px; color: #302b40; font-size: 15px; font-weight: 800; }
+.parcel-summary dl { display: grid; grid-template-columns: minmax(82px,.72fr) minmax(0,1.5fr); gap: 9px 12px; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid #f0edf4; }
+.parcel-summary dt { margin: 0; color: #797487; font-size: 10px; }
+.parcel-summary dd { min-width: 0; margin: 0; color: #373347; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.parcel-summary dd small { display: block; color: #766f83; font-size: 9px; }
+.parcel-review-extra { display: block; margin-top: 4px; color: #696477; font-size: 10px; }
+.parcel-review-extra.parcel-fragile-note { color: #8b5e20; font-weight: 750; }
+.parcel-review-notes { white-space: pre-wrap; }
+.parcel-confirmation { align-items: flex-start; padding: 12px; border: 1px solid #e4dfec; border-radius: 14px; background: #fff; line-height: 1.5; }
+.parcel-confirmation span { color: #4f4a5e; font-size: 11px; }
+.parcel-booking-screen .parcel-assurance { margin: 0; font-size: 11px; line-height: 1.5; }
+.parcel-quote-card { display: flex; align-items: flex-start; gap: 12px; padding: 15px; border: 1px solid #dcd4f3; border-radius: 17px; background: linear-gradient(125deg,#f2efff,#fff); color: #5d47ad; }
+.parcel-quote-icon { display: grid; width: 39px; height: 39px; flex: 0 0 39px; place-items: center; border-radius: 13px; background: #e7e0fb; }
+.parcel-quote-card > div:nth-child(2) { min-width: 0; flex: 1; }
+.parcel-quote-card small { color: #695c95; font-size: 9px; font-weight: 800; letter-spacing: .6px; }
+.parcel-quote-card h2 { margin: 3px 0 5px; color: #332465; font-size: 27px; font-weight: 850; }
+.parcel-quote-card p { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: #625c74; font-size: 10px; }
+.parcel-quote-card > svg { flex: 0 0 18px; margin-top: 2px; }
+.parcel-booking-screen .parcel-expired { margin: 0; background: #fff6e7; color: #80551c; }
+.parcel-booking-screen .parcel-primary-action { min-height: 52px; margin-top: 2px; border-radius: 15px; background: linear-gradient(110deg,#7659c9,#5c43aa); box-shadow: 0 7px 18px #7659c926; }
+.parcel-booking-screen :focus-visible { outline-color: #7659c9; }
+.parcel-tracking-status { border: 1px solid #e2def1; background: linear-gradient(125deg,#f2efff,#fafaff); }
+.parcel-tracking-status > span { color: #7356c5; }
+.parcel-tracking-status h2 { color: #302747; }
+.parcel-tracking-summary { display: grid; gap: 14px; padding: 15px; border: 1px solid #e5e1ed; border-radius: 18px; background: #fff; }
+.parcel-track-package { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.parcel-track-package > span { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 14px; background: #f0ecfc; color: #7356c5; }
+.parcel-track-package > div { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.parcel-track-package small, .parcel-track-addresses small { color: #7760b8; font-size: 9px; font-weight: 850; letter-spacing: .8px; }
+.parcel-track-package > div > strong { color: #373148; font-size: 11px; }
+.parcel-track-package p { display: -webkit-box; overflow: hidden; margin: 0; color: #6e697b; font-size: 10px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.parcel-track-package > strong { flex: 0 0 auto; color: #4f3c91; font-size: 12px; }
+.parcel-track-addresses { display: grid; grid-template-columns: minmax(0,1fr) 16px minmax(0,1fr); align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid #f0edf5; }
+.parcel-track-addresses > div { min-width: 0; }
+.parcel-track-addresses p { margin: 4px 0 0; color: #393549; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.parcel-track-addresses > span { width: 16px; border-top: 1px dashed #a89bd0; }
+.parcel-track-declared { margin: -3px 0 0; color: #6f6a7a; font-size: 9px; line-height: 1.4; }
+.parcel-handover-card .allgo-row > svg { color: var(--allgo-delivery); }
+.parcel-handover-card > p { overflow-wrap: anywhere; }
+.parcel-contact-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 15px; padding-top: 14px; border-top: 1px solid #efedf3; }
+.parcel-contact-grid section { min-width: 0; }
+.parcel-contact-grid h3 { color: #393449; font-size: 11px; font-weight: 800; }
+.parcel-contact-grid p { overflow-wrap: anywhere; }
+.parcel-contact-grid a { max-width: 100%; overflow-wrap: anywhere; }
+@media (max-width: 360px) { .parcel-current-card { gap: 7px; padding: 9px; } .parcel-current-icon { width: 36px; height: 36px; flex-basis: 36px; } .parcel-current-route strong, .parcel-current-route > span { font-size: 10px; } .parcel-current-route small { font-size: 8px; } .parcel-current-action button { padding-left: 4px; font-size: 10px; } .parcel-summary dl { grid-template-columns: 74px minmax(0,1fr); gap: 8px; } .parcel-contact-grid { grid-template-columns: 1fr; } }
+@media (max-width: 380px) { .catalog-state { padding: 16px; gap: 10px; } .catalog-state-action { align-self: flex-end; } .catalog-state-action button { padding-inline: 10px; } .food-restaurant-open img, .food-restaurant-image-fallback { height: 138px; } }
+@media (max-width: 360px) { .grocery-hero { min-height: 132px; padding: 17px; } .grocery-hero-mark { width: 52px; height: 52px; flex-basis: 52px; border-radius: 17px; } .grocery-product-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .grocery-product-copy { padding: 10px 9px 7px; } .grocery-product-actions { padding: 0 9px 9px; } .grocery-filter-toolbar { gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 .mobile-page-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -245,6 +566,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .allgo-empty p { color: #8b7a9d; font-size: 12px; line-height: 1.8; margin-top: 9px; max-width: 260px; }
 .allgo-feedback { display: flex; align-items: flex-start; gap: 9px; font-size: 12px; line-height: 1.6; padding: 14px; border-radius: 12px; background: #eaf7ef; color: #28794a; }
 .allgo-feedback.error { background: #fff0f3; color: #bd3152; }
+.allgo-feedback.warning { background: #fff7e5; color: #7a4c00; }
 .allgo-feedback svg { flex-shrink: 0; margin-top: 2px; }
 .allgo-receipt-brand { font-size: 32px; font-weight: 850; letter-spacing: -1.5px; color: #5831df; margin: 12px 0; }
 .allgo-receipt dl { display: grid; grid-template-columns: 1fr 1.5fr; gap: 12px; font-size: 11px; padding: 20px 0; border-bottom: 1px dashed #e9e1f2; margin-bottom: 15px; }

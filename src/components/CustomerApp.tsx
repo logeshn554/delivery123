@@ -48,6 +48,10 @@ import { SavedAddress, UserProfile } from '../types';
 import { useFeedbackDialog } from './useFeedbackDialog';
 import { TripBundleScreen } from './TripBundleScreen';
 import { BundleTrackingScreen } from './BundleTrackingScreen';
+import { CatalogState } from '../design-system/CatalogState';
+import { CatalogImage } from '../design-system/CatalogImage';
+import { filterGroceryProducts, getGroceryCatalogView } from '../design-system/groceryCatalog';
+import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 
 
 interface CustomerAppProps {
@@ -93,34 +97,43 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     return () => clearTimeout(timer);
   }, [productsList]);
 
-  const [catalogError, setCatalogError] = useState('');
+  const [restaurantCatalogError, setRestaurantCatalogError] = useState('');
+  const [menuCatalogError, setMenuCatalogError] = useState('');
+  const [groceryStoresError, setGroceryStoresError] = useState('');
+  const [groceryProductsError, setGroceryProductsError] = useState('');
   const [catalogRetry, setCatalogRetry] = useState(0);
   const [restaurantsLoading, setRestaurantsLoading] = useState(true);
   const [menuLoading, setMenuLoading] = useState(false);
   const [groceryStoresLoading, setGroceryStoresLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
-  const reportCatalogError = (error: unknown) => { console.error('Catalog subscription failed', error); setCatalogError('We could not load the latest catalog. Check your connection and try again.'); setRestaurantsLoading(false); setMenuLoading(false); setGroceryStoresLoading(false); setProductsLoading(false); };
+  const reportRestaurantError = (error: unknown) => { console.error('Restaurant catalog subscription failed', error); setRestaurantCatalogError('We could not load restaurants. Check your connection and try again.'); setRestaurantsLoading(false); };
+  const reportMenuError = (error: unknown) => { console.error('Menu subscription failed', error); setMenuCatalogError('We could not load this menu. Check your connection and try again.'); setMenuLoading(false); };
+  const reportGroceryStoresError = (error: unknown) => { console.error('Grocery store catalog subscription failed', error); setGroceryStoresError('We could not load grocery stores. Check your connection and try again.'); setGroceryStoresLoading(false); };
+  const reportGroceryProductsError = (error: unknown) => { console.error('Grocery product catalog subscription failed', error); setGroceryProductsError('We could not load this store’s products. Check your connection and try again.'); setProductsLoading(false); };
   useEffect(() => {
-    setCatalogError(''); setRestaurantsLoading(true); setGroceryStoresLoading(true);
-    const stopRestaurants = listenToRestaurants(restaurants => { setRestaurantsList(restaurants); setRestaurantsLoading(false); }, reportCatalogError);
+    setRestaurantCatalogError(''); setGroceryStoresError(''); setRestaurantsLoading(true); setGroceryStoresLoading(true);
+    const stopRestaurants = listenToRestaurants(restaurants => { setRestaurantsList(restaurants); setRestaurantsLoading(false); setRestaurantCatalogError(''); }, reportRestaurantError);
     const stopStores = listenToGroceryStores(stores => {
       setGroceryStoresList(stores);
       setGroceryStoresLoading(false);
+      setGroceryStoresError('');
       setSelectedStoreId(current => stores.some(store => store.id === current) ? current : stores[0]?.id || '');
-    }, reportCatalogError);
+    }, reportGroceryStoresError);
     return () => { stopRestaurants(); stopStores(); };
   }, [catalogRetry]);
   useEffect(() => {
     setMenuItemsList([]);
+    setMenuCatalogError('');
     setMenuLoading(Boolean(selectedRestaurant));
     if (!selectedRestaurant) return;
-    return listenToMenuItems(selectedRestaurant.id, items => { setMenuItemsList(items); setMenuLoading(false); }, reportCatalogError);
+    return listenToMenuItems(selectedRestaurant.id, items => { setMenuItemsList(items); setMenuLoading(false); setMenuCatalogError(''); }, reportMenuError);
   }, [selectedRestaurant?.id, catalogRetry]);
   useEffect(() => {
     setProductsList([]);
+    setGroceryProductsError('');
     setProductsLoading(Boolean(selectedStoreId));
     if (!selectedStoreId) return;
-    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products.filter(product => productWithinExpiry(product))); setProductsLoading(false); }, reportCatalogError);
+    return listenToGroceryProducts(selectedStoreId, products => { setProductsList(products.filter(product => productWithinExpiry(product))); setProductsLoading(false); setGroceryProductsError(''); }, reportGroceryProductsError);
   }, [selectedStoreId, catalogRetry]);
 
   // Navigation & Screen States
@@ -480,7 +493,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   };
 
   const handleCancelOrder = async (booking: Booking) => {
-    if (booking.status !== 'pending' || booking.paymentStatus !== 'paid' || !(await confirm('Cancel this order? A refund will be requested to your original payment method.'))) return;
+    if (booking.recordAuthority === 'legacy_neon' || booking.status !== 'pending' || booking.paymentStatus !== 'paid' || !(await confirm('Cancel this order? A refund will be requested to your original payment method.'))) return;
     setCancellingOrderId(booking.bookingId);
     try {
       await requestBookingCancellation(booking.bookingId);
@@ -660,7 +673,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     } finally { setTicketBusy(false); }
   };
 
-  const latestOpenBooking = activeBookings.find((booking) => !['completed', 'delivered', 'cancelled'].includes(booking.status));
+  const latestOpenBooking = activeBookings.find((booking) => booking.recordAuthority !== 'legacy_neon' && !['completed', 'delivered', 'cancelled'].includes(booking.status));
+  const recentRides = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'ride' && ['completed', 'delivered'].includes(booking.status))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 3);
+  const currentParcels = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'parcel' && !['completed', 'delivered', 'cancelled'].includes(booking.status))
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt)).slice(0, 3);
   const globalSearchTerm = searchQuery.trim().toLowerCase();
   const matchingServiceLinks = [
     { label: 'Food delivery', workflow: 'food' as const },
@@ -672,6 +689,19 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   ].filter((item) => item.label.toLowerCase().includes(globalSearchTerm));
   const matchingRestaurants = globalSearchTerm ? restaurantsList.filter((rest) => `${rest.name} ${rest.cuisine}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
   const matchingStores = globalSearchTerm ? groceryStoresList.filter((store) => `${store.name} ${store.address}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
+  const visibleRestaurants = restaurantsList.filter((rest) => {
+    const matchesQuery = `${rest.name} ${rest.cuisine} ${rest.address}`.toLowerCase().includes(foodSearch.trim().toLowerCase());
+    return matchesQuery && (!showFavoritesOnly || favoriteCatalogIds.includes(`restaurant:${rest.id}`)) && (!vegetarianOnly || rest.pureVeg);
+  }).sort((a, b) => foodSort === 'rating' ? (b.rating || 0) - (a.rating || 0) : a.name.localeCompare(b.name));
+  const visibleFoodItems = menuItemsList.filter((item) => item.restaurantId === selectedRestaurant?.id && item.available !== false &&
+    (selectedFoodCategory === 'All' || item.category === selectedFoodCategory) &&
+    (!foodSearch.trim() || `${item.name} ${item.description} ${item.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) &&
+    (!vegetarianOnly || item.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`dish:${item.id}`)));
+  const groceryFilterOptions = { category: selectedGroceryCategory, query: grocerySearch, favoriteIds: favoriteCatalogIds, favoritesOnly: showFavoritesOnly, inStockOnly, sort: grocerySort as 'name' | 'low' | 'high' };
+  const groceryMatchingProducts = filterGroceryProducts(productsList, { ...groceryFilterOptions, inStockOnly: false });
+  const visibleGroceryProducts = filterGroceryProducts(productsList, groceryFilterOptions);
+  const groceryStoresView = getGroceryCatalogView({ loading: groceryStoresLoading, error: groceryStoresError, selectedStoreId: '', storeCount: groceryStoresList.length, products: [], matchingProducts: [], filteredProducts: [], inStockOnly: true });
+  const groceryCatalogView = getGroceryCatalogView({ loading: productsLoading, error: groceryProductsError, selectedStoreId, storeCount: groceryStoresList.length, products: productsList, matchingProducts: groceryMatchingProducts, filteredProducts: visibleGroceryProducts, inStockOnly });
 
   return (
       <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative select-none">
@@ -749,23 +779,23 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       {/* SECOND PAGE HEADER */}
       <div className="safe-area-top sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white px-4 py-3 shadow-sm">
         <div className="flex items-center justify-between">
-          <button type="button" aria-label={`Choose delivery address. Current address: ${deliveryAddress || detectedAddress || 'not selected'}`} className="flex items-center gap-2 text-left" onClick={() => setShowAddressModal(true)}>
+          <button type="button" aria-label={`Choose delivery address. Current address: ${deliveryAddress || detectedAddress || 'not selected'}`} className="flex min-w-0 max-w-[72%] flex-1 items-center gap-2 text-left" onClick={() => setShowAddressModal(true)}>
             <div className="bg-slate-100 p-2.5 rounded-xl text-slate-800">
               <MapPin className="w-4 h-4" />
             </div>
-            <div>
+            <div className="food-address-summary">
               <div className="flex items-center gap-0.5">
                 <span className="text-sm font-black text-slate-900">{savedAddresses.find(address => address.address === deliveryAddress)?.label || 'Delivery address'}</span>
                 <span className="text-[10px] text-slate-400 font-bold">▼</span>
               </div>
-              <p className="text-[10px] font-semibold text-slate-500">{deliveryAddress || detectedAddress || 'Choose delivery address'}</p>
+              <p className="text-[10px] font-semibold text-slate-500" title={deliveryAddress || detectedAddress || 'Choose delivery address'}>{deliveryAddress || detectedAddress || 'Choose delivery address'}</p>
             </div>
           </button>
 
           <div className="flex items-center gap-2">
             <button aria-label="View notifications" onClick={() => openPage('notifications')} className="relative p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-50 transition-colors">
               <Bell className="w-5 h-5" />
-              {activeBookings.some((booking) => !['completed', 'delivered', 'cancelled'].includes(booking.status)) && <span className="absolute top-1.5 right-1.5 bg-rose-500 w-2 h-2 rounded-full border border-white"></span>}
+              {activeBookings.some((booking) => booking.recordAuthority !== 'legacy_neon' && !['completed', 'delivered', 'cancelled'].includes(booking.status)) && <span className="absolute top-1.5 right-1.5 bg-rose-500 w-2 h-2 rounded-full border border-white"></span>}
             </button>
             <button aria-label="Open profile" onClick={() => { setActiveWorkflow('none'); setCurrentTab('profile'); }} className="bg-slate-100 p-2 rounded-xl border border-slate-200"><User className="w-4 h-4 text-slate-700" /></button>
           </div>
@@ -800,7 +830,6 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       {/* BODY SCROLLABLE PANELS */}
       <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))]">
 
-        {catalogError && <div role="alert" className="mb-4 rounded-2xl bg-rose-50 p-4 text-sm text-rose-800">{catalogError}<button className="block mt-2 font-bold" onClick={() => setCatalogRetry(value => value + 1)}>Try again</button></div>}
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
         {currentTab === 'home' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
@@ -887,26 +916,27 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         )}
 
         {activeWorkflow === 'food' && (
-          <div className="animate-fadeIn">
-            <div className="flex items-center gap-2 mb-4">
-              <button onClick={() => { if (selectedRestaurant) { setSelectedRestaurant(null); setFoodSearch(''); } else setActiveWorkflow('none'); }} className="p-1 hover:bg-slate-200 rounded-lg">
+          <div className="food-page animate-fadeIn">
+            <div className="food-page-heading">
+              <button aria-label={selectedRestaurant ? 'Back to restaurants' : 'Back to home'} onClick={() => { if (selectedRestaurant) { setSelectedRestaurant(null); setFoodSearch(''); } else setActiveWorkflow('none'); }} className="food-back">
                 <ArrowLeft className="w-5 h-5 text-slate-700" />
               </button>
-              <h2 className="text-base font-bold text-slate-900">Food Delivery</h2><button className="allgo-text ml-auto" onClick={() => setShopAgain('food')}>Order again</button>
+              <div className="min-w-0"><h1>{selectedRestaurant?.name || 'Food delivery'}</h1><p>{selectedRestaurant ? `${selectedRestaurant.cuisine} · ${selectedRestaurant.address}` : 'Discover restaurants and menus near you'}</p></div>
+              <button className="food-order-again" onClick={() => setShopAgain('food')}>Order again</button>
             </div>
 
-            <div className="mb-3 flex gap-2">
-              <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500"><Search size={14} /><input value={foodSearch} onChange={(event) => setFoodSearch(event.target.value)} placeholder="Search restaurants or dishes" className="min-w-0 flex-1 outline-none" /></label>
-              <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className={`rounded-xl border px-3 text-xs font-bold ${showFavoritesOnly ? 'border-rose-200 bg-rose-50 text-rose-600' : 'border-slate-200 bg-white text-slate-600'}`}><Heart size={15} className="inline" /> Saved</button>
-            </div>
-            <div className="mb-3 flex gap-2">
-              <button onClick={() => setVegetarianOnly((value) => !value)} aria-pressed={vegetarianOnly} className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${vegetarianOnly ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>Vegetarian</button>
+            <label className="food-search"><Search size={18} aria-hidden="true" /><input aria-label={selectedRestaurant ? `Search ${selectedRestaurant.name} menu` : 'Search restaurants'} value={foodSearch} onChange={(event) => setFoodSearch(event.target.value)} placeholder={selectedRestaurant ? 'Search dishes on this menu' : 'Search restaurants'} /></label>
+
+            <div className="food-filter-row" aria-label="Food filters">
+              <button onClick={() => setVegetarianOnly((value) => !value)} aria-pressed={vegetarianOnly} className="food-filter-chip">Vegetarian</button>
+              <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className="food-filter-chip">{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
               {selectedRestaurant && <div className="flex gap-1.5 overflow-x-auto">
               {["All", ...new Set(menuItemsList.filter((item) => item.restaurantId === selectedRestaurant.id).map((item) => item.category))].map(cat => (
                 <button
                   key={cat}
                   onClick={() => setSelectedFoodCategory(cat)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors ${
+                  aria-pressed={selectedFoodCategory === cat}
+                  className={`food-filter-chip transition-colors ${
                     selectedFoodCategory === cat ? 'bg-orange-500 text-white border-orange-500' : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -916,180 +946,138 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               </div>}
             </div>
 
-            {!selectedRestaurant && <label className="allgo-muted mb-3 flex items-center gap-2">Sort restaurants<select className="rounded-lg border bg-white p-2" value={foodSort} onChange={event => setFoodSort(event.target.value)}><option value="name">Name</option><option value="rating">Published rating</option></select></label>}
             {!selectedRestaurant ? (
-              <div className="space-y-4">
-                {restaurantsLoading ? <p role="status" className="catalog-empty">Loading available restaurants…</p> : restaurantsList.length === 0 ? <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">No restaurants are available in this area yet. Live restaurant listings will appear here when partners publish their menus.</p> : restaurantsList.filter((rest) => {
-                  const matchesQuery = `${rest.name} ${rest.cuisine} ${rest.address}`.toLowerCase().includes(foodSearch.trim().toLowerCase());
-                  return matchesQuery && (!showFavoritesOnly || favoriteCatalogIds.includes(`restaurant:${rest.id}`)) && (!vegetarianOnly || rest.pureVeg);
-                }).sort((a,b) => foodSort === 'rating' ? (b.rating || 0)-(a.rating || 0) : a.name.localeCompare(b.name)).map(rest => (
-                  <div
-                    key={rest.id}
-                    className="relative bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <button aria-label={`${favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'Remove' : 'Save'} ${rest.name}`} onClick={() => toggleFavorite(`restaurant:${rest.id}`)} className="absolute right-3 top-3 z-[1] grid h-9 w-9 place-items-center rounded-full bg-white/95 text-rose-500 shadow"><Heart size={17} fill={favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'currentColor' : 'none'} /></button>
-                    <button onClick={() => { setSelectedFoodCategory('All'); setSelectedRestaurant(rest); }} className="block w-full text-left">
-                    <img src={rest.image} alt={rest.name} className="w-full h-32 object-cover" />
-                    <div className="p-3">
-                      <div className="flex justify-between items-start">
-                        <h4 className="text-sm font-bold text-slate-800">{rest.name}</h4>
-                        <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                          ★ {rest.rating}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{rest.cuisine}</p>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2.5 pt-2 border-t border-slate-50">
-                        <span className="flex items-center gap-1"><Clock size={12} /> {rest.deliveryTime}</span>
-                        <span className="text-orange-600 font-bold">{rest.address}</span>
-                      </div>
-                    </div>
-                    </button>
-                  </div>
-                ))}
-                {restaurantsList.length > 0 && !restaurantsList.some((rest) => `${rest.name} ${rest.cuisine} ${rest.address}`.toLowerCase().includes(foodSearch.trim().toLowerCase()) && (!showFavoritesOnly || favoriteCatalogIds.includes(`restaurant:${rest.id}`)) && (!vegetarianOnly || rest.pureVeg)) && <p className="rounded-xl bg-white p-5 text-center text-xs text-slate-500">No restaurants match these filters.</p>}
-              </div>
+              <section aria-labelledby="food-restaurants-heading">
+                <div className="food-section-head"><div><h2 id="food-restaurants-heading">Restaurants near you</h2><p>Availability and details come from listed partners.</p></div>
+                  <label className="food-sort">Sort<select aria-label="Sort restaurants" value={foodSort} onChange={event => setFoodSort(event.target.value)}><option value="name">Name</option><option value="rating">Rating</option></select></label>
+                </div>
+                {restaurantCatalogError ? <CatalogState kind="error" title="Restaurants could not load" description={restaurantCatalogError} action={<button onClick={() => { setRestaurantCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : restaurantsLoading ? <CatalogState kind="loading" title="Finding restaurants" description="Loading available partner listings for your area." /> : restaurantsList.length === 0 ? <CatalogState kind="empty" title="No restaurants in this area yet" description="Restaurants will appear here when partners are available for your delivery location." action={<button onClick={() => setShowAddressModal(true)}>Change location</button>} /> : visibleRestaurants.length === 0 ? <CatalogState kind="no-results" title="No restaurants match" description="Try another search or clear a filter to see more partner listings." action={<button onClick={() => { setFoodSearch(''); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : (
+                  <div className="food-restaurant-grid">{visibleRestaurants.map(rest => (
+                    <article key={rest.id} className="food-restaurant-card">
+                      <button aria-label={`${favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'Remove' : 'Save'} ${rest.name}`} onClick={() => toggleFavorite(`restaurant:${rest.id}`)} aria-pressed={favoriteCatalogIds.includes(`restaurant:${rest.id}`)} className="food-restaurant-favorite"><Heart size={19} fill={favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'currentColor' : 'none'} /></button>
+                      <button onClick={() => { setSelectedFoodCategory('All'); setSelectedRestaurant(rest); }} className="food-restaurant-open">
+                        <CatalogImage src={rest.image} alt="" className="food-restaurant-image-fallback" fallback={<Utensils size={32} />} />
+                        <div className="food-restaurant-copy"><div className="food-restaurant-title"><h3>{rest.name}</h3>{rest.rating > 0 && <span aria-label={`Rating ${rest.rating}`}>★ {rest.rating}</span>}</div>
+                          <div className="food-restaurant-meta"><span>{rest.cuisine}</span><span><Clock size={14} aria-hidden="true" />{rest.deliveryTime}</span></div>
+                          {rest.acceptingOrders === false && <p className="mt-2 text-xs font-semibold text-amber-800">Not accepting orders right now</p>}
+                        </div>
+                      </button>
+                    </article>
+                  ))}</div>
+                )}
+              </section>
             ) : (
               <div>
-                <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm mb-4">
-                  <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-slate-800">{selectedRestaurant.name}</h3><button className="allgo-text" onClick={() => setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})}>About</button></div>
-                  <p className="text-[11px] text-slate-500">{selectedRestaurant.cuisine} · {selectedRestaurant.address}</p>
-                </div>
+                <div className="food-section-head"><div><h2>Menu</h2><p>{selectedRestaurant.acceptingOrders === false ? 'This restaurant is currently closed to orders.' : 'Choose from currently available dishes.'}</p></div><button className="food-filter-chip" onClick={() => setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})}>About</button></div>
 
-                <div className="space-y-3 mb-6">
-                  {menuLoading && <p role="status" className="catalog-empty">Loading this restaurant’s menu…</p>}
-                  {menuItemsList.filter(it => it.restaurantId === selectedRestaurant.id && it.available !== false && (selectedFoodCategory === 'All' || it.category === selectedFoodCategory) && (!foodSearch.trim() || `${it.name} ${it.description} ${it.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) && (!vegetarianOnly || it.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`dish:${it.id}`))).map(item => {
+                <div className="food-menu-grid mb-6">
+                  {menuCatalogError ? <CatalogState kind="error" title="Menu could not load" description={menuCatalogError} action={<button onClick={() => { setMenuCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : menuLoading ? <CatalogState kind="loading" title="Loading menu" description={`Checking current menu availability at ${selectedRestaurant.name}.`} /> : !menuItemsList.some(item => item.restaurantId === selectedRestaurant.id && item.available !== false) ? <CatalogState kind="empty" title="No dishes available right now" description="This partner has not published any currently available menu items." /> : visibleFoodItems.length === 0 ? <CatalogState kind="no-results" title="No dishes match" description="Try another search or menu category." action={<button onClick={() => { setFoodSearch(''); setSelectedFoodCategory('All'); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : visibleFoodItems.map(item => {
                     const availableVariants = item.variants?.filter(variant => variant.available !== false) || [];
                     const variant = availableVariants.find(option => option.id === selectedFoodVariants[item.id]) || availableVariants[0];
                     const qty = cart.find(c => c.item.id === item.id && c.variant?.id === variant?.id)?.quantity || 0;
                     return (
-                      <div key={item.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center gap-3">
-                        <div className="flex-1">
-                          <span className={`text-[10px] border px-1 rounded-sm font-bold ${item.isVeg ? 'border-emerald-600 text-emerald-600' : 'border-rose-600 text-rose-600'}`}>●</span>
-                          <button className="min-h-11 text-left" onClick={() => setCatalogPage({kind:'dish', id:item.id})}><h4 className="text-xs font-bold text-slate-800 mt-1">{item.name}</h4><span className="text-[10px] text-indigo-600">Details & options →</span></button>
-                          <p className="text-xs font-black text-slate-900 mt-0.5">₹{variant?.price ?? item.price}</p>
-                          {availableVariants.length > 0 && <label className="mt-2 block text-[11px] font-semibold text-slate-600">Option<select aria-label={`${item.name} option`} value={variant?.id || ''} onChange={event => setSelectedFoodVariants(current => ({ ...current, [item.id]: event.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"><option value="" disabled>Choose an option</option>{availableVariants.map(option => <option key={option.id} value={option.id}>{option.label} · ₹{option.price}</option>)}</select></label>}
+                      <article key={item.id} className="food-menu-card">
+                        <CatalogImage src={item.image} alt="" className="food-menu-image" fallback={<Utensils size={24} />} />
+                        <div className="food-menu-copy"><span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-bold ${item.isVeg ? 'border-emerald-600 text-emerald-700' : 'border-rose-600 text-rose-700'}`}>{item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}</span>
+                          <button className="block min-h-11 text-left" onClick={() => setCatalogPage({kind:'dish', id:item.id})}><h3>{item.name}</h3><p>{item.description}</p></button>
+                          <p className="food-menu-price">₹{variant?.price ?? item.price}</p>
+                          {availableVariants.length > 0 && <label className="mt-2 block text-xs font-semibold text-slate-600">Option<select aria-label={`${item.name} option`} value={variant?.id || ''} onChange={event => setSelectedFoodVariants(current => ({ ...current, [item.id]: event.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-2">{availableVariants.map(option => <option key={option.id} value={option.id}>{option.label} · ₹{option.price}</option>)}</select></label>}
                         </div>
-
-                        <div>
-                          <button aria-label={`${favoriteCatalogIds.includes(`dish:${item.id}`) ? 'Remove' : 'Save'} ${item.name}`} onClick={() => toggleFavorite(`dish:${item.id}`)} className="mb-2 block ml-auto text-rose-500"><Heart size={16} fill={favoriteCatalogIds.includes(`dish:${item.id}`) ? 'currentColor' : 'none'} /></button>
-                          {qty === 0 ? (
-                            <button disabled={item.variants?.length ? !variant : false} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)} className="bg-orange-500 text-white text-xs px-3 py-1 rounded-lg disabled:opacity-50">Add</button>
-                          ) : (
-                            <div className="flex items-center gap-2 bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-lg text-xs">
-                              <button aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}>-</button>
-                              <span>{qty}</span>
-                              <button aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)}>+</button>
-                            </div>
-                          )}
+                        <div className="food-menu-actions"><button aria-label={`${favoriteCatalogIds.includes(`dish:${item.id}`) ? 'Remove' : 'Save'} ${item.name}`} aria-pressed={favoriteCatalogIds.includes(`dish:${item.id}`)} onClick={() => toggleFavorite(`dish:${item.id}`)} className="text-rose-500"><Heart size={18} fill={favoriteCatalogIds.includes(`dish:${item.id}`) ? 'currentColor' : 'none'} /></button>
+                          {qty === 0 ? <button disabled={selectedRestaurant.acceptingOrders === false || ((item.variants?.length || 0) > 0 && !variant)} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)} className="food-add">Add</button> : <div className="food-quantity"><button aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}>-</button><span>{qty}</span><button aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} disabled={selectedRestaurant.acceptingOrders === false} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)}>+</button></div>}
                         </div>
-                      </div>
+                        </article>
                     );
                   })}
-                  {!menuLoading && menuItemsList.filter(it => it.restaurantId === selectedRestaurant.id && it.available !== false && (selectedFoodCategory === 'All' || it.category === selectedFoodCategory) && (!foodSearch.trim() || `${it.name} ${it.description} ${it.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) && (!vegetarianOnly || it.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`dish:${it.id}`))).length === 0 && <p className="rounded-xl border border-dashed border-slate-200 bg-white p-5 text-center text-xs text-slate-500">No available dishes match these filters.</p>}
                 </div>
 
-                {cart.length > 0 && (
-                  <div className="sticky bottom-0 bg-white border-t p-3 -mx-4">
-                    <div className="mb-1 flex justify-between items-center">
-                      <div><h4 className="text-sm font-black text-slate-800">Items total: ₹{getCartTotal()}</h4><p className="text-[10px] text-slate-500">Secure online payment in app</p></div>
-                      <button
-                        onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}
-                        className="bg-orange-500 text-white text-xs py-2 px-4 rounded-xl"
-                      >
-                        View cart · {cart.reduce((sum, line) => sum + line.quantity, 0)}
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
+            {cart.length > 0 && cartService === 'food' && <div className="food-cart-dock"><div><strong>₹{getCartTotal()}</strong><p>{cart.reduce((sum, line) => sum + line.quantity, 0)} items · from {restaurantsList.find(rest => rest.id === cartSourceId)?.name || 'selected restaurant'}</p></div><button onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}>View cart</button></div>}
           </div>
         )}
 
         {/* WORKFLOW: GROCERY */}
         {activeWorkflow === 'grocery' && (
-          <div className="animate-fadeIn">
-            <div className="flex items-center gap-2 mb-4">
-              <button onClick={() => setActiveWorkflow('none')} className="p-1 hover:bg-slate-200 rounded-lg">
-                <ArrowLeft className="w-5 h-5 text-slate-700" />
-              </button>
-              <h2 className="text-base font-bold text-slate-900">Groceries</h2><button className="allgo-text ml-auto" onClick={() => setShopAgain('grocery')}>Buy again</button>
-            </div>
+          <div className="grocery-page animate-fadeIn">
+            <header className="grocery-page-heading">
+              <button aria-label="Back to home" onClick={() => setActiveWorkflow('none')}><ArrowLeft size={20} /></button>
+              <div><p>FRESH · LOCAL · ALLGO</p><h1>Groceries</h1></div>
+              <button className="grocery-reorder" onClick={() => setShopAgain('grocery')}>Buy again</button>
+            </header>
 
-            <div className="bg-emerald-600 text-white p-4 rounded-2xl mb-4 relative overflow-hidden">
-              <h3 className="text-sm font-bold font-sans">Fresh Groceries</h3>
-              <p className="text-[10px] text-emerald-100 mt-0.5">Choose a nearby store</p>
-              <ShoppingBag className="absolute right-3 bottom-2 h-10 w-10 opacity-15" />
-            </div>
+            <section className="grocery-hero" aria-label="Grocery delivery">
+              <div><span className="grocery-hero-eyebrow">A simpler way to shop</span><h2>Good food, better choices.</h2><p>Browse products and stock published by grocery partners.</p></div>
+              <span className="grocery-hero-mark" aria-hidden="true"><ShoppingBag size={32} /></span>
+            </section>
+            {cartService === 'grocery' && !productsLoading && !groceryProductsError && cart.some(line => {
+              const product = productsList.find(item => item.id === line.item.id);
+              return !product || !Number.isSafeInteger(product.stock) || product.stock < line.quantity;
+            }) && <div className="grocery-cart-conflict" role="alert"><div><strong>Your cart needs a stock check</strong><p>At least one item is no longer listed or has less stock than your cart quantity.</p></div><button type="button" onClick={() => { setCurrentTab('cart'); setActiveWorkflow('none'); }}>Review cart</button></div>}
 
-            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-              {groceryStoresLoading && <p role="status" className="catalog-empty">Loading nearby stores…</p>}
-              {!groceryStoresLoading && groceryStoresList.length === 0 && <p className="catalog-empty">No grocery stores are available yet. Store details will appear when partners publish their catalogs.</p>}
-              {groceryStoresList.map((store) => <button key={store.id} onClick={() => { const cartStoreId = cart[0] ? (cart[0].item as GroceryProduct).storeId : null; if (cart.length && cartService === 'grocery' && cartStoreId !== store.id) { alert('Empty your cart before changing grocery stores.'); return; } setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); }} className={`min-w-48 rounded-xl border p-3 text-left ${selectedStoreId === store.id ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 bg-white'}`}><span className="block text-xs font-bold text-slate-800">{store.name}</span><span className="mt-1 block text-[10px] text-slate-500">{store.address}</span></button>)}
-            </div>
+            {groceryStoresView === 'error' ? <CatalogState kind="error" title="Grocery stores could not load" description={groceryStoresError} action={<button onClick={() => setCatalogRetry(value => value + 1)}>Try again</button>} />
+              : groceryStoresView === 'loading' ? <CatalogState kind="loading" title="Finding grocery partners" description="Checking published store listings." />
+                : groceryStoresView === 'no-stores' ? <CatalogState kind="empty" title="No grocery stores are listed yet" description="Grocery store listings will appear here when partners publish an approved catalog." />
+                  : <>
+                    <section className="grocery-store-section" aria-labelledby="grocery-stores-title">
+                      <div className="grocery-section-heading"><div><h2 id="grocery-stores-title">Stores</h2><p>Choose a partner to browse its current catalog.</p></div><span>{groceryStoresList.length}</span></div>
+                      <div className="grocery-store-list">
+                        {groceryStoresList.map((store) => {
+                          const selected = selectedStoreId === store.id;
+                          const cartStoreId = cart[0] ? (cart[0].item as GroceryProduct).storeId : null;
+                          const cartLocksStore = Boolean(cart.length && cartService === 'grocery' && cartStoreId !== store.id);
+                          return <button key={store.id} type="button" aria-pressed={selected} disabled={cartLocksStore} onClick={() => { setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); setGrocerySearch(''); }} className={`grocery-store-card ${selected ? 'is-selected' : ''}`}>
+                            <CatalogImage src={store.image} alt="" className="grocery-store-image" fallback={<ShoppingBag size={22} />} />
+                            <span className="grocery-store-copy"><strong>{store.name}</strong><span className="grocery-store-address" title={store.address}>{store.address}</span>{store.openingHours && <span>Hours: {store.openingHours}</span>}<span className={store.acceptingOrders === false ? 'grocery-store-closed' : store.acceptingOrders === true ? 'grocery-store-available' : ''}>{store.acceptingOrders === false ? 'Not accepting orders' : store.acceptingOrders === true ? 'Accepting orders' : 'Order availability not provided'}</span></span>
+                          </button>;
+                        })}
+                      </div>
+                    </section>
 
-            <div className="mb-3 flex gap-2">
-              <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500"><Search size={14} /><input value={grocerySearch} onChange={(event) => setGrocerySearch(event.target.value)} placeholder="Search products" className="min-w-0 flex-1 outline-none" /></label>
-              <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className={`rounded-xl border px-3 text-xs font-bold ${showFavoritesOnly ? 'border-rose-200 bg-rose-50 text-rose-600' : 'border-slate-200 bg-white text-slate-600'}`}><Heart size={15} className="inline" /> Saved</button>
-            </div>
-            <div className="allgo-card"><div className="flex items-center justify-between"><h3 className="text-sm font-bold">Daily essentials, your way.</h3><button className="allgo-text" disabled={!selectedStoreId} onClick={() => setCatalogPage({kind:'store',id:selectedStoreId})}>Store details</button></div><p className="allgo-muted">Check current stock and pack sizes. Delivery timing is confirmed by the service.</p><label className="allgo-muted mt-3 flex items-center gap-2"><input type="checkbox" checked={inStockOnly} onChange={event=>setInStockOnly(event.target.checked)}/>Only show in-stock items</label><label className="allgo-muted mt-3 flex items-center gap-2">Sort products<select className="rounded-lg border bg-white p-2" value={grocerySort} onChange={event=>setGrocerySort(event.target.value)}><option value="name">Name</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label></div>
-            <div className="mb-3 flex gap-1.5 overflow-x-auto pb-2">
-              {['All', ...new Set(productsList.map((product) => product.category))].map((category) => <button key={category} onClick={() => setSelectedGroceryCategory(category)} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-bold ${selectedGroceryCategory === category ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-600'}`}>{category}</button>)}
-            </div>
+                    {selectedStoreId && (() => {
+                      const selectedStore = groceryStoresList.find(store => store.id === selectedStoreId);
+                      return <section className="grocery-catalog-section" aria-labelledby="grocery-catalog-title">
+                        <div className="grocery-section-heading"><div><h2 id="grocery-catalog-title">{selectedStore?.name || 'Store catalog'}</h2><p>{selectedStore?.acceptingOrders === false ? 'This store is currently not accepting orders.' : 'Prices and stock reflect the partner’s published catalog.'}</p></div>{selectedStore && <button aria-label={`View ${selectedStore.name} details`} className="grocery-store-details" onClick={() => setCatalogPage({ kind: 'store', id: selectedStore.id })}>Details</button>}</div>
+                        {productsList.length > 0 && <>
+                          <label className="grocery-search"><Search size={18} aria-hidden="true" /><input aria-label="Search grocery products" value={grocerySearch} onChange={event => setGrocerySearch(event.target.value)} placeholder="Search this store’s catalog" /></label>
+                          <div className="grocery-filter-toolbar">
+                            <div className="grocery-category-list" aria-label="Product categories">{['All', ...new Set(productsList.map(product => product.category).filter(Boolean))].map(category => <button type="button" key={category} aria-pressed={selectedGroceryCategory === category} onClick={() => setSelectedGroceryCategory(category)}>{category}</button>)}</div>
+                            <label className="grocery-stock-toggle"><input type="checkbox" checked={inStockOnly} onChange={event => setInStockOnly(event.target.checked)} />In stock</label>
+                            <label className="grocery-sort">Sort<select aria-label="Sort grocery products" value={grocerySort} onChange={event => setGrocerySort(event.target.value)}><option value="name">Name</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label>
+                            <button type="button" aria-pressed={showFavoritesOnly} className="grocery-favorites" onClick={() => setShowFavoritesOnly(value => !value)}><Heart size={16} aria-hidden="true" />{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
+                          </div>
+                        </>}
 
-            <div className="space-y-3 mb-6">
-              {productsLoading && <p role="status" className="catalog-empty">Loading this store’s products…</p>}
-              {!productsLoading && selectedStoreId && productsList.length === 0 && <p className="catalog-empty">This store has not published any products yet.</p>}
-              {!productsLoading && !selectedStoreId && groceryStoresList.length > 0 && <p className="catalog-empty">Choose a store to see its products.</p>}
-              {productsList.filter((product) => (selectedGroceryCategory === 'All' || product.category === selectedGroceryCategory) && (!grocerySearch.trim() || `${product.name} ${product.category} ${product.unit}`.toLowerCase().includes(grocerySearch.trim().toLowerCase())) && (!showFavoritesOnly || favoriteCatalogIds.includes(`product:${product.id}`)) && (!inStockOnly || product.stock > 0)).sort((a,b) => grocerySort === 'low' ? a.price-b.price : grocerySort === 'high' ? b.price-a.price : a.name.localeCompare(b.name)).map(prod => {
-                const qty = cart.find(c => c.item.id === prod.id)?.quantity || 0;
-                return (
-                  <div key={prod.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center gap-3">
-                    <img src={prod.image} alt={prod.name} className="w-12 h-12 rounded-lg object-cover" />
-                    <div className="flex-1">
-                      <button className="min-h-11 text-left" onClick={() => setCatalogPage({kind:'product', id:prod.id})}><h4 className="text-xs font-bold text-slate-800">{prod.name}</h4><span className="text-[10px] text-emerald-700">Product details →</span></button>
-                      <p className="text-[10px] text-slate-400">{prod.unit}</p>
-                      <p className="text-xs font-black text-slate-900">₹{prod.price}</p>
-                    </div>
+                        {groceryCatalogView === 'loading' ? <CatalogState kind="loading" title="Loading products" description={`Refreshing ${selectedStore?.name || 'this store'}’s current catalog.`} />
+                          : groceryCatalogView === 'error' ? <CatalogState kind="error" title="Products could not load" description={groceryProductsError} action={<button onClick={() => setCatalogRetry(value => value + 1)}>Try again</button>} />
+                            : groceryCatalogView === 'no-products' ? <CatalogState kind="empty" title="No products currently available" description="There are no current products in this store’s catalog." />
+                              : groceryCatalogView === 'no-in-stock' ? <CatalogState kind="empty" title="No matching items in stock" description="The matching catalog items are currently marked out of stock." action={<button onClick={() => setInStockOnly(false)}>Show out-of-stock items</button>} />
+                                : groceryCatalogView === 'no-results' ? <CatalogState kind="no-results" title="No products match" description="Try another search or category, or clear your saved-only filter." action={<button onClick={() => { setGrocerySearch(''); setSelectedGroceryCategory('All'); setShowFavoritesOnly(false); }}>Clear filters</button>} />
+                                  : <div className="grocery-product-grid">{visibleGroceryProducts.map(product => {
+                                    const quantity = cart.find(line => line.item.id === product.id)?.quantity || 0;
+                                    const unavailable = !Number.isSafeInteger(product.stock) || product.stock < 1;
+                                    const atLimit = quantity >= Math.min(30, product.stock);
+                                    const isClosed = selectedStore?.acceptingOrders === false;
+                                    const saved = favoriteCatalogIds.includes(`product:${product.id}`);
+                                    return <article key={product.id} className="grocery-product-card">
+                                      <div className="grocery-product-visual"><CatalogImage src={product.image} alt="" className="grocery-product-image" fallback={<ShoppingBag size={28} />} /><button type="button" aria-label={`${saved ? 'Remove' : 'Save'} ${product.name}`} aria-pressed={saved} className="grocery-product-save" onClick={() => toggleFavorite(`product:${product.id}`)}><Heart size={18} fill={saved ? 'currentColor' : 'none'} /></button></div>
+                                      <div className="grocery-product-copy"><button type="button" className="grocery-product-title" onClick={() => setCatalogPage({ kind: 'product', id: product.id })}>{product.name}</button><p>{product.unit}</p><span className={unavailable ? 'grocery-stock-out' : 'grocery-stock-in'}>{unavailable ? 'Out of stock' : `${product.stock} in stock`}</span><strong>₹{product.price}</strong></div>
+                                      <div className="grocery-product-actions">{quantity === 0 ? <button type="button" disabled={unavailable || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>{isClosed ? 'Store closed' : unavailable ? 'Unavailable' : 'Add to cart'}</button> : <div className="grocery-quantity"><button type="button" aria-label={`Remove one ${product.name}`} onClick={() => handleRemoveFromCart(product)}>-</button><span>{quantity}</span><button type="button" aria-label={`Add one ${product.name}`} disabled={unavailable || atLimit || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>+</button></div>}</div>
+                                    </article>;
+                                  })}</div>}
+                      </section>;
+                    })()}
+                    {!selectedStoreId && <CatalogState kind="empty" title="Choose a grocery store" description="Select one of the published partners above to see its products." />}
+                  </>}
 
-                    <div>
-                      <button aria-label={`${favoriteCatalogIds.includes(`product:${prod.id}`) ? 'Remove' : 'Save'} ${prod.name}`} onClick={() => toggleFavorite(`product:${prod.id}`)} className="mb-2 ml-auto block text-rose-500"><Heart size={16} fill={favoriteCatalogIds.includes(`product:${prod.id}`) ? 'currentColor' : 'none'} /></button>
-                      {qty === 0 ? (
-                        <button disabled={prod.stock <= qty || qty>=30} onClick={() => handleAddToCart(prod, 'grocery')} className="bg-emerald-600 text-white text-xs px-3 py-1 rounded-lg">Add</button>
-                      ) : (
-                        <div className="flex items-center gap-2 bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded-lg text-xs">
-                          <button aria-label={`Remove one ${prod.name}`} onClick={() => handleRemoveFromCart(prod)}>-</button>
-                          <span>{qty}</span>
-                          <button aria-label={`Add one ${prod.name}`} disabled={prod.stock <= qty || qty>=30} onClick={() => handleAddToCart(prod, 'grocery')}>+</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {!productsLoading && productsList.length > 0 && productsList.filter((product) => (selectedGroceryCategory === 'All' || product.category === selectedGroceryCategory) && (!grocerySearch.trim() || `${product.name} ${product.category} ${product.unit}`.toLowerCase().includes(grocerySearch.trim().toLowerCase())) && (!showFavoritesOnly || favoriteCatalogIds.includes(`product:${product.id}`)) && (!inStockOnly || product.stock > 0)).length === 0 && <p className="catalog-empty">No products match these filters.</p>}
-            </div>
-
-            {cart.length > 0 && (
-              <div className="sticky bottom-0 bg-white border-t p-3 -mx-4">
-                <div className="flex justify-between items-center">
-                  <div><h4 className="text-sm font-black text-slate-800">Items total: ₹{getCartTotal()}</h4><p className="text-[10px] text-slate-500">Secure online payment in app</p></div>
-                  <button
-                    onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}
-                    className="bg-emerald-600 text-white text-xs py-2 px-4 rounded-xl"
-                  >
-                    View cart · {cart.reduce((sum, line) => sum + line.quantity, 0)}
-                  </button>
-                </div>
-              </div>
-            )}
+            {cart.length > 0 && cartService === 'grocery' && <div className="grocery-cart-dock"><div><strong>₹{getCartTotal()}</strong><p>{cart.reduce((sum, line) => sum + line.quantity, 0)} items · {groceryStoresList.find(store => store.id === cartSourceId)?.name || 'grocery order'}</p></div><button type="button" onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}>View cart</button></div>}
           </div>
         )}
 
         {/* WORKFLOW: RIDE BOOKING */}
         {(currentTab === 'cart' || ['ride', 'parcel', 'takeover', 'transport'].includes(activeWorkflow)) && <label className="flex min-h-11 items-center gap-3 rounded-xl border bg-white p-3 text-xs font-bold"><input type="checkbox" checked={useWallet} disabled={paymentBusy} onChange={event => setUseWallet(event.target.checked)} /> Pay with AllGo wallet (₹{userProfile?.walletBalance || 0} available)</label>}
-        {activeWorkflow === 'parcel' && <ParcelBookingScreen customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft,price) => handleCheckout('parcel',price,draft.details,{pickupAddress:draft.pickupAddress,dropAddress:draft.dropAddress})}/> }
-        {(['ride', 'takeover'] as const).map(service => activeWorkflow === service && <ServiceBookingScreen key={service} service={service} customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout(service, price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />)}
+        {activeWorkflow === 'parcel' && <ParcelBookingScreen customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} recentShipments={currentParcels} onOpenShipment={bookingId => { setSelectedOrderId(bookingId); setCurrentTab('orders'); setActiveWorkflow('none'); }} onBack={() => setActiveWorkflow('none')} onPay={(draft,price) => handleCheckout('parcel',price,draft.details,{pickupAddress:draft.pickupAddress,dropAddress:draft.dropAddress})}/> }
+        {(['ride', 'takeover'] as const).map(service => activeWorkflow === service && <ServiceBookingScreen key={service} service={service} customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} recentRides={service === 'ride' ? recentRides : undefined} onRecentRide={bookingId => { setSelectedOrderId(bookingId); setCurrentTab('orders'); setActiveWorkflow('none'); }} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout(service, price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />)}
         {activeWorkflow === 'transport' && <TransportBookingScreen customerName={userName} initialAddress={deliveryAddress} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout('transport', price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />}
 
         {/* CART AND CHECKOUT REVIEW */}
@@ -1137,7 +1125,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             {selectedOrderId && visibleBookings.find((booking) => booking.bookingId === selectedOrderId) && (() => {
               const bk = visibleBookings.find((booking) => booking.bookingId === selectedOrderId)!;
               const items = Array.isArray(bk.details?.items) ? bk.details.items : [];
-              return <><OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} /><ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-emerald-700">{bk.paymentStatus || 'Legacy record'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Payment reference: {bk.paymentId}</p>}{bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
+              const authority = bookingAuthorityCapabilities(bk);
+              const legacy = !authority.verifiedPayment;
+              return <>{legacy ? <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" role="status"><strong>Legacy read-only history.</strong> AllGo cannot verify this order against current booking, tracking or payment records.</div> : <OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} />}<ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{legacy ? `Recorded: ${bk.status}` : bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Recorded delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{legacy ? 'Unverified historical data' : bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-amber-800">{legacy ? 'Not verified by payment ledger' : bk.paymentStatus || 'Not recorded'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Recorded payment reference (unverified): {bk.paymentId}</p>}{!legacy && bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{!legacy && bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{!legacy && bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{!legacy && bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{!legacy && bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{!legacy && bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
             })()}
 
             {!selectedOrderId && activeBookings.length === 0 ? (
@@ -1155,13 +1145,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                       <p className="text-[10px] font-mono text-slate-400 mt-1">Ref: #{bk.bookingId}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-black text-slate-900">₹{bk.price}</span>
-                      <p className="text-[9px] text-slate-400 mt-0.5">OTP: <span className="font-bold font-mono text-slate-700">{bk.otp}</span></p>
+                      <span className="text-xs font-black text-slate-900">{bk.recordAuthority === 'legacy_neon' ? 'Recorded: ' : ''}₹{bk.price}</span>
+                      {bk.recordAuthority !== 'legacy_neon' && <p className="text-[9px] text-slate-400 mt-0.5">OTP: <span className="font-bold font-mono text-slate-700">{bk.otp}</span></p>}
                     </div>
                   </div>
 
                   {/* Status Steps tracking */}
-                  <div className="space-y-2.5 text-xs text-slate-700">
+                  {bk.recordAuthority === 'legacy_neon' ? <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Historical record only. Current order progress is not verified.</p> : <div className="space-y-2.5 text-xs text-slate-700">
                     <div className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 bg-emerald-500 text-white rounded-full flex items-center justify-center text-[8px] font-bold">✓</span>
                       <span>Order Confirmed & Logged</span>
@@ -1184,19 +1174,21 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                     </div>
                     <div className="flex items-center gap-2"><span className={`grid h-3.5 w-3.5 place-items-center rounded-full text-[8px] font-bold ${bk.status === 'delivered' || bk.status === 'completed' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}`}>{bk.status === 'delivered' || bk.status === 'completed' ? '✓' : '○'}</span><span className={bk.status === 'delivered' || bk.status === 'completed' ? 'font-bold text-slate-900' : 'text-slate-500'}>{bk.serviceType === 'ride' ? 'Trip completed' : 'Delivered'}</span></div>
                     {bk.status === 'cancelled' && <p className="rounded-lg bg-rose-50 p-2 text-[10px] font-bold text-rose-700">This booking was cancelled.</p>}
-                  </div>
+                  </div>}
 
                   {/* Live Chat with Rider Button (Screen-9 trigger) */}
                   <div className="pt-3 border-t border-slate-50 flex justify-between items-center gap-2">
                     <div>
-                      {bk.driverName ? (
+                      {bk.recordAuthority === 'legacy_neon' ? (
+                        <p className="text-[10px] text-amber-800">Legacy record; driver assignment is unverified.</p>
+                      ) : bk.driverName ? (
                         <p className="text-[10px] text-slate-600 font-bold">Driver: {bk.driverName}</p>
                       ) : (
                         <p className="text-[9px] text-slate-400 italic">Waiting for a verified partner to accept this booking.</p>
                       )}
                     </div>
 
-                    {bk.driverId && (
+                    {bk.recordAuthority !== 'legacy_neon' && bk.driverId && (
                       <button
                         onClick={() => setActiveChatBookingId(bk.bookingId)}
                         className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm shadow-blue-500/10"

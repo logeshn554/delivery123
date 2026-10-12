@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { MapPin, LoaderCircle } from 'lucide-react';
 import { searchServiceLocations, reverseServiceLocation, type ServiceLocation } from '../data/firestoreHelper';
 
-export default function LocationPicker({ label, initialAddress = '', initialLocation, disabled, onSelect }: { label: string; initialAddress?: string; initialLocation?: ServiceLocation | null; disabled?: boolean; onSelect: (location: ServiceLocation | null) => void }) {
+export default function LocationPicker({ label, initialAddress = '', initialLocation, disabled, className = '', onSelect }: { label: string; initialAddress?: string; initialLocation?: ServiceLocation | null; disabled?: boolean; className?: string; onSelect: (location: ServiceLocation | null) => void }) {
   const [text, setText] = useState(initialLocation?.address || initialAddress);
   const [selected, setSelected] = useState<ServiceLocation | null>(initialLocation || null);
   const [results, setResults] = useState<ServiceLocation[]>([]);
@@ -34,7 +34,7 @@ export default function LocationPicker({ label, initialAddress = '', initialLoca
     } catch { if (version === revision.current) setError('Could not use device location. Allow location access or enter an address.'); }
     finally { setBusy(false); }
   };
-  return <div className="my-4 rounded-2xl border border-slate-200 bg-white p-3">
+  return <div className={`my-4 rounded-2xl border border-slate-200 bg-white p-3 ${className}`}>
     <label className="block text-xs font-bold text-slate-700"><span className="flex items-center gap-2"><MapPin size={17} />{label}</span><input required maxLength={300} value={text} disabled={disabled} onChange={event => { revision.current++; setText(event.target.value); setSelected(null); setResults([]); setError(''); onSelect(null); }} placeholder="Building, street, area and city" autoComplete="street-address" className="mt-2 w-full rounded-lg border border-slate-200 p-3 text-base" /></label>
     <button type="button" onClick={() => void search()} disabled={busy || disabled || text.trim().length < 3} className="mt-2 flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs font-bold text-indigo-700 disabled:opacity-50">{busy ? <><LoaderCircle size={16} className="animate-spin" /> Finding addresses…</> : selected ? 'Search another address' : 'Find and select address'}</button>
     <button type="button" disabled={busy || disabled} onClick={() => void useDevice()} className="min-h-11 px-3 text-xs font-bold text-indigo-700 disabled:opacity-50">Use device location</button>

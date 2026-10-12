@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080') throw new Error('Evidence tests require the isolated demo emulator.');
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
-const { initializeApp } = require('firebase-admin/app'), { getFirestore } = require('firebase-admin/firestore');
+const { initializeApp } = require('firebase-admin/app'), { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const app = initializeApp({ projectId: 'demo-allgo' }), db = getFirestore(app);
 const { HttpsError } = require('firebase-functions/v2/https');
 const { partnerEvidenceFunctions } = require('../functions/partnerEvidence');
@@ -11,6 +11,8 @@ const { evidenceScanningFunctions } = require('../functions/evidenceScanning');
 const { evidenceReviewFunctions } = require('../functions/evidenceReview');
 const { driverEligibilityFunctions } = require('../functions/driverEligibility');
 const { partnerApplicationFunctions } = require('../functions/partnerApplications');
+const { merchantEligibilityFunctions } = require('../functions/merchantEligibility');
+const { operationsFunctions } = require('../functions/operations');
 // Memory storage fixtures verify orchestration only, not deployed bucket/IAM acceptance.
 let objects, saveHook, scanHook, failedDeletes, commands, services, scanner, verdict, bucketPolicy, identity;
 const bucket = { name: 'fixture-private', async getMetadata() { return [bucketPolicy]; }, file(path) { return {
@@ -38,6 +40,8 @@ beforeEach(async () => {
   identity = { phoneNumber: '+919876500001', providerData: [{ providerId: 'phone', phoneNumber: '+919876500001' }] };
   Object.assign(commands, driverEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }) }));
   Object.assign(commands, partnerApplicationFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, onCall: (_, handler) => ({ run: handler }) }));
+  Object.assign(commands, merchantEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }) }));
+  Object.assign(commands, operationsFunctions({ db, REGION: 'asia-south1', HttpsError, Timestamp, documentId: checkedId, cleanText: checkedText, onCall: (_, handler) => ({ run: handler }) }));
   await db.doc('users/customer').set({ role: 'customer' }); await db.doc('users/admin').set({ role: 'admin' });
   await db.doc('partner_applications/application').set({ userId: 'customer', status: 'submitted', evidenceCount: 0 });
   await db.doc('platform_config/onboarding').set({ evidenceEnabled: true, privacyPolicyUrl: 'https://example.test/privacy', retentionDays: 30 });
@@ -80,6 +84,32 @@ test('approved driver renewal is scoped, preserves active custody and earnings, 
   const renewed = (await db.doc('driver_profiles/customer').get()).data();
   assert.equal(renewed.status, 'verified'); assert.equal(renewed.online, false); assert.equal(renewed.availableEarningsCents, 5000);
   assert.equal((await db.doc('partner_applications/application').get()).data().status, 'approved');
+});
+
+test('merchant eligibility links the applicant, reviewed evidence and closed catalog under the live policy', async () => {
+  await call('submitPartnerApplication', 'customer', { applicationId: 'merchant-app', type: 'grocery', name: 'Applicant', city: 'City', phone: identity.phoneNumber, consent: true });
+  await call('createMerchantBusiness', 'admin', { merchantId: 'merchant-shop', merchantType: 'grocery', applicationId: 'merchant-app', name: 'Applicant shop', address: 'Actual shop address', timeZone: 'Asia/Kolkata', reason: 'Link the submitted grocery application', requestId: 'merchant-setup' }, true);
+  const decision = { applicationId: 'merchant-app', merchantId: 'merchant-shop', merchantType: 'grocery', status: 'verified', requestId: 'merchant-review', expectedRevision: 1, expectedPolicyVersion: 1, policyReviewed: true, evidenceIds: ['merchant-proof'], reason: 'Reviewed the actual published merchant policy and evidence.' };
+  await assert.rejects(call('reviewMerchantEligibility', 'customer', decision, true), error => error.code === 'permission-denied');
+  await assert.rejects(call('reviewMerchantEligibility', 'admin', decision, true), error => error.code === 'failed-precondition');
+  await call('uploadPartnerEvidence', 'customer', { ...payload('merchant-proof'), applicationId: 'merchant-app' }); await scanner.scanPartnerEvidence.run();
+  const retrieval = await call('downloadPartnerEvidence', 'admin', { evidenceId: 'merchant-proof' }, true);
+  await call('reviewPartnerEvidence', 'admin', { evidenceId: 'merchant-proof', accessId: retrieval.accessId, requestId: 'merchant-proof-review', expectedRevision: retrieval.reviewRevision, decision: 'verified', reason: 'Issuing evidence checked.', verificationReference: 'merchant-check', authenticityConfirmed: true, expiryConfirmed: true, expiresOn: '2028-10-11' }, true);
+  await db.doc('platform_config/merchant_eligibility').set({ enabled: true, version: 1, policyUrl: 'https://example.test/merchant-policy', requiredKinds: { grocery: ['identity'] }, expiryRequiredKinds: ['identity'] });
+  await assert.rejects(call('reviewMerchantEligibility', 'admin', { ...decision, expectedPolicyVersion: 2 }, true), error => error.code === 'aborted');
+  await db.doc('platform_config/merchant_eligibility').update({ requiredKinds: { grocery: ['identity', 'business_registration'] } });
+  await assert.rejects(call('reviewMerchantEligibility', 'admin', decision, true), error => error.code === 'failed-precondition');
+  await db.doc('platform_config/merchant_eligibility').update({ requiredKinds: { grocery: ['identity'] } });
+  await db.doc('users/customer').update({ suspended: true });
+  await assert.rejects(call('reviewMerchantEligibility', 'admin', decision, true), error => error.code === 'permission-denied');
+  await db.doc('users/customer').update({ suspended: false });
+  const results = await Promise.all([call('reviewMerchantEligibility', 'admin', decision, true), call('reviewMerchantEligibility', 'admin', decision, true)]);
+  assert.deepEqual(results[0], { status: 'verified', revision: 2 }); assert.deepEqual(results[0], results[1]);
+  const business = (await db.doc('grocery_stores/merchant-shop').get()).data();
+  assert.equal(business.ownerId, 'customer'); assert.equal(business.onboardingStatus, 'approved'); assert.equal(business.acceptingOrders, false);
+  assert.equal((await db.doc('users/customer').get()).data().role, 'customer');
+  await assert.rejects(call('reviewMerchantEligibility', 'admin', { ...decision, reason: 'Changed decision' }, true), error => error.code === 'already-exists');
+  assert.equal((await db.collection('grocery_stores/merchant-shop/eligibility_events').get()).size, 1);
 });
 
 test('corrupt retention blocks upload recovery, scan release and private download', async () => {

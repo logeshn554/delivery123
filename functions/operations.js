@@ -16,14 +16,20 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
     createMerchantBusiness: onCall({ operation: 'createMerchantBusiness', region: REGION }, async request => {
       const uid = await admin(request), data = request.data || {}, type = data.merchantType, id = documentId(data.merchantId, 'Business ID'), requestId = documentId(data.requestId, 'Request ID');
       if (!['restaurant', 'grocery'].includes(type)) throw new HttpsError('invalid-argument', 'Choose a business type.');
-      const name = cleanText(data.name, 'Business name', 120), address = cleanText(data.address, 'Business address', 300), reason = cleanText(data.reason, 'Setup reason', 500), timeZone = cleanText(data.timeZone, 'Time zone', 80);
+      const name = cleanText(data.name, 'Business name', 120), address = cleanText(data.address, 'Business address', 300), reason = cleanText(data.reason, 'Setup reason', 500), timeZone = cleanText(data.timeZone, 'Time zone', 80), applicationId = data.applicationId ? documentId(data.applicationId, 'Application ID') : null;
       try { new Intl.DateTimeFormat('en', { timeZone }).format(); } catch { throw new HttpsError('invalid-argument', 'Choose a valid time zone.'); }
-      const setup = { name, address, timeZone, merchantType: type };
+      const setup = { name, address, timeZone, merchantType: type, ...(applicationId ? { applicationId } : {}) };
       return db.runTransaction(async tx => {
-        const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), eventRef = db.doc(`merchant_setup_requests/${requestId}`), [existing, event] = await Promise.all([tx.get(ref), tx.get(eventRef)]);
+        const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), eventRef = db.doc(`merchant_setup_requests/${requestId}`), appRef = applicationId ? db.doc(`partner_applications/${applicationId}`) : null, [existing, event, application] = await Promise.all([tx.get(ref), tx.get(eventRef), ...(appRef ? [tx.get(appRef)] : [Promise.resolve(null)])]);
         if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || prior.merchantId !== id || prior.reason !== reason || !Object.entries(setup).every(([key, value]) => prior.setup?.[key] === value)) throw new HttpsError('already-exists', 'This setup request reference was already used.'); return { merchantId: id, status: 'draft' }; }
         if (existing.exists) throw new HttpsError('already-exists', 'This business ID already exists. Existing data was preserved.');
-        tx.create(ref, { ...setup, id, acceptingOrders: false, onboardingStatus: 'draft', weeklyHours: {}, closedDates: [], closureRevision: 0, createdAt: Timestamp.now(), image: '', rating: 0, ratingCount: 0, deliveryTime: '', ...(type === 'restaurant' ? { cuisine: '', pureVeg: false } : {}) });
+        if (applicationId && (!application?.exists || !['restaurant', 'grocery'].includes(application.data().type) || application.data().type !== type || !['submitted', 'needs_information'].includes(application.data().status) || application.data().businessId)) throw new HttpsError('failed-precondition', 'Link the business to a current application of the same type that has no business assigned.');
+        tx.create(ref, { ...setup, ...(applicationId ? { ownerId: application.data().userId } : {}), id, acceptingOrders: false, onboardingStatus: 'draft', weeklyHours: {}, closedDates: [], closureRevision: 0, createdAt: Timestamp.now(), image: '', rating: 0, ratingCount: 0, deliveryTime: '', ...(type === 'restaurant' ? { cuisine: '', pureVeg: false } : {}) });
+        if (applicationId) {
+          const revision = (application.data().revision || 0) + 1, now = new Date().toISOString();
+          tx.update(appRef, { businessId: id, revision, updatedAt: now });
+          tx.create(appRef.collection('events').doc(requestId), { action: 'business_linked', actorId: uid, merchantId: id, expectedRevision: application.data().revision || 0, revision, createdAt: now });
+        }
         tx.create(eventRef, { actorId: uid, merchantId: id, setup, reason, createdAt: Timestamp.now() });
         audit(tx, uid, 'merchant_business_created', ref.path);
         return { merchantId: id, status: 'draft' };

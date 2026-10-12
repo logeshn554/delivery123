@@ -1,0 +1,15 @@
+:root {
+  --allgo-brand: #5130ef;
+  --allgo-ink: #201d2b;
+  --allgo-muted: #716d7b;
+  --allgo-surface: #ffffff;
+  --allgo-canvas: #f7f6f9;
+  --allgo-border: #ece9ef;
+  --allgo-focus: #7659f6;
+  --allgo-food: #ee7d43;
+  --allgo-grocery: #20835a;
+  --allgo-ride: #4164c8;
+  --allgo-delivery: #7659c9;
+  --allgo-radius-card: 20px;
+  --allgo-touch-target: 44px;
+}
