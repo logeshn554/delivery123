@@ -22,7 +22,8 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 - [x] Add responsive product cards, 44px controls, image fallbacks, long store-address truncation and a live-stock cart conflict warning.
 - [ ] Filter stores by the customer's delivery coverage. Current listener returns all approved stores; store-level coverage is not exposed to this screen, so the empty state accurately says no stores are listed rather than claiming no store serves the address.
 - [ ] Validate 320px/mobile and desktop rendering, large text, keyboard, screen reader, low-bandwidth image failures and live catalog behavior; in-app browser local preview remains unavailable under its network policy.
-- [ ] Commit, push and open a separate grocery pull request; PR integration authorization is currently blocked (see evidence below).
+- [x] Commit and push a separate grocery branch.
+- [ ] Open a draft grocery pull request; GitHub integration authorization is blocked (see evidence below).
 
 ## Ride
 
@@ -67,6 +68,6 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 - `npm run build` — passed; Vite reported the existing large `accounts` chunk warning. This script builds the development mode bundle.
 - `npm run android:sync` — Android web asset copy and Capacitor sync passed with 7 plugins; wrapper exited 1 in `scripts/prepare-native.mjs` because `ios/App/App/capacitor.config.json` is absent. Android Firebase config is absent, so the native Firebase provider acceptance warning remains.
 - Android `:app:assembleDebug` with Temurin JDK 21 — passed (`BUILD SUCCESSFUL`, 207 actionable tasks). This is not a signed build or device acceptance.
-- `git diff --check` — pending final review.
+- `git diff --check` — passed.
 - Visual evidence: not captured. The in-app browser could not connect to the local preview under its current network policy. Screenshot review, 320px/desktop viewports, large text, keyboard and assistive technology remain pending.
-- Grocery PR — not created yet. GitHub integration returned HTTP 403 on Food PR creation and `gh` CLI is unavailable. After branch push, use https://github.com/logeshn554/delivery123/compare/codex/food-ui...codex/grocery-ui?expand=1 for a stacked review.
+- Commit: `5573813` (`feat(grocery): improve store and stock states`). Branch push succeeded. GitHub integration returned HTTP 403 `Resource not accessible by integration` for draft PR creation; `gh` CLI is unavailable. Create the stacked PR with base `codex/food-ui` and head `codex/grocery-ui`: https://github.com/logeshn554/delivery123/compare/codex/food-ui...codex/grocery-ui?expand=1
