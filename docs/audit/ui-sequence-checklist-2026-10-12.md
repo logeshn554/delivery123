@@ -80,7 +80,7 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 
 - Customer tracking now rejects future-dated and expired driver positions and route estimates; malformed route values and destinations also fail closed. The UI explains when location or route data is outside its live window.
 - Regression coverage: `src/design-system/trackingFreshness.ts` and `tests/ui/trackingFreshness.test.ts`.
-- Branch: `codex/tracking-freshness`, stacked on `codex/delivery-ui`; implementation commit `986b4b7` (`fix(tracking): reject future and stale route data`).
+- Branch: `codex/tracking-freshness`, stacked on `codex/delivery-ui`; implementation commit `986b4b7` (`fix(tracking): reject future and stale route data`), evidence commit `8e97825`.
 - `npm run lint`: passed.
 - `npm test`: passed (58 Functions tests, 8 UI tests, 12 server tests, secret scan of 314 snapshots).
 - `npm run test:rules`: passed (89 tests, 0 failures). Emulator logs warn that Maps and Razorpay secrets are not configured locally; provider acceptance was not tested.
@@ -89,6 +89,7 @@ Requested review order: Food → Grocery → Ride → Delivery. Work is implemen
 - `git diff --check`: passed.
 - `npm run android:sync` copied the Android assets and synced 7 plugins; its final preparation wrapper exited because iOS Capacitor config is absent. Android Firebase native config is absent as well.
 - Live location/map/provider acceptance, visual review, accessibility and physical-device acceptance remain pending.
+- Pull-request compare: <https://github.com/logeshn554/delivery123/compare/codex/delivery-ui...codex/tracking-freshness?expand=1>. Draft PR creation returned HTTP 403 (`Resource not accessible by integration`), so no pull request has been created.
 
 ## Release evidence
 
