@@ -17,6 +17,7 @@ import GlobalCatalogSearch from './GlobalCatalogSearch';
 import OrderSynchronization from './OrderSynchronization';
 import AddressSheet from './AddressSheet';
 import ProfileScreen from './ProfileScreen';
+import RestaurantMenu from './RestaurantMenu';
 import OffersScreen from './OffersScreen';
 import GroceryProductCard from '../design-system/GroceryProductCard';
 import CustomerPages, { customerPages, type CustomerPage } from './CustomerPages';
@@ -911,20 +912,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             <div className="food-filter-row" aria-label="Food filters">
               <button onClick={() => setVegetarianOnly((value) => !value)} aria-pressed={vegetarianOnly} className="food-filter-chip">Vegetarian</button>
               <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className="food-filter-chip">{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
-              {selectedRestaurant && <div className="flex gap-1.5 overflow-x-auto">
-              {["All", ...new Set(menuItemsList.filter((item) => item.restaurantId === selectedRestaurant.id).map((item) => item.category))].map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedFoodCategory(cat)}
-                  aria-pressed={selectedFoodCategory === cat}
-                  className={`food-filter-chip transition-colors ${
-                    selectedFoodCategory === cat ? 'bg-orange-500 text-white border-orange-500' : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-              </div>}
+
             </div>
 
             {!selectedRestaurant ? (
@@ -948,31 +936,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 )}
               </section>
             ) : (
-              <div>
-                <div className="food-section-head"><div><h2>Menu</h2><p>{selectedRestaurant.acceptingOrders === false ? 'This restaurant is currently closed to orders.' : 'Choose from currently available dishes.'}</p></div><button className="food-filter-chip" onClick={() => setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})}>About</button></div>
-
-                <div className="food-menu-grid mb-6">
-                  {menuCatalogError ? <CatalogState kind="error" title="Menu could not load" description={menuCatalogError} action={<button onClick={() => { setMenuCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : menuLoading ? <CatalogState kind="loading" title="Loading menu" description={`Checking current menu availability at ${selectedRestaurant.name}.`} /> : !menuItemsList.some(item => item.restaurantId === selectedRestaurant.id && item.available !== false) ? <CatalogState kind="empty" title="No dishes available right now" description="This partner has not published any currently available menu items." /> : visibleFoodItems.length === 0 ? <CatalogState kind="no-results" title="No dishes match" description="Try another search or menu category." action={<button onClick={() => { setFoodSearch(''); setSelectedFoodCategory('All'); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : visibleFoodItems.map(item => {
-                    const availableVariants = item.variants?.filter(variant => variant.available !== false) || [];
-                    const variant = availableVariants.find(option => option.id === selectedFoodVariants[item.id]) || availableVariants[0];
-                    const qty = cart.find(c => c.item.id === item.id && c.variant?.id === variant?.id)?.quantity || 0;
-                    return (
-                      <article key={item.id} className="food-menu-card">
-                        <CatalogImage src={item.image} alt="" className="food-menu-image" fallback={<Utensils size={24} />} />
-                        <div className="food-menu-copy"><span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-bold ${item.isVeg ? 'border-emerald-600 text-emerald-700' : 'border-rose-600 text-rose-700'}`}>{item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}</span>
-                          <button className="block min-h-11 text-left" onClick={() => setCatalogPage({kind:'dish', id:item.id})}><h3>{item.name}</h3><p>{item.description}</p></button>
-                          <p className="food-menu-price">₹{variant?.price ?? item.price}</p>
-                          {availableVariants.length > 0 && <label className="mt-2 block text-xs font-semibold text-slate-600">Option<select aria-label={`${item.name} option`} value={variant?.id || ''} onChange={event => setSelectedFoodVariants(current => ({ ...current, [item.id]: event.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-2">{availableVariants.map(option => <option key={option.id} value={option.id}>{option.label} · ₹{option.price}</option>)}</select></label>}
-                        </div>
-                        <div className="food-menu-actions"><button aria-label={`${favoriteCatalogIds.includes(`dish:${item.id}`) ? 'Remove' : 'Save'} ${item.name}`} aria-pressed={favoriteCatalogIds.includes(`dish:${item.id}`)} onClick={() => toggleFavorite(`dish:${item.id}`)} className="text-rose-500"><Heart size={18} fill={favoriteCatalogIds.includes(`dish:${item.id}`) ? 'currentColor' : 'none'} /></button>
-                          {qty === 0 ? <button disabled={selectedRestaurant.acceptingOrders === false || ((item.variants?.length || 0) > 0 && !variant)} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)} className="food-add">Add</button> : <div className="food-quantity"><button aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}>-</button><span>{qty}</span><button aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} disabled={selectedRestaurant.acceptingOrders === false} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)}>+</button></div>}
-                        </div>
-                        </article>
-                    );
-                  })}
-                </div>
-
-              </div>
+              <RestaurantMenu restaurant={selectedRestaurant} items={visibleFoodItems} categories={['All', ...new Set(menuItemsList.filter(item => item.restaurantId === selectedRestaurant.id).map(item => item.category).filter(Boolean))]} category={selectedFoodCategory} onCategory={setSelectedFoodCategory} loading={menuLoading} error={menuCatalogError} onRetry={() => { setMenuCatalogError(''); setCatalogRetry(value => value + 1); }} onClear={() => { setFoodSearch(''); setSelectedFoodCategory('All'); setShowFavoritesOnly(false); setVegetarianOnly(false); }} onAbout={() => setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})} favoriteIds={favoriteCatalogIds} onFavorite={toggleFavorite} onDetails={id => setCatalogPage({kind:'dish',id})} quantities={(id,variantId) => cart.find(line => line.item.id === id && line.variant?.id === variantId)?.quantity || 0} selectedVariants={selectedFoodVariants} onVariant={(id,variant) => setSelectedFoodVariants(current => ({...current,[id]:variant}))} onAdd={(item,variant) => { handleAddToCart(item,'food',variant); }} onRemove={(item,variantId) => handleRemoveFromCart(item,variantId)} />
             )}
             {cart.length > 0 && cartService === 'food' && <div className="food-cart-dock"><div><strong>₹{getCartTotal()}</strong><p>{cart.reduce((sum, line) => sum + line.quantity, 0)} items · from {restaurantsList.find(rest => rest.id === cartSourceId)?.name || 'selected restaurant'}</p></div><button onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}>View cart</button></div>}
           </div>

@@ -35,6 +35,8 @@ Inspected the supplied `edit_address/screen.png` and `code.html`. The reference 
 
 Compared `food_restaurant_menu/screen.png` and `code.html` with the real `RestaurantMenu`. Its existing hero, category rail, menu cards and cart dock use catalog data. The card image and Add button now sit on one row as in the reference, with variant quantity controls below when needed. No authenticated catalog or rendered screenshot comparison is available.
 
+The real customer food workflow now mounts `RestaurantMenu` with its existing data and handlers. The former duplicate menu markup is removed; this was checked in source and by TypeScript, not with an authenticated screenshot.
+
 ## Grocery home and products references
 
 Compared `10._grocery_home` and `11._grocery_products` screenshots and HTML with the production grocery workflow. The home heading now matches the reference language, and the two-column catalog uses the shared Stitch product card in the actual customer flow. Product stock and partner availability still come from live records. Reference sample stores and category imagery were not copied into production. Catalog interaction and rendered screenshots remain unverified.
