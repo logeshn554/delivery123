@@ -25,6 +25,8 @@ Native build inspection: Android and iOS Capacitor projects are present, but thi
 
 Compared `3._location_setup/screen.png` and `code.html` with the real saved-address selector. The production list now follows the reference's compact Home/Work-style rows and dashed Other Location action, using each account's actual saved labels and addresses. Device geolocation remains in the existing lookup component. No live map screenshot, permission run, or device comparison is available.
 
+The customer app now mounts this sheet directly; its former duplicate address modal was removed. This was verified by source review and TypeScript compilation, not by an authenticated runtime session.
+
 ## Edit address reference
 
 Inspected the supplied `edit_address/screen.png` and `code.html`. The reference includes editing existing address fields and saving changes. The current application has no address update operation, so the working add/default/delete controls were preserved. Edit, map-pin movement, phone field, and Save Changes are not claimed as implemented. Authenticated account testing is pending.
@@ -40,6 +42,10 @@ Compared `10._grocery_home` and `11._grocery_products` screenshots and HTML with
 ## Ride, vehicle transport and movers references
 
 Compared `13._ride_booking`, `14._bike_transport`, and `17._packers_movers` with production booking components. The ride route now presents the Stitch selection rows and violet primary action while retaining server quotes. The transport flow needs actual vehicle details and a server quote; the sample fare and bike-only layout were not asserted for car transport. Movers remains explicitly planned, with disabled requirements and support access. No provider quote, payment or device screenshot was verified.
+
+## Offers and profile references
+
+Compared `20._offers_coupons` and `21._profile` with the production account flow. Their Stitch components now render in the real customer app. Account actions use the existing routes and signed-in fields. The offers screen opens from the bottom tab and profile, and a typed code moves into cart review for the existing server eligibility check. The reference's sample offers, verified labels, person and wallet balance were not used. Authentication, coupon preview and rendered screenshots remain unverified.
 
 ## Login and sign-up reference
 

@@ -15,7 +15,9 @@ import WalletPanel from './WalletPanel';
 import SupportCasePanel from './SupportCasePanel';
 import GlobalCatalogSearch from './GlobalCatalogSearch';
 import OrderSynchronization from './OrderSynchronization';
-import LocationPicker from './LocationPicker';
+import AddressSheet from './AddressSheet';
+import ProfileScreen from './ProfileScreen';
+import OffersScreen from './OffersScreen';
 import GroceryProductCard from '../design-system/GroceryProductCard';
 import CustomerPages, { customerPages, type CustomerPage } from './CustomerPages';
 import { enableOrderNotifications } from '../nativeNotifications';
@@ -152,17 +154,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   // Address and Search (Prefilled via automatic Geolocation reverse-lookup)
   const [deliveryAddress, setDeliveryAddress] = useState(userProfile?.defaultAddress || "");
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const addressCloseRef = useRef<HTMLButtonElement>(null);
   const [addressDraft, setAddressDraft] = useState('');
   useEffect(() => { if (showAddressModal) setAddressDraft(detectedAddress || ''); }, [showAddressModal]);
-  useEffect(() => { if (showAddressModal) addressCloseRef.current?.focus(); }, [showAddressModal]);
   const [addressSaving, setAddressSaving] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [addressBuilding, setAddressBuilding] = useState('');
   const [addressLandmark, setAddressLandmark] = useState('');
   const [addressInstructions, setAddressInstructions] = useState('');
   useEffect(() => { if (showAddressModal) { setAddressBuilding(''); setAddressLandmark(''); setAddressInstructions(''); } }, [showAddressModal]);
-  const [addressLookup, setAddressLookup] = useState(false);
   const [addressLabel, setAddressLabel] = useState('Home');
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
@@ -371,7 +370,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         setSelectedRestaurant(null);
         return;
       }
-      if (currentTab === 'wallet' || currentTab === 'settings' || currentTab === 'more' || currentTab === 'support') { event.preventDefault(); setCurrentTab('profile'); return; }
+      if (currentTab === 'wallet' || currentTab === 'settings' || currentTab === 'more' || currentTab === 'support' || currentTab === 'offers') { event.preventDefault(); setCurrentTab('profile'); return; }
       if (currentTab !== 'home') { event.preventDefault(); setCurrentTab('home'); return; }
     };
     const handleEscape = (event: KeyboardEvent) => {
@@ -1191,27 +1190,18 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
         {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} products={productsList} menuItems={menuItemsList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} />}
 
-        {/* TAB 5: PROFILE */}
-        {currentTab === 'profile' && activeWorkflow === 'none' && (
-          <div className="allgo-account space-y-4 animate-fadeIn">
-            <h1 className="allgo-account-title">Your account</h1>
-            <div className="allgo-account-profile">
-              <div className="allgo-account-avatar">{userName ? userName[0] : 'U'}</div>
-              <div className="min-w-0"><h2>{userName || 'AllGo User'}</h2><p>{userProfile?.email || 'Account details'}</p></div>
-              <button type="button" onClick={() => openPage('edit-profile')} aria-label="Edit personal details"><ChevronRight size={20} /></button>
-            </div>
+        {currentTab === 'offers' && activeWorkflow === 'none' && <OffersScreen hasCart={cart.length > 0} onApply={code => { setCouponCode(code); setCurrentTab('cart'); }} onBrowse={service => { setCurrentTab('home'); setActiveWorkflow(service); }} onBack={() => setCurrentTab('profile')} />}
 
-            <section aria-labelledby="account-quick-title"><h2 id="account-quick-title" className="allgo-account-section-title">Quick access</h2><div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-              <button onClick={() => setShowAddressModal(true)} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><MapPin size={17} /> Delivery address</span><ChevronRight size={16} className="text-slate-400" /></button>
-              <button onClick={() => { setActiveWorkflow('none'); setCurrentTab('orders'); }} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><ClipboardList size={17} /> My orders</span><ChevronRight size={16} className="text-slate-400" /></button>
-              <button onClick={() => setCurrentTab('wallet')} className="w-full text-left p-3.5 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><CreditCard size={17} /> Wallet & payments</span><ChevronRight size={16} /></button>
-              <button onClick={() => setCurrentTab('settings')} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><Settings size={17} /> Settings</span><ChevronRight size={16} className="text-slate-400" /></button>
-              <button onClick={() => setCurrentTab('support')} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between"><span className="flex items-center gap-3"><LifeBuoy size={17} /> Help and support</span><ChevronRight size={16} className="text-slate-400" /></button>
-            </div></section>
-            <section aria-labelledby="account-more-title"><h2 id="account-more-title" className="allgo-account-section-title">More from AllGo</h2><div className="bg-white rounded-xl border border-slate-100 overflow-hidden">{customerPages.filter(page => !['edit-profile', 'addresses'].includes(page.id)).map(({id,title,detail,Icon}) => <button key={id} onClick={() => openPage(id)} className="allgo-account-link"><Icon size={18}/><span><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={16}/></button>)}
-              <button onClick={onSignOut} className="w-full border-t p-3.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">Sign out</button></div></section>
-          </div>
-        )}
+        {/* TAB 5: PROFILE */}
+        {currentTab === 'profile' && activeWorkflow === 'none' && <ProfileScreen profile={userProfile} name={userName} onSignOut={onSignOut} actions={[
+          {label:'Personal information',Icon:User,onClick:()=>openPage('edit-profile')},
+          {label:'Saved addresses',Icon:MapPin,onClick:()=>setShowAddressModal(true)},
+          {label:'Wallet & payments',Icon:CreditCard,onClick:()=>setCurrentTab('wallet')},
+          {label:'Order history',Icon:ClipboardList,onClick:()=>{setActiveWorkflow('none');setCurrentTab('orders');}},
+          {label:'Offers & coupons',Icon:Ticket,onClick:()=>setCurrentTab('offers')},
+          {label:'Help & support',Icon:LifeBuoy,onClick:()=>setCurrentTab('support')},
+          {label:'Settings',Icon:Settings,onClick:()=>setCurrentTab('settings')},
+        ]}><section aria-labelledby="account-more-title"><h2 id="account-more-title" className="allgo-account-section-title">More from AllGo</h2><div className="stitch-profile-links">{customerPages.filter(page => !['edit-profile', 'addresses'].includes(page.id)).map(({id,title,detail,Icon}) => <button type="button" key={id} onClick={() => openPage(id)}><Icon size={20}/><span><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={17}/></button>)}</div></section></ProfileScreen>}
 
       </div>
 
@@ -1226,23 +1216,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           { id: 'home', label: 'Home', icon: House },
           { id: 'services', label: 'Services', icon: ShoppingBag },
           { id: 'orders', label: 'Activity', icon: ClipboardList },
+          { id: 'offers', label: 'Offers', icon: Ticket },
           { id: 'profile', label: 'Account', icon: UserRoundCog },
         ]}
         onNavigate={tab => { setCurrentTab(tab); setActiveWorkflow('none'); }}
       />}
 
-      {/* ADDRESS CHOOSE MODAL */}
-      {showAddressModal && (
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-end justify-center z-50">
-          <div className="allgo-address-sheet bg-white rounded-t-3xl w-full p-6 max-h-[80%] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="allgo-address-title">
-            <div className="allgo-address-sheet-heading"><h2 id="allgo-address-title">Delivery addresses</h2><button ref={addressCloseRef} type="button" aria-label="Close delivery addresses" disabled={addressSaving} onClick={() => setShowAddressModal(false)}>×</button></div>
-            <p className="mb-4 text-[11px] text-slate-500">Choose a saved place or add a new delivery address.</p>
-            {savedAddresses.length > 0 && <div className="mb-4 space-y-2">{savedAddresses.map((address) => <div key={address.id} className={`flex items-center gap-2 rounded-xl border p-3 ${deliveryAddress === address.address ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'}`}><button disabled={addressSaving} onClick={() => void handleSelectSavedAddress(address)} className="min-w-0 flex-1 text-left"><span className="block text-xs font-bold text-slate-800">{address.label}{userProfile?.defaultAddressId === address.id && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-700">Default</span>}</span><span className="mt-1 block text-[10px] text-slate-500">{address.address}</span></button><button aria-label={`Delete ${address.label} address`} onClick={() => void handleDeleteSavedAddress(address)} className="rounded-lg p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={15} /></button></div>)}</div>}
-            <button type="button" className="my-2 rounded-xl border p-3 text-xs font-bold text-indigo-700" onClick={() => setAddressLookup(value => !value)}>Find address or use current location</button>{addressLookup && <LocationPicker label="Delivery location" initialAddress={addressDraft} disabled={addressSaving} onSelect={location => { if (location) setAddressDraft(location.address); }}/>}<div className="rounded-2xl border border-slate-200 p-3"><h3 className="mb-2 text-sm font-extrabold text-slate-800">Add a new address</h3><label className="block text-xs font-bold">Address label<select value={addressLabel} onChange={(event) => setAddressLabel(event.target.value)} className="mt-1 mb-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs"><option>Home</option><option>Work</option><option>Other</option></select></label><label className="block text-xs font-bold">Street address<input value={addressDraft} onChange={(e) => setAddressDraft(e.target.value)} placeholder="House, street, area and city" maxLength={300} className="mt-1 w-full rounded-xl border border-slate-200 p-3 text-xs" /></label><label className="block mt-2 text-xs font-bold">House / flat / building<input maxLength={80} value={addressBuilding} onChange={event => setAddressBuilding(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><label className="block mt-2 text-xs font-bold">Landmark<input maxLength={80} value={addressLandmark} onChange={event => setAddressLandmark(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><label className="block mt-2 text-xs font-bold">Delivery instructions<textarea maxLength={120} value={addressInstructions} onChange={event => setAddressInstructions(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><button type="button" onClick={() => void handleSaveAddress()} disabled={!addressDraft.trim() || addressSaving} className="my-2 w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white disabled:opacity-50">{addressSaving ? 'Saving…' : 'Save and set as default'}</button></div>
-            <p className="text-[11px] text-slate-500">Your saved address will be used for food, grocery and parcel deliveries. Enter a pickup and drop address separately when booking a ride.</p>
-          </div>
-        </div>
-      )}
+      {showAddressModal && <AddressSheet addresses={savedAddresses} currentAddress={deliveryAddress} defaultId={userProfile?.defaultAddressId} fields={{address:addressDraft,label:addressLabel,building:addressBuilding,landmark:addressLandmark,instructions:addressInstructions}} busy={addressSaving} onField={(key,value) => { if (key === 'address') setAddressDraft(value); else if (key === 'label') setAddressLabel(value); else if (key === 'building') setAddressBuilding(value); else if (key === 'landmark') setAddressLandmark(value); else setAddressInstructions(value); }} onSelect={address => { void handleSelectSavedAddress(address); }} onDelete={address => { void handleDeleteSavedAddress(address); }} onSave={() => { void handleSaveAddress(); }} onClose={() => setShowAddressModal(false)} />}
 
     </div>
   );
