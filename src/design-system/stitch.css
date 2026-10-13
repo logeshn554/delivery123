@@ -11,7 +11,16 @@
 .auth-welcome .auth-outline { min-height: 44px; color: #6b7280; border: 0; font-size: 14px; }
 .auth-welcome .auth-outline strong { color: #e44821; margin-left: 4px; }
 @media (max-height: 620px) { .auth-welcome { padding-top: calc(16px + var(--safe-area-inset-top, env(safe-area-inset-top))); } .stitch-welcome-art { padding-block: 8px; } .stitch-welcome-art img { max-height: 35dvh; } }
-.stitch-auth-avatar { width: 96px; height: 96px; border-radius: 50%; border: 3px solid #e3e4ff; display: grid; place-items: center; background: #f4f5f9; color: #8f98b1; margin: 12px auto 28px; }
+.stitch-auth-signin { text-align: center; padding-top: calc(32px + var(--safe-area-inset-top, env(safe-area-inset-top))); }
+.stitch-auth-signin .auth-back { margin-bottom: 20px; }
+.stitch-auth-avatar { width: 112px; height: 112px; border-radius: 50%; border: 3px solid #e3e4ff; display: grid; place-items: center; position: relative; background: #f4f5f9; box-shadow: inset 0 0 0 4px white, 0 2px 6px #1f293710; margin: 12px auto 30px; }
+.stitch-auth-avatar svg { width: 82px; height: 82px; }
+.stitch-auth-avatar span { position: absolute; top: 17px; right: 19px; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; background: #10b981; }
+.stitch-auth-signin h1 { margin: 0 0 8px; color: #111827; font-size: 28px; letter-spacing: -.7px; }
+.stitch-auth-signin .auth-description { color: #6b7280; font-size: 14px; }
+.stitch-auth-signin .auth-form { text-align: left; margin-top: 34px; }
+.stitch-auth-signin .auth-form input { background: #f9fafb; border-color: #e5e7eb; }
+.stitch-auth-signin .auth-primary { background: #5850ec; box-shadow: 0 5px 10px #5850ec33; }
 .auth-panel:not(.auth-welcome) .auth-wordmark { font-size: 28px; }
 .allgo-customer { background: var(--allgo-canvas); }
 .allgo-customer-header { border-bottom-color: var(--allgo-border); }

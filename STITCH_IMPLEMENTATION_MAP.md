@@ -5,7 +5,7 @@ Reference source: user-supplied `stitch_on_demand_delivery_app_ui.zip`, with eac
 | Screen | Production component | Status | Next action |
 | --- | --- | --- | --- |
 | `1._splash_screen` | `src/components/AuthScreen.tsx` (`welcome`) | Source corrected to reference; automated checks passed; rendered screenshot unavailable | Capture at 320, 360, 390, and 430 px on a working browser/device and compare with reference |
-| `2._login_sign_up` | `src/components/AuthScreen.tsx` (`signin`, `signup`, `phone`) | Existing Stitch styling; fresh comparison pending | Compare reference and verify configured sign-in providers |
+| `2._login_sign_up` | `src/components/AuthScreen.tsx` (`signin`, `phone`) | Avatar, heading, spacing and primary action corrected; automated checks pending; screenshot unavailable | Capture rendered views and verify configured sign-in providers. Email remains the default where phone authentication is unavailable |
 | `3._location_setup` | `src/components/CustomerApp.tsx`, `src/components/LocationPicker.tsx` | Existing implementation; fresh comparison pending | Check permission and manual selection |
 | `edit_address` | `src/components/AddressSheet.tsx` | Existing implementation; fresh comparison pending | Check address save and selection |
 | `food_restaurant_menu` | `src/components/RestaurantMenu.tsx` | Existing implementation; fresh comparison pending | Check live menu and variant controls |

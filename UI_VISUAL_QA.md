@@ -21,6 +21,12 @@ After shared form changes, `npm run lint`, `npm run build` and `git diff --check
 Native build inspection: Android and iOS Capacitor projects are present, but this workspace has no Android SDK or `adb`, and no macOS/Xcode environment. The native Firebase configuration files are absent; `scripts/prepare-native.mjs` intentionally omits native Firebase plugins in that state. Android and iOS smoke tests and native provider acceptance are therefore pending.
 # 13 October 2026 Stitch welcome verification
 
+## Login and sign-up reference
+
+The original `2._login_sign_up/screen.png` and `code.html` were compared with production `AuthScreen`. The sign-in and phone views now include the reference avatar treatment, centered heading, input spacing and violet primary button. The reference's phone-first form cannot be applied to providers that only expose email; native phone remains conditional on its existing provider gate. Screenshot comparison, provider sign-in, and device rendering are unverified.
+
+## Welcome reference
+
 | Item | Result |
 | --- | --- |
 | Reference | `1._splash_screen/screen.png` and matching `code.html` from the user ZIP |
