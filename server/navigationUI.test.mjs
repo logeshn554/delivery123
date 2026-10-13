@@ -35,10 +35,10 @@ test('unsupported service is disabled with a readable availability label', () =>
   assert.match(html, /aria-label="Movers: Planned · not available"/);
 });
 
-test('service directory retains six service commands and disables only planned domains', () => {
+test('service directory retains six service commands and disables unavailable movers', () => {
   assert.deepEqual(serviceDirectory.map(service => service.id), ['food', 'grocery', 'parcel', 'ride', 'takeover', 'transport']);
   const html = renderToStaticMarkup(createElement(ServiceDirectory, { onChoose() {} }));
-  assert.equal((html.match(/disabled=""/g) || []).length, 2);
+  assert.equal((html.match(/disabled=""/g) || []).length, 1);
   assert.match(html, /Availability and pricing are confirmed/);
 });
 

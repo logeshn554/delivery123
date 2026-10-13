@@ -9,8 +9,9 @@ if (!androidConfigured) {
   console.log('Android Firebase native configuration is missing. Native Firebase plugins are omitted from this development bundle; email sign-in remains available. Supply the actual google-services.json and sync again before native provider acceptance.');
 }
 const iosConfigured = await access(path.join(root, 'ios/App/App/GoogleService-Info.plist')).then(() => true, () => false);
-if (!iosConfigured) {
-  const configPath = path.join(root, 'ios/App/App/capacitor.config.json');
+const configPath = path.join(root, 'ios/App/App/capacitor.config.json');
+const iosSynced = await access(configPath).then(() => true, () => false);
+if (!iosConfigured && iosSynced) {
   const config = JSON.parse(await readFile(configPath, 'utf8'));
   config.packageClassList = config.packageClassList.filter(name => !['FirebaseAppCheckPlugin', 'FirebaseAuthenticationPlugin', 'FirebaseMessagingPlugin'].includes(name));
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);

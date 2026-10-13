@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { nativeGoogleSignIn, nativeAppleSignIn, completeNativePhoneSignIn } from '../nativeAuth';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, updateProfile } from 'firebase/auth';
-import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { auth, googleProvider } from '../firebase';
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
 import { useNeonAccounts, signInAccount, forgotPasswordAccount, resetPasswordAccount } from '../accounts';
@@ -111,17 +111,16 @@ export default function AuthScreen() {
   };
 
   return <main className="auth-shell safe-area-top safe-area-bottom">
-    <section className={`auth-panel ${screen === 'welcome' ? 'auth-welcome' : ''}`}>
+    <section className={`auth-panel ${screen === 'welcome' ? 'auth-welcome' : screen === 'signin' || screen === 'phone' ? 'stitch-auth-signin' : ''}`}>
       {screen === 'welcome' ? <>
-        <div className="brand-mark" aria-hidden="true">A<span /></div>
-        <h1 className="auth-brand">AllGo</h1>
-        <p className="auth-eyebrow">YOUR EVERYDAY, DELIVERED</p>
-        <h2>Everything you need.<br />One app to get it.</h2>
-        <p className="auth-description">Food, groceries, parcels and rides.<br />A little less planning. A lot more living.</p>
-        <div className="service-orbit" aria-hidden="true"><ShoppingBag /><Bike /><Package /><Truck /></div>
+        <div className="stitch-welcome-heading">
+          <h1 className="auth-brand">AllGo</h1>
+          <p className="auth-description">Everything Delivered To You</p>
+        </div>
+        <div className="stitch-welcome-art"><img src="/illustrations/allgo-riders.svg" alt="" /></div>
         <div className="auth-welcome-actions">
-          <button className="auth-primary auth-white" onClick={() => navigate('onboarding')}>Get started <ArrowRight size={19} /></button>
-          <button className="auth-outline" onClick={() => navigate('signin')}>I already have an account</button>
+          <button className="auth-primary auth-white" onClick={() => navigate('onboarding')}>Get Started</button>
+          <button className="auth-outline" onClick={() => navigate('signin')}>Already have an account? <strong>Login</strong></button>
         </div>
       </> : screen === 'onboarding' ? <div className="onboarding-page">
         <button className="auth-back" aria-label="Back" onClick={() => step ? setStep(step - 1) : navigate('welcome')}><ArrowLeft size={21} /></button>
@@ -133,10 +132,9 @@ export default function AuthScreen() {
         <button className="auth-switch" onClick={() => navigate('signin')}>Skip · Sign in</button>
       </div> : <>
         <button className="auth-back" aria-label="Back to welcome" disabled={busy} onClick={() => navigate('welcome')}><ArrowLeft size={21} /></button>
-        <div className="auth-wordmark">All<span>Go</span></div>
-        <p className="auth-eyebrow">EVERYTHING YOU NEED, IN ONE APP</p>
-        <h1>{screen === 'signup' ? 'Your everyday starts here.' : screen === 'reset' ? 'Let’s get you back in.' : 'Welcome back.'}</h1>
-        <p className="auth-description">{screen === 'signup' ? 'Create your account to order, send and go.' : screen === 'reset' ? 'We’ll send you a link to reset your password.' : 'Sign in to pick up where you left off.'}</p>
+        {screen === 'signin' || screen === 'phone' ? <div className="stitch-auth-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2a7 7 0 0 0-7 7v3a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H6.07A5 5 0 0 1 12 4a5 5 0 0 1 5.93 4H16a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a2 2 0 0 0 2-2V9a7 7 0 0 0-7-7Z" fill="#6366f1" opacity=".3"/><path d="M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm-6.17 14.03A8 8 0 0 1 12 14c2.5 0 4.73 1.15 6.17 2.95A10.96 10.96 0 0 1 12 20c-2.3 0-4.42-.7-6.17-1.97Z" fill="#94a3b8"/></svg><span/></div> : <><div className="auth-wordmark">All<span>Go</span></div><p className="auth-eyebrow">EVERYTHING YOU NEED, IN ONE APP</p></>}
+        <h1>{screen === 'signup' ? 'Your everyday starts here.' : screen === 'reset' ? 'Let’s get you back in.' : 'Welcome to AllGo'}</h1>
+        <p className="auth-description">{screen === 'signup' ? 'Create your account to order, send and go.' : screen === 'reset' ? 'We’ll send you a link to reset your password.' : screen === 'phone' ? 'Enter your mobile number to continue' : 'Enter your email address to continue'}</p>
         <form onSubmit={submit} className="auth-form">
           {screen === 'signup' && <label>Full name<input name="name" autoComplete="name" required minLength={2} maxLength={100} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>}
           {screen !== 'phone' && <label>Email address<input name="email" type="email" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>}
