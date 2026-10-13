@@ -19,3 +19,15 @@ The user confirmed that no staging environment is available. Authenticated custo
 After shared form changes, `npm run lint`, `npm run build` and `git diff --check` passed. The build still reports the pre-existing large chunk warning. Address dialog keyboard and screen-reader behavior needs a device or browser pass before it meets the acceptance criteria.
 
 Native build inspection: Android and iOS Capacitor projects are present, but this workspace has no Android SDK or `adb`, and no macOS/Xcode environment. The native Firebase configuration files are absent; `scripts/prepare-native.mjs` intentionally omits native Firebase plugins in that state. Android and iOS smoke tests and native provider acceptance are therefore pending.
+# 13 October 2026 Stitch welcome verification
+
+| Item | Result |
+| --- | --- |
+| Reference | `1._splash_screen/screen.png` and matching `code.html` from the user ZIP |
+| Production screen | `src/components/AuthScreen.tsx` welcome state |
+| Source comparison | Removed purple monogram, extra heading/copy and service orbit; restored reference wordmark, tagline, supplied courier SVG and bottom actions |
+| Interaction | Existing Get Started → onboarding and Login → sign-in handlers retained in source |
+| Automated verification | TypeScript lint, Vite build, existing Stitch UI test passed |
+| Screenshot comparison | Not verified: headless Chromium timed out and produced no capture |
+| Responsive / device | 320/360/390/430 px, Android and iOS device rendering not verified |
+| Next | Capture the welcome screen in a functioning browser/device; then compare `2._login_sign_up` |

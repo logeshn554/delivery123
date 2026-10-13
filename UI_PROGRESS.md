@@ -1,5 +1,11 @@
 # AllGo UI progress and reachable screen inventory
 
+## 13 October 2026 continuation checkpoint
+
+The user-supplied original Stitch ZIP was inspected. PR #4's four cleanup commits were integrated at `6b8f09c`. The first remaining mismatch was the production welcome screen: it still showed a purple monogram, extra marketing copy, and service icons instead of the Stitch orange wordmark, courier illustration, and two bottom actions. `src/components/AuthScreen.tsx` now renders those reference elements using the existing `public/illustrations/allgo-riders.svg`; `src/design-system/stitch.css` adjusts layout, type, colors, actions, and safe-area spacing. Existing onboarding and sign-in handlers remain connected.
+
+`npm run lint`, `npm run build`, and `node --import tsx --test server/stitchUI.test.mjs` passed after the change. Headless Chromium started but timed out without a screenshot, so visual QA at 320/360/390/430 px and actual Android/iOS testing remain unverified. See `STITCH_IMPLEMENTATION_MAP.md` and `UI_VISUAL_QA.md`. Next screen: `2._login_sign_up`, beginning with source comparison and then an actual rendered capture when browser/device support is available.
+
 Inventory source: `src/App.tsx`, `src/components/CustomerApp.tsx`, `src/components/CustomerPages.tsx`, and role component imports. This records implemented routes/components only; named examples not found in the current source (for example standalone `RestaurantMenu`, `ProfileScreen`, `OffersScreen`, `mobile.css`, and `stitch.css`) are not treated as screens. `CustomerApp` owns most customer navigation and conditionally renders the components below.
 
 ## Skills checked

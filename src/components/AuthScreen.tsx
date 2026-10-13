@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { nativeGoogleSignIn, nativeAppleSignIn, completeNativePhoneSignIn } from '../nativeAuth';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, updateProfile } from 'firebase/auth';
-import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { auth, googleProvider } from '../firebase';
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
 import { useNeonAccounts, signInAccount, forgotPasswordAccount, resetPasswordAccount } from '../accounts';
@@ -113,15 +113,14 @@ export default function AuthScreen() {
   return <main className="auth-shell safe-area-top safe-area-bottom">
     <section className={`auth-panel ${screen === 'welcome' ? 'auth-welcome' : ''}`}>
       {screen === 'welcome' ? <>
-        <div className="brand-mark" aria-hidden="true">A<span /></div>
-        <h1 className="auth-brand">AllGo</h1>
-        <p className="auth-eyebrow">YOUR EVERYDAY, DELIVERED</p>
-        <h2>Everything you need.<br />One app to get it.</h2>
-        <p className="auth-description">Food, groceries, parcels and rides.<br />A little less planning. A lot more living.</p>
-        <div className="service-orbit" aria-hidden="true"><ShoppingBag /><Bike /><Package /><Truck /></div>
+        <div className="stitch-welcome-heading">
+          <h1 className="auth-brand">AllGo</h1>
+          <p className="auth-description">Everything Delivered To You</p>
+        </div>
+        <div className="stitch-welcome-art"><img src="/illustrations/allgo-riders.svg" alt="" /></div>
         <div className="auth-welcome-actions">
-          <button className="auth-primary auth-white" onClick={() => navigate('onboarding')}>Get started <ArrowRight size={19} /></button>
-          <button className="auth-outline" onClick={() => navigate('signin')}>I already have an account</button>
+          <button className="auth-primary auth-white" onClick={() => navigate('onboarding')}>Get Started</button>
+          <button className="auth-outline" onClick={() => navigate('signin')}>Already have an account? <strong>Login</strong></button>
         </div>
       </> : screen === 'onboarding' ? <div className="onboarding-page">
         <button className="auth-back" aria-label="Back" onClick={() => step ? setStep(step - 1) : navigate('welcome')}><ArrowLeft size={21} /></button>

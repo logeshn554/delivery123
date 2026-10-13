@@ -1,12 +1,16 @@
 /* Adapted from the supplied Stitch layouts. Data and actions belong to real workflows. */
-.auth-welcome { color: var(--allgo-ink); background: white; padding-top: calc(64px + var(--allgo-safe-top)); }
-.auth-welcome .auth-brand { margin: 0 0 10px; font-size: 52px; color: #ff5428; background: linear-gradient(90deg,#ff422c,#f6aa00); background-clip: text; -webkit-text-fill-color: transparent; }
-.auth-welcome .auth-description { color: var(--allgo-muted); font-size: 16px; }
-.stitch-welcome-art { width: 100%; flex: 1; min-height: 250px; max-height: 390px; display: grid; place-items: center; margin: 32px 0; }
-.stitch-welcome-art img { width: 100%; max-width: 420px; height: auto; }
-.auth-welcome .auth-white { background: #ff5327; color: white; box-shadow: 0 8px 20px #ff532733; }
-.auth-welcome .auth-outline { color: var(--allgo-muted); border: 0; font-size: 14px; }
-.auth-welcome .auth-outline strong { color: #e44821; margin-left: 6px; }
+:root { --stitch-soft: #f4f2ff; }
+.auth-welcome { color: #1c1c1e; background: white; padding: calc(72px + var(--safe-area-inset-top, env(safe-area-inset-top))) 30px calc(20px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom))); }
+.stitch-welcome-heading { width: 100%; flex: none; }
+.auth-welcome .auth-brand { margin: 0; font-size: 50px; line-height: 1.12; letter-spacing: -2px; color: #ff5428; background: linear-gradient(90deg,#fa4a23 36%,#f59e0b 68%); background-clip: text; -webkit-text-fill-color: transparent; }
+.auth-welcome .auth-description { color: #6b7280; font-size: 15px; line-height: 1.5; }
+.stitch-welcome-art { width: 100%; flex: 1; min-height: 0; display: grid; place-items: center; padding-block: 20px; }
+.stitch-welcome-art img { width: 100%; max-width: 400px; height: auto; }
+.auth-welcome-actions { flex: none; gap: 8px; padding-top: 0; }
+.auth-welcome .auth-white { min-height: 64px; background: #fa4a23; color: white; font-size: 18px; box-shadow: 0 8px 20px -4px #fa4a2373; }
+.auth-welcome .auth-outline { min-height: 44px; color: #6b7280; border: 0; font-size: 14px; }
+.auth-welcome .auth-outline strong { color: #e44821; margin-left: 4px; }
+@media (max-height: 620px) { .auth-welcome { padding-top: calc(16px + var(--safe-area-inset-top, env(safe-area-inset-top))); } .stitch-welcome-art { padding-block: 8px; } .stitch-welcome-art img { max-height: 35dvh; } }
 .stitch-auth-avatar { width: 96px; height: 96px; border-radius: 50%; border: 3px solid #e3e4ff; display: grid; place-items: center; background: #f4f5f9; color: #8f98b1; margin: 12px auto 28px; }
 .auth-panel:not(.auth-welcome) .auth-wordmark { font-size: 28px; }
 .allgo-customer { background: var(--allgo-canvas); }
