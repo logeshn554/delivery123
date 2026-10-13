@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build --mode development",
-    "build:demo": "vite build --mode demo",
-    "android:sync:demo": "npm run build:demo && npx cap sync android && node scripts/prepare-native.mjs",
     "build:staging": "node scripts/check-release.mjs --environment=staging && vite build --mode staging",
     "build:production": "node scripts/check-release.mjs --environment=production && vite build --mode production",
     "preview": "vite preview",
