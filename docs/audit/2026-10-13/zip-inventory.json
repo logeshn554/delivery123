@@ -1,0 +1,1783 @@
+{
+  "referenceArchive": "untitled.zip",
+  "totalFiles": 122,
+  "files": [
+    {
+      "file": ".env.example",
+      "bytes": 1901,
+      "sha256": "96224e893334a0cc00e46677043e4ce3898af10c53328998e5e147f474e2ad67",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": ".env.production.example",
+      "bytes": 1047,
+      "sha256": "b6697eac05ea4ecb28e529ae0052417a3609bef04a67fa2e1117d5e4f92405cb",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": ".env.staging.example",
+      "bytes": 1363,
+      "sha256": "074d5ce3680983122038484f26a8761eef2514ca75a5d44a00c703d10e2250ce",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": ".firebaserc",
+      "bytes": 62,
+      "sha256": "312d18e6055c2a41f22232e9cab101acc8ea0178de9f432563bcb7e61852f58a",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": ".github/workflows/checks.yml",
+      "bytes": 650,
+      "sha256": "0c4124c2cbfc6f7f614711237ec1d4cbd681b9909a6d6b57adc3eafb8ff0f2df",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": ".gitignore",
+      "bytes": 302,
+      "sha256": "a040a9af97cd0af00f0620bf990c689bad6c8e25254f54d5882f08e8e15d7a36",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": ".gmp_cache/compliance-review.md",
+      "bytes": 9752,
+      "sha256": "0cd4757e1280a04f2751ff1c1473a75a678142ae6b5749ce780530208200c680",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": ".gmp_cache/gmp-framework-react.md",
+      "bytes": 31989,
+      "sha256": "0c284bb8d1c16ca5a15538710fce89d46113ae817c06d946ee3d61806482e8d5",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": ".gmp_cache/index.json",
+      "bytes": 21658,
+      "sha256": "97a963f4295b60f14e64ebad1b211f9eea67b9af39913bf58829d6b18a150995",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": ".release/acceptance.example.json",
+      "bytes": 698,
+      "sha256": "6a2a7cea14f36b00b689a38ab634dfc30369ad6aa549b236af4bf245a3b77ecc",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "ACCOUNT_SETUP.md",
+      "bytes": 2811,
+      "sha256": "bb0ea0ddb7a20933a131c97a348a57d6a8b5c2c0ecde472aed9b696726b00d85",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "android/.gitignore",
+      "bytes": 1824,
+      "sha256": "065e4a92a240fe11a0ea230491ad9dabef143f5fd5a3e6884ad6f0395666a971",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/.gitignore",
+      "bytes": 26,
+      "sha256": "99c54e51ee601a60fbde8016b2cbf717483bc2e92773be86c9247d02a7fa6ea4",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/build.gradle",
+      "bytes": 4225,
+      "sha256": "a89c4c1421a2d765d1f32d3c446fcf5a932d7299a6d7de6ff6a89e2644a76717",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/capacitor.build.gradle",
+      "bytes": 748,
+      "sha256": "db699f0d89315b5e0c267731dfb54779e52919adf553b182e80f430b58a3adb3",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/proguard-rules.pro",
+      "bytes": 751,
+      "sha256": "1cf8c57e8f79c250b0af9c1a5a4edad71a5c348a79ab70243b6bae086c150ad2",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java",
+      "bytes": 774,
+      "sha256": "ff50b4c110a7434312f9af54171f9e8523b015836f707c9b387b76d4c38a97f8",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/src/debug/AndroidManifest.xml",
+      "bytes": 177,
+      "sha256": "50d3952ade7ead0dbe802c48634e63b533705c10026cddb718c07f99948df697",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "android/app/src/main/AndroidManifest.xml",
+      "bytes": 2442,
+      "sha256": "e6b128131a2181a57ba8f777ede296c3617648ee1570ba8c54d015250d51e1cd",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "android/app/src/main/java/in/allgo/app/DriverLocation.java",
+      "bytes": 3616,
+      "sha256": "26ee3240b6b0a1dfa3961cebfac03607ad04ac2f6c211970f965fa8ca0b8b1c2",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/src/main/java/in/allgo/app/DriverLocationService.java",
+      "bytes": 6694,
+      "sha256": "8686afe92e7342149f37847d861e1b95ef5f4d10fb7e75947acc0159fd0fe0b4",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/src/main/java/in/allgo/app/MainActivity.java",
+      "bytes": 1488,
+      "sha256": "9be4a10aa830a412fd3b5e5786b8bfb21d53128f40f49c679480d1ee6f08f8a6",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/src/main/java/in/allgo/app/SecureSession.java",
+      "bytes": 3247,
+      "sha256": "1b494f8f3707778e448a422a99a04a8f27ee63900063969aac853045f524d92b",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "android/app/src/main/res/drawable/ic_launcher_background.xml",
+      "bytes": 5606,
+      "sha256": "718ba51adf166bb55c3e9936bb8199a0148457f7f0191aaa2f37a94f3159d6ec",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "android/app/src/main/res/drawable/ic_stat_location.xml",
+      "bytes": 329,
+      "sha256": "78d5ed97f4e3abe31ad8f59c054586b6d80046cf203ea49e469b587ef691e544",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "android/app/src/main/res/drawable/splash.png",
+      "bytes": 4040,
+      "sha256": "5cf98b4451bd99b20df26f9e608a46946118be6b0ae90762f9ca1786a30c76ff",
+      "kind": "Android raster resource",
+      "dimensions": "480 × 320"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-land-hdpi/splash.png",
+      "bytes": 7705,
+      "sha256": "08cc34ad7713fe7ed58bceaa37b2387b670c53cd60264b4bd6442db3098e75dc",
+      "kind": "Android raster resource",
+      "dimensions": "800 × 480"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-land-mdpi/splash.png",
+      "bytes": 4040,
+      "sha256": "5cf98b4451bd99b20df26f9e608a46946118be6b0ae90762f9ca1786a30c76ff",
+      "kind": "Android raster resource",
+      "dimensions": "480 × 320"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-land-xhdpi/splash.png",
+      "bytes": 9251,
+      "sha256": "22f87e1e3bc89aa01a7dbc39c9a4db058cd0bf4ad3fe9f55712bf69eb997f4bf",
+      "kind": "Android raster resource",
+      "dimensions": "1280 × 720"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-land-xxhdpi/splash.png",
+      "bytes": 13984,
+      "sha256": "42aa26392546fcdee1b8d3ac6d4b41bfcceb41dc6a4f3a3c30c24a8a8f4db862",
+      "kind": "Android raster resource",
+      "dimensions": "1600 × 960"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-land-xxxhdpi/splash.png",
+      "bytes": 17683,
+      "sha256": "60393ce8636fd263e4e1fea3fd4ab2de948c6295e898fda9b50ac4e5283be809",
+      "kind": "Android raster resource",
+      "dimensions": "1920 × 1280"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-port-hdpi/splash.png",
+      "bytes": 7934,
+      "sha256": "c5015f4ba3628392b538386c5e210f0b94f352a3160adab934fd0311972137ca",
+      "kind": "Android raster resource",
+      "dimensions": "480 × 800"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-port-mdpi/splash.png",
+      "bytes": 4096,
+      "sha256": "07fa579e1c83e04ba7f9cbcbfcf41b68e15fe3638f2c44a04e58b809103e6b69",
+      "kind": "Android raster resource",
+      "dimensions": "320 × 480"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-port-xhdpi/splash.png",
+      "bytes": 9875,
+      "sha256": "b73049cb37fe76d6c11b87a796766bf6af0c85483b31eb6a921657b0d764a4b9",
+      "kind": "Android raster resource",
+      "dimensions": "720 × 1280"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-port-xxhdpi/splash.png",
+      "bytes": 13346,
+      "sha256": "0c7f1212f25b7b90e9a6e1d320013e4ff3d3e03e634cbb07b7b7981cac51627f",
+      "kind": "Android raster resource",
+      "dimensions": "960 × 1600"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-port-xxxhdpi/splash.png",
+      "bytes": 17489,
+      "sha256": "3db071a03b2f8ffe0dfd4170fc59842d53cd15bba5e88af59401d58efabf7827",
+      "kind": "Android raster resource",
+      "dimensions": "1280 × 1920"
+    },
+    {
+      "file": "android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml",
+      "bytes": 1880,
+      "sha256": "a8514094f754b099d3e55ce1d6e0b2de79db418b2eeacb0fc2a6bb0bfadef221",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "android/app/src/main/res/layout/activity_main.xml",
+      "bytes": 535,
+      "sha256": "5d770feb791313b947020cbfc57e5c733c556dac5e9e49261a1190e527073253",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "bytes": 265,
+      "sha256": "9c3a7e0a6515c6e1a7ae834a9ae430311ebc3241f7b2e5e7f0460aa690709a7c",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+      "bytes": 265,
+      "sha256": "9c3a7e0a6515c6e1a7ae834a9ae430311ebc3241f7b2e5e7f0460aa690709a7c",
+      "kind": "Android XML resource"
+    },
+    {
+      "file": "AUTH_SETUP.md",
+      "bytes": 6232,
+      "sha256": "b98a52af90bc81e269a668b9736819f60ea966c1403e642b6a8c5e4193ddc9b2",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "bun.lock",
+      "bytes": 131796,
+      "sha256": "0a0c12d71400efd28e533b3ff00191da79ad1f75da4d97389cebd7e4ba667edd",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "CHECKLIST_STATUS.md",
+      "bytes": 8180,
+      "sha256": "0bf6adc333375f36be5d6f3e3c563e5d89cfef778ce747c2bc830197b53aca8f",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "DEPLOYMENT_SETUP.md",
+      "bytes": 5196,
+      "sha256": "59385d294c72ca6f6dcfa43be321cc3f34ec640648d3567610620c69ea9ab66c",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "firebase-applet-config.json",
+      "bytes": 527,
+      "sha256": "4529fd8ff82b0982794aeeae89ee67e4d5a109c288f8ebb737685ac75b9543f5",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "firestore.rules",
+      "bytes": 24213,
+      "sha256": "25c9572d1400e23c1cb3b8e0ebefee8c7035816de34627625c90f967cdc9d336",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "IMPLEMENTATION_PLAN.md",
+      "bytes": 13811,
+      "sha256": "09842473f0f464eb6a160f47648270ae663696f1b5dbfbc69e5afb06a056d128",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "index.html",
+      "bytes": 1131,
+      "sha256": "e711baa73b4199cb0a88f8b9d7611ed863c553e614257f5c5c931c8de40e6f4b",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "MAPS_SETUP.md",
+      "bytes": 2822,
+      "sha256": "3f9bab362e29d0728d6ea69386d4745d3109601658bb9d07b531dc4e41b6ddf8",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "metadata.json",
+      "bytes": 139,
+      "sha256": "eef286e56b9aeff4edc0221fd2ee252874fd1d8e5ea79e83c3c04026ba55b5b2",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "MOBILE_SCREEN_SETUP.md",
+      "bytes": 4066,
+      "sha256": "35f7baef777da917d6ad712cecfd771754c1953254a9e80e276cf5b63e7b23dd",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "package-lock.json",
+      "bytes": 182443,
+      "sha256": "cd39f90f58ac12707ab71dd1469872dc111631385e0ce8c4ebca8e308bb48650",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "package.json",
+      "bytes": 2704,
+      "sha256": "770294b806b8c4fe1614c9d169b5bcdea123d93fd0dd26c86d89de60c4282964",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "PAGE_AUDIT.md",
+      "bytes": 5128,
+      "sha256": "5e96f84f6736ea2fa6d4d5630c619ba7baa78a1433116e718df999da66664aa8",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "PARTNER_SETUP.md",
+      "bytes": 2422,
+      "sha256": "edd1bd58d6bb83253459ca5c0acc255a86bfd2ec9dedfbd5ad44505cf4464746",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "PAYMENTS.md",
+      "bytes": 2783,
+      "sha256": "1043759dc4792e5626a52aa6a8cb88bb2a450cfe05408b8571031fdc6d7a9cab",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "PRODUCTION_SETUP.md",
+      "bytes": 4309,
+      "sha256": "ba09835598b9151327dbf36b76aecda09fc2dc9d281720655f2268a31340af84",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "README.md",
+      "bytes": 542,
+      "sha256": "99d0e199b371ccdd0f3e11ac02761202ee93010c6d56908727a858b225aaab5d",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "RELEASE_HANDOFF.md",
+      "bytes": 4026,
+      "sha256": "444125bbab6356ec4fd8093366c01fc1e16e802ffda24031632fa901ad63ffc6",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "SERVICE_PAGE_PLAN.md",
+      "bytes": 6063,
+      "sha256": "ae43d2445911f396eafdd6d96270c462867eecb30df3efc19fdef65ba4e592f2",
+      "kind": "Reference documentation (data only)"
+    },
+    {
+      "file": "src/accounts.ts",
+      "bytes": 762,
+      "sha256": "e4c9b42d00be4796c123fad8e34d74d8c602752c8d85fde5674be096a1e8d87f",
+      "kind": "Source/configuration",
+      "imports": [
+        "./types"
+      ],
+      "functions": [
+        "watchAccount",
+        "signInAccount",
+        "signOutAccount",
+        "forgotPasswordAccount",
+        "resetPasswordAccount"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/app/customerNavigation.ts",
+      "bytes": 465,
+      "sha256": "0c8d7a3697cc00b5138f295f0f820333d334ac22c63c637550a592d14b935be6",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "customerDestination"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/App.tsx",
+      "bytes": 12410,
+      "sha256": "d553eb1950859c1bbf79b117e5647ce94876e3de38998d2e23ea0ce3f741917b",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "firebase/auth",
+        "./firebase",
+        "./accounts",
+        "./components/VerifyAccount",
+        "./nativeNotifications",
+        "./components/AuthScreen",
+        "./data/firestoreHelper",
+        "./data/sessionAuth",
+        "./types",
+        "./components/CustomerApp",
+        "./components/DriverApp",
+        "./components/MerchantPortal",
+        "./components/AdminDashboard"
+      ],
+      "functions": [
+        "App"
+      ],
+      "headings": [
+        "Let’s reconnect."
+      ],
+      "buttons": 4,
+      "smallTextClasses": [
+        "text-[11px]",
+        "text-[10px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/AdminDashboard.tsx",
+      "bytes": 3504,
+      "sha256": "34c24abd886c1122f5378d03ed2f4fce284a85a1bed0cf977e7c7ce16ffe6cac",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../types",
+        "lucide-react"
+      ],
+      "functions": [
+        "AdminDashboard"
+      ],
+      "headings": [
+        "AllGo Central Operations",
+        "Live Dispatches"
+      ],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/AuthScreen.tsx",
+      "bytes": 46858,
+      "sha256": "0230779569fdc6825031ec465036a8d61aa1aca9626a4011c6e7c25c00fc5687",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "@capacitor/core",
+        "@capacitor-firebase/authentication",
+        "../nativeAuth",
+        "firebase/auth",
+        "lucide-react",
+        "../firebase",
+        "../data/firestoreHelper",
+        "../accounts",
+        "../data/sessionAuth"
+      ],
+      "functions": [
+        "authMessage",
+        "AuthScreen"
+      ],
+      "headings": [
+        "Welcome to AllGo"
+      ],
+      "buttons": 24,
+      "smallTextClasses": [
+        "text-[10px]",
+        "text-[11px]",
+        "text-[9px]"
+      ],
+      "branches": [
+        "reset",
+        "signup",
+        "welcome",
+        "phone",
+        "email_signin"
+      ],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/BikeTransportScreen.tsx",
+      "bytes": 11433,
+      "sha256": "a26bc5ce3d029d6a42aeb7246e9f3615c879a57b045c89da4c0156fac50eaf4c",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "BikeTransportScreen"
+      ],
+      "headings": [
+        "Bike Transport",
+        "SELECT BIKE TYPE"
+      ],
+      "buttons": 3,
+      "smallTextClasses": [
+        "text-[11px]",
+        "text-[10px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/BookingExceptionPanel.tsx",
+      "bytes": 198,
+      "sha256": "c21ba26f8826ecf35ad8503bbeef488d22738a4a8385680bbd0e3b64df9aa8db",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../types"
+      ],
+      "functions": [
+        "BookingExceptionPanel"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/BundleTrackingScreen.tsx",
+      "bytes": 779,
+      "sha256": "3d16e704314ec6ca22a75303b3ee5b1a7784f6fc52e0e9044b7d62827c08517f",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "functions": [
+        "BundleTrackingScreen"
+      ],
+      "headings": [],
+      "buttons": 1,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/CatalogDetails.tsx",
+      "bytes": 1628,
+      "sha256": "a0edf863a50c0f4dd9f4d76a87cbdbbc4bc7a8e7008f16cb09edb646ef240856",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "functions": [
+        "CatalogDetails"
+      ],
+      "headings": [],
+      "buttons": 2,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/CheckoutReviewScreen.tsx",
+      "bytes": 3576,
+      "sha256": "0f2e23cb709f9233543c962ea9fcc772465fed621d302bbc5d44ce891b2992df",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "functions": [
+        "CheckoutReviewScreen"
+      ],
+      "headings": [
+        "Review & Pay"
+      ],
+      "buttons": 3,
+      "smallTextClasses": [
+        "text-[10px]",
+        "text-[11px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/CustomerApp.tsx",
+      "bytes": 106650,
+      "sha256": "c067362fa37e6069a0800bb1653da2c6347d5e2476e58d8ce2193e09cedaef53",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../payments",
+        "../data/productExpiry",
+        "./ServiceBookingScreen",
+        "./ParcelBookingScreen",
+        "./TransportBookingScreen",
+        "./ShopAgainScreen",
+        "./CatalogDetails",
+        "./CheckoutReviewScreen",
+        "./OrderTrackingScreen",
+        "./ParcelOrderDetails",
+        "./TransportOrderDetails",
+        "./PaymentRecoveryPanel",
+        "./WalletPanel",
+        "./SupportCasePanel",
+        "./GlobalCatalogSearch",
+        "./OrderSynchronization",
+        "./LocationPicker",
+        "./CustomerPages",
+        "./RestaurantDetailView",
+        "./GroceryDeliveryView",
+        "./OffersScreen",
+        "./ProfileScreen",
+        "./EditAddressScreen",
+        "./PackersMoversScreen",
+        "./BikeTransportScreen",
+        "../nativeNotifications",
+        "lucide-react",
+        "../types",
+        "../data/firestoreHelper",
+        "../types",
+        "./useFeedbackDialog",
+        "../design-system/BottomNavigation",
+        "../features/discovery/ServiceDirectory",
+        "../app/customerNavigation",
+        "../features/activity/BundleActivity",
+        "./TripBundleScreen",
+        "./BundleTrackingScreen",
+        "../design-system/CatalogState",
+        "../design-system/CatalogImage",
+        "../design-system/groceryCatalog",
+        "../design-system/bookingAuthority"
+      ],
+      "functions": [
+        "readCart",
+        "CustomerApp"
+      ],
+      "headings": [
+        "Live Dispatch Chat",
+        "Combined journeys",
+        "Discover restaurants",
+        "Food delivery",
+        "Restaurants near you",
+        "Your cart",
+        "Your cart is empty",
+        "Price summary",
+        "Your wallet",
+        "Settings",
+        "Account",
+        "Communication preferences",
+        "Privacy and deletion",
+        "Session",
+        "Help & support",
+        "Your requests",
+        "Delivery addresses",
+        "Add or update an address"
+      ],
+      "buttons": 54,
+      "smallTextClasses": [
+        "text-[9px]",
+        "text-[8px]",
+        "text-[11px]",
+        "text-[10px]"
+      ],
+      "branches": [
+        "food",
+        "wallet",
+        "settings",
+        "more",
+        "none",
+        "home",
+        "services",
+        "trip_bundle",
+        "bundle_tracking",
+        "grocery",
+        "bike_transport",
+        "movers",
+        "cart",
+        "parcel",
+        "transport",
+        "orders",
+        "support",
+        "offers",
+        "profile"
+      ],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/CustomerPages.tsx",
+      "bytes": 3894,
+      "sha256": "fd95cdc9d22839a43c2a0491c9f0d3b4192c6430f35528d322b7739319f60d8a",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "CustomerPages"
+      ],
+      "headings": [
+        "Frequently Asked Questions"
+      ],
+      "buttons": 3,
+      "smallTextClasses": [
+        "text-[11px]"
+      ],
+      "branches": [
+        "addresses",
+        "help"
+      ],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/DriverApp.tsx",
+      "bytes": 7644,
+      "sha256": "4149a7b45bfc2a65be9b438f254b3cd64d25ca43523876a557d31d8f16492f0b",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../types",
+        "lucide-react",
+        "./LiveOrderTrackingMap"
+      ],
+      "functions": [
+        "DriverApp"
+      ],
+      "headings": [
+        "₹4,850.00",
+        "Weekly Performance"
+      ],
+      "buttons": 4,
+      "smallTextClasses": [
+        "text-[10px]",
+        "text-[11px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/EditAddressScreen.tsx",
+      "bytes": 15031,
+      "sha256": "7769170e26b139c0f4addc6dae2104c4854b1f3f1d8ac71a04584828c3d02c19",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "EditAddressScreen"
+      ],
+      "headings": [
+        "Edit Address"
+      ],
+      "buttons": 6,
+      "smallTextClasses": [
+        "text-[11px]",
+        "text-[10px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/GlobalCatalogSearch.tsx",
+      "bytes": 319,
+      "sha256": "c4492e3e44cb557a7e5d75fbc8e59b837ddfd8fdc5c2c1062e839c66e0323edb",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "GlobalCatalogSearch"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/GroceryDeliveryView.tsx",
+      "bytes": 20960,
+      "sha256": "a3530212af3518af3d5bafee7fb75046cf9ff62fe01f8c9d83a18f6ca29913e3",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "GroceryDeliveryView"
+      ],
+      "headings": [
+        "Grocery Delivery",
+        "Popular Stores"
+      ],
+      "buttons": 15,
+      "smallTextClasses": [
+        "text-[10px]",
+        "text-[9px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/LiveOrderTrackingMap.tsx",
+      "bytes": 10002,
+      "sha256": "237c320ab1abb509b66afec39e110e43d744be89d3238eb2be348a5e489fe197",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "@vis.gl/react-google-maps",
+        "lucide-react"
+      ],
+      "functions": [
+        "parseCoordinates",
+        "MapRouteController",
+        "LiveOrderTrackingMap"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [
+        "text-[9px]",
+        "text-[10px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/LocationPicker.tsx",
+      "bytes": 2322,
+      "sha256": "07f86a85c1e7d4db54984fe6a6ad3cfdc4eb71e7430a2716a2770ae593beecce",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "functions": [
+        "LocationPicker"
+      ],
+      "headings": [],
+      "buttons": 1,
+      "smallTextClasses": [
+        "text-[11px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/MerchantPortal.tsx",
+      "bytes": 4156,
+      "sha256": "505f1469d09574e818bec1f5f88702b3c9b397ac261b5ce6167581cfa85bf4da",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../types",
+        "lucide-react"
+      ],
+      "functions": [
+        "MerchantPortal"
+      ],
+      "headings": [
+        "Burger King Coimbatore",
+        "Live Kitchen Queue",
+        "Menu Availability",
+        "Today's Sales"
+      ],
+      "buttons": 2,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/OffersScreen.tsx",
+      "bytes": 7146,
+      "sha256": "04c958b3f7e4f25ac4951ed9b004e1f104465c5b5709b828f50bd8734db7b88e",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../data/defaultCatalog"
+      ],
+      "functions": [
+        "OffersScreen"
+      ],
+      "headings": [
+        "Offers & Coupons",
+        "Get up to 50% OFF"
+      ],
+      "buttons": 3,
+      "smallTextClasses": [
+        "text-[10px]",
+        "text-[9px]",
+        "text-[11px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/OrderSynchronization.tsx",
+      "bytes": 332,
+      "sha256": "809ea6b997488cd6eae506d1d9358d30baf42b42d54537ecb42398734afd10ba",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../types"
+      ],
+      "functions": [
+        "OrderSynchronization"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/OrderTrackingScreen.tsx",
+      "bytes": 10487,
+      "sha256": "e5e8694bc8d8222361788770f6ccf3535fe9ec650471e8050268e1fcc598dc68",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types",
+        "./BookingExceptionPanel",
+        "./LiveOrderTrackingMap",
+        "../data/firestoreHelper",
+        "../design-system/parcelTracking",
+        "../design-system/trackingFreshness",
+        "../design-system/bookingAuthority"
+      ],
+      "functions": [
+        "OrderTrackingScreen"
+      ],
+      "headings": [
+        "Live tracking is unavailable"
+      ],
+      "buttons": 1,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/PackersMoversScreen.tsx",
+      "bytes": 11765,
+      "sha256": "34b7189d44fee7dabc9c5e01d824eeeb9b3a4a86f8b7e3fb3f2f3ad24d6654d1",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "PackersMoversScreen"
+      ],
+      "headings": [
+        "Packers & Movers",
+        "Home Size",
+        "Additional Services",
+        "Damage Protection & Verified Movers"
+      ],
+      "buttons": 5,
+      "smallTextClasses": [
+        "text-[11px]",
+        "text-[10px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/ParcelBookingScreen.tsx",
+      "bytes": 3312,
+      "sha256": "827f3ae0447ac9c24cdf4962b3b69e00d0ea93ec703a003eae6a81564b602b4f",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "ParcelBookingScreen"
+      ],
+      "headings": [
+        "Send a Parcel"
+      ],
+      "buttons": 2,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/ParcelOrderDetails.tsx",
+      "bytes": 503,
+      "sha256": "696da2538a6f9c37bc19f055c9b7c5740917691afe0998ea544dcfb53db367db",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../types"
+      ],
+      "functions": [
+        "ParcelOrderDetails"
+      ],
+      "headings": [
+        "Parcel Summary"
+      ],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/PaymentRecoveryPanel.tsx",
+      "bytes": 259,
+      "sha256": "332e4c7ca4247acf0eba21aa3660824eb7b8010f758a71691bf28b17aa3b173d",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "PaymentRecoveryPanel"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/ProfileScreen.tsx",
+      "bytes": 5423,
+      "sha256": "5b263e5335ea7bd482bbb6cbc00f4c743b239c414129a6013699a22529aac9f2",
+      "kind": "React UI source",
+      "imports": [
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "ProfileScreen"
+      ],
+      "headings": [
+        "Profile"
+      ],
+      "buttons": 2,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/RestaurantDetailView.tsx",
+      "bytes": 18355,
+      "sha256": "0d401ab4b47da4a0b262c10be74e1f61af8b3cb7665f95d8247b81f22edbf163",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "RestaurantDetailView"
+      ],
+      "headings": [
+        "THE ULTIMATE DELICIOUS BURGER",
+        "Address & Operating Hours"
+      ],
+      "buttons": 9,
+      "smallTextClasses": [
+        "text-[10px]",
+        "text-[9px]",
+        "text-[11px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/ServiceBookingScreen.tsx",
+      "bytes": 20466,
+      "sha256": "dff53398e94c8f85247b263e169acad1ef7dc35b76627df2616e482c0befb3ff",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../data/firestoreHelper",
+        "../data/firestoreHelper",
+        "../types",
+        "../design-system/serviceQuote"
+      ],
+      "functions": [
+        "ServiceBookingScreen"
+      ],
+      "headings": [
+        "RIDE OPTIONS",
+        "Recent Rides"
+      ],
+      "buttons": 8,
+      "smallTextClasses": [
+        "text-[11px]",
+        "text-[10px]",
+        "text-[9px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/ShopAgainScreen.tsx",
+      "bytes": 879,
+      "sha256": "7429c146dce97e93dd7be88a0701824c22b02de6c414a898f338bfb4838fdc0c",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react",
+        "../types"
+      ],
+      "functions": [
+        "ShopAgainScreen"
+      ],
+      "headings": [],
+      "buttons": 1,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/SupportCasePanel.tsx",
+      "bytes": 353,
+      "sha256": "a4023f74473db09d35d9b11cf8a7e535446366f4307c54da7d55b81a37bc4c46",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "SupportCasePanel"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [
+        "text-[11px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/TransportBookingScreen.tsx",
+      "bytes": 1132,
+      "sha256": "8c5a71d710afbd1d704598593b3b8bdac6debf299529cb2a5704f640b9cef8a6",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "functions": [
+        "TransportBookingScreen"
+      ],
+      "headings": [
+        "Vehicle Transport"
+      ],
+      "buttons": 2,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/TransportOrderDetails.tsx",
+      "bytes": 466,
+      "sha256": "34799e4ad8d3c461ec58b17ade5b4744b46df4a9756c01de639cdaf9d73043ed",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "../types"
+      ],
+      "functions": [
+        "TransportOrderDetails"
+      ],
+      "headings": [
+        "Transport Summary"
+      ],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/TripBundleScreen.tsx",
+      "bytes": 1106,
+      "sha256": "dd664ed6178a24c7ccaabebd9f74a07ef2f9b115e43329a49e1e80d067b0fb8f",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "functions": [
+        "TripBundleScreen"
+      ],
+      "headings": [
+        "Trip Bundle"
+      ],
+      "buttons": 2,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/useFeedbackDialog.tsx",
+      "bytes": 276,
+      "sha256": "abe082b64192a1e50c7ace2de77fe8369c545b5de5bdee0fa8a8390b8aa9f418",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "useFeedbackDialog"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/VerifyAccount.tsx",
+      "bytes": 760,
+      "sha256": "19e803d40ffe5f785bfe402d1361f7b3c21c4d4e0b75da30f8fbb7361edca232",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "VerifyAccount"
+      ],
+      "headings": [
+        "Please verify your email"
+      ],
+      "buttons": 2,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/components/WalletPanel.tsx",
+      "bytes": 419,
+      "sha256": "af0373e89651408199f28287dab8981d695f1f5c68ac55d98c2e770abf34cd30",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "WalletPanel"
+      ],
+      "headings": [
+        "Wallet Actions"
+      ],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/data/defaultCatalog.ts",
+      "bytes": 15804,
+      "sha256": "4d7879595143ead0da62aa5a5a28b5e6f51b6727c6dd772e1f58c52812e98bd1",
+      "kind": "Source/configuration",
+      "imports": [
+        "../types"
+      ],
+      "functions": [],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/data/firebaseHelper.ts",
+      "bytes": 33553,
+      "sha256": "202f25cd11ee2ffe995aa9ffd0b3da673c3e82f020a3a707c6fda87f5476e27c",
+      "kind": "Source/configuration",
+      "imports": [
+        "firebase/firestore",
+        "../firebase",
+        "firebase/functions",
+        "../firebase",
+        "../types",
+        "./defaultCatalog",
+        "../types"
+      ],
+      "functions": [
+        "listenToMerchantHours",
+        "setMerchantHours",
+        "saveCatalogItem",
+        "submitOrderReview",
+        "exportAccountPage",
+        "listenToOrderReviews",
+        "getOrCreateUserProfile",
+        "updateUserAddress",
+        "saveAccountName",
+        "listenToSavedAddresses",
+        "saveUserAddress",
+        "deleteSavedAddress",
+        "updateUserPreferences",
+        "updateUserFavorites",
+        "updateUserRole",
+        "getOrCreateDriverProfile",
+        "updateDriverStatus",
+        "updateDriverVerification",
+        "startOnlinePayment",
+        "getServiceQuote",
+        "searchServiceLocations",
+        "listenToAccountProfile",
+        "listenToBookingContacts",
+        "listenToDriverLocation",
+        "listenToBookingTracking",
+        "updateDriverLocation",
+        "getTrackingRoute",
+        "acceptDriverBooking",
+        "rejectDriverBooking",
+        "advanceDriverBooking",
+        "confirmOnlinePayment",
+        "requestBookingCancellation",
+        "rejectMerchantBooking",
+        "listPaymentActivity",
+        "recoverPayment",
+        "reportBookingException",
+        "resolveBookingException",
+        "updateBookingStatus",
+        "listenToBookings",
+        "listenToCustomerBookings",
+        "listenToMerchantBookings",
+        "listenToBookingEvents",
+        "advanceMerchantBooking",
+        "updateMerchantCatalog",
+        "listenToDriverBookings",
+        "listenToDriverProfiles",
+        "sendChatMessage",
+        "listenToChatMessages",
+        "listenToRestaurants",
+        "listenToMenuItems",
+        "listenToGroceryStores",
+        "listenToGroceryProducts",
+        "updateMenuItemAvailability",
+        "updateGroceryProductStock",
+        "createSupportTicket",
+        "listenToSupportTickets",
+        "createPayoutRequest",
+        "listenToPayoutRequests",
+        "recordDriverPayout",
+        "updateUserWalletBalance",
+        "reverseServiceLocation",
+        "createWalletTopup",
+        "payWithWallet",
+        "requestAccountDeletion",
+        "listenToWalletLedger",
+        "previewCartCoupon",
+        "getCartQuote"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/data/firestoreHelper.ts",
+      "bytes": 34,
+      "sha256": "4ec1a2e9622bfe64680bc90e0265e3e57ea10a32e41e06e70c9430ca793e654c",
+      "kind": "Source/configuration",
+      "imports": [
+        "./firebaseHelper"
+      ],
+      "functions": [],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/data/productExpiry.ts",
+      "bytes": 209,
+      "sha256": "17e5905f657b4238cf8689965961a66507441b6548ce451ec1d5bcb07afa05ec",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "productWithinExpiry"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/data/sessionAuth.ts",
+      "bytes": 2570,
+      "sha256": "53a008b8b688f88003a81b5a0c212a2c8be84e695a177be43683b4fa39981123",
+      "kind": "Source/configuration",
+      "imports": [
+        "../types"
+      ],
+      "functions": [
+        "getActiveSession",
+        "setActiveSession",
+        "clearActiveSession",
+        "createDemoSession"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/bookingAuthority.ts",
+      "bytes": 243,
+      "sha256": "454f6c661a076b289b4bc1221a7f8d29d5c749b76db806057d8dea96098dca9c",
+      "kind": "Source/configuration",
+      "imports": [
+        "../types"
+      ],
+      "functions": [
+        "bookingAuthorityCapabilities"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/BottomNavigation.tsx",
+      "bytes": 1696,
+      "sha256": "616e5457900dfb96dce7a71152c8ee91b5344af24ece2701950f55d4a44d6910",
+      "kind": "React UI source",
+      "imports": [
+        "react",
+        "lucide-react"
+      ],
+      "functions": [],
+      "headings": [],
+      "buttons": 1,
+      "smallTextClasses": [
+        "text-[9px]",
+        "text-[10px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/CatalogImage.tsx",
+      "bytes": 650,
+      "sha256": "2f0325fb288d99e22d6f6ae21808b12ded72d9d5716b47d40a212cc869f3cac3",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "CatalogImage"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/CatalogState.tsx",
+      "bytes": 643,
+      "sha256": "912ab3d3778aaffc6cc1f330d0249d91050d67ec54c3f52c734144d76ca1fa0d",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "CatalogState"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/groceryCatalog.ts",
+      "bytes": 1932,
+      "sha256": "2194367000eeafd4107e988e0d307ec47afed5cd5e14d89e756f9129d428d1d4",
+      "kind": "Source/configuration",
+      "imports": [
+        "../types"
+      ],
+      "functions": [
+        "filterGroceryProducts",
+        "getGroceryCatalogView"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/parcelTracking.ts",
+      "bytes": 389,
+      "sha256": "d69184c359caac4f6b02e26cd3482e6c3c4c2ff50fcd350cdbc3deb32ea99871",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "getParcelTrackingPresentation"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/serviceQuote.ts",
+      "bytes": 306,
+      "sha256": "3878b0c84ccf73d4f22a80a8303ce93324e65ef3179133a0f83cd54c57f862f2",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "isValidServiceQuote",
+        "isServiceQuoteExpired"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/design-system/trackingFreshness.ts",
+      "bytes": 390,
+      "sha256": "9b6fa5380a297c73aa3358b48e3cf2bd8e7c9986bb37f0395db672377230394a",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "isFreshTrackingTimestamp",
+        "isFreshTrackingRoute"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/driverLocation.ts",
+      "bytes": 138,
+      "sha256": "b1703abab59df4025b8a25552f8da6de36940773e4f8f3e6541add44ec408905",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "stopNativeDriverLocation",
+        "startNativeDriverLocation"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/features/activity/BundleActivity.tsx",
+      "bytes": 204,
+      "sha256": "2a4edb80f427025e3cfa2d88b78fd4a7a2ac9bb0343b6be8a6fe078f7f2819eb",
+      "kind": "React UI source",
+      "imports": [
+        "react"
+      ],
+      "functions": [
+        "BundleActivity"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/features/discovery/ServiceDirectory.tsx",
+      "bytes": 2883,
+      "sha256": "d5b3e958c9c2683c2ea2945e863d1f8756b7e43225cb044719c19d6e76c1da06",
+      "kind": "React UI source",
+      "imports": [
+        "lucide-react"
+      ],
+      "functions": [
+        "ServiceDirectory"
+      ],
+      "headings": [
+        "Explore Services"
+      ],
+      "buttons": 1,
+      "smallTextClasses": [
+        "text-[11px]"
+      ],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/firebase.ts",
+      "bytes": 1550,
+      "sha256": "bbf59f44a9220e5daac83def5e7a0afdfc7a69308d7d18cfdb37ebc3a461a11f",
+      "kind": "Source/configuration",
+      "imports": [
+        "firebase/app",
+        "firebase/auth",
+        "firebase/firestore",
+        "firebase/functions",
+        "../firebase-applet-config.json"
+      ],
+      "functions": [
+        "handleFirestoreError"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/index.css",
+      "bytes": 23,
+      "sha256": "42070e0b45bb201b2b838a52aaaa6e965f964e0b542d97f1fe517fe59c4b75a8",
+      "kind": "Source/configuration",
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/main.tsx",
+      "bytes": 1920,
+      "sha256": "9c25249f1df0b8b0eddba4111336e28023dea605c6855d997a5689366de299ec",
+      "kind": "React UI source",
+      "imports": [
+        "react-dom/client",
+        "react",
+        "./index.css",
+        "./App.tsx"
+      ],
+      "functions": [],
+      "headings": [
+        "We couldn’t open AllGo."
+      ],
+      "buttons": 1,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/nativeAuth.ts",
+      "bytes": 132,
+      "sha256": "a8138b9129deec34096e26fc38433aa230d3b239afced9528e4d8be34cb78d9f",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "nativeGoogleSignIn",
+        "completeNativePhoneSignIn"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/nativeNotifications.ts",
+      "bytes": 4495,
+      "sha256": "136f6b6363bab021e1c6149253b4cea06e18a9593e03197937749be7c4c076b5",
+      "kind": "Source/configuration",
+      "imports": [
+        "@capacitor/core",
+        "./accounts",
+        "@capacitor/app",
+        "@capacitor-firebase/messaging",
+        "@capacitor-firebase/authentication",
+        "firebase/functions",
+        "firebase/auth",
+        "firebase/firestore",
+        "./firebase",
+        "./driverLocation"
+      ],
+      "functions": [
+        "openBooking",
+        "openUrl",
+        "enableOrderNotifications",
+        "nativeSignOut",
+        "initializeNativeNotifications"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/payments.ts",
+      "bytes": 340,
+      "sha256": "b9a95f44e4bb00902457c5d40868c9a2fbbbae11561f456561608a1b8e60dbdf",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [
+        "openPaymentCheckout"
+      ],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "src/types.ts",
+      "bytes": 9408,
+      "sha256": "1c6490888a54dac34a82736d9e428193508e22637750f22b5a2bbe6cde494b18",
+      "kind": "Source/configuration",
+      "imports": [],
+      "functions": [],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": [],
+      "reachableFromEntry": true
+    },
+    {
+      "file": "tsconfig.json",
+      "bytes": 538,
+      "sha256": "6624845b5855cb0c547da44d56785371aaf4f77920440f93b685484456952468",
+      "kind": "Source/configuration"
+    },
+    {
+      "file": "vite.config.ts",
+      "bytes": 705,
+      "sha256": "a7aa711292e5ad7eb10f7a17f5f34fbbf75c7b7c24d59cb0212c60bc493c3208",
+      "kind": "Source/configuration",
+      "imports": [
+        "@tailwindcss/vite",
+        "@vitejs/plugin-react",
+        "path",
+        "vite"
+      ],
+      "functions": [],
+      "headings": [],
+      "buttons": 0,
+      "smallTextClasses": [],
+      "branches": []
+    }
+  ],
+  "exactDuplicates": [
+    [
+      "android/app/src/main/res/drawable/splash.png",
+      "android/app/src/main/res/drawable-land-mdpi/splash.png"
+    ],
+    [
+      "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+      "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
+    ]
+  ]
+}

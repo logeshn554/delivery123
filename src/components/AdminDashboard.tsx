@@ -63,7 +63,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
   };
 
   return (
-    <div className="bg-slate-950 text-slate-100 h-full p-6 overflow-y-auto space-y-6 font-sans">
+    <div className="allgo-operations bg-slate-950 text-slate-100 h-full p-6 overflow-y-auto space-y-6 font-sans">
       
       {/* 1. Header Area */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-5 shrink-0">

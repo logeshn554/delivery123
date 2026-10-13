@@ -23,3 +23,7 @@ credentials*.json
 GoogleService-Info.plist
 google-services.json
 service-account*.json
+
+# User-installed Codex skills are local tooling, not project source.
+.agents/skills/
+skills-lock.json

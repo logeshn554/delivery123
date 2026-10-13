@@ -1,0 +1,90 @@
+<svg fill="none" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+<!-- Background City Silhouette -->
+<g opacity="0.45">
+<rect fill="#BFDBFE" height="130" rx="3" width="30" x="50" y="80"></rect>
+<rect fill="#93C5FD" height="100" rx="3" width="24" x="90" y="110"></rect>
+<rect fill="#BFDBFE" height="150" rx="3" width="40" x="125" y="60"></rect>
+<rect fill="#DBEAFE" height="115" rx="3" width="35" x="175" y="95"></rect>
+<rect fill="#BFDBFE" height="160" rx="3" width="45" x="220" y="50"></rect>
+<rect fill="#93C5FD" height="110" rx="3" width="28" x="275" y="100"></rect>
+<rect fill="#DBEAFE" height="140" rx="3" width="40" x="310" y="70"></rect>
+<!-- Window accents -->
+<circle cx="145" cy="85" fill="#ffffff" opacity="0.8" r="3"></circle>
+<circle cx="145" cy="105" fill="#ffffff" opacity="0.8" r="3"></circle>
+<circle cx="240" cy="75" fill="#ffffff" opacity="0.8" r="3"></circle>
+<circle cx="240" cy="95" fill="#ffffff" opacity="0.8" r="3"></circle>
+<circle cx="240" cy="115" fill="#ffffff" opacity="0.8" r="3"></circle>
+</g>
+<!-- Road Surface & Ground Baseline -->
+<ellipse cx="200" cy="245" fill="#F1F5F9" rx="175" ry="16"></ellipse>
+<path d="M30 246C90 244 310 244 370 246" stroke="#E2E8F0" stroke-dasharray="10 8" stroke-linecap="round" stroke-width="3"></path>
+<!-- Left Scooter (Yellow/Orange Moped) -->
+<g id="courier-left">
+<!-- Front & Back Wheels -->
+<circle cx="75" cy="235" fill="#334155" r="23"></circle>
+<circle cx="75" cy="235" fill="#E2E8F0" r="13"></circle>
+<circle cx="75" cy="235" fill="#334155" r="5"></circle>
+<circle cx="165" cy="235" fill="#334155" r="23"></circle>
+<circle cx="165" cy="235" fill="#E2E8F0" r="13"></circle>
+<circle cx="165" cy="235" fill="#334155" r="5"></circle>
+<!-- Scooter Body & Chassis -->
+<path d="M72 232L95 210H140L158 190L168 232H135L120 226H90L72 232Z" fill="#F59E0B"></path>
+<path d="M102 210H132V222H102V210Z" fill="#D97706"></path>
+<path d="M85 204C85 198 100 198 120 200L118 210H85V204Z" fill="#1E293B"></path>
+<!-- Footrest & Front shield -->
+<path d="M140 210L158 165H166L152 225H138L140 210Z" fill="#F59E0B"></path>
+<path d="M157 165L163 150H153L148 165H157Z" fill="#94A3B8"></path>
+<!-- Headlight -->
+<path d="M165 168L175 168L170 178L160 176Z" fill="#FEF08A"></path>
+<!-- Left Rider (Courier 1) -->
+<!-- Delivery Backpack -->
+<rect fill="#FA4A23" height="34" rx="5" width="24" x="70" y="148"></rect>
+<rect fill="#FFFFFF" height="6" opacity="0.8" rx="2" width="18" x="73" y="156"></rect>
+<!-- Body / Jacket -->
+<path d="M92 145C92 145 110 142 120 156C128 167 122 195 120 206L102 205C98 190 94 175 92 145Z" fill="#2563EB"></path>
+<!-- Rider Arm & Handlebar -->
+<path d="M106 156L135 168L150 166" stroke="#2563EB" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"></path>
+<!-- Legs -->
+<path d="M110 202L128 218L142 220" stroke="#1E293B" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"></path>
+<!-- Rider Head & Helmet -->
+<circle cx="114" cy="128" fill="#F59E0B" r="14"></circle>
+<!-- Visor -->
+<path d="M118 124C124 124 128 127 129 133H116L118 124Z" fill="#1E293B"></path>
+</g>
+<!-- Right Scooter (Cyan/Blue Modern Scooter) -->
+<g id="courier-right">
+<!-- Front & Back Wheels -->
+<circle cx="255" cy="235" fill="#334155" r="23"></circle>
+<circle cx="255" cy="235" fill="#E2E8F0" r="13"></circle>
+<circle cx="255" cy="235" fill="#334155" r="5"></circle>
+<circle cx="340" cy="235" fill="#334155" r="23"></circle>
+<circle cx="340" cy="235" fill="#E2E8F0" r="13"></circle>
+<circle cx="340" cy="235" fill="#334155" r="5"></circle>
+<!-- Scooter Body -->
+<path d="M255 232L275 208H318L334 190L343 232H315L300 225H270L255 232Z" fill="#0EA5E9"></path>
+<path d="M282 208H312V220H282V208Z" fill="#0284C7"></path>
+<path d="M265 204C265 198 280 198 300 200L298 208H265V204Z" fill="#0F172A"></path>
+<!-- Front Steering Column -->
+<path d="M318 208L334 165H342L328 225H316L318 208Z" fill="#0EA5E9"></path>
+<!-- Headlight -->
+<path d="M340 166L350 166L346 176L336 174Z" fill="#FEF08A"></path>
+<!-- Right Rider (Courier 2) -->
+<!-- Delivery Thermal Backpack -->
+<rect fill="#10B981" height="36" rx="5" width="25" x="250" y="146"></rect>
+<rect fill="#FFFFFF" height="6" opacity="0.8" rx="2" width="17" x="254" y="155"></rect>
+<!-- Body / Jacket -->
+<path d="M272 144C272 144 290 140 300 154C308 165 303 194 300 205L282 204C278 190 274 175 272 144Z" fill="#EF4444"></path>
+<!-- Arm & Handlebar -->
+<path d="M285 155L315 167L330 165" stroke="#EF4444" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"></path>
+<!-- Legs -->
+<path d="M290 200L308 217L322 219" stroke="#1E293B" stroke-linecap="round" stroke-linejoin="round" stroke-width="8"></path>
+<!-- Head & Helmet -->
+<circle cx="295" cy="126" fill="#0EA5E9" r="14"></circle>
+<!-- Visor -->
+<path d="M299 122C305 122 309 125 310 131H297L299 122Z" fill="#0F172A"></path>
+</g>
+<!-- Motion Wind Lines -->
+<path d="M20 220H45" stroke="#93C5FD" stroke-linecap="round" stroke-width="2.5"></path>
+<path d="M35 230H50" stroke="#93C5FD" stroke-linecap="round" stroke-width="2"></path>
+<path d="M205 210H225" stroke="#93C5FD" stroke-linecap="round" stroke-width="2"></path>
+</svg>

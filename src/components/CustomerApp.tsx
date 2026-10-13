@@ -1,3 +1,10 @@
+import RestaurantMenu from './RestaurantMenu';
+import ProfileScreen from './ProfileScreen';
+import OffersScreen from './OffersScreen';
+import AddressSheet from './AddressSheet';
+import PlannedMoversScreen from './PlannedMoversScreen';
+import GroceryCategories from '../design-system/GroceryCategories';
+import GroceryProductCard from '../design-system/GroceryProductCard';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { openPaymentCheckout } from '../payments';
 import { productWithinExpiry } from '../data/productExpiry';
@@ -47,6 +54,7 @@ import {
 import { SavedAddress, UserProfile } from '../types';
 import { useFeedbackDialog } from './useFeedbackDialog';
 import BottomNavigation from '../design-system/BottomNavigation';
+import StatusPanel from '../design-system/StatusPanel';
 import ServiceDirectory from '../features/discovery/ServiceDirectory';
 import { customerDestination, type CustomerTab } from '../app/customerNavigation';
 import BundleActivity from '../features/activity/BundleActivity';
@@ -145,7 +153,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { contentRef.current?.scrollTo({ top: 0, behavior: 'auto' }); }, [currentTab, extraPage]);
   const openPage = (page: CustomerPage) => { setExtraPage(page); setActiveWorkflow('none'); setCurrentTab('more'); };
-  const [activeWorkflow, setActiveWorkflow] = useState<'none' | 'food' | 'grocery' | 'ride' | 'parcel' | 'takeover' | 'transport' | 'trip_bundle' | 'bundle_tracking'>('none');
+  const [activeWorkflow, setActiveWorkflow] = useState<'none' | 'food' | 'grocery' | 'ride' | 'parcel' | 'takeover' | 'transport' | 'movers' | 'trip_bundle' | 'bundle_tracking'>('none');
   const [trackedBundleId, setTrackedBundleId] = useState<string>('');
 
   // Address and Search (Prefilled via automatic Geolocation reverse-lookup)
@@ -780,7 +788,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       )}
 
       {/* SECOND PAGE HEADER */}
-      <div className="safe-area-top sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white px-4 py-3 shadow-sm">
+      <div className="allgo-customer-header sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white px-4 py-3">
         <div className="flex items-center justify-between">
           <button type="button" disabled={paymentBusy} aria-label={`Choose delivery address. Current address: ${deliveryAddress || detectedAddress || 'not selected'}`} className="flex min-w-0 max-w-[72%] flex-1 items-center gap-2 text-left" onClick={() => setShowAddressModal(true)}>
             <div className="bg-slate-100 p-2.5 rounded-xl text-slate-800">
@@ -811,6 +819,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             <input
               type="text"
+              aria-label="Search AllGo services, restaurants and products"
               placeholder="Search food, groceries, rides, parcels..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -836,27 +845,23 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
         {currentTab === 'services' && activeWorkflow === 'none' && <div className="space-y-4">
-          <ServiceDirectory onChoose={service => setActiveWorkflow(service)} />
+          <ServiceDirectory onChoose={service => setActiveWorkflow(service)} onMoversInfo={()=>setActiveWorkflow('movers')} />
           <section className="allgo-unavailable"><h2 className="font-bold">Combined journeys</h2><p>Currently unavailable while partner fulfillment and tracking are completed.</p></section>
         </div>}
 
         {currentTab === 'home' && activeWorkflow === 'none' && (
           <div className="space-y-4 animate-fadeIn">
 
+            <header className="allgo-home-intro"><p>Your everyday, delivered</p><h1>What can we get you?</h1></header>
+
             <section className="home-promo">
               <div><span className="promo-kicker">GOOD FOOD. GOOD MOOD.</span><h2>Your next favourite<br />is a tap away.</h2><button onClick={() => setActiveWorkflow('food')}>Explore food <ArrowRight size={15} /></button></div>
               <div className="promo-art" aria-hidden="true"><Utensils size={58} /><span>Fresh finds</span></div>
             </section>
 
-            <section className="allgo-unavailable" aria-labelledby="combined-journey-title">
-              <h2 id="combined-journey-title" className="font-bold">Combined journeys</h2>
-              <p>Ride, food and grocery stops in one journey are not available yet. Partner fulfillment and tracking must be connected and verified first.</p>
-              <button type="button" disabled>Not available yet</button>
-            </section>
-
-            <ServiceDirectory onChoose={service => setActiveWorkflow(service)} />
+            <ServiceDirectory onChoose={service => setActiveWorkflow(service)} onMoversInfo={()=>setActiveWorkflow('movers')} />
             <section className="live-discovery"><div className="section-heading"><h2>Discover restaurants</h2><button onClick={() => setActiveWorkflow('food')}>See all <ArrowRight size={14} /></button></div>
-              {restaurantsLoading ? <p role="status" className="catalog-empty">Finding your next favourite…</p> : restaurantsList.length ? <div className="discovery-strip">{restaurantsList.slice(0, 5).map(restaurant => <button key={restaurant.id} className="discovery-card" onClick={() => { setSelectedRestaurant(restaurant); setActiveWorkflow('food'); setFoodSearch(''); }}>
+              {restaurantsLoading ? <StatusPanel title="Finding your next favourite…" state="loading">Checking the available restaurant listings.</StatusPanel> : restaurantsList.length ? <div className="discovery-strip">{restaurantsList.slice(0, 5).map(restaurant => <button key={restaurant.id} className="discovery-card" onClick={() => { setSelectedRestaurant(restaurant); setActiveWorkflow('food'); setFoodSearch(''); }}>
                 {restaurant.image ? <img src={restaurant.image} alt="" loading="lazy" /> : <div className="discovery-placeholder"><Utensils size={32} /></div>}
                 <strong>{restaurant.name}</strong><span>{restaurant.cuisine}</span><small>{restaurant.rating ? '★ ' + restaurant.rating + ' · ' : ''}{restaurant.deliveryTime}</small>
               </button>)}</div> : <div className="catalog-empty"><ShoppingBag size={26} /><strong>Your neighbourhood, coming together.</strong><p>Restaurant listings will appear here when menus are available.</p><button onClick={() => setShowAddressModal(true)}>Choose your delivery address <ArrowRight size={14} /></button></div>}
@@ -881,6 +886,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           </div>
         )}
 
+        {activeWorkflow==='movers'&&<PlannedMoversScreen onBack={()=>setActiveWorkflow('none')} onSupport={()=>{setActiveWorkflow('none');setCurrentTab('support');setTicketSubject('Movers availability');}}/>}
         {/* WORKFLOWS */}
         {activeWorkflow === 'trip_bundle' && (
           <TripBundleScreen
@@ -914,20 +920,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             <div className="food-filter-row" aria-label="Food filters">
               <button onClick={() => setVegetarianOnly((value) => !value)} aria-pressed={vegetarianOnly} className="food-filter-chip">Vegetarian</button>
               <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className="food-filter-chip">{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
-              {selectedRestaurant && <div className="flex gap-1.5 overflow-x-auto">
-              {["All", ...new Set(menuItemsList.filter((item) => item.restaurantId === selectedRestaurant.id).map((item) => item.category))].map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedFoodCategory(cat)}
-                  aria-pressed={selectedFoodCategory === cat}
-                  className={`food-filter-chip transition-colors ${
-                    selectedFoodCategory === cat ? 'bg-orange-500 text-white border-orange-500' : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-              </div>}
+
             </div>
 
             {!selectedRestaurant ? (
@@ -951,31 +944,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 )}
               </section>
             ) : (
-              <div>
-                <div className="food-section-head"><div><h2>Menu</h2><p>{selectedRestaurant.acceptingOrders === false ? 'This restaurant is currently closed to orders.' : 'Choose from currently available dishes.'}</p></div><button className="food-filter-chip" onClick={() => setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})}>About</button></div>
-
-                <div className="food-menu-grid mb-6">
-                  {menuCatalogError ? <CatalogState kind="error" title="Menu could not load" description={menuCatalogError} action={<button onClick={() => { setMenuCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : menuLoading ? <CatalogState kind="loading" title="Loading menu" description={`Checking current menu availability at ${selectedRestaurant.name}.`} /> : !menuItemsList.some(item => item.restaurantId === selectedRestaurant.id && item.available !== false) ? <CatalogState kind="empty" title="No dishes available right now" description="This partner has not published any currently available menu items." /> : visibleFoodItems.length === 0 ? <CatalogState kind="no-results" title="No dishes match" description="Try another search or menu category." action={<button onClick={() => { setFoodSearch(''); setSelectedFoodCategory('All'); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : visibleFoodItems.map(item => {
-                    const availableVariants = item.variants?.filter(variant => variant.available !== false) || [];
-                    const variant = availableVariants.find(option => option.id === selectedFoodVariants[item.id]) || availableVariants[0];
-                    const qty = cart.find(c => c.item.id === item.id && c.variant?.id === variant?.id)?.quantity || 0;
-                    return (
-                      <article key={item.id} className="food-menu-card">
-                        <CatalogImage src={item.image} alt="" className="food-menu-image" fallback={<Utensils size={24} />} />
-                        <div className="food-menu-copy"><span className={`inline-block rounded border px-1.5 py-0.5 text-[10px] font-bold ${item.isVeg ? 'border-emerald-600 text-emerald-700' : 'border-rose-600 text-rose-700'}`}>{item.isVeg ? 'Vegetarian' : 'Non-vegetarian'}</span>
-                          <button className="block min-h-11 text-left" onClick={() => setCatalogPage({kind:'dish', id:item.id})}><h3>{item.name}</h3><p>{item.description}</p></button>
-                          <p className="food-menu-price">₹{variant?.price ?? item.price}</p>
-                          {availableVariants.length > 0 && <label className="mt-2 block text-xs font-semibold text-slate-600">Option<select aria-label={`${item.name} option`} value={variant?.id || ''} onChange={event => setSelectedFoodVariants(current => ({ ...current, [item.id]: event.target.value }))} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-2 py-2">{availableVariants.map(option => <option key={option.id} value={option.id}>{option.label} · ₹{option.price}</option>)}</select></label>}
-                        </div>
-                        <div className="food-menu-actions"><button aria-label={`${favoriteCatalogIds.includes(`dish:${item.id}`) ? 'Remove' : 'Save'} ${item.name}`} aria-pressed={favoriteCatalogIds.includes(`dish:${item.id}`)} onClick={() => toggleFavorite(`dish:${item.id}`)} className="text-rose-500"><Heart size={18} fill={favoriteCatalogIds.includes(`dish:${item.id}`) ? 'currentColor' : 'none'} /></button>
-                          {qty === 0 ? <button disabled={selectedRestaurant.acceptingOrders === false || ((item.variants?.length || 0) > 0 && !variant)} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)} className="food-add">Add</button> : <div className="food-quantity"><button aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}>-</button><span>{qty}</span><button aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} disabled={selectedRestaurant.acceptingOrders === false} onClick={() => handleAddToCart(item, 'food', variant ? { id: variant.id, label: variant.label } : undefined)}>+</button></div>}
-                        </div>
-                        </article>
-                    );
-                  })}
-                </div>
-
-              </div>
+              <RestaurantMenu restaurant={selectedRestaurant} items={visibleFoodItems} categories={['All',...new Set(menuItemsList.filter(item=>item.restaurantId===selectedRestaurant.id).map(item=>item.category).filter(Boolean))]} category={selectedFoodCategory} onCategory={setSelectedFoodCategory} loading={menuLoading} error={menuCatalogError} onRetry={()=>{setMenuCatalogError('');setCatalogRetry(value=>value+1);}} onClear={()=>{setFoodSearch('');setSelectedFoodCategory('All');setVegetarianOnly(false);setShowFavoritesOnly(false);}} onAbout={()=>setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})} favoriteIds={favoriteCatalogIds} onFavorite={toggleFavorite} onDetails={id=>setCatalogPage({kind:'dish',id})} quantities={(id,variantId)=>cart.find(line=>line.item.id===id&&line.variant?.id===variantId)?.quantity||0} selectedVariants={selectedFoodVariants} onVariant={(id,variant)=>setSelectedFoodVariants(current=>({...current,[id]:variant}))} onAdd={(item,variant)=>{handleAddToCart(item,'food',variant);}} onRemove={handleRemoveFromCart}/>
             )}
             {cart.length > 0 && cartService === 'food' && <div className="food-cart-dock"><div><strong>₹{getCartTotal()}</strong><p>{cart.reduce((sum, line) => sum + line.quantity, 0)} items · from {restaurantsList.find(rest => rest.id === cartSourceId)?.name || 'selected restaurant'}</p></div><button onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}>View cart</button></div>}
           </div>
@@ -1024,8 +993,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                         <div className="grocery-section-heading"><div><h2 id="grocery-catalog-title">{selectedStore?.name || 'Store catalog'}</h2><p>{selectedStore?.acceptingOrders === false ? 'This store is currently not accepting orders.' : 'Prices and stock reflect the partner’s published catalog.'}</p></div>{selectedStore && <button aria-label={`View ${selectedStore.name} details`} className="grocery-store-details" onClick={() => setCatalogPage({ kind: 'store', id: selectedStore.id })}>Details</button>}</div>
                         {productsList.length > 0 && <>
                           <label className="grocery-search"><Search size={18} aria-hidden="true" /><input aria-label="Search grocery products" value={grocerySearch} onChange={event => setGrocerySearch(event.target.value)} placeholder="Search this store’s catalog" /></label>
+                          <GroceryCategories categories={['All',...new Set(productsList.map(product=>product.category).filter(Boolean))]} selected={selectedGroceryCategory} onSelect={setSelectedGroceryCategory}/>
                           <div className="grocery-filter-toolbar">
-                            <div className="grocery-category-list" aria-label="Product categories">{['All', ...new Set(productsList.map(product => product.category).filter(Boolean))].map(category => <button type="button" key={category} aria-pressed={selectedGroceryCategory === category} onClick={() => setSelectedGroceryCategory(category)}>{category}</button>)}</div>
+
                             <label className="grocery-stock-toggle"><input type="checkbox" checked={inStockOnly} onChange={event => setInStockOnly(event.target.checked)} />In stock</label>
                             <label className="grocery-sort">Sort<select aria-label="Sort grocery products" value={grocerySort} onChange={event => setGrocerySort(event.target.value)}><option value="name">Name</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label>
                             <button type="button" aria-pressed={showFavoritesOnly} className="grocery-favorites" onClick={() => setShowFavoritesOnly(value => !value)}><Heart size={16} aria-hidden="true" />{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
@@ -1043,11 +1013,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                                     const atLimit = quantity >= Math.min(30, product.stock);
                                     const isClosed = selectedStore?.acceptingOrders === false;
                                     const saved = favoriteCatalogIds.includes(`product:${product.id}`);
-                                    return <article key={product.id} className="grocery-product-card">
-                                      <div className="grocery-product-visual"><CatalogImage src={product.image} alt="" className="grocery-product-image" fallback={<ShoppingBag size={28} />} /><button type="button" aria-label={`${saved ? 'Remove' : 'Save'} ${product.name}`} aria-pressed={saved} className="grocery-product-save" onClick={() => toggleFavorite(`product:${product.id}`)}><Heart size={18} fill={saved ? 'currentColor' : 'none'} /></button></div>
-                                      <div className="grocery-product-copy"><button type="button" className="grocery-product-title" onClick={() => setCatalogPage({ kind: 'product', id: product.id })}>{product.name}</button><p>{product.unit}</p><span className={unavailable ? 'grocery-stock-out' : 'grocery-stock-in'}>{unavailable ? 'Out of stock' : `${product.stock} in stock`}</span><strong>₹{product.price}</strong></div>
-                                      <div className="grocery-product-actions">{quantity === 0 ? <button type="button" disabled={unavailable || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>{isClosed ? 'Store closed' : unavailable ? 'Unavailable' : 'Add to cart'}</button> : <div className="grocery-quantity"><button type="button" aria-label={`Remove one ${product.name}`} onClick={() => handleRemoveFromCart(product)}>-</button><span>{quantity}</span><button type="button" aria-label={`Add one ${product.name}`} disabled={unavailable || atLimit || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>+</button></div>}</div>
-                                    </article>;
+                                    return <GroceryProductCard key={product.id} product={product} quantity={quantity} closed={Boolean(isClosed)} saved={saved} onSave={()=>toggleFavorite(`product:${product.id}`)} onDetails={()=>setCatalogPage({kind:'product',id:product.id})} onAdd={()=>{handleAddToCart(product,'grocery');}} onRemove={()=>handleRemoveFromCart(product)}/>;
                                   })}</div>}
                       </section>;
                     })()}
@@ -1222,26 +1188,17 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
         {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} products={productsList} menuItems={menuItemsList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} />}
 
-        {/* TAB 5: PROFILE */}
-        {currentTab === 'profile' && activeWorkflow === 'none' && (
-          <div className="space-y-4 animate-fadeIn">
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 text-center">
-              <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-lg font-black mx-auto mb-2 uppercase">{userName ? userName[0] : 'U'}</div>
-              <h4 className="text-sm font-black text-slate-900">{userName || 'AllGo User'}</h4>
-              <p className="text-[10px] text-slate-400 font-mono mt-0.5">{userProfile?.email}</p>
-            </div>
-
-            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-              <button onClick={() => setShowAddressModal(true)} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><MapPin size={17} /> Delivery address</span><ChevronRight size={16} className="text-slate-400" /></button>
-              <button onClick={() => { setActiveWorkflow('none'); setCurrentTab('orders'); }} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><ClipboardList size={17} /> My orders</span><ChevronRight size={16} className="text-slate-400" /></button>
-              <button onClick={() => setCurrentTab('wallet')} className="w-full text-left p-3.5 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><CreditCard size={17} /> Wallet & payments</span><ChevronRight size={16} /></button>
-              <button onClick={() => setCurrentTab('settings')} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between border-b"><span className="flex items-center gap-3"><Settings size={17} /> Settings</span><ChevronRight size={16} className="text-slate-400" /></button>
-              <button onClick={() => setCurrentTab('support')} className="w-full text-left p-3.5 hover:bg-slate-50 text-xs font-bold flex items-center justify-between"><span className="flex items-center gap-3"><LifeBuoy size={17} /> Help and support</span><ChevronRight size={16} className="text-slate-400" /></button>
-              {customerPages.map(({id,title,detail,Icon}) => <button key={id} onClick={() => openPage(id)} className="allgo-account-link"><Icon size={18}/><span><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={16}/></button>)}
-              <button onClick={onSignOut} className="w-full border-t p-3.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50">Sign out</button>
-            </div>
-          </div>
-        )}
+        {currentTab === 'offers' && activeWorkflow === 'none' && <OffersScreen hasCart={cart.length>0} onBack={()=>setCurrentTab('home')} onApply={code=>{setCouponCode(code);setCouponError('');setCurrentTab('cart');}} onBrowse={service=>{setCurrentTab('home');setActiveWorkflow(service);}}/>}
+        {currentTab === 'profile' && activeWorkflow === 'none' && <ProfileScreen profile={userProfile} name={userName} onSignOut={onSignOut} actions={[
+          {label:'Personal information',Icon:User,onClick:()=>openPage('edit-profile')},
+          {label:'Saved addresses',Icon:MapPin,onClick:()=>openPage('addresses')},
+          {label:'Delivery location',Icon:House,onClick:()=>setShowAddressModal(true)},
+          {label:'Wallet & payments',Icon:CreditCard,value:typeof userProfile?.walletBalance==='number'?'₹'+userProfile.walletBalance.toLocaleString('en-IN'):undefined,onClick:()=>setCurrentTab('wallet')},
+          {label:'Order history',Icon:ClipboardList,onClick:()=>setCurrentTab('orders')},
+          {label:'Offers & coupons',Icon:Ticket,onClick:()=>setCurrentTab('offers')},
+          {label:'Help & support',Icon:LifeBuoy,onClick:()=>setCurrentTab('support')},
+          {label:'Settings',Icon:Settings,onClick:()=>setCurrentTab('settings')},
+        ]}><div className="stitch-profile-links">{customerPages.filter(page=>!['edit-profile','addresses'].includes(page.id)).map(({id,title,detail,Icon})=><button type="button" key={id} onClick={()=>openPage(id)}><Icon size={18}/><span><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={16}/></button>)}</div></ProfileScreen>}
 
       </div>
 
@@ -1255,26 +1212,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         items={[
           { id: 'home', label: 'Home', icon: House },
           { id: 'services', label: 'Services', icon: ShoppingBag },
-          { id: 'orders', label: 'Activity', icon: ClipboardList },
-          { id: 'profile', label: 'Account', icon: UserRoundCog },
+          { id: 'orders', label: 'Orders', icon: ClipboardList },
+          { id: 'offers', label: 'Offers', icon: Ticket },
+          { id: 'profile', label: 'Profile', icon: UserRoundCog },
         ]}
         onNavigate={tab => { setCurrentTab(tab); setActiveWorkflow('none'); }}
       />}
 
-      {/* ADDRESS CHOOSE MODAL */}
-      {showAddressModal && (
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-end justify-center z-50">
-          <div className="bg-white rounded-t-3xl w-full p-6 max-h-[80%] overflow-y-auto">
-            <h3 className="mb-1 text-sm font-black text-slate-900">Delivery addresses</h3>
-            <p className="mb-4 text-[11px] text-slate-500">Choose a saved place or add a new delivery address.</p>
-            {savedAddresses.length > 0 && <div className="mb-4 space-y-2">{savedAddresses.map((address) => <div key={address.id} className={`flex items-center gap-2 rounded-xl border p-3 ${deliveryAddress === address.address ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-white'}`}><button disabled={addressSaving} onClick={() => void handleSelectSavedAddress(address)} className="min-w-0 flex-1 text-left"><span className="block text-xs font-bold text-slate-800">{address.label}{userProfile?.defaultAddressId === address.id && <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-700">Default</span>}</span><span className="mt-1 block text-[10px] text-slate-500">{address.address}</span></button><button aria-label={`Delete ${address.label} address`} onClick={() => void handleDeleteSavedAddress(address)} className="rounded-lg p-2 text-rose-500 hover:bg-rose-50"><Trash2 size={15} /></button></div>)}</div>}
-            <button className="my-2 rounded-xl border p-3 text-xs font-bold text-indigo-700" onClick={() => setAddressLookup(value => !value)}>Find address or use current location</button>{addressLookup && <LocationPicker label="Delivery location" initialAddress={addressDraft} disabled={addressSaving} onSelect={location => { if (location) setAddressDraft(location.address); }}/>}<div className="rounded-2xl border border-slate-200 p-3"><h4 className="mb-2 text-xs font-extrabold text-slate-800">Add or update an address</h4><select value={addressLabel} onChange={(event) => setAddressLabel(event.target.value)} className="mb-2 w-full rounded-xl border border-slate-200 bg-white p-3 text-xs"><option>Home</option><option>Work</option><option>Other</option></select><input value={addressDraft} onChange={(e) => setAddressDraft(e.target.value)} placeholder="House, street, area and city" maxLength={300} className="w-full rounded-xl border border-slate-200 p-3 text-xs" /><label className="block mt-2 text-xs font-bold">House / flat / building<input maxLength={80} value={addressBuilding} onChange={event => setAddressBuilding(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><label className="block mt-2 text-xs font-bold">Landmark<input maxLength={80} value={addressLandmark} onChange={event => setAddressLandmark(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><label className="block mt-2 text-xs font-bold">Delivery instructions<textarea maxLength={120} value={addressInstructions} onChange={event => setAddressInstructions(event.target.value)} className="mt-1 w-full rounded-xl border p-3" /></label><button onClick={() => void handleSaveAddress()} disabled={!addressDraft.trim() || addressSaving} className="my-2 w-full rounded-xl bg-indigo-600 py-3 text-xs font-bold text-white disabled:opacity-50">{addressSaving ? 'Saving…' : 'Save and set as default'}</button></div>
-            <p className="text-[11px] text-slate-500">Your saved address will be used for food, grocery and parcel deliveries. Enter a pickup and drop address separately when booking a ride.</p>
-            <button onClick={() => setShowAddressModal(false)} className="w-full mt-4 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-xl">Close</button>
-          </div>
-        </div>
-      )}
-
+      {showAddressModal && <AddressSheet addresses={savedAddresses} currentAddress={deliveryAddress} defaultId={userProfile?.defaultAddressId} fields={{address:addressDraft,label:addressLabel,building:addressBuilding,landmark:addressLandmark,instructions:addressInstructions}} busy={addressSaving} onField={(key,value)=>{if(key==='address')setAddressDraft(value);else if(key==='label')setAddressLabel(value);else if(key==='building')setAddressBuilding(value);else if(key==='landmark')setAddressLandmark(value);else setAddressInstructions(value);}} onSelect={address=>void handleSelectSavedAddress(address)} onDelete={address=>void handleDeleteSavedAddress(address)} onSave={()=>void handleSaveAddress()} onClose={()=>setShowAddressModal(false)}/>}
     </div>
   );
 }

@@ -10,14 +10,14 @@ export const serviceDirectory = [
   { id: 'transport', label: 'Vehicle transport', description: 'Request a carrier', icon: Truck, tone: 'butter' },
 ] as const;
 export type CustomerService = typeof serviceDirectory[number]['id'];
-export default function ServiceDirectory({ onChoose }: { onChoose: (service: CustomerService) => void }) {
+export default function ServiceDirectory({ onChoose, onMoversInfo }: { onChoose: (service: CustomerService) => void; onMoversInfo?:()=>void }) {
   return <section aria-label="Explore services">
     <div className="section-heading"><h2>Explore services</h2></div>
     <p className="mb-4 text-sm text-slate-600">Availability and pricing are confirmed when you request a quote for your location.</p>
     <div className="service-grid">
       {serviceDirectory.map(service => <ServiceTile key={service.id} {...service} onChoose={() => onChoose(service.id)} />)}
       <ServiceTile label="Goods transport" description="Planned · not available" icon={Truck} unavailable />
-      <ServiceTile label="Movers" description="Planned · not available" icon={House} unavailable />
+      <ServiceTile label="Movers" description="Planned · not available" icon={House} unavailable={!onMoversInfo} onChoose={onMoversInfo} />
     </div>
   </section>;
 }

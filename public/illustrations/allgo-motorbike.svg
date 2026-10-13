@@ -1,0 +1,40 @@
+<svg aria-label="Sports Motorcycle" fill="none" role="img" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+<!-- Shadow -->
+<ellipse cx="100" cy="106" fill="#E2E8F0" rx="72" ry="7"></ellipse>
+<!-- Rear Wheel -->
+<circle cx="46" cy="85" fill="#2D3748" r="24" stroke="#CBD5E1" stroke-width="2"></circle>
+<circle cx="46" cy="85" fill="#1A202C" r="16"></circle>
+<circle cx="46" cy="85" fill="#E2E8F0" r="7" stroke="#718096" stroke-width="2"></circle>
+<circle cx="46" cy="85" fill="#E53E3E" r="3"></circle>
+<!-- Front Wheel -->
+<circle cx="154" cy="85" fill="#2D3748" r="24" stroke="#CBD5E1" stroke-width="2"></circle>
+<circle cx="154" cy="85" fill="#1A202C" r="16"></circle>
+<circle cx="154" cy="85" fill="#E2E8F0" r="7" stroke="#718096" stroke-width="2"></circle>
+<circle cx="154" cy="85" fill="#E53E3E" r="3"></circle>
+<!-- Frame & Mechanicals -->
+<path d="M46 85 L76 72 L100 80 L126 62 L154 85" stroke="#4A5568" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"></path>
+<polygon fill="#2D3748" points="78,74 96,86 116,84 102,68"></polygon>
+<rect fill="#1A202C" height="14" rx="2" width="22" x="90" y="74"></rect>
+<!-- Exhaust Pipe -->
+<path d="M88 88 Q110 94 130 88" stroke="#A0AEC0" stroke-linecap="round" stroke-width="4"></path>
+<path d="M44 88 L72 88" stroke="#718096" stroke-linecap="round" stroke-width="3"></path>
+<!-- Front Fork Suspensions -->
+<line stroke="#CBD5E1" stroke-linecap="round" stroke-width="4" x1="154" x2="134" y1="85" y2="40"></line>
+<line stroke="#718096" stroke-width="2.5" x1="150" x2="132" y1="85" y2="44"></line>
+<!-- Motorcycle Bodywork (Red & Black) -->
+<path d="M70 60 C78 52 92 48 112 48 C124 48 136 50 144 58 L126 62 L105 60 L80 66 Z" fill="#E53E3E"></path>
+<!-- Fuel Tank / Fairing Accent -->
+<path d="M98 48 C116 48 130 52 142 60 L126 62 C116 57 106 56 96 56 Z" fill="#C53030"></path>
+<path d="M110 52 L128 52" opacity="0.8" stroke="#FFFFFF" stroke-linecap="round" stroke-width="1.5"></path>
+<!-- Seat -->
+<path d="M64 62 C72 60 84 60 92 65 L76 68 Z" fill="#1A202C"></path>
+<!-- Rear Tail Fairing -->
+<polygon fill="#E53E3E" points="56,58 74,60 68,67 50,63"></polygon>
+<path d="M48 62 L45 61" stroke="#E53E3E" stroke-linecap="round" stroke-width="2"></path>
+<!-- Handlebars & Mirrors -->
+<path d="M130 40 L138 34" stroke="#1A202C" stroke-linecap="round" stroke-width="3.5"></path>
+<circle cx="139" cy="33" fill="#E53E3E" r="2.5"></circle>
+<path d="M135 37 L142 39" stroke="#4A5568" stroke-width="2"></path>
+<!-- Headlight Cover -->
+<polygon fill="#ECC94B" points="144,58 152,61 146,67"></polygon>
+</svg>
