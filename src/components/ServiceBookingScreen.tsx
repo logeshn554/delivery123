@@ -5,7 +5,6 @@ import type { ServiceLocation } from '../data/firestoreHelper';
 import LocationPicker from './LocationPicker';
 import type { Booking } from '../types';
 import { isServiceQuoteExpired, isValidServiceQuote } from '../design-system/serviceQuote';
-import RideOptions from '../design-system/RideOptions';
 
 type Service = 'ride' | 'parcel' | 'takeover' | 'transport';
 type Draft = Pick<Booking, 'serviceType' | 'customerName' | 'pickupAddress' | 'dropAddress' | 'details'>;
@@ -45,9 +44,10 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
     return () => window.clearInterval(timer);
   }, [quote]);
   const quoteExpired = Boolean(quote && isServiceQuoteExpired(quote.expiresAt, clock));
-  const invalidate = () => { revision.current++; setQuote(null); setError(''); };
+  const invalidate = () => { revision.current++; setQuote(null); setError(''); setLoading(false); };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy || loading) return;
     if (!pickupLocation || !dropLocation) { setError('Find and select both addresses before requesting a quote.'); return; }
     const version = revision.current;
     const details = {
@@ -63,7 +63,7 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
       if (version === revision.current) { setClock(Date.now()); setQuote({ draft: { ...draft, details: { ...draft.details, quoteId: result.quoteId } }, price: result.price, expiresAt: result.expiresAt, estimatedKm: result.estimatedKm, estimatedMinutes: result.estimatedMinutes }); }
     } catch (error) {
       if (version === revision.current) setError((error as Error)?.message || 'A quote is unavailable. Please try again.');
-    } finally { setLoading(false); }
+    } finally { if (version === revision.current) setLoading(false); }
   };
   const isRide = service === 'ride';
   return <section className={`booking-screen service-booking-screen${isRide ? ' ride-booking-screen' : ''}`}>
@@ -74,7 +74,7 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
       {service === 'parcel' && <div className="segmented-control">{['local', 'intercity'].map(value => <button key={value} type="button" aria-pressed={mode === value} className={mode === value ? 'selected' : ''} onClick={() => { setMode(value); invalidate(); }}>{value === 'local' ? 'Local' : 'Intercity'}</button>)}</div>}
       {isRide ? <div className="ride-route-fields" aria-label="Ride route"><LocationPicker className="ride-location-picker" label="Pickup" initialAddress={initialAddress} disabled={busy} onSelect={location => { setPickupLocation(location); setPickup(location?.address || ''); invalidate(); }} /><span className="ride-route-connector" aria-hidden="true" /><LocationPicker className="ride-location-picker" label="Drop-off" disabled={busy} onSelect={location => { setDropLocation(location); setDrop(location?.address || ''); invalidate(); }} /></div> : <><LocationPicker label="Pickup location" initialAddress={initialAddress} disabled={busy} onSelect={location => { setPickupLocation(location); setPickup(location?.address || ''); invalidate(); }} /><LocationPicker label="Drop location" disabled={busy} onSelect={location => { setDropLocation(location); setDrop(location?.address || ''); invalidate(); }} /></>}
       <h2 id={isRide ? 'ride-vehicle-title' : undefined} className="form-section-title">{service === 'parcel' ? 'Parcel details' : service === 'takeover' ? 'Choose a duration' : isRide ? 'Choose your ride' : 'Choose a vehicle'}</h2>
-      {isRide ? <RideOptions selected={option} disabled={busy || loading} onSelect={value=>{setOption(value);invalidate();}}/> : <div className="booking-options">{options[service].map(({ id, label, Icon }) => <button type="button" key={id} aria-pressed={option === id} className={option === id ? 'selected' : ''} onClick={() => { setOption(id); invalidate(); }}><Icon size={28} strokeWidth={1.5} /><strong>{label}</strong></button>)}</div>}
+      <div className={`booking-options${isRide ? ' ride-vehicle-options' : ''}`} role={isRide ? 'group' : undefined} aria-labelledby={isRide ? 'ride-vehicle-title' : undefined}>{options[service].map(({ id, label, Icon }) => <button type="button" key={id} aria-pressed={option === id} className={option === id ? 'selected' : ''} onClick={() => { setOption(id); invalidate(); }}><Icon size={28} strokeWidth={1.5} /><strong>{label}</strong></button>)}</div>
       {service === 'parcel' && <label className="booking-label">Weight (kg)<input type="number" required min="0.1" max="50" step="0.1" value={weight} onChange={event => setWeight(event.target.value)} /></label>}
       {(service === 'transport' || service === 'takeover') && <><label className="booking-label">Your vehicle make and model<input required maxLength={100} value={model} onChange={event => setModel(event.target.value)} placeholder="e.g. Hyundai i20" /></label><label className="booking-label">Vehicle registration<input required maxLength={30} value={registration} onChange={event => setRegistration(event.target.value)} placeholder="Registration number" /></label></>}
       {(service === 'transport' || service === 'takeover') && <label className="booking-label">Preferred pickup (optional)<input type="datetime-local" value={date} onChange={event => setDate(event.target.value)} /></label>}
@@ -84,7 +84,7 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
       {quote && !quoteExpired && (isRide ? <article className="ride-quote-summary"><div className="ride-quote-route"><span><MapPin size={16} aria-hidden="true" />{quote.draft.pickupAddress}</span><span><MapPin size={16} aria-hidden="true" />{quote.draft.dropAddress}</span></div><p>{quote.draft.details?.vehicleType ? String(quote.draft.details.vehicleType) : option} · {quote.estimatedKm.toFixed(1)} km · {quote.estimatedMinutes} min estimated route travel</p></article> : <p className="page-caption">Route estimate: {quote.estimatedKm.toFixed(1)} km · {quote.estimatedMinutes} min travel. Partner assignment and arrival time are confirmed separately.</p>)}
       {quote && !quoteExpired ? <div className={`quote-review${isRide ? ' ride-quote-review' : ''}`}><ShieldCheck size={22} /><div><span>Your server quote · expires in {Math.max(0, Math.ceil((Date.parse(quote.expiresAt) - clock) / 1000))} sec</span><strong>₹{quote.price.toLocaleString('en-IN')}</strong><small>Payment is verified before your booking is confirmed. Updating details requires a new quote.</small></div></div> : quoteExpired ? <p role="status" className="page-caption">This fare expired. Request a fresh quote before checkout.</p> : <p className="page-caption">Request the latest fare before you pay. Partner assignment follows booking confirmation.</p>}
       {(!quote || quoteExpired) && <button className="auth-primary" type="submit" disabled={loading || busy}>{loading ? <><LoaderCircle size={18} className="animate-spin" /> Getting your quote…</> : quoteExpired ? 'Get a fresh quote' : 'Get quote'}</button>}
-      {quote && !quoteExpired && <button className="auth-primary" type="button" disabled={busy || loading} onClick={() => void onPay(quote.draft, quote.price)}>{busy ? 'Opening secure checkout…' : `Pay ₹${quote.price.toLocaleString('en-IN')} · Confirm booking`}</button>}
+      {quote && !quoteExpired && <button className="auth-primary" type="button" disabled={busy || loading} onClick={() => { if (!isServiceQuoteExpired(quote.expiresAt, Date.now())) void onPay(quote.draft, quote.price); else setClock(Date.now()); }}>{busy ? 'Opening secure checkout…' : `Pay ₹${quote.price.toLocaleString('en-IN')} · Confirm booking`}</button>}
     </form>
   </section>;
 }

@@ -8,6 +8,15 @@
   --allgo-surface: #ffffff;
   --allgo-canvas: #f7f6f9;
   --allgo-border: #e5e1ed;
+  --allgo-success: #16744e;
+  --allgo-warning: #9b5909;
+  --allgo-error: #b42338;
+  --allgo-space-1: 4px;
+  --allgo-space-2: 8px;
+  --allgo-space-3: 12px;
+  --allgo-space-4: 16px;
+  --allgo-space-6: 24px;
+  --allgo-shadow-card: 0 4px 18px rgb(32 29 43 / 6%);
   --allgo-focus: #7659f6;
   --allgo-food: #ee7d43;
   --allgo-grocery: #20835a;
@@ -17,31 +26,10 @@
   --allgo-radius-card: 20px;
   --allgo-touch: 44px;
   --allgo-touch-target: var(--allgo-touch);
-  --allgo-success: #176342;
-  --allgo-success-soft: #eaf9f1;
-  --allgo-danger: #ac3333;
-  --allgo-danger-soft: #fff0ef;
-  --allgo-warning: #7a4c00;
-  --allgo-warning-soft: #fff7e5;
-  --allgo-space-1: 4px;
-  --allgo-space-2: 8px;
-  --allgo-space-3: 12px;
-  --allgo-space-4: 16px;
-  --allgo-space-5: 20px;
-  --allgo-space-6: 24px;
-  --allgo-type-caption: 12px;
-  --allgo-type-body: 14px;
-  --allgo-type-input: 16px;
-  --allgo-type-title: 24px;
-  --allgo-radius-control: 14px;
-  --allgo-shadow-card: 0 4px 20px #201d2b08;
-  --allgo-shadow-overlay: 0 16px 48px #201d2b26;
-  --allgo-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
-  --allgo-safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
-.allgo-navigation { display: flex; flex: none; border-top: 1px solid var(--allgo-border); background: var(--allgo-surface); padding: 8px 4px calc(8px + var(--allgo-safe-bottom)); }
+.allgo-navigation { display: flex; flex: none; border-top: 1px solid var(--allgo-border); background: var(--allgo-surface); padding: 6px 4px max(6px, env(safe-area-inset-bottom)); }
 .allgo-navigation button { position: relative; flex: 1; min-width: 0; min-height: var(--allgo-touch); display: grid; justify-items: center; align-content: center; gap: 4px; color: var(--allgo-muted); font-size: 12px; }
-.allgo-navigation button[aria-current="page"] { color: var(--allgo-primary); font-weight: 700; background: #f3efff; border-radius: var(--allgo-radius-control); }
+.allgo-navigation button[aria-current="page"] { color: var(--allgo-primary); font-weight: 700; }
 .allgo-navigation-badge { position: absolute; top: 0; right: 12%; border-radius: 12px; padding: 0 5px; background: var(--allgo-primary); color: white; }
 .allgo-unavailable { border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius); padding: 20px; background: var(--allgo-surface); color: var(--allgo-text); }
 .allgo-unavailable p { margin: 12px 0; color: var(--allgo-muted); line-height: 1.6; }
@@ -49,7 +37,7 @@
 .allgo-customer button { min-height: var(--allgo-touch); }
 .allgo-customer button:disabled { cursor: not-allowed; }
 .allgo-workspace { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--allgo-canvas); color: var(--allgo-text); }
-.allgo-workspace-header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--allgo-surface); border-bottom: 1px solid var(--allgo-border); padding: calc(12px + var(--allgo-safe-top)) 16px 12px; }
+.allgo-workspace-header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--allgo-surface); border-bottom: 1px solid var(--allgo-border); padding: max(12px, env(safe-area-inset-top)) 16px 12px; }
 .allgo-workspace-header button { min-height: var(--allgo-touch); min-width: var(--allgo-touch); display: grid; place-items: center; }
 .allgo-workspace-main { flex: 1; min-height: 0; width: 100%; margin-inline: auto; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }

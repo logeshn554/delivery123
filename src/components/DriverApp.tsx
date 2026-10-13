@@ -1,9 +1,8 @@
-import BottomNavigation from '../design-system/BottomNavigation';
 import ParcelOrderDetails from './ParcelOrderDetails';
 import TransportOrderDetails from './TransportOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  House, Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight,
+  Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight, 
   MapPin, Check, Eye, Clock, ShieldAlert, Award, FileText, Send, MessageSquare
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
@@ -32,6 +31,8 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const [vehicleNo, setVehicleNo] = useState('');
   const [licenseNo, setLicenseNo] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [profileError, setProfileError] = useState('');
+  const [profileRetry, setProfileRetry] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
   const supportRequest = useRef<{ key: string; id: string } | null>(null);
   const [otpInput, setOtpInput] = useState("");
@@ -57,21 +58,26 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   // Load or create driver profile in Firestore
   useEffect(() => {
+    let active = true;
     async function loadProfile() {
       try {
         const dProf = await getOrCreateDriverProfile(userId, detectedLat, detectedLng);
+        if (!active) return;
         setProfile(dProf);
+        setProfileError('');
         setVehicleType(dProf.vehicleType);
         setVehicleNo(dProf.vehicleNo);
         setLicenseNo(dProf.licenseNo);
       } catch (err) {
         console.error("Failed to load driver profile:", err);
+        if (active) setProfileError('Driver profile could not load. Check your connection and try again.');
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     }
     loadProfile();
-  }, [userId, detectedLat, detectedLng]);
+    return () => { active = false; };
+  }, [userId, detectedLat, detectedLng, profileRetry]);
 
   useEffect(() => listenToDriverLocation(userId, value => {
     if (value) setProfile(value);
@@ -211,15 +217,17 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     );
   }
 
+  if (!profile) return <section className="driver-profile-error" role="alert"><ShieldAlert size={28} aria-hidden="true" /><h1>Driver workspace unavailable</h1><p>{profileError || 'Your driver profile is not available yet.'}</p><button type="button" onClick={() => { setIsLoading(true); setProfileRetry(value => value + 1); }}>Try again</button></section>;
+
   return (
-    <div className="allgo-partner bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
+    <div className="allgo-driver bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
       {dialog}
       {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{usesAndroidLocation ? locationMessage : 'Location sharing requires this app to stay open on this device.'}</p>{usesAndroidLocation && <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
       
       {/* 2.5 POPUP OVERLAY DRAWER FOR SUB-VIEWS */}
       {activeSubView && (
-        <div className="absolute inset-x-0 top-0 bottom-[calc(68px+var(--allgo-safe-bottom))] bg-slate-50 flex flex-col z-40" role="region" aria-label={activeSubView === 'orders' ? 'Delivery history' : activeSubView === 'wallet' ? 'Earnings' : 'Partner support'}>
-          <div className="bg-white h-full min-h-0 flex flex-col">
+        <div className="absolute inset-0 bg-slate-100/90 backdrop-blur-xs flex flex-col justify-end z-40 animate-fadeIn">
+          <div className="bg-white border-t border-slate-200 rounded-t-3xl h-[85%] flex flex-col shadow-2xl animate-slideUp">
             
             {/* Header */}
             <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100/60 rounded-t-3xl shrink-0">
@@ -352,11 +360,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                     <h4 className="text-xs font-bold text-slate-700">File Dispatch Dispute</h4>
                     <p className="text-[10px] text-slate-400">Report delays, vehicle issues or customer safety concerns to operations.</p>
                     <div className="space-y-2">
-                      <input value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" placeholder="Dispute Subject" className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" />
-                      <textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} placeholder="Please describe the delay event..." rows={3} className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" />
+                      <label className="block text-xs font-bold text-slate-700">Dispute subject<input value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" maxLength={150} placeholder="What happened?" className="mt-2 w-full bg-white border border-slate-200 text-base p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" /></label>
+                      <label className="block text-xs font-bold text-slate-700">Describe the issue<textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} maxLength={2000} placeholder="Include any relevant order or safety details" rows={3} className="mt-2 w-full bg-white border border-slate-200 text-base p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" /></label>
                       <button 
                         type="button" 
-                        disabled={actionBusy}
+                        disabled={actionBusy || !supportSubject.trim() || !supportMessage.trim()}
                         onClick={() => void performAction(async () => {
                           if (!supportSubject.trim() || !supportMessage.trim()) return;
                           const key = JSON.stringify([userId, supportSubject.trim(), supportMessage.trim(), currentAssignedJob?.bookingId]);
@@ -382,7 +390,6 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
       )}
 
       {/* Driver Header */}
-      <div className="flex min-h-0 flex-1 flex-col" inert={Boolean(activeSubView)}>
       <div className="p-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
         <div>
           <div className="flex items-center gap-1.5">
@@ -393,6 +400,10 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
         </div>
 
         <button 
+          type="button"
+          disabled={actionBusy}
+          aria-label={profile.online ? 'Go offline and stop location sharing' : 'Go online and share location'}
+          aria-pressed={profile.online}
           onClick={handleToggleOnline}
           className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
             profile?.online ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-50 text-slate-400 border border-slate-700'
@@ -683,8 +694,10 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
       </div>
 
+      {/* Driver Footer */}
+      <div className="p-3 bg-slate-100 text-center border-t border-slate-200 shrink-0">
+        <p className="text-[9px] text-slate-500">AllGo Partner App version 4.2 · Secure GPS enabled</p>
       </div>
-      <BottomNavigation items={[{ id: 'dashboard', label: 'Deliveries', icon: House }, { id: 'orders', label: 'History', icon: FileText }, { id: 'wallet', label: 'Earnings', icon: DollarSign }, { id: 'support', label: 'Support', icon: ShieldAlert }]} active={activeSubView || 'dashboard'} onNavigate={tab => setActiveSubView(tab === 'dashboard' ? null : tab)} />
 
     </div>
   );
