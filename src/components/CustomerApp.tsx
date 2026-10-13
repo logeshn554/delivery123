@@ -351,6 +351,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [activeChatBookingId, setActiveChatBookingId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [chatSending, setChatSending] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -397,7 +398,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
   // Auto-scroll chat window
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    chatBottomRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [chatMessages]);
 
   useEffect(() => {
@@ -413,9 +414,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
   const handleSendChatMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || !activeChatBookingId) return;
+    if (chatSending || !chatInput.trim() || !activeChatBookingId) return;
+    setChatSending(true);
     try { await sendChatMessage(activeChatBookingId, userId, userName || "Customer", chatInput.trim()); setChatInput(""); }
     catch (error) { alert(error instanceof Error ? error.message : "Message could not be sent. Try again."); }
+    finally { setChatSending(false); }
   };
 
   // Quick Cart calculation
@@ -715,30 +718,29 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
       {/* REAL-TIME MESSAGING POPUP DRAWER */}
       {activeChatBookingId && (
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end z-40 animate-fadeIn">
+        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end z-40 animate-fadeIn" role="dialog" aria-modal="true" aria-labelledby="customer-chat-title">
           <div className="bg-white rounded-t-3xl h-[85%] flex flex-col shadow-2xl animate-slideUp">
 
             {/* Chat header */}
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-3xl">
               <div className="flex items-center gap-2">
-                <button onClick={() => setActiveChatBookingId(null)} className="p-1 hover:bg-slate-200 rounded-lg">
+                <button type="button" aria-label="Close booking chat" onClick={() => setActiveChatBookingId(null)} className="min-h-11 min-w-11 p-1 hover:bg-slate-200 rounded-lg">
                   <ArrowLeft className="w-5 h-5 text-slate-700" />
                 </button>
                 <div>
-                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">Live Dispatch Chat</h3>
+                  <h3 id="customer-chat-title" className="text-xs font-black text-slate-800 uppercase tracking-wide">Booking chat</h3>
                   <p className="text-[9px] font-mono text-slate-400">Order Ref: {activeChatBookingId}</p>
                 </div>
               </div>
-              <span className="bg-emerald-50 text-emerald-700 text-[8px] font-extrabold px-2 py-0.5 rounded-full border border-emerald-200">ACTIVE SYNC</span>
             </div>
 
             {/* Chat Messages Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50" role="log" aria-label="Messages for this booking" aria-live="polite" aria-relevant="additions">
               {chatMessages.length === 0 ? (
                 <div className="text-center py-16 text-slate-400 space-y-1">
                   <MessageSquare className="w-8 h-8 mx-auto text-slate-300" />
-                  <p className="text-[11px] font-bold">Secure connection established.</p>
-                  <p className="text-[9px] text-slate-400">Type a message below to instantly chat with your driver.</p>
+                  <p className="text-[11px] font-bold">No messages in this booking yet.</p>
+                  <p className="text-[9px] text-slate-500">Messages from you and your delivery partner appear here.</p>
                 </div>
               ) : (
                 chatMessages.map(msg => {
@@ -763,16 +765,22 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
             {/* Chat Input Footer Form */}
             <form onSubmit={handleSendChatMessage} className="p-3 bg-white border-t border-slate-100 flex gap-2 shrink-0">
+              <label htmlFor="customer-booking-message" className="sr-only">Message your delivery partner</label>
               <input
+                id="customer-booking-message"
+                name="message"
                 type="text"
-                placeholder="Type your message..."
+                autoComplete="off"
+                placeholder="Write a message…"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                className="flex-1 bg-slate-50 border border-slate-100 text-xs rounded-xl px-3.5 py-2.5 outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white"
+                className="min-w-0 flex-1 bg-slate-50 border border-slate-200 text-base rounded-xl px-3.5 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus:bg-white"
               />
               <button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl flex items-center justify-center shrink-0 transition-transform active:scale-95"
+                aria-label="Send booking message"
+                disabled={chatSending || !chatInput.trim()}
+                className="min-h-11 min-w-11 bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl flex items-center justify-center shrink-0 transition-colors disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -814,10 +822,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search food, groceries, rides, parcels..."
+              aria-label="Search AllGo services, restaurants, and stores"
+              name="catalogSearch"
+              autoComplete="off"
+              placeholder="Search food, groceries, rides, or parcels…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-100/90 text-slate-800 placeholder-slate-400 text-xs rounded-xl pl-9 pr-4 py-3 border-none outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white transition-all"
+              className="w-full bg-slate-100/90 text-slate-800 placeholder-slate-500 text-base rounded-xl pl-9 pr-4 py-3 border-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus:bg-white transition-colors"
             />
             {searchQuery.trim() && <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
               {matchingServiceLinks.map((item) => <button key={item.workflow} onClick={() => { setActiveWorkflow(item.workflow); setSearchQuery(''); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Browse {item.label}</button>)}
@@ -1074,7 +1085,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                   })}</div>
                 </div>
                 <button onClick={() => setShowAddressModal(true)} className="w-full rounded-2xl border border-slate-100 bg-white p-4 text-left"><span className="flex items-center justify-between"><span className="flex items-center gap-2 text-xs font-extrabold text-slate-800"><MapPin size={16} className="text-indigo-600" /> Deliver to</span><span className="text-[11px] font-bold text-indigo-600">Change</span></span><p className="mt-2 pl-6 text-xs text-slate-600">{deliveryAddress || detectedAddress || 'Add a delivery address'}</p></button>
-                <label className="block rounded-2xl border border-slate-100 bg-white p-4"><span className="text-xs font-extrabold text-slate-800">Delivery instructions <span className="font-normal text-slate-400">(optional)</span></span><textarea value={orderNotes} onChange={(event) => setOrderNotes(event.target.value.slice(0, 500))} maxLength={500} rows={3} placeholder="Door, floor, gate code, or item preparation notes" className="mt-2 w-full resize-none rounded-xl border border-slate-200 p-3 text-xs outline-none focus:border-indigo-400"/><span className="mt-1 block text-right text-[10px] text-slate-400">{orderNotes.length}/500</span></label>
+                <label className="block rounded-2xl border border-slate-100 bg-white p-4"><span className="text-xs font-extrabold text-slate-800">Delivery instructions <span className="font-normal text-slate-400">(optional)</span></span><textarea name="deliveryInstructions" autoComplete="off" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value.slice(0, 500))} maxLength={500} rows={3} placeholder="Door, floor, gate code, or preparation notes…" className="mt-2 w-full resize-none rounded-xl border border-slate-200 p-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/><span className="mt-1 block text-right text-[10px] text-slate-500">{orderNotes.length}/500</span></label>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4"><div className="flex items-center gap-2 text-xs font-extrabold text-slate-800"><CreditCard size={16} className="text-indigo-600" /> Secure online payment</div><div className="mt-3 flex items-center justify-between rounded-xl bg-indigo-50 p-3"><span className="text-xs font-bold text-indigo-800">UPI · cards · net banking · wallets</span><Shield size={17} className="text-indigo-600" /></div><p className="mt-2 text-[10px] text-slate-500">Choose an available payment method in Razorpay Checkout. AllGo confirms your order only after payment verification.</p></div>
                 <div className="rounded-2xl border bg-white p-4"><label className="text-xs font-bold">Offer code<input value={couponCode} maxLength={40} disabled={couponBusy || paymentBusy} onChange={event => { setCouponCode(event.target.value.toUpperCase()); setCoupon(null); }} className="mt-2 w-full rounded-lg border p-3" /></label><button disabled={couponBusy || paymentBusy || !couponCode.trim()} onClick={() => void applyCartOffer()} className="min-h-11 text-xs font-bold text-indigo-700">{couponBusy ? 'Checking offer…' : 'Apply offer'}</button>{coupon && <p className="text-xs text-emerald-700">{coupon.code} · ₹{coupon.discountCents / 100} discount</p>}{couponError && <p role="alert" className="auth-error">{couponError}</p>}</div>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Price summary</h4><div className="mt-3 flex justify-between text-xs text-slate-600"><span>Items ({cart.reduce((sum, line) => sum + line.quantity, 0)})</span><span>₹{getCartTotal()}</span></div><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-sm font-black text-slate-900"><span>Item subtotal after discount</span><span>₹{getCartTotal() - (coupon?.discountCents || 0) / 100}</span></div><p className="mt-2 text-[10px] text-slate-500">Delivery, packaging, platform fees and tax are excluded from this subtotal. Review the complete server quote on the next screen before authorizing payment.</p></div>
@@ -1176,8 +1187,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             <header className="allgo-page-heading"><button type="button" aria-label="Back to account" onClick={() => setCurrentTab('profile')}><ArrowLeft size={20} /></button><div><p>YOUR ALLGO</p><h1>Help & support</h1></div></header>
             <p className="allgo-muted">Tell us what happened. Link an order when your request is about a delivery or payment.</p>
             {supportHistoryError && <div role="alert" className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900"><p>{supportHistoryError}</p><button type="button" className="mt-2 font-bold underline" onClick={() => setSupportRetry(value => value + 1)}>Retry support history</button></div>}
-            <label className="block text-xs">Related order<select value={ticketBooking} onChange={event => setTicketBooking(event.target.value)} className="block w-full rounded border p-3"><option value="">General account help</option>{activeBookings.map(booking => <option key={booking.bookingId} value={booking.bookingId}>{booking.bookingId} · {booking.serviceType}</option>)}</select></label><label className="block text-xs">Issue type<select value={ticketCategory} onChange={event => setTicketCategory(event.target.value)} className="block w-full rounded border p-3">{['general','payment','cancellation','missing_item','wrong_item','quality','damage','lost','safety','delay'].map(category => <option key={category} value={category}>{category.replaceAll('_',' ')}</option>)}</select></label><label className="block text-xs">Subject<input maxLength={150} type="text" placeholder="What do you need help with?" value={ticketSubject} onChange={(e) => setTicketSubject(e.target.value)} className="w-full bg-white border p-3 text-xs rounded-xl" required /></label>
-            <label className="block text-xs">Describe the issue<textarea maxLength={2000} placeholder="Tell us what happened..." value={ticketMessage} onChange={(e) => setTicketMessage(e.target.value)} className="w-full bg-white border p-3 text-xs rounded-xl" rows={4} required /></label>
+            <label className="block text-xs">Related order<select name="bookingId" value={ticketBooking} onChange={event => setTicketBooking(event.target.value)} className="block w-full rounded border p-3 text-base"><option value="">General account help</option>{activeBookings.map(booking => <option key={booking.bookingId} value={booking.bookingId}>{booking.bookingId} · {booking.serviceType}</option>)}</select></label><label className="block text-xs">Issue type<select name="category" value={ticketCategory} onChange={event => setTicketCategory(event.target.value)} className="block w-full rounded border p-3 text-base">{['general','payment','cancellation','missing_item','wrong_item','quality','damage','lost','safety','delay'].map(category => <option key={category} value={category}>{category.replaceAll('_',' ')}</option>)}</select></label><label className="block text-xs">Subject<input name="subject" autoComplete="off" maxLength={150} type="text" placeholder="What do you need help with…" value={ticketSubject} onChange={(e) => setTicketSubject(e.target.value)} className="w-full bg-white border p-3 text-base rounded-xl" required /></label>
+            <label className="block text-xs">Describe the issue<textarea name="description" autoComplete="off" maxLength={2000} placeholder="Tell us what happened…" value={ticketMessage} onChange={(e) => setTicketMessage(e.target.value)} className="w-full bg-white border p-3 text-base rounded-xl" rows={4} required /></label>
             <button disabled={ticketBusy} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-2.5 rounded-xl transition-colors">{ticketBusy ? 'Sending…' : 'Send support request'}</button>
             {!supportHistoryError && supportTickets.length === 0 && <p className="allgo-support-empty">No support requests yet. Your submitted requests and replies will appear here.</p>}
             {supportTickets.length > 0 && <section className="space-y-2 pt-3"><h2 className="text-base font-bold text-slate-800">Your requests</h2>{supportTickets.map((ticket) => <article key={ticket.ticketId} className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center justify-between gap-2"><strong className="text-xs text-slate-800">{ticket.subject}</strong><span className="text-[10px] capitalize text-indigo-600">{ticket.status}</span></div><p className="mt-1 text-[11px] text-slate-500">{ticket.message}</p><button type="button" className="mt-2 rounded border p-2 text-xs" onClick={() => setSupportCaseId(value => value === ticket.ticketId ? '' : ticket.ticketId)}>View replies and case history</button>{supportCaseId === ticket.ticketId && <SupportCasePanel ticketId={ticket.ticketId}/>}</article>)}</section>}

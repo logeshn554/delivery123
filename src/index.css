@@ -20,9 +20,13 @@ html, body, #root {
 }
 
 body {
-  overscroll-behavior: none;
+  overscroll-behavior: auto;
   -webkit-font-smoothing: antialiased;
-  touch-action: pan-x pan-y;
+  touch-action: auto;
+}
+
+@media (pointer: fine) {
+  body { overscroll-behavior: none; }
 }
 
 button, input, textarea, select { font: inherit; }
@@ -490,7 +494,6 @@ button:disabled { opacity: .6; cursor: wait; }
 @media (max-width: 360px) { .parcel-current-card { gap: 7px; padding: 9px; } .parcel-current-icon { width: 36px; height: 36px; flex-basis: 36px; } .parcel-current-route strong, .parcel-current-route > span { font-size: 10px; } .parcel-current-route small { font-size: 8px; } .parcel-current-action button { padding-left: 4px; font-size: 10px; } .parcel-summary dl { grid-template-columns: 74px minmax(0,1fr); gap: 8px; } .parcel-contact-grid { grid-template-columns: 1fr; } }
 @media (max-width: 380px) { .catalog-state { padding: 16px; gap: 10px; } .catalog-state-action { align-self: flex-end; } .catalog-state-action button { padding-inline: 10px; } .food-restaurant-open img, .food-restaurant-image-fallback { height: 138px; } }
 @media (max-width: 360px) { .grocery-hero { min-height: 132px; padding: 17px; } .grocery-hero-mark { width: 52px; height: 52px; flex-basis: 52px; border-radius: 17px; } .grocery-product-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; } .grocery-product-copy { padding: 10px 9px 7px; } .grocery-product-actions { padding: 0 9px 9px; } .grocery-filter-toolbar { gap: 6px; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 .mobile-page-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .mobile-page-heading h1 { font-size: 19px; font-weight: 800; letter-spacing: -.5px; }
@@ -502,7 +505,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .route-fields { display: grid; gap: 12px; margin: 22px 0; }
 .route-fields label { display: flex; gap: 12px; align-items: center; background: #faf9fd; border: 1px solid #eae6f2; border-radius: 14px; padding: 16px 12px; }
 .route-fields span { flex: 1; min-width: 0; font-size: 12px; font-weight: 700; }
-.route-fields input { display: block; width: 100%; background: transparent; margin-top: 5px; font-weight: 400; padding: 4px 0; outline: none; }
+.route-fields input { display: block; width: 100%; background: transparent; margin-top: 5px; font-weight: 400; padding: 4px 0; }
 .pickup-pin { color: #15aa65; flex-shrink: 0; }
 .drop-pin { color: #ee4365; flex-shrink: 0; }
 .form-section-title { font-size: 15px; font-weight: 750; margin: 25px 0 14px; }
@@ -663,4 +666,3 @@ button:disabled { opacity: .6; cursor: wait; }
 .allgo-account-link > svg:last-child { margin-left: auto; color: #aaa0b6; flex-shrink: 0; }
 .allgo-account-link strong { display: block; font-size: 12px; font-weight: 750; }
 .allgo-account-link small { display: block; font-size: 10px; margin-top: 4px; color: #8d809a; }
-@media (prefers-reduced-motion: reduce) { .allgo-page { animation: none; } }

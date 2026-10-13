@@ -40,4 +40,4 @@
 .allgo-workspace-header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--allgo-surface); border-bottom: 1px solid var(--allgo-border); padding: max(12px, env(safe-area-inset-top)) 16px 12px; }
 .allgo-workspace-header button { min-height: var(--allgo-touch); min-width: var(--allgo-touch); display: grid; place-items: center; }
 .allgo-workspace-main { flex: 1; min-height: 0; width: 100%; margin-inline: auto; }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } .allgo-page { animation: none; } }

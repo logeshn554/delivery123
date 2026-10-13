@@ -35,6 +35,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
   const [error, setError] = useState<string | null>(null);
   const [expandedLegId, setExpandedLegId] = useState<string | null>(null);
   const [cancellingLegId, setCancellingLegId] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   // Chat state
   const [activeChatLegId, setActiveChatLegId] = useState<string | null>(null);
@@ -66,7 +67,8 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
       err => {
         if (!active) return;
         clearTimeout(timeout);
-        setError(`Failed to subscribe to bundle: ${err.message}`);
+        console.error('Bundle status subscription failed:', err);
+        setError('Journey status could not load. Check your connection and try again.');
         setLoading(false);
       }
     );
@@ -82,7 +84,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
         setExpandedLegId(current => current && legList.some(leg => leg.legId === current) ? current : legList[0]?.legId || null);
       },
       err => {
-        if (active) setError('Journey stops could not load. Reopen from Activity to retry.');
+        if (active) { console.error('Bundle stops subscription failed:', err); setError('Journey stops could not load. Check your connection and try again.'); }
       }
     );
 
@@ -104,7 +106,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
       unsubLegs();
       unsubTracking();
     };
-  }, [bundleId]);
+  }, [bundleId, retry]);
 
   // Cancel individual leg handler
   const handleCancelLeg = async (leg: BundleLeg) => {
@@ -149,6 +151,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
         </div>
         <h2 className="text-lg font-bold mb-2">Trip Tracking Error</h2>
         <p className="text-sm text-slate-600 max-w-sm mb-6">{error || 'Could not locate trip details.'}</p>
+        {!!bundleId && <button type="button" onClick={() => setRetry(value => value + 1)} className="min-h-11 mb-2 rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white">Try again</button>}
         <button
           onClick={onBack}
           className="px-6 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-semibold border border-slate-200 transition"
@@ -181,7 +184,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
           </button>
           <div>
             <h1 className="text-base font-bold text-slate-900">Combined journey status</h1>
-            <p className="text-xs text-slate-600 font-mono">ID: {bundle.bundleId.slice(0, 16)}...</p>
+            <p className="text-xs text-slate-600 font-mono">ID: {bundle.bundleId.slice(0, 16)}…</p>
           </div>
         </div>
         <span
@@ -258,14 +261,13 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                 className="bg-slate-50/60 border border-slate-200/60 rounded-2xl overflow-hidden shadow-md backdrop-blur-sm transition"
               >
                 {/* Accordion Header */}
-                <div
-                  role="button"
-                  tabIndex={0}
+                <button
+                  type="button"
                   aria-expanded={isExpanded}
                   aria-label={`Journey stop ${leg.legIndex + 1}: ${leg.type}, ${leg.status}`}
-                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpandedLegId(isExpanded ? null : leg.legId); } }}
                   onClick={() => setExpandedLegId(isExpanded ? null : leg.legId)}
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50/80 transition"
+                  aria-controls={`bundle-leg-${leg.legId}`}
+                  className="w-full p-4 flex items-center justify-between text-left cursor-pointer hover:bg-slate-50/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-base">
@@ -296,11 +298,11 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                     </span>
                     <span className="text-slate-600 text-xs">{isExpanded ? '▲' : '▼'}</span>
                   </div>
-                </div>
+                </button>
 
                 {/* Accordion Body */}
                 {isExpanded && (
-                  <div className="p-4 pt-0 border-t border-slate-200/50 space-y-3 text-xs">
+                  <div id={`bundle-leg-${leg.legId}`} className="p-4 pt-0 border-t border-slate-200/50 space-y-3 text-xs">
                     {leg.refundStatus && <p className="mt-3 rounded-xl border p-3">Refund status: <strong>{leg.refundStatus.replaceAll('_', ' ')}</strong>{leg.refundId && <span className="block break-all">Reference: {leg.refundId}</span>}</p>}
                     <div className="grid grid-cols-2 gap-2 pt-2">
                       <div className="p-2.5 bg-white/60 rounded-xl border border-slate-200">
@@ -331,7 +333,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                       <button
                         type="button"
                         onClick={() => setActiveChatLegId(activeChatLegId === leg.legId ? null : leg.legId)}
-                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-600 text-slate-800 font-semibold transition"
+                        className="min-h-11 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold transition-colors"
                       >
                         💬 Chat with Partner
                       </button>
@@ -339,9 +341,9 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                       {isCancellable && (
                         <button
                           type="button"
-                          disabled={cancellingLegId === leg.legId}
+                          disabled={cancellingLegId !== null}
                           onClick={() => handleCancelLeg(leg)}
-                          className="px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-700 border border-red-500/30 font-semibold transition disabled:opacity-50"
+                          className="min-h-11 px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-700 border border-red-500/30 font-semibold transition-colors disabled:opacity-50"
                         >
                           {cancellingLegId === leg.legId ? 'Cancelling…' : 'Cancel This Leg'}
                         </button>

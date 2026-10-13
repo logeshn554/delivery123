@@ -45,12 +45,12 @@ export default function BundleLegChat({ bundleId, legId }: { bundleId: string; l
   return <section className="allgo-unavailable mt-3" aria-label="Journey stop messages">
     <p>Latest 50 messages for this stop. Messaging is available only while the stop is active.</p>
     {loading && <p role="status">Loading messages…</p>}
-    <ol className="max-h-60 overflow-auto space-y-3" aria-label="Message history">{messages.map(message => <li key={message.id} className="break-words">
+    <ol className="max-h-60 overflow-auto space-y-3" aria-label="Message history" role="log" aria-live="polite" aria-relevant="additions">{messages.map(message => <li key={message.id} className="break-words">
       <strong>{typeof message.senderName === 'string' ? message.senderName : 'Participant'}</strong>
       <p className="whitespace-pre-wrap">{typeof message.text === 'string' ? message.text : 'Message unavailable'}</p>
     </li>)}</ol>
     {error && <p role="alert">{error}</p>}
-    <label className="block">Message<textarea value={text} disabled={sending} maxLength={1000} rows={3} className="mt-2 w-full rounded-xl border p-3" onChange={event => setText(event.target.value)} /></label>
+    <label className="block">Message<textarea name="message" autoComplete="off" value={text} disabled={sending} maxLength={1000} rows={3} className="mt-2 w-full rounded-xl border p-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" onChange={event => setText(event.target.value)} /></label>
     <div className="flex gap-3 mt-3"><button type="button" disabled={sending || loading || !text.trim()} onClick={() => void send()}>{sending ? 'Sending…' : 'Send message'}</button>
       <button type="button" disabled={sending} onClick={() => setRetry(value => value + 1)}>Reload messages</button></div>
   </section>;

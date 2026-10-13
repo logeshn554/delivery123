@@ -9,6 +9,8 @@ export default function WalletPanel({ uid }: { uid: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [ledgerRetry, setLedgerRetry] = useState(0);
+  const [ledgerError, setLedgerError] = useState('');
   const storageKey = `allgo-wallet-funding-${uid}`;
   const [pending, setPending] = useState<{ requestId: string; amountCents: number } | null>(null);
   useEffect(() => {
@@ -18,7 +20,10 @@ export default function WalletPanel({ uid }: { uid: string }) {
       else { setPending(null); setAmount(''); }
     } catch { setPending(null); setError('Funding recovery storage is unavailable. Resolve payment activity before starting another top-up.'); }
   }, [storageKey]);
-  useEffect(() => listenToWalletLedger(uid, values => { setEntries(values); setLoading(false); }, () => { setLoading(false); setError('Wallet ledger is unavailable.'); }), [uid]);
+  useEffect(() => {
+    setLoading(true); setLedgerError('');
+    return listenToWalletLedger(uid, values => { setEntries(values); setLoading(false); setLedgerError(''); }, () => { setLoading(false); setLedgerError('Wallet ledger is unavailable. Check your connection and try again.'); });
+  }, [uid, ledgerRetry]);
   const topup = async () => {
     if (busy) return;
     const cents = Math.round(Number(amount) * 100);
@@ -60,6 +65,6 @@ export default function WalletPanel({ uid }: { uid: string }) {
     <p className="page-caption">Available only when enabled by AllGo operations. Credits require a verified captured payment.</p>
     {error && <p role="alert" className="auth-error">{error}</p>}{notice && <p role="status" className="auth-notice">{notice}</p>}
     <h2 className="form-section-title">Wallet ledger</h2>
-    {loading ? <p role="status">Loading ledger…</p> : !entries.length ? <p className="page-caption">No wallet transactions yet.</p> : entries.map(entry => <article key={entry.id} className="border-t py-3 text-xs"><div className="flex justify-between"><strong className="capitalize">{entry.kind}</strong><b>{entry.amountCents < 0 ? '−' : '+'}₹{(Math.abs(entry.amountCents) / 100).toLocaleString('en-IN')}</b></div><p className="mt-1 text-slate-500">{new Date(entry.createdAt).toLocaleString()} · Balance ₹{entry.balanceCents / 100}</p></article>)}
+    {loading ? <p role="status">Loading ledger…</p> : ledgerError ? <div><p role="alert" className="auth-error">{ledgerError}</p><button type="button" className="min-h-11 rounded border px-3 text-sm" onClick={() => setLedgerRetry(value => value + 1)}>Retry ledger</button></div> : !entries.length ? <p className="page-caption">No wallet transactions yet.</p> : entries.map(entry => <article key={entry.id} className="border-t py-3 text-xs"><div className="flex justify-between"><strong className="capitalize">{entry.kind}</strong><b>{entry.amountCents < 0 ? '−' : '+'}₹{(Math.abs(entry.amountCents) / 100).toLocaleString('en-IN')}</b></div><p className="mt-1 text-slate-500">{new Date(entry.createdAt).toLocaleString()} · Balance ₹{entry.balanceCents / 100}</p></article>)}
   </section>;
 }

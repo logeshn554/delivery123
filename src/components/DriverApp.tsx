@@ -159,7 +159,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   // Auto scroll chat to bottom
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    chatBottomRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [chatMessages]);
 
   // Generate last 7 days list with names for Recharts Weekly Trend
@@ -288,7 +288,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                         alert('Withdrawal requested for operations review. Funds have been reserved from your ledger balance.');
                       })}
                       disabled={actionBusy || !profile?.availableEarningsCents}
-                      className={`mt-4 w-full text-xs font-bold py-2.5 rounded-xl transition-all shadow-md ${
+                      className={`mt-4 min-h-11 w-full text-xs font-bold py-2.5 rounded-xl transition-colors shadow-md ${
                         profile?.availableEarningsCents && profile.availableEarningsCents > 0
                           ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/10'
                           : 'bg-slate-50 text-slate-500 border border-slate-750 cursor-not-allowed'
@@ -360,8 +360,8 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                     <h4 className="text-xs font-bold text-slate-700">File Dispatch Dispute</h4>
                     <p className="text-[10px] text-slate-400">Report delays, vehicle issues or customer safety concerns to operations.</p>
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold text-slate-700">Dispute subject<input value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" maxLength={150} placeholder="What happened?" className="mt-2 w-full bg-white border border-slate-200 text-base p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" /></label>
-                      <label className="block text-xs font-bold text-slate-700">Describe the issue<textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} maxLength={2000} placeholder="Include any relevant order or safety details" rows={3} className="mt-2 w-full bg-white border border-slate-200 text-base p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" /></label>
+                      <label className="block text-xs font-bold text-slate-700">Dispute subject<input name="subject" autoComplete="off" value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" maxLength={150} placeholder="What happened…" className="mt-2 w-full bg-white border border-slate-200 text-base p-3 rounded-lg text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" /></label>
+                      <label className="block text-xs font-bold text-slate-700">Describe the issue<textarea name="description" autoComplete="off" value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} maxLength={2000} placeholder="Include order or safety details…" rows={3} className="mt-2 w-full bg-white border border-slate-200 text-base p-3 rounded-lg text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" /></label>
                       <button 
                         type="button" 
                         disabled={actionBusy || !supportSubject.trim() || !supportMessage.trim()}
@@ -374,7 +374,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                           setSupportMessage('');
                           alert('Dispute ticket submitted to operations.');
                         })}
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-md shadow-purple-600/10"
+                        className="min-h-11 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2.5 rounded-xl transition-colors shadow-md shadow-purple-600/10"
                       >
                         Submit Dispute Ticket
                       </button>
@@ -405,7 +405,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
           aria-label={profile.online ? 'Go offline and stop location sharing' : 'Go online and share location'}
           aria-pressed={profile.online}
           onClick={handleToggleOnline}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
+          className={`min-h-11 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
             profile?.online ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-50 text-slate-400 border border-slate-700'
           }`}
         >
@@ -495,7 +495,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {(currentAssignedJob.status === 'preparing' || currentAssignedJob.status === 'ready') && (
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <p className="text-[10px] text-slate-400 mb-1.5 font-semibold">Step 2: Confirm pickup and start delivery.</p>
-                  {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-600">Customer pickup/start code<input aria-label="Customer pickup or trip start code" value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-slate-900"/></label>}
+                  {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-700">Customer pickup/start code<input name="pickupCode" autoComplete="one-time-code" spellCheck={false} value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-base text-slate-900"/></label>}
                   
                   <div className="flex gap-2">
                     <button 
@@ -513,7 +513,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {currentAssignedJob.status === 'transit' && (
                 <div>
                   <p className="text-[10px] text-slate-400 mb-2">Ask the recipient for the delivery code at the destination.</p>
-                  <input aria-label="Recipient delivery code" value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Recipient delivery code" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-slate-900" />
+                  <label className="sr-only" htmlFor="recipient-delivery-code">Recipient delivery code</label><input id="recipient-delivery-code" name="deliveryCode" autoComplete="one-time-code" spellCheck={false} value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Enter recipient delivery code…" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" />
                   <button 
                     disabled={actionBusy || otpInput.trim().length !== 4}
                     onClick={() => handleCompleteJob(currentAssignedJob)}
@@ -532,11 +532,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                 <h4 className="text-[10px] uppercase font-bold text-purple-400 tracking-wider flex items-center gap-1">
                   <MessageSquare className="w-3.5 h-3.5" /> Customer Messenger (Live)
                 </h4>
-                <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">ONLINE</span>
+                <span className="text-[8px] text-slate-500">Booking chat</span>
               </div>
 
               {/* Chat history list */}
-              <div className="flex-1 overflow-y-auto space-y-2 mb-2 pr-1 select-text">
+              <div className="flex-1 overflow-y-auto space-y-2 mb-2 pr-1 select-text" role="log" aria-label="Messages for this booking" aria-live="polite" aria-relevant="additions">
                 {chatMessages.length === 0 ? (
                   <div className="text-center py-6 text-slate-500">
                     <p className="text-[10px] font-bold">No messages yet.</p>
@@ -565,16 +565,22 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
               {/* Chat action form */}
               <form onSubmit={handleSendChat} className="flex gap-1.5">
+                <label htmlFor="driver-booking-message" className="sr-only">Message the customer about this booking</label>
                 <input 
+                  id="driver-booking-message"
+                  name="message"
                   type="text" 
-                  placeholder="Type updates to customer..."
+                  autoComplete="off"
+                  placeholder="Message the customer…"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-slate-100 border border-slate-200 rounded-lg text-xs px-2.5 py-2 text-slate-900 outline-none focus:border-purple-500 transition-colors"
+                  className="min-w-0 flex-1 bg-slate-100 border border-slate-200 rounded-lg text-base px-2.5 py-2 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 />
                 <button 
                   type="submit" 
-                  className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+                  aria-label="Send booking message"
+                  disabled={actionBusy || !chatInput.trim()}
+                  className="min-h-11 min-w-11 bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg flex items-center justify-center shrink-0 active:scale-95 transition-transform disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -648,9 +654,9 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
           </h4>
           <p className="text-slate-300">Document review status: <strong className="capitalize">{profile?.status || 'pending'}</strong></p>
           {profile?.status !== 'verified' && <form onSubmit={handleSubmitVerification} className="space-y-2">
-            <select value={vehicleType} onChange={(event) => setVehicleType(event.target.value as DriverProfile['vehicleType'])} className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900"><option value="bike">Motorbike</option><option value="auto">Auto rickshaw</option><option value="car">Car</option><option value="suv">SUV</option></select>
-            <input value={vehicleNo} onChange={(event) => setVehicleNo(event.target.value)} placeholder="Vehicle registration number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900" />
-            <input value={licenseNo} onChange={(event) => setLicenseNo(event.target.value)} placeholder="Driving licence number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900" />
+            <label className="block text-xs text-slate-700">Vehicle type<select name="vehicleType" autoComplete="off" value={vehicleType} onChange={(event) => setVehicleType(event.target.value as DriverProfile['vehicleType'])} className="mt-1 w-full rounded-lg border border-slate-700 bg-white p-3 text-base text-slate-900"><option value="bike">Motorbike</option><option value="auto">Auto rickshaw</option><option value="car">Car</option><option value="suv">SUV</option></select></label>
+            <label className="block text-xs text-slate-700">Vehicle registration number<input name="vehicleNo" autoComplete="off" value={vehicleNo} onChange={(event) => setVehicleNo(event.target.value)} required maxLength={30} className="mt-1 w-full rounded-lg border border-slate-700 bg-white p-3 text-base text-slate-900" /></label>
+            <label className="block text-xs text-slate-700">Driving licence number<input name="licenseNo" autoComplete="off" value={licenseNo} onChange={(event) => setLicenseNo(event.target.value)} required maxLength={40} className="mt-1 w-full rounded-lg border border-slate-700 bg-white p-3 text-base text-slate-900" /></label>
             <button type="submit" className="w-full rounded-lg bg-purple-600 py-2 text-xs font-bold text-white">Save details for review</button>
           </form>}
         </div>
@@ -670,21 +676,21 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
           <div className="grid grid-cols-3 gap-2 pt-1">
             <button 
               onClick={() => setActiveSubView('orders')}
-              className="bg-white hover:bg-slate-850 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer"
+              className="min-h-11 bg-white hover:bg-slate-100 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <FileText className="w-4 h-4 text-purple-400" />
               <span>View Orders</span>
             </button>
             <button 
               onClick={() => setActiveSubView('wallet')}
-              className="bg-white hover:bg-slate-850 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer"
+              className="min-h-11 bg-white hover:bg-slate-100 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <DollarSign className="w-4 h-4 text-emerald-400" />
               <span>Wallet</span>
             </button>
             <button 
               onClick={() => setActiveSubView('support')}
-              className="bg-white hover:bg-slate-850 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer"
+              className="min-h-11 bg-white hover:bg-slate-100 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <ShieldAlert className="w-4 h-4 text-blue-400" />
               <span>Support</span>
