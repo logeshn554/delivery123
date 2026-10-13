@@ -29,6 +29,14 @@ Compared `3._location_setup/screen.png` and `code.html` with the real saved-addr
 
 Inspected the supplied `edit_address/screen.png` and `code.html`. The reference includes editing existing address fields and saving changes. The current application has no address update operation, so the working add/default/delete controls were preserved. Edit, map-pin movement, phone field, and Save Changes are not claimed as implemented. Authenticated account testing is pending.
 
+## Restaurant menu reference
+
+Compared `food_restaurant_menu/screen.png` and `code.html` with the real `RestaurantMenu`. Its existing hero, category rail, menu cards and cart dock use catalog data. The card image and Add button now sit on one row as in the reference, with variant quantity controls below when needed. No authenticated catalog or rendered screenshot comparison is available.
+
+## Grocery home and products references
+
+Compared `10._grocery_home` and `11._grocery_products` screenshots and HTML with the production grocery workflow. The home heading now matches the reference language, and the two-column catalog uses the shared Stitch product card in the actual customer flow. Product stock and partner availability still come from live records. Reference sample stores and category imagery were not copied into production. Catalog interaction and rendered screenshots remain unverified.
+
 ## Login and sign-up reference
 
 The original `2._login_sign_up/screen.png` and `code.html` were compared with production `AuthScreen`. The sign-in and phone views now include the reference avatar treatment, centered heading, input spacing and violet primary button. The reference's phone-first form cannot be applied to providers that only expose email; native phone remains conditional on its existing provider gate. Screenshot comparison, provider sign-in, and device rendering are unverified.

@@ -16,6 +16,7 @@ import SupportCasePanel from './SupportCasePanel';
 import GlobalCatalogSearch from './GlobalCatalogSearch';
 import OrderSynchronization from './OrderSynchronization';
 import LocationPicker from './LocationPicker';
+import GroceryProductCard from '../design-system/GroceryProductCard';
 import CustomerPages, { customerPages, type CustomerPage } from './CustomerPages';
 import { enableOrderNotifications } from '../nativeNotifications';
 import {
@@ -988,7 +989,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             </header>
 
             <section className="grocery-hero" aria-label="Grocery delivery">
-              <div><span className="grocery-hero-eyebrow">A simpler way to shop</span><h2>Good food, better choices.</h2><p>Browse products and stock published by grocery partners.</p></div>
+              <div><span className="grocery-hero-eyebrow">A simpler way to shop</span><h2>Grocery Delivery</h2><p>Fresh groceries at your doorstep</p></div>
               <span className="grocery-hero-mark" aria-hidden="true"><ShoppingBag size={32} /></span>
             </section>
             {cartService === 'grocery' && !productsLoading && !groceryProductsError && cart.some(line => {
@@ -1037,15 +1038,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                                 : groceryCatalogView === 'no-results' ? <CatalogState kind="no-results" title="No products match" description="Try another search or category, or clear your saved-only filter." action={<button onClick={() => { setGrocerySearch(''); setSelectedGroceryCategory('All'); setShowFavoritesOnly(false); }}>Clear filters</button>} />
                                   : <div className="grocery-product-grid">{visibleGroceryProducts.map(product => {
                                     const quantity = cart.find(line => line.item.id === product.id)?.quantity || 0;
-                                    const unavailable = !Number.isSafeInteger(product.stock) || product.stock < 1;
-                                    const atLimit = quantity >= Math.min(30, product.stock);
                                     const isClosed = selectedStore?.acceptingOrders === false;
                                     const saved = favoriteCatalogIds.includes(`product:${product.id}`);
-                                    return <article key={product.id} className="grocery-product-card">
-                                      <div className="grocery-product-visual"><CatalogImage src={product.image} alt="" className="grocery-product-image" fallback={<ShoppingBag size={28} />} /><button type="button" aria-label={`${saved ? 'Remove' : 'Save'} ${product.name}`} aria-pressed={saved} className="grocery-product-save" onClick={() => toggleFavorite(`product:${product.id}`)}><Heart size={18} fill={saved ? 'currentColor' : 'none'} /></button></div>
-                                      <div className="grocery-product-copy"><button type="button" className="grocery-product-title" onClick={() => setCatalogPage({ kind: 'product', id: product.id })}>{product.name}</button><p>{product.unit}</p><span className={unavailable ? 'grocery-stock-out' : 'grocery-stock-in'}>{unavailable ? 'Out of stock' : `${product.stock} in stock`}</span><strong>₹{product.price}</strong></div>
-                                      <div className="grocery-product-actions">{quantity === 0 ? <button type="button" disabled={unavailable || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>{isClosed ? 'Store closed' : unavailable ? 'Unavailable' : 'Add to cart'}</button> : <div className="grocery-quantity"><button type="button" aria-label={`Remove one ${product.name}`} onClick={() => handleRemoveFromCart(product)}>-</button><span>{quantity}</span><button type="button" aria-label={`Add one ${product.name}`} disabled={unavailable || atLimit || isClosed} onClick={() => handleAddToCart(product, 'grocery')}>+</button></div>}</div>
-                                    </article>;
+                                    return <GroceryProductCard key={product.id} product={product} quantity={quantity} closed={isClosed} saved={saved} onSave={() => toggleFavorite(`product:${product.id}`)} onDetails={() => setCatalogPage({ kind: 'product', id: product.id })} onAdd={() => { handleAddToCart(product, 'grocery'); }} onRemove={() => handleRemoveFromCart(product)} />;
                                   })}</div>}
                       </section>;
                     })()}
