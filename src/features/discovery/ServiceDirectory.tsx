@@ -16,7 +16,6 @@ export default function ServiceDirectory({ onChoose, onMoversInfo }: { onChoose:
     <p className="mb-4 text-sm text-slate-600">Availability and pricing are confirmed when you request a quote for your location.</p>
     <div className="service-grid">
       {serviceDirectory.map(service => <ServiceTile key={service.id} {...service} onChoose={() => onChoose(service.id)} />)}
-      <ServiceTile label="Goods transport" description="Planned · not available" icon={Truck} unavailable />
       <ServiceTile label="Movers" description="Planned · not available" icon={House} unavailable={!onMoversInfo} onChoose={onMoversInfo} />
     </div>
   </section>;
