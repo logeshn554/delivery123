@@ -73,11 +73,11 @@ Read the repository skills from GitHub `main` via the connected GitHub repositor
 - Visual screenshots/browser checks: blocked; headless browser attempt timed out and produced no screenshot. Do not infer visual acceptance.
 - Authenticated service/payment tests: blocked; user confirmed there is no staging environment.
 - Android/iOS acceptance: blocked; Android SDK/adb and macOS/Xcode are unavailable, and native Firebase configuration is absent.
-- GitHub remote: default branch is `main` at the skills commit. Local task branch `work` is based on its direct parent and is not present remotely. Git fetch/push over the shell proxy failed; the connected GitHub API can read but shell Git writes remain unavailable. Before publication, create a new `work` ref from current `main` with this change set, preserving the skills commit; never force-update `main`.
+- GitHub remote: default branch `main` contains the skills commit. Published branch `work` is at `88ae903644744562668deea98f72eb55b066dc08`, parented on that skills commit; remote ref and commit were read back and verified. Shell Git fetch/push is blocked by the workspace proxy, so the staged tree was published through the connected GitHub repository writer. The local checkout still has its pre-publication HEAD and staged files; its HEAD is not the remote branch tip. `main` was not changed.
 
 ## Exact next actions
 
 1. Finish accessibility and responsive reviews for the prioritized customer catalog/cart/checkout journeys.
 2. Continue focused passes through customer booking, activity and account flows, then driver, merchant and operations components.
 3. Run authorized staging journeys and capture screenshots at 360/390/430 px when a staging account/browser runtime becomes available.
-4. Re-run the full verification suite and publish a new branch containing both the user's skills commit and these changes. Do not claim full production UI acceptance until every row has evidence.
+4. Keep adding verified improvements to `work`; do not claim full production UI acceptance until every row has evidence.
