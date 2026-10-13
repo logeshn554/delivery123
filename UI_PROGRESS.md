@@ -74,7 +74,7 @@ Read the repository skills from GitHub `main` via the connected GitHub repositor
 - Visual screenshots/browser checks: blocked; headless browser attempt timed out and produced no screenshot. Do not infer visual acceptance.
 - Authenticated service/payment tests: blocked; user confirmed there is no staging environment.
 - Android/iOS acceptance: blocked; Android SDK/adb and macOS/Xcode are unavailable, and native Firebase configuration is absent.
-- GitHub remote: default branch `main` contains the skills commit. Published branch `work` is at `PENDING-PUBLISH`, parented on that skills commit; remote ref and commit were read back and verified. Shell Git fetch/push is blocked by the workspace proxy, so the staged tree was published through the connected GitHub repository writer. The local checkout still has its pre-publication HEAD and staged files; its HEAD is not the remote branch tip. `main` was not changed.
+- GitHub remote: default branch `main` contains the skills commit. Published branch `work` is at `cb91d2c34f23a046d7f57b0da989b61312bae223`, parented on that skills commit; remote ref and commit were read back and verified. Shell Git fetch/push is blocked by the workspace proxy, so the staged tree was published through the connected GitHub repository writer. The local checkout still has its pre-publication HEAD and staged files; its HEAD is not the remote branch tip. `main` was not changed.
 
 ## Remaining acceptance work
 
