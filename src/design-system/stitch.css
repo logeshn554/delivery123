@@ -1,5 +1,4 @@
 /* Adapted from the supplied Stitch layouts. Data and actions belong to real workflows. */
-:root { --allgo-brand: #5b4df5; --allgo-primary-strong: #412ddd; --allgo-canvas: #f8f9fd; --allgo-border: #eceef5; --stitch-soft: #f4f2ff; }
 .auth-welcome { color: var(--allgo-ink); background: white; padding-top: calc(64px + var(--allgo-safe-top)); }
 .auth-welcome .auth-brand { margin: 0 0 10px; font-size: 52px; color: #ff5428; background: linear-gradient(90deg,#ff422c,#f6aa00); background-clip: text; -webkit-text-fill-color: transparent; }
 .auth-welcome .auth-description { color: var(--allgo-muted); font-size: 16px; }
