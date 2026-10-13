@@ -850,7 +850,6 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
         {currentTab === 'services' && activeWorkflow === 'none' && <div className="space-y-4">
           <ServiceDirectory onChoose={service => setActiveWorkflow(service)} />
-          <section className="allgo-unavailable"><h2 className="font-bold">Combined journeys</h2><p>Currently unavailable while partner fulfillment and tracking are completed.</p></section>
         </div>}
 
         {currentTab === 'home' && activeWorkflow === 'none' && (
