@@ -102,6 +102,7 @@
 .stitch-ride-options small { display: block; font-size: 12px; color: var(--allgo-muted); margin-top: 5px; }
 .stitch-ride-check { margin-left: auto; color: #abaaba; }
 .stitch-ride-options button[aria-pressed="true"] .stitch-ride-check { color: var(--allgo-brand); }
+.ride-booking-screen .auth-primary { background: var(--allgo-brand); box-shadow: 0 7px 20px #5b4df53d; }
 .stitch-profile > header { text-align: center; margin: 0 0 20px; }
 .stitch-profile h1 { font-size: 22px; font-weight: 800; }
 .stitch-profile-person { display: grid; justify-items: center; padding: 16px 0 28px; }

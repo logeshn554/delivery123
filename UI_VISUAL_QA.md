@@ -37,6 +37,10 @@ Compared `food_restaurant_menu/screen.png` and `code.html` with the real `Restau
 
 Compared `10._grocery_home` and `11._grocery_products` screenshots and HTML with the production grocery workflow. The home heading now matches the reference language, and the two-column catalog uses the shared Stitch product card in the actual customer flow. Product stock and partner availability still come from live records. Reference sample stores and category imagery were not copied into production. Catalog interaction and rendered screenshots remain unverified.
 
+## Ride, vehicle transport and movers references
+
+Compared `13._ride_booking`, `14._bike_transport`, and `17._packers_movers` with production booking components. The ride route now presents the Stitch selection rows and violet primary action while retaining server quotes. The transport flow needs actual vehicle details and a server quote; the sample fare and bike-only layout were not asserted for car transport. Movers remains explicitly planned, with disabled requirements and support access. No provider quote, payment or device screenshot was verified.
+
 ## Login and sign-up reference
 
 The original `2._login_sign_up/screen.png` and `code.html` were compared with production `AuthScreen`. The sign-in and phone views now include the reference avatar treatment, centered heading, input spacing and violet primary button. The reference's phone-first form cannot be applied to providers that only expose email; native phone remains conditional on its existing provider gate. Screenshot comparison, provider sign-in, and device rendering are unverified.
