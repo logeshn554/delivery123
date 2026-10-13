@@ -21,6 +21,14 @@ After shared form changes, `npm run lint`, `npm run build` and `git diff --check
 Native build inspection: Android and iOS Capacitor projects are present, but this workspace has no Android SDK or `adb`, and no macOS/Xcode environment. The native Firebase configuration files are absent; `scripts/prepare-native.mjs` intentionally omits native Firebase plugins in that state. Android and iOS smoke tests and native provider acceptance are therefore pending.
 # 13 October 2026 Stitch welcome verification
 
+## Location setup reference
+
+Compared `3._location_setup/screen.png` and `code.html` with the real saved-address selector. The production list now follows the reference's compact Home/Work-style rows and dashed Other Location action, using each account's actual saved labels and addresses. Device geolocation remains in the existing lookup component. No live map screenshot, permission run, or device comparison is available.
+
+## Edit address reference
+
+Inspected the supplied `edit_address/screen.png` and `code.html`. The reference includes editing existing address fields and saving changes. The current application has no address update operation, so the working add/default/delete controls were preserved. Edit, map-pin movement, phone field, and Save Changes are not claimed as implemented. Authenticated account testing is pending.
+
 ## Login and sign-up reference
 
 The original `2._login_sign_up/screen.png` and `code.html` were compared with production `AuthScreen`. The sign-in and phone views now include the reference avatar treatment, centered heading, input spacing and violet primary button. The reference's phone-first form cannot be applied to providers that only expose email; native phone remains conditional on its existing provider gate. Screenshot comparison, provider sign-in, and device rendering are unverified.

@@ -144,12 +144,9 @@
 .stitch-address-sheet .allgo-form :is(input,textarea,select) { font-size: 16px; }
 .stitch-address-sheet fieldset { display: grid; gap: 20px; }
 .stitch-address-sheet legend { margin-bottom: 12px; }
-.stitch-location-intro { display: grid; justify-items: center; text-align: center; padding: 24px 12px 32px; background: linear-gradient(160deg,#f4f1ff,#eef5fe); border-radius: 22px; margin-bottom: 24px; }
-.stitch-location-intro > svg { color: var(--allgo-brand); margin-bottom: 18px; }
-.stitch-location-intro h2 { font-size: 22px; font-weight: 800; line-height: 1.3; }
-.stitch-location-intro p { color: var(--allgo-muted); font-size: 13px; margin-top: 8px; }
+.stitch-address-list-label { margin: 0 0 14px; color: var(--allgo-muted); font-size: 12px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
 .stitch-address-list { display: grid; gap: 14px; }
-.stitch-address-list article { display: flex; gap: 8px; border: 1px solid var(--allgo-border); border-radius: 20px; padding: 14px; background: white; }
+.stitch-address-list article { display: flex; gap: 8px; border: 1px solid var(--allgo-border); border-radius: 18px; padding: 14px; background: white; }
 .stitch-address-list article.selected { border-color: var(--allgo-brand); }
 .stitch-address-list article > button:first-child { display: flex; gap: 14px; text-align: left; flex: 1; min-width: 0; }
 .stitch-address-list article > button:last-child { flex-shrink: 0; width: 44px; color: var(--allgo-danger); }
@@ -157,7 +154,11 @@
 .stitch-address-list strong { display: block; font-size: 15px; }
 .stitch-address-list p { color: var(--allgo-muted); font-size: 13px; line-height: 1.5; margin-top: 5px; overflow-wrap: anywhere; }
 .stitch-default { display: inline-block; color: #137148; background: #ecf8ef; border-radius: 5px; padding: 2px 5px; margin-left: 6px; font-size: 10px; }
-.stitch-add-address { display: flex; align-items: center; gap: 16px; border: 1px dashed #cfcadd; border-radius: 20px; width: 100%; padding: 18px; color: var(--allgo-brand); margin-top: 18px; background: white; font-weight: 650; }
+.stitch-add-address { display: flex; align-items: center; gap: 14px; border: 1px dashed #d8dce7; border-radius: 18px; width: 100%; padding: 14px; color: var(--allgo-ink); margin-top: 14px; background: white; text-align: left; }
+.stitch-add-address-icon { display: grid; place-items: center; flex: 0 0 46px; height: 46px; border: 1px solid #d8dce7; border-radius: 50%; background: #f8f9fd; }
+.stitch-add-address strong, .stitch-add-address small { display: block; }
+.stitch-add-address strong { font-size: 15px; font-weight: 750; }
+.stitch-add-address small { margin-top: 4px; color: var(--allgo-muted); font-size: 12px; font-weight: 400; }
 .stitch-address-types { display: flex; gap: 8px; }
 .stitch-address-types button { display: flex; flex: 1; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--allgo-border); border-radius: 12px; background: white; font-size: 13px; }
 .stitch-address-types button[aria-pressed="true"] { color: var(--allgo-brand); border-color: var(--allgo-brand); background: var(--stitch-soft); }
