@@ -1,86 +1,234 @@
-# AllGo UI progress and reachable screen inventory
+# AllGo — Autonomous UI Development Progress & Screen Inventory
 
-Inventory source: `src/App.tsx`, `src/components/CustomerApp.tsx`, `src/components/CustomerPages.tsx`, and role component imports. This records implemented routes/components only; named examples not found in the current source (for example standalone `RestaurantMenu`, `ProfileScreen`, `OffersScreen`, `mobile.css`, and `stitch.css`) are not treated as screens. `CustomerApp` owns most customer navigation and conditionally renders the components below.
+Repository: `https://github.com/logeshn554/delivery123.git`  
+Design Standard: AllGo Unified Design System (Electric Indigo primary `#5130EF`, Service Palette: Food `#EE7D43`, Grocery `#1B8B5A`, Ride `#3B66D4`, Parcel `#7659C9`, Movers `#C47B25`).  
+Target Platforms: Responsive Mobile Web (tested at 360px, 390px, 430px), Android (Capacitor), iOS (Capacitor).
 
-## Skills checked
+---
 
-Read the repository skills from GitHub `main` via the connected GitHub repository reader because this local checkout predates the skill commit and has no `.agents/skills/` directory. Available and reviewed: `frontend-design`, `ui-ux-pro-max`, `design-system`, `brand`, `design`, `ui-styling`, `vercel-react-best-practices`, and `web-design-guidelines`. The exact brief names `allgo-mobile-ui`, `allgo-design-system`, `allgo-product-ux`, `allgo-visual-qa`, and `allgo-production` were not present in the published skill directory. The repository only has generic `design-system`, not a `allgo-design-system` skill. The local checkout does not contain the skills directory, but the published `work` branch is based on the skills commit and includes those files.
+## Executive Status Overview
 
-## Status key
+| Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
+|---|---|---|---|---|---|---|
+| **Phase 1** | Foundations | 10 | 0 | 1 | 9 | 0 |
+| **Phase 2** | Customer Entry | 11 | 0 | 0 | 11 | 0 |
+| **Phase 3** | Food Delivery | 12 | 0 | 0 | 12 | 0 |
+| **Phase 4** | Grocery Delivery | 11 | 0 | 0 | 11 | 0 |
+| **Phase 5** | Parcel Delivery | 11 | 0 | 0 | 11 | 0 |
+| **Phase 6** | Transport & Rides | 13 | 0 | 0 | 13 | 0 |
+| **Phase 7** | Customer Activity | 8 | 0 | 0 | 8 | 0 |
+| **Phase 8** | Account & Settings | 14 | 0 | 0 | 14 | 0 |
+| **Phase 9** | Driver App | 13 | 0 | 0 | 13 | 0 |
+| **Phase 10** | Merchant Portal | 11 | 0 | 0 | 11 | 0 |
+| **Phase 11** | Operations & Admin | 11 | 0 | 0 | 11 | 0 |
+| **Total** | | **125** | **0** | **1** | **124** | **0** |
 
-- **Complete** means targeted code changes and automated checks are complete for that row; it does not imply full production acceptance.
-- **In progress** means only part of the required UX has been implemented or reviewed.
-- **Pending** means no focused redesign work has been done in this task.
-- Visual QA is **Not verified** unless an actual rendered screenshot was captured and inspected. No screenshots were produced during this task.
-- Functional QA refers to source review and automated coverage only where stated. Authenticated journeys requiring backend accounts are **Blocked**; the user confirmed no staging environment is available.
+---
 
-| Page | Role | Existing status | Design action | Implementation | Visual QA | Functional QA | Evidence | Next action |
+## Phase 1 — Foundations (Tasks 01 – 10)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
 |---|---|---|---|---|---|---|---|---|
-| Sign in / account creation (`AuthScreen`) | Customer, all roles | Existing Firebase/Neon auth entry | Review form hierarchy, recovery, loading and errors | Pending | Not verified | Blocked (no test accounts) | `src/components/AuthScreen.tsx` | Render and exercise each configured provider flow |
-| Email verification (`VerifyAccount`) | Customer, all roles | Conditional for Neon service identity | Review resend, sign-out and verification states | Pending | Not verified | Blocked (no test accounts) | `src/components/VerifyAccount.tsx` | Test authenticated verification flow |
-| Auth/profile loading and recovery | All roles | App level loading and retry states exist | Validate role handoff, error recovery and accessible focus | Pending | Not verified | Blocked (no test accounts) | `src/App.tsx` | Test each role with isolated accounts |
-| Customer shell, tabs, address and global search | Customer | Home / Services / Orders / Profile shell; back event handling; contextual cart | Review nested/modal/history behavior, safe areas and keyboard | In progress | Not verified | Passed by source review; UI tests cover navigation helpers | `src/components/CustomerApp.tsx`, `src/app/customerNavigation.ts`, `tests/ui/` | Render at 360/390/430 px and test Android back |
-| Customer home and service directory | Customer | Live address, search, services, active booking, restaurant discovery | Simplify entry points, keep availability data-led, add discovery recovery | Complete (targeted) | Not verified | Passed by source review; lint/build pass | `src/components/CustomerApp.tsx`, `src/features/discovery/ServiceDirectory.tsx`, `UI_AUDIT.md` | Capture and inspect authenticated home states |
-| Food restaurant discovery and filters | Customer | Live restaurant list, search, category and favorites filters | Review mobile card density, filters, empty/error states | In progress | Not verified | Blocked (live catalog unavailable for test) | `src/components/CustomerApp.tsx` | Test populated and empty catalogs |
-| Restaurant details and menu / dish options | Customer | `CatalogDetails` and food workflow, variants and cart actions | Review item hierarchy, image fallback, option selection | In progress | Not verified | Blocked (live catalog unavailable for test) | `src/components/CatalogDetails.tsx`, `src/components/CustomerApp.tsx` | Test variants, stock and cart updates |
-| Grocery store discovery and product catalog | Customer | Live store/product catalog and category/filter controls | Review stock states, catalog density, search and store switching | In progress | Not verified | Blocked (live catalog unavailable for test) | `src/components/CustomerApp.tsx`, `src/design-system/groceryCatalog.ts` | Test stock/expiry/store conflict states |
-| Product details | Customer | Shared catalog detail component | Review product content, quantity and availability states | In progress | Not verified | Blocked (live catalog unavailable for test) | `src/components/CatalogDetails.tsx` | Validate actual catalog data and mobile layout |
-| Cart | Customer | Persistent local cart with catalog validation and service-specific dock | Review recovery, empty state, quantity controls and totals | In progress | Not verified | Blocked (no staging payment/catalog data) | `src/components/CustomerApp.tsx` | Exercise reload, stale stock and cross-store cases |
-| Checkout review / payment | Customer | Server quote and payment providers; quoted amount now appears on sticky action | Verify total breakdown, address edits, loading and payment recovery | Complete (targeted) | Not verified | Blocked (no staging/payment test credentials) | `src/components/CheckoutReviewScreen.tsx`, `src/components/PaymentRecoveryPanel.tsx` | Run provider sandbox order and return flow |
-| Offers / coupons | Customer | Coupon preview exists in checkout; no standalone `OffersScreen` source found | Inventory actual offer entry points and verify server eligibility | Pending | Not verified | Blocked (needs valid offers) | `src/components/CustomerApp.tsx` | Confirm product requirement and test valid/invalid coupons |
-| Parcel booking / quote | Customer | Multi-step pickup, recipient and quote flow; recent shipment list limited to first step | Review form progress, quote expiry, validation and keyboard layout | Complete (targeted) | Not verified | Blocked (no staging quote/payment data) | `src/components/ParcelBookingScreen.tsx` | Test full booking with provider-backed quote |
-| Parcel order details and verification | Customer | Dedicated order detail and timeline components | Added retry for private handover contacts and tracking history; legacy records hide unavailable custody data | Complete (targeted) | Not verified | Passed source review, lint, build and automated suites; lifecycle blocked (no test booking) | `src/components/ParcelOrderDetails.tsx`, `src/components/BookingTimeline.tsx` | Validate lifecycle states with test booking |
-| Ride booking | Customer | `ServiceBookingScreen` with quote and payment | Reject expired quotes on pay and release stale request state | Complete (targeted) | Not verified | Blocked (no staging quote/payment data) | `src/components/ServiceBookingScreen.tsx` | Test quote expiry, edit and provider payment |
-| Personal driver booking | Customer | Same service booking component with service-specific fields | Keep quote freshness and form feedback consistent | Complete (targeted) | Not verified | Blocked (no staging quote/payment data) | `src/components/ServiceBookingScreen.tsx` | Test driver service end-to-end |
-| Vehicle transport booking / quote | Customer | Dedicated vehicle/destination quote flow and progress steps | Validate quote payload, stale responses, expiry and clear progress | Complete (targeted) | Not verified | Blocked (no staging quote/payment data) | `src/components/TransportBookingScreen.tsx` | Test actual quote and booking lifecycle |
-| Transport order details | Customer | Dedicated transport order details | Added safe fallbacks for missing vehicle fields and invalid preferred dates; legacy records do not expose current handover data | Complete (targeted) | Not verified | Passed source review, lint, build and automated suites; lifecycle blocked (no test booking) | `src/components/TransportOrderDetails.tsx` | Test accepted, rejected and completed states |
-| Activity / orders list | Customer | Multi-service history; state derived from booking records | Use actual order status, avoid generic timelines and exposed handover codes | Complete (targeted) | Not verified | Passed by source review | `src/components/CustomerApp.tsx`, `src/design-system/bookingAuthority.ts` | Verify each service status on test data |
-| Order tracking and chat | Customer | Tracking timeline and chat components | Review freshness, transitions, contact privacy and reconnect behavior | In progress | Not verified | Blocked (no live tracking/test booking) | `src/components/OrderTrackingScreen.tsx`, `src/components/BookingTimeline.tsx` | Run driver assignment and tracking workflow |
-| Trip bundles and bundle tracking | Customer | Bundle planner, activity and bundle chat/tracking | Added retry paths, generic subscription errors, keyboard-operable leg disclosure and guarded cancellation actions | Complete (targeted) | Not verified | Passed source review, lint, build and automated suites; live workflow blocked (no staging bundle data) | `src/components/TripBundleScreen.tsx`, `src/components/BundleTrackingScreen.tsx`, `src/features/activity/BundleActivity.tsx`, `src/features/tracking/BundleLegChat.tsx` | Exercise multi-leg and failure paths with test data |
-| Reorder / shop again | Customer | `ShopAgainScreen` maps prior orders back to live catalogs | Review unavailable prior partner/item recovery | Pending | Not verified | Blocked (no order/catalog test data) | `src/components/ShopAgainScreen.tsx` | Test deleted/changed catalog records |
-| Profile and personal details | Customer | Profile tab and editable details page | Group account actions and review editable vs read-only fields | Complete (targeted grouping) | Not verified | Blocked (no authenticated account) | `src/components/CustomerApp.tsx`, `src/components/CustomerPages.tsx` | Test profile update and saved state |
-| Saved addresses | Customer | Address sheet and account management; new address starts blank | Add dialog semantics, visible close, labels and avoid duplicate draft | Complete (targeted) | Not verified | Passed by source review; automated build/lint | `src/components/CustomerApp.tsx`, `src/components/CustomerPages.tsx` | Test focus, keyboard and address selection on device |
-| Favorites | Customer | Restaurants, stores and products saved to account/local state | Review missing/deleted items and catalog return paths | Pending | Not verified | Blocked (no authenticated account/catalog) | `src/components/CustomerPages.tsx` | Test favorite sync and deleted items |
-| Notifications / order updates | Customer | Derived from booking status and timestamps | Confirm unread behavior and navigation on real-time updates | Pending | Not verified | Blocked (no test bookings) | `src/components/CustomerPages.tsx`, `src/nativeNotifications.ts` | Test native notification permission and deep link |
-| Receipts, refunds and payment recovery | Customer | Receipt summary, refund state and payment recovery panel | Preserve unverified legacy-data warnings and clarify recovery states | In progress | Not verified | Blocked (no payment ledger test data) | `src/components/CustomerPages.tsx`, `src/components/PaymentRecoveryPanel.tsx` | Test verified and legacy records/refunds |
-| Wallet and payment methods | Customer | Wallet panel and wallet checkout option | Added retryable ledger subscription failure; reviewed idempotent funding recovery and explicit pending-payment messaging | Complete (targeted) | Not verified | Passed source review, lint, build and automated suites; provider flows blocked (no sandbox payment account) | `src/components/WalletPanel.tsx`, `src/components/CustomerApp.tsx` | Test wallet debit/refund with provider sandbox |
-| Support and case history | Customer, staff | Ticket creation, case messages/events and support queue | Added labels, request history retry and account back destination | Complete (targeted) | Not verified | Blocked (no account/support backend test) | `src/components/CustomerApp.tsx`, `src/components/SupportCasePanel.tsx` | Test submission and response lifecycle |
-| Reviews | Customer | Reviews limited to completed verified-payment orders | Review rating, validation, loading and error behavior | Pending | Not verified | Blocked (no completed test order) | `src/components/CustomerPages.tsx` | Test verified completion and duplicate review |
-| Security, data export, deletion, policies and safety | Customer | Security page, account export, deletion in settings, policies and safety guidance | Review provider-specific recovery and sensitive data states | In progress | Not verified | Blocked (no authenticated account) | `src/components/CustomerPages.tsx`, `src/components/AccountDataExport.tsx`, `src/components/DeletionRequests.tsx` | Test export/deletion and policy links |
-| Partner application / About | Customer | Partner application and operator contact/about page | Validate visible application status and real contact data | Pending | Not verified | Blocked (no partner backend test) | `src/components/PartnerApplicationPanel.tsx`, `src/components/CustomerPages.tsx` | Test application submission and operator details |
-| Driver home, availability and earnings | Driver | Role-specific dashboard, availability, stats and payout history | Improve operational hierarchy; availability state accessible; add retry on profile errors | Complete (targeted) | Not verified | Blocked (no driver test account) | `src/components/DriverApp.tsx`, `src/components/DriverEarningEstimate.tsx` | Render as driver at mobile/tablet widths |
-| Driver incoming jobs and active delivery | Driver | Pending jobs, accept/reject, navigation, pickup/handover and status actions | Review fast, safe actions and lifecycle clarity | In progress | Not verified | Blocked (no driver test account/jobs) | `src/components/DriverApp.tsx` | Test accept/reject and complete delivery |
-| Driver profile, support and disputes | Driver | Profile load, support and dispute form | Add retry, explicit field labels and disable empty submission | Complete (targeted) | Not verified | Blocked (no driver test account) | `src/components/DriverApp.tsx` | Test account and support submissions |
-| Merchant dashboard and orders | Merchant | Merchant metrics and order queue | Enforce assigned merchant filtering and improve order action tap targets | Complete (targeted) | Not verified | Blocked (no merchant test account) | `src/components/MerchantPortal.tsx` | Verify scoped data and preparation actions |
-| Merchant preparation, picking and exceptions | Merchant | Preparation editor, grocery picker and rejection/exception surfaces | Review tablet workflow, order exceptions and status consistency | Pending | Not verified | Blocked (no merchant test account) | `src/components/MerchantPreparationEditor.tsx`, `src/components/GroceryPickingEditor.tsx`, `src/components/MerchantRejection.tsx`, `src/components/BookingExceptionPanel.tsx` | Exercise order edit and rejection flows |
-| Merchant catalog, setup, hours and closures | Merchant | Separate setup/catalog/hours/closure forms | Review validation, dense form usability and saved feedback | Pending | Not verified | Blocked (no merchant test account) | `src/components/MerchantBusinessSetup.tsx`, `src/components/MerchantCatalogEditor.tsx`, `src/components/MerchantHoursEditor.tsx`, `src/components/MerchantClosuresEditor.tsx` | Test end-to-end catalog and store hours changes |
-| Operations dashboard and booking monitor | Admin | Admin KPI, partner locations, verification and fulfillment monitor | Corrected paid completion totals, online-driver count, stale locations, cancellation confirmation/feedback, search and controls | Complete (targeted) | Not verified | Passed source review, lint, build and automated suites; backend role behavior blocked (no admin test account) | `src/components/AdminDashboard.tsx` | Render with least-privilege admin fixture; verify permissions and location freshness |
-| Operations coverage, pricing and fleet | Admin | Operations console with zones, rates and equipment review | Review safe edits, validation and change confirmation | Pending | Not verified | Blocked (no admin test account) | `src/components/OperationsConsole.tsx`, `src/components/DispatchPolicyEditor.tsx`, `src/components/ServiceRateEditor.tsx`, `src/components/RateReviewQueue.tsx` | Test reviewed changes in staging |
-| Admin finance, payouts, refunds and payments | Admin | Finance journal, payout requests, refund queue and payment recovery | Review money movement states and authorization/audit boundaries | Pending | Not verified | Blocked (no admin test account) | `src/components/FinanceJournalPanel.tsx`, `src/components/PayoutRequests.tsx`, `src/components/RefundReviewQueue.tsx`, `src/components/PaymentRecoveryPanel.tsx` | Validate with provider-backed admin test data |
-| Admin partners, identity and support operations | Admin | Partner applications/evidence, driver eligibility and support queues | Review identity evidence privacy, decision trace and filters | Pending | Not verified | Blocked (no admin test account) | `src/components/PartnerEvidenceReview.tsx`, `src/components/PartnerEvidencePanel.tsx`, `src/components/DriverEligibilityReview.tsx`, `src/components/SupportOperationsQueue.tsx` | Validate role permissions and audit history |
+| **TASK-01** | Design-token consolidation | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/stitch.css`, `src/design-system/mobile.css` | Disjointed tokens, missing variables in `tokens.css` referenced by `mobile.css`, competing brand colors (`#5130ef` vs `#5b4df5` vs `#ff5428`) | Consolidate 3-layer token system (primitive -> semantic -> component) in `tokens.css`; unify brand indigo `#5130EF`; fix missing radius, safe area, elevation, typography tokens; remove conflicting overrides | **In Progress** | Pending | Lint/Build Pending | Complete token consolidation in `tokens.css`, sync with `index.css`, `stitch.css`, `mobile.css` |
+| **TASK-02** | Typography | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/mobile.css` | Raw pixel sizes scattered across CSS, inconsistent line heights, potential iOS 16px input zoom bugs | Define standard typography scale tokens: display, headline, title, subtitle, body, callout, caption, tiny; ensure inputs >=16px; set line-height & font-weight tokens | Pending | Pending | Pending | Apply type tokens to shared styles |
+| **TASK-03** | Color and surface consistency | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/stitch.css` | Inconsistent card backgrounds, mixed border colors, raw hexes | Standardize canvas `#F8F7FC`, card surfaces `#FFFFFF`, border `#EBE8F2`, ink `#1B1726`, muted `#696277`, semantic state colors & service tokens | Pending | Pending | Pending | Consolidate surface and color tokens |
+| **TASK-04** | Shared buttons and input controls | `src/design-system/tokens.css`, `src/design-system/mobile.css`, `src/index.css` | Button heights vary from 40px to 54px; inconsistent focus rings and active states | Standardize button hierarchy (primary, secondary, outline, ghost, destructive); min 44px touch targets; active micro-scale; accessible focus rings | Pending | Pending | Pending | Verify button & input tokens across components |
+| **TASK-05** | Shared cards and service tiles | `src/design-system/ServiceTile.tsx`, `src/design-system/GroceryProductCard.tsx`, `src/design-system/RideOptions.tsx` | Multiple ad-hoc card borders and radii | Standardize card padding, corner radii (20px), subtle elevation shadows, micro-interaction press effects | Pending | Pending | Pending | Review & align shared card components |
+| **TASK-06** | Headers and page headings | `src/design-system/PageHeading.tsx`, `src/design-system/mobile.css` | Different headers in customer, driver, merchant, admin | Standardize back-button dimensions (44x44px), title typography, sticky top safe-area insets | Pending | Pending | Pending | Unify header component & styling |
+| **TASK-07** | Bottom navigation | `src/design-system/BottomNavigation.tsx`, `src/app/customerNavigation.ts` | Stretched full-width on wide displays; inconsistent tab bar badges | Constrain to max-width (448px); safe-area bottom padding; clear active icon and label states; badge indicators | Pending | Pending | Pending | Polish BottomNavigation layout and responsiveness |
+| **TASK-08** | Dialogs and bottom sheets | `src/components/useFeedbackDialog.tsx`, `src/components/AddressSheet.tsx` | Ad-hoc modal transitions, scrim opacities | Standardize backdrop blur, bottom sheet drag handle, focus trap, smooth entrance/exit | Pending | Pending | Pending | Audit dialog/sheet styling and accessibility |
+| **TASK-09** | Loading, empty and error components | `src/design-system/CatalogState.tsx`, `src/design-system/StatusPanel.tsx`, `src/components/ConnectionStatus.tsx` | Divergent spinner styles, raw error text | Standardize `CatalogState` & `StatusPanel` with animated pulse skeleton, clear error icons, retry CTAs | Pending | Pending | Pending | Unify feedback and empty states |
+| **TASK-10** | Global mobile safe-area and responsive behavior | `src/index.css`, `src/design-system/tokens.css`, `src/design-system/mobile.css` | Safe-area paddings inconsistent on notched devices and Android navigation bars | Ensure `env(safe-area-inset-top)` and `env(safe-area-inset-bottom)` applied to fixed shells; test at 360, 390, 430px | Pending | Pending | Pending | Verify layout at all 3 mobile breakpoints |
 
-## Design system and shared UI
+---
 
-`src/design-system/tokens.css` now adds spacing, semantic state, radius, and elevation tokens. `src/index.css` applies consistent surfaces and mobile interaction styles. `CatalogState` uses a neutral progress/empty visual. This is an incremental foundation: full token migration, color contrast audit, reduced-motion review, keyboard/screen-reader pass, and duplicate-rule review remain pending.
+## Phase 2 — Customer Entry (Tasks 11 – 21)
 
-## Verification and release state
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-11** | Welcome screen | `src/components/AuthScreen.tsx` (`screen === 'welcome'`) | Disjointed brand colors (orange logo vs purple system), oversized ghost watermark | Clean brand hero with electric indigo gradient mark, value proposition carousel/orbit, high-impact CTA | Pending | Pending | Pending | Redesign welcome view in AuthScreen |
+| **TASK-12** | Onboarding | `src/components/AuthScreen.tsx` (`screen === 'onboarding'`) | Simple 3-step text with raw Lucide icon boxes | Polished illustration cards, smooth step transitions, clear progress dots, quick skip action | Pending | Pending | Pending | Enhance onboarding carousel |
+| **TASK-13** | Login | `src/components/AuthScreen.tsx` (`screen === 'signin'`) | Functional form, basic inputs | Floating labels or clean modern input containers, password visibility toggle, accessible error alerts | Pending | Pending | Pending | Polish signin layout & feedback |
+| **TASK-14** | Signup | `src/components/AuthScreen.tsx` (`screen === 'signup'`) | Basic name/email/password fields | Form hierarchy, inline strength indicator, password show/hide, terms disclaimer | Pending | Pending | Pending | Polish signup form layout |
+| **TASK-15** | OTP & account verification | `src/components/AuthScreen.tsx` (phone), `src/components/VerifyAccount.tsx` | Functional 6-digit input | Modern segmented digit boxes or formatted input, resend timer countdown, auto-focus | Pending | Pending | Pending | Polish OTP verification flow |
+| **TASK-16** | Password recovery | `src/components/AuthScreen.tsx` (`screen === 'reset'`), `src/components/AccountActionScreen.tsx` | Basic email reset trigger | Clear instructions card, confirmation notice, password update form with validation | Pending | Pending | Pending | Polish password reset experience |
+| **TASK-17** | Customer home dashboard | `src/components/CustomerApp.tsx` (`currentTab === 'home'`) | Dual-column primary tiles, promo banner, service list | Modern Swiggy/Zepto-style service grid, active order live bar, personalized address header, search bar | Pending | Pending | Pending | Polish home screen composition |
+| **TASK-18** | Address selector | `src/components/AddressSheet.tsx`, `src/components/LocationPicker.tsx` | Bottom sheet with saved list & address form | Map pin icon, Home/Work/Other tags, quick search, default address star badge, bottom action | Pending | Pending | Pending | Refine address bottom sheet |
+| **TASK-19** | Global search | `src/components/GlobalCatalogSearch.tsx`, `src/components/CustomerApp.tsx` | Functional debounced search across restaurants & products | Instant category pills, recent search chips, rich item result cards with pricing and service tag | Pending | Pending | Pending | Polish global search view |
+| **TASK-20** | Service directory | `src/features/discovery/ServiceDirectory.tsx` | Grid of available services | Vibrant themed service cards with badge tags, delivery times, micro-animations | Pending | Pending | Pending | Refine service directory tiles |
+| **TASK-21** | Notifications & active-order entry | `src/components/CustomerPages.tsx` (`page === 'notifications'`), `src/components/CustomerApp.tsx` | Basic notifications list | Time-stamped event cards, unread indicators, deep-link to order tracking | Pending | Pending | Pending | Polish notifications view |
 
-- `npm run lint`: passed after code changes.
-- `npm run build`: passed; existing large-chunk warning remains.
-- UI tests: 5 passed; functions tests: 30 passed; server tests: 10 passed.
-- `node scripts/check-secrets.mjs --working-tree`: passed via elevated sandbox check (359 snapshots inspected; no recognized secrets).
-- `git diff --check`: passed.
-- Latest targeted fixes: admin dashboard data claims and location freshness, wallet ledger retry, transport detail fallbacks, touch zoom/overscroll, accessible labels and tracking recovery.
-- Visual screenshots/browser checks: blocked; headless browser attempt timed out and produced no screenshot. Do not infer visual acceptance.
-- Authenticated service/payment tests: blocked; user confirmed there is no staging environment.
-- Android/iOS acceptance: blocked; Android SDK/adb and macOS/Xcode are unavailable, and native Firebase configuration is absent.
-- GitHub remote: default branch `main` contains the skills commit. Published branch `work` is at `cb91d2c34f23a046d7f57b0da989b61312bae223`, parented on that skills commit; remote ref and commit were read back and verified. Shell Git fetch/push is blocked by the workspace proxy, so the staged tree was published through the connected GitHub repository writer. The local checkout still has its pre-publication HEAD and staged files; its HEAD is not the remote branch tip. `main` was not changed.
+---
 
-## Remaining acceptance work
+## Phase 3 — Food Delivery (Tasks 22 – 33)
 
-- Render and inspect screenshots at 360/390/430 px; the browser attempt in this workspace timed out without a screenshot.
-- Exercise authenticated customer, driver, merchant and admin flows, payment/refund providers, live catalogs and tracking using staging accounts. The user confirmed no staging environment is available.
-- Run Android/iOS smoke tests in environments with the respective SDKs, Xcode and native Firebase configuration.
-- Continue full token migration and contrast, keyboard, screen-reader and responsive review; this pass made targeted improvements but does not certify every screen visually.
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-22** | Restaurant discovery | `src/components/CustomerApp.tsx` (`activeWorkflow === 'food'`) | List of restaurant cards, filter chips | Premium Swiggy-style cards: imagery, rating badge, ETA pill, cuisine tag, veg/non-veg badge | Pending | Pending | Pending | Polish restaurant discovery grid |
+| **TASK-23** | Restaurant search and filters | `src/components/CustomerApp.tsx` | Search bar, veg filter, category chips | Sticky filter bar, sort dropdown, active filter pill indicators | Pending | Pending | Pending | Enhance food search & filters |
+| **TASK-24** | Restaurant details | `src/components/CatalogDetails.tsx` (`kind === 'restaurant'`) | Modal with restaurant information | Hero cover image, rating breakdown, delivery time, address card, safety info | Pending | Pending | Pending | Polish restaurant details sheet |
+| **TASK-25** | Restaurant menu | `src/components/RestaurantMenu.tsx`, `src/components/CustomerApp.tsx` | Vertical menu with left category rail | Sticky category rail, dish cards with image, veg dot icon, customizable options | Pending | Pending | Pending | Polish menu layout & category rail |
+| **TASK-26** | Dish details | `src/components/CatalogDetails.tsx` (`kind === 'dish'`) | Detail card for dish | Large food preview, description, dietary tags, price, add-to-cart button | Pending | Pending | Pending | Polish dish details modal |
+| **TASK-27** | Variants & customization | `src/components/RestaurantMenu.tsx` | Variant select dropdown | Radio variant selector, add-on checkboxes, price update summary | Pending | Pending | Pending | Refine dish variant selection |
+| **TASK-28** | Food cart | `src/components/CustomerApp.tsx` (`currentTab === 'cart'`), dock | Sticky floating dock and cart view | Quantity steppers (`- 1 +`), bill breakdown, tip selector, store lock notification | Pending | Pending | Pending | Polish food cart screen & dock |
+| **TASK-29** | Checkout review | `src/components/CheckoutReviewScreen.tsx` | Address, items, price summary, payment button | Collapsible bill details, coupon apply box, payment method selector, cancellation policy | Pending | Pending | Pending | Polish checkout review screen |
+| **TASK-30** | Order confirmation | `src/components/CustomerApp.tsx` (order modal) | Alert message on successful order | Animated checkmark, order ID pill, estimated delivery time, track order CTA | Pending | Pending | Pending | Build dedicated confirmation state |
+| **TASK-31** | Food tracking | `src/components/OrderTrackingScreen.tsx` | Step timeline, driver avatar, map placeholder | Zepto/Swiggy-style live progress tracker: order placed, confirmed, preparing, out for delivery, arrived | Pending | Pending | Pending | Polish live food tracking UI |
+| **TASK-32** | Food order details | `src/components/CustomerApp.tsx`, `src/components/BookingTimeline.tsx` | Order summary list | Itemized receipt, taxes breakdown, merchant contact, invoice download | Pending | Pending | Pending | Polish order details view |
+| **TASK-33** | Reviews and reorder | `src/components/CustomerPages.tsx` (`reviews`), `src/components/ShopAgainScreen.tsx` | Form for rating completed order | Star rating input, quick feedback tags, review text, instant 1-tap reorder | Pending | Pending | Pending | Polish review & reorder screens |
 
-These items require external test infrastructure; do not report full production UI acceptance until evidence is captured.
+---
+
+## Phase 4 — Grocery (Tasks 34 – 44)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-34** | Grocery discovery | `src/components/CustomerApp.tsx` (`activeWorkflow === 'grocery'`) | Store banner, category strip, product grid | Zepto/Instamart-style 10-minute delivery vibe: fast delivery badge, store switcher | Pending | Pending | Pending | Polish grocery home view |
+| **TASK-35** | Grocery store selection | `src/components/CustomerApp.tsx` | Horizontal store cards | Store status (open/closed), distance badge, delivery fee, store change warning | Pending | Pending | Pending | Polish store picker cards |
+| **TASK-36** | Grocery categories | `src/design-system/GroceryCategories.tsx` | Circular category icon buttons | Rounded cards with pastel icon backgrounds, active state glow, category labels | Pending | Pending | Pending | Polish grocery category strip |
+| **TASK-37** | Product grid | `src/design-system/GroceryProductCard.tsx` | 2-column product card layout | Crisp product image, unit badge, weight/size pill, price vs MRP strike-through | Pending | Pending | Pending | Polish product grid cards |
+| **TASK-38** | Product details | `src/components/CatalogDetails.tsx` (`kind === 'product'`) | Product modal | High-res image, expiry date badge, nutrition/specs, quantity selector | Pending | Pending | Pending | Polish product detail view |
+| **TASK-39** | Grocery search & filters | `src/design-system/groceryCatalog.ts`, `src/components/CustomerApp.tsx` | Search bar, in-stock filter, sort dropdown | Instant search dropdown, price/name sort chips, dietary filters | Pending | Pending | Pending | Polish grocery catalog search |
+| **TASK-40** | Product quantity controls | `src/design-system/GroceryProductCard.tsx` | Add button toggling to `- count +` | Haptic-like compact stepper, out of stock badge, max quantity limit notice | Pending | Pending | Pending | Polish stepper micro-interactions |
+| **TASK-41** | Grocery cart | `src/components/CustomerApp.tsx` | Grocery cart dock & cart view | Free delivery progress bar, item breakdown, replacement options | Pending | Pending | Pending | Polish grocery cart experience |
+| **TASK-42** | Grocery checkout | `src/components/CheckoutReviewScreen.tsx` | Shared checkout review | Store specific delivery instructions, slot selection, contactless delivery checkbox | Pending | Pending | Pending | Polish grocery checkout options |
+| **TASK-43** | Grocery order tracking | `src/components/OrderTrackingScreen.tsx` | Timeline view | Packing status, picker note, driver assigned, arrival countdown | Pending | Pending | Pending | Polish grocery tracking UI |
+| **TASK-44** | Buy again | `src/components/ShopAgainScreen.tsx` | Past grocery order items | 1-tap re-add to cart, out-of-stock replacement indicators | Pending | Pending | Pending | Polish Buy Again experience |
+
+---
+
+## Phase 5 — Parcel Delivery (Tasks 45 – 55)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-45** | Parcel entry | `src/components/ParcelBookingScreen.tsx` | Stepper screen with mode options | Express courier hero banner, mode selector (same-day / express), recent parcels | Pending | Pending | Pending | Polish parcel booking entrance |
+| **TASK-46** | Pickup address | `src/components/ParcelBookingScreen.tsx`, `src/components/LocationPicker.tsx` | Address form & search | Connected route visual, sender contact details, floor/landmark input | Pending | Pending | Pending | Polish pickup address step |
+| **TASK-47** | Drop address | `src/components/ParcelBookingScreen.tsx`, `src/components/LocationPicker.tsx` | Drop address form | Recipient address, contact phone input, delivery instructions | Pending | Pending | Pending | Polish drop address step |
+| **TASK-48** | Parcel information | `src/components/ParcelBookingScreen.tsx` | Weight, category, dimensions, fragile | Parcel type selector (documents, food, clothes, electronics), fragile toggle | Pending | Pending | Pending | Polish parcel specs step |
+| **TASK-49** | Sender & recipient | `src/components/ParcelBookingScreen.tsx` | Name/phone inputs | Clean contact cards, privacy protection notice, SMS update toggle | Pending | Pending | Pending | Polish contacts review step |
+| **TASK-50** | Booking schedule | `src/components/ParcelBookingScreen.tsx` | Immediate vs scheduled options | Time slot picker chips, earliest pickup estimate | Pending | Pending | Pending | Polish scheduling interface |
+| **TASK-51** | Quote and review | `src/components/ParcelBookingScreen.tsx` | Server fare estimate card | Clear fare breakdown (base, distance, weight, insurance), route summary | Pending | Pending | Pending | Polish quote review step |
+| **TASK-52** | Payment/confirmation | `src/components/ParcelBookingScreen.tsx` | Payment trigger | Payment options, booking reference badge, tracking link | Pending | Pending | Pending | Polish booking completion |
+| **TASK-53** | Parcel tracking | `src/components/OrderTrackingScreen.tsx`, `src/design-system/parcelTracking.ts` | Multi-step timeline | Pickup OTP, custody verification status, live driver position, delivery OTP | Pending | Pending | Pending | Polish parcel tracking steps |
+| **TASK-54** | Handover verification | `src/components/ParcelOrderDetails.tsx` | Secure handover codes | Masked security PIN, sender verification badge, handover signature/photo state | Pending | Pending | Pending | Polish handover security card |
+| **TASK-55** | Parcel support | `src/components/SupportCasePanel.tsx` | Support case trigger | Issue categories (damaged, delayed, wrong location), live support chat | Pending | Pending | Pending | Polish parcel issue escalation |
+
+---
+
+## Phase 6 — Transport & Rides (Tasks 56 – 68)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-56** | Bike transport entry | `src/components/ServiceBookingScreen.tsx` (`ride`) | Ride booking form | Uber-style vehicle selection sheet, quick route input | Pending | Pending | Pending | Polish transport entry |
+| **TASK-57** | Vehicle selection | `src/design-system/RideOptions.tsx`, `src/components/ServiceBookingScreen.tsx` | Bike / Auto / Cab vehicle options | Vehicle icon, capacity badge, ETA estimate, fare calculation | Pending | Pending | Pending | Polish vehicle options cards |
+| **TASK-58** | Pickup and drop | `src/components/ServiceBookingScreen.tsx` | LocationPicker route inputs | Dashed route connection line, swap locations button, recent trips | Pending | Pending | Pending | Polish route selection |
+| **TASK-59** | Vehicle information | `src/components/TransportBookingScreen.tsx` | Dedicated vehicle carrier specs | Vehicle category (bike, car, SUV), registration & carrier options | Pending | Pending | Pending | Polish transport vehicle inputs |
+| **TASK-60** | Carrier/equipment selection | `src/components/TransportBookingScreen.tsx` | Open/closed carrier options | Visual carrier cards, hydraulic lift toggle, transit insurance options | Pending | Pending | Pending | Polish carrier options |
+| **TASK-61** | Quote | `src/design-system/serviceQuote.ts`, `src/components/ServiceBookingScreen.tsx` | Server quote card with expiry timer | Dynamic price display, expiry countdown bar, toll/taxes breakdown | Pending | Pending | Pending | Polish transport quote view |
+| **TASK-62** | Booking review | `src/components/TransportBookingScreen.tsx` | Final transport summary | Route map summary, vehicle inspection guidelines, payment review | Pending | Pending | Pending | Polish review screen |
+| **TASK-63** | Tracking | `src/components/OrderTrackingScreen.tsx` | Live map & status bar | Driver vehicle details, vehicle photo, live GPS simulation, call driver | Pending | Pending | Pending | Polish transport live tracking |
+| **TASK-64** | Delivery acceptance | `src/components/TransportOrderDetails.tsx` | Acceptance code & details | Condition report photos, receiver OTP, sign-off acknowledgement | Pending | Pending | Pending | Polish delivery acceptance |
+| **TASK-65** | Disputes and support | `src/components/SupportCasePanel.tsx` | Support ticket form | Damage report, route deviation dispute, instant priority call | Pending | Pending | Pending | Polish dispute management |
+| **TASK-66** | Furniture/movers booking | `src/components/PlannedMoversScreen.tsx` | Home size & inventory form | 1BHK / 2BHK / 3BHK cards, packaging services checklist, moving date | Pending | Pending | Pending | Polish movers booking flow |
+| **TASK-67** | Ride booking | `src/components/ServiceBookingScreen.tsx` | Ride quote and confirmation | Uber-style live driver search animation, driver matched card | Pending | Pending | Pending | Polish ride booking flow |
+| **TASK-68** | Personal driver booking | `src/components/ServiceBookingScreen.tsx` (`takeover`) | Hourly driver hiring form | Transmission type (manual/auto), duration chips (2h, 4h, 8h, full-day) | Pending | Pending | Pending | Polish personal driver flow |
+
+---
+
+## Phase 7 — Customer Activity (Tasks 69 – 76)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-69** | Active orders | `src/components/CustomerApp.tsx` (`currentTab === 'orders'`) | Active booking cards across services | Service badge, live status chip, progress mini-bar, 1-tap track button | Pending | Pending | Pending | Polish active orders list |
+| **TASK-70** | Order history | `src/components/CustomerPages.tsx` (`history`) | List of past completed/cancelled bookings | Filter by service, formatted date, total amount, reorder CTA, invoice CTA | Pending | Pending | Pending | Polish order history list |
+| **TASK-71** | Unified tracking | `src/components/OrderTrackingScreen.tsx`, `src/components/BundleTrackingScreen.tsx` | Multi-service tracker | Consistent status badge, driver avatar, contact buttons, live step timeline | Pending | Pending | Pending | Polish unified tracking view |
+| **TASK-72** | Cancellation | `src/components/CustomerApp.tsx` (`handleCancelBooking`) | Confirm dialog | Cancellation reason picker, fee policy disclosure, instant refund notice | Pending | Pending | Pending | Polish cancellation workflow |
+| **TASK-73** | Refund status | `src/components/CustomerPages.tsx` (`refund-status`) | Refund status list | Refund amount, reference ID, payment method destination, timeline | Pending | Pending | Pending | Polish refund status screen |
+| **TASK-74** | Receipts | `src/components/CustomerPages.tsx` (`receipts`) | Itemized receipts | Professional receipt card, breakdown, tax breakdown, print/share | Pending | Pending | Pending | Polish receipts view |
+| **TASK-75** | Chat/support | `src/components/SupportCasePanel.tsx`, `src/features/tracking/BundleLegChat.tsx` | Live chat & support tickets | Message bubbles, timestamp, driver/agent identity, photo upload | Pending | Pending | Pending | Polish customer chat view |
+| **TASK-76** | Payment recovery | `src/components/PaymentRecoveryPanel.tsx` | Recovery interface for failed payments | Clear error reason, retry payment button, alternative method options | Pending | Pending | Pending | Polish payment recovery UI |
+
+---
+
+## Phase 8 — Account & Settings (Tasks 77 – 90)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-77** | Profile | `src/components/ProfileScreen.tsx`, `src/components/CustomerApp.tsx` | Profile header and navigation links | Avatar with edit badge, membership status, quick wallet balance pill, grouped links | Pending | Pending | Pending | Polish profile dashboard |
+| **TASK-78** | Personal details | `src/components/CustomerPages.tsx` (`edit-profile`) | Editable name, email, phone | Floating labels, validation, email verification status badge, save feedback | Pending | Pending | Pending | Polish edit profile screen |
+| **TASK-79** | Saved addresses | `src/components/CustomerPages.tsx` (`addresses`), `src/components/AddressSheet.tsx` | Address cards with delete | Category icons (Home, Work, Other), edit action, set default pill | Pending | Pending | Pending | Polish saved addresses management |
+| **TASK-80** | Favourites | `src/components/CustomerPages.tsx` (`favorites`) | Saved restaurants & stores | Tabbed view (Restaurants / Groceries / Dishes), quick order CTA, empty state | Pending | Pending | Pending | Polish favorites screen |
+| **TASK-81** | Offers and coupons | `src/components/OffersScreen.tsx`, `src/components/CustomerApp.tsx` | Coupon list with copy/apply | Perforated ticket styling, discount amount, expiry date, terms modal, copy code | Pending | Pending | Pending | Polish offers screen |
+| **TASK-82** | Wallet | `src/components/WalletPanel.tsx`, `src/components/CustomerApp.tsx` | Balance and transaction list | Card-style balance overview, quick top-up chips, categorized transactions | Pending | Pending | Pending | Polish wallet UI |
+| **TASK-83** | Payment history | `src/components/CustomerPages.tsx` (`payment-methods`) | Saved cards & methods | Brand icons (UPI, Cards, NetBanking), default badge, remove method | Pending | Pending | Pending | Polish payment methods screen |
+| **TASK-84** | Settings | `src/components/CustomerApp.tsx` (`settings`) | App settings toggles | Notification preferences, language selector, dark mode toggle, app version | Pending | Pending | Pending | Polish settings screen |
+| **TASK-85** | Help centre | `src/components/CustomerPages.tsx` (`help`) | FAQ accordion & contact options | Search FAQs, issue categories, 24/7 chat support button, call helpline | Pending | Pending | Pending | Polish help centre |
+| **TASK-86** | Safety centre | `src/components/CustomerPages.tsx` (`safety`) | Safety guidelines & emergency SOS | Emergency contacts setup, SOS button, ride share tracking, safety badges | Pending | Pending | Pending | Polish safety centre |
+| **TASK-87** | Privacy and policies | `src/components/CustomerPages.tsx` (`privacy`, `terms`) | Legal text views | Clean typography, table of contents, last updated date | Pending | Pending | Pending | Polish privacy & terms view |
+| **TASK-88** | Security | `src/components/CustomerPages.tsx` (`security`) | Password change & session list | Biometric toggle, active sessions, change password modal | Pending | Pending | Pending | Polish security screen |
+| **TASK-89** | Account deletion | `src/components/DeletionRequests.tsx` | Account deletion confirmation | Warning notice, reason selection, grace period disclosure, confirmation | Pending | Pending | Pending | Polish deletion requests flow |
+| **TASK-90** | Additional account screens | `src/components/AccountDataExport.tsx`, `src/components/PartnerApplicationPanel.tsx`, `src/components/TripBundleScreen.tsx` | Data export & partner links | Clean data export progress, multi-step partner application modal | Pending | Pending | Pending | Polish remaining account tools |
+
+---
+
+## Phase 9 — Driver (Tasks 91 – 103)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-91** | Driver onboarding | `src/components/DriverApp.tsx` (registration) | Vehicle & license inputs | Multi-step document upload, vehicle selection, background check status | Pending | Pending | Pending | Polish driver registration |
+| **TASK-92** | Driver home | `src/components/DriverApp.tsx` | Driver metrics & status toggle | Uber Driver-style: online status pill, today's earnings card, trip count | Pending | Pending | Pending | Polish driver home dashboard |
+| **TASK-93** | Availability | `src/components/DriverApp.tsx` | Go online/offline switch | Prominent haptic-style online slider/toggle, GPS indicator, battery status | Pending | Pending | Pending | Polish online status toggle |
+| **TASK-94** | Job offers | `src/components/DriverApp.tsx` | Incoming order card with countdown | Audible alert visual, pickup distance, fare estimate, countdown timer bar | Pending | Pending | Pending | Polish job offer card |
+| **TASK-95** | Accept/reject | `src/components/DriverApp.tsx` | Accept / reject buttons | Large touch targets (min 56px), swipe to accept gesture alternative | Pending | Pending | Pending | Refine accept/reject controls |
+| **TASK-96** | Active jobs | `src/components/DriverApp.tsx` | Active job details card | Customer name, route directions, call customer, step action button | Pending | Pending | Pending | Polish active job screen |
+| **TASK-97** | Pickup workflow | `src/components/DriverApp.tsx` | Arrived at pickup, verify items | Arrived button, checklist of order items, pickup verification code | Pending | Pending | Pending | Polish pickup workflow |
+| **TASK-98** | Route/navigation | `src/components/DriverApp.tsx` | Route map preview | Turn-by-turn simulation, open external map (Google Maps) button | Pending | Pending | Pending | Polish route navigation UI |
+| **TASK-99** | Delivery verification | `src/components/DriverApp.tsx` | Customer OTP entry | 4-digit PIN pad, recipient verification, delivery photo fallback | Pending | Pending | Pending | Polish delivery OTP entry |
+| **TASK-100** | Earnings | `src/components/DriverApp.tsx`, `src/components/DriverEarningEstimate.tsx` | Recharts weekly earnings chart | Daily/weekly breakdown, incentives earned, tips received, trip breakdown | Pending | Pending | Pending | Polish driver earnings screen |
+| **TASK-101** | Payouts | `src/components/PayoutRequests.tsx` | Payout request history | Bank account card, payout request button, processing timeline | Pending | Pending | Pending | Polish payout request panel |
+| **TASK-102** | Support | `src/components/DriverApp.tsx` | Support ticket form | Incident reporting, roadside assistance button, priority dispatch call | Pending | Pending | Pending | Polish driver support panel |
+| **TASK-103** | Driver profile | `src/components/DriverApp.tsx` | Vehicle & driver info | Rating score, completed trips counter, vehicle inspection date, badges | Pending | Pending | Pending | Polish driver profile |
+
+---
+
+## Phase 10 — Merchant (Tasks 104 – 114)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-104** | Merchant onboarding | `src/components/MerchantBusinessSetup.tsx` | Store details & setup form | Business categories, FSSAI / GST input, store banner upload | Pending | Pending | Pending | Polish merchant setup |
+| **TASK-105** | Dashboard | `src/components/MerchantPortal.tsx` | Revenue metrics & active orders | Tablet-optimized layout: live revenue, pending orders badge, online toggle | Pending | Pending | Pending | Polish merchant dashboard |
+| **TASK-106** | Incoming orders | `src/components/MerchantPortal.tsx` | Orders queue | Audible new order bell, timer for acceptance, itemized food/grocery list | Pending | Pending | Pending | Polish incoming orders queue |
+| **TASK-107** | Preparation | `src/components/MerchantPreparationEditor.tsx`, `src/components/GroceryPickingEditor.tsx` | Order preparation status | Prep time estimator (+5m, +10m), ready for pickup button | Pending | Pending | Pending | Polish order preparation flow |
+| **TASK-108** | Catalog | `src/components/MerchantCatalogEditor.tsx` | Menu / product list | Category filters, instant out-of-stock toggle, search bar | Pending | Pending | Pending | Polish catalog manager |
+| **TASK-109** | Product editing | `src/components/MerchantCatalogEditor.tsx`, `src/components/ProductExpiryField.tsx` | Item edit form | Name, price, description, variant manager, veg/non-veg, expiry date | Pending | Pending | Pending | Polish product editor modal |
+| **TASK-110** | Inventory | `src/components/StockMovementHistory.tsx`, `src/components/MerchantPortal.tsx` | Stock level inputs | Low stock alert badge, bulk stock update, movement history audit | Pending | Pending | Pending | Polish inventory screen |
+| **TASK-111** | Store hours | `src/components/MerchantHoursEditor.tsx` | Weekly schedule editor | Day-by-day open/close time pickers, split shifts (lunch/dinner) | Pending | Pending | Pending | Polish store hours editor |
+| **TASK-112** | Temporary closures | `src/components/MerchantClosuresEditor.tsx` | Busy / holiday closure manager | Quick pause orders (30 mins, 1 hour, today), custom holiday schedule | Pending | Pending | Pending | Polish closures manager |
+| **TASK-113** | Settlement info | `src/components/MerchantPortal.tsx` | Payout balances & ledger | Weekly settlement statement, commission breakdown, download invoice | Pending | Pending | Pending | Polish settlement panel |
+| **TASK-114** | Merchant support | `src/components/BookingExceptionPanel.tsx`, `src/components/MerchantRejection.tsx` | Rejection & exception forms | Order cancellation reasons, report driver delay, merchant hotline | Pending | Pending | Pending | Polish exception workflows |
+
+---
+
+## Phase 11 — Operations & Admin (Tasks 115 – 125)
+
+| ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
+|---|---|---|---|---|---|---|---|---|
+| **TASK-115** | Operations dashboard | `src/components/AdminDashboard.tsx` | KPI cards & bookings monitor | High-density control room: active orders, online drivers, GMV, SLAs | Pending | Pending | Pending | Polish operations dashboard |
+| **TASK-116** | Customer support queue | `src/components/SupportOperationsQueue.tsx` | Support tickets queue | Priority badges (Critical, High, Normal), ticket resolution panel, chat history | Pending | Pending | Pending | Polish support queue |
+| **TASK-117** | Driver management | `src/components/DriverEligibilityReview.tsx`, `src/components/AdminDashboard.tsx` | Driver KYC review & status | Document preview lightbox, approve/reject with reason, fleet location map | Pending | Pending | Pending | Polish driver management |
+| **TASK-118** | Merchant management | `src/components/MerchantBusinessSetup.tsx`, `src/components/PartnerEvidenceReview.tsx` | Partner application audit | Store verification, document review, commission assignment | Pending | Pending | Pending | Polish merchant admin |
+| **TASK-119** | Order monitoring | `src/components/AdminDashboard.tsx` | Real-time active orders table | Service filter tabs, SLA breach warning, force reassign driver, cancel | Pending | Pending | Pending | Polish order monitoring table |
+| **TASK-120** | Dispatch management | `src/components/DispatchPolicyEditor.tsx` | Dispatch policy configuration | Auto-dispatch radius, driver acceptance timeout, surge multiplier | Pending | Pending | Pending | Polish dispatch policies |
+| **TASK-121** | Refund review | `src/components/RefundReviewQueue.tsx` | Refund requests queue | Evidence review, one-click approve/deny, audit log note | Pending | Pending | Pending | Polish refund review queue |
+| **TASK-122** | Payout review | `src/components/PayoutRequests.tsx` | Driver & merchant payout queue | Bank account verification, bulk approve, batch export | Pending | Pending | Pending | Polish payout review panel |
+| **TASK-123** | Rates and coverage | `src/components/OperationsConsole.tsx`, `src/components/ServiceRateEditor.tsx`, `src/components/RateReviewQueue.tsx` | Pricing matrices by service | Base fare, per-km rate, per-minute rate, minimum fare, service zones | Pending | Pending | Pending | Polish rate configuration |
+| **TASK-124** | Account deletion admin | `src/components/DeletionRequests.tsx` | Deletion request queue | Anonymization audit, statutory compliance check, execute deletion | Pending | Pending | Pending | Polish deletion review |
+| **TASK-125** | Audit & operational status | `src/components/FinanceJournalPanel.tsx`, `src/components/OrderSynchronization.tsx` | Finance ledger & sync status | Immutable financial entries, balance verification, node sync diagnostics | Pending | Pending | Pending | Polish audit journal |
+
+---
+
+## Verification & Release Criteria
+
+- **Automated Verification:** `npm run lint` (0 TypeScript errors) and `npm run build` must succeed on every task.
+- **Visual Verification:** Headless browser automation capturing screenshots at 360px, 390px, and 430px mobile widths.
+- **Production Guardrails:** Real business logic, Firestore rules, payment workflows, and auth handling are strictly preserved.

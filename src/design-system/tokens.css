@@ -27,17 +27,117 @@
   --allgo-touch: 44px;
   --allgo-touch-target: var(--allgo-touch);
 }
-.allgo-navigation { display: flex; flex: none; border-top: 1px solid var(--allgo-border); background: var(--allgo-surface); padding: 6px 4px max(6px, env(safe-area-inset-bottom)); }
-.allgo-navigation button { position: relative; flex: 1; min-width: 0; min-height: var(--allgo-touch); display: grid; justify-items: center; align-content: center; gap: 4px; color: var(--allgo-muted); font-size: 12px; }
-.allgo-navigation button[aria-current="page"] { color: var(--allgo-primary); font-weight: 700; }
-.allgo-navigation-badge { position: absolute; top: 0; right: 12%; border-radius: 12px; padding: 0 5px; background: var(--allgo-primary); color: white; }
-.allgo-unavailable { border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius); padding: 20px; background: var(--allgo-surface); color: var(--allgo-text); }
-.allgo-unavailable p { margin: 12px 0; color: var(--allgo-muted); line-height: 1.6; }
-.allgo-unavailable button { min-height: var(--allgo-touch); padding: 10px 16px; border: 1px solid var(--allgo-border); border-radius: 12px; }
-.allgo-customer button { min-height: var(--allgo-touch); }
-.allgo-customer button:disabled { cursor: not-allowed; }
-.allgo-workspace { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--allgo-canvas); color: var(--allgo-text); }
-.allgo-workspace-header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--allgo-surface); border-bottom: 1px solid var(--allgo-border); padding: max(12px, env(safe-area-inset-top)) 16px 12px; }
-.allgo-workspace-header button { min-height: var(--allgo-touch); min-width: var(--allgo-touch); display: grid; place-items: center; }
-.allgo-workspace-main { flex: 1; min-height: 0; width: 100%; margin-inline: auto; }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } .allgo-page { animation: none; } }
+
+.allgo-navigation {
+  display: flex;
+  flex: none;
+  border-top: 1px solid var(--allgo-border);
+  background: var(--allgo-surface);
+  padding: 6px 4px max(6px, env(safe-area-inset-bottom));
+}
+
+.allgo-navigation button {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--allgo-touch);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  color: var(--allgo-muted);
+  font-size: 12px;
+}
+
+.allgo-navigation button[aria-current="page"] {
+  color: var(--allgo-primary);
+  font-weight: 700;
+}
+
+.allgo-navigation-badge {
+  position: absolute;
+  top: 0;
+  right: 12%;
+  border-radius: 12px;
+  padding: 0 5px;
+  background: var(--allgo-primary);
+  color: white;
+}
+
+.allgo-unavailable {
+  border: 1px solid var(--allgo-border);
+  border-radius: var(--allgo-radius);
+  padding: 20px;
+  background: var(--allgo-surface);
+  color: var(--allgo-text);
+}
+
+.allgo-unavailable p {
+  margin: 12px 0;
+  color: var(--allgo-muted);
+  line-height: 1.6;
+}
+
+.allgo-unavailable button {
+  min-height: var(--allgo-touch);
+  padding: 10px 16px;
+  border: 1px solid var(--allgo-border);
+  border-radius: 12px;
+}
+
+.allgo-customer button {
+  min-height: var(--allgo-touch);
+}
+
+.allgo-customer button:disabled {
+  cursor: not-allowed;
+}
+
+.allgo-workspace {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--allgo-canvas);
+  color: var(--allgo-text);
+}
+
+.allgo-workspace-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--allgo-surface);
+  border-bottom: 1px solid var(--allgo-border);
+  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+}
+
+.allgo-workspace-header button {
+  min-height: var(--allgo-touch);
+  min-width: var(--allgo-touch);
+  display: grid;
+  place-items: center;
+}
+
+.allgo-workspace-main {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  margin-inline: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+
+  .allgo-page {
+    animation: none;
+  }
+}
