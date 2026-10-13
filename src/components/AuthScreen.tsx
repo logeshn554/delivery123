@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { nativeGoogleSignIn, nativeAppleSignIn, completeNativePhoneSignIn } from '../nativeAuth';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, updateProfile } from 'firebase/auth';
-import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, LoaderCircle, UserRound } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { auth, googleProvider } from '../firebase';
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
 import { useNeonAccounts, signInAccount, forgotPasswordAccount, resetPasswordAccount } from '../accounts';
@@ -34,11 +34,6 @@ export function authMessage(error: unknown): string {
 export default function AuthScreen() {
   const [screen, setScreen] = useState<'welcome' | 'onboarding' | 'signin' | 'signup' | 'reset' | 'phone'>('welcome');
   const [step, setStep] = useState(0);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    headingRef.current?.focus({ preventScroll: true });
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  }, [screen, step]);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -72,17 +67,6 @@ export default function AuthScreen() {
     await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: phone, skipNativeAuth: false });
   };
   const navigate = (next: typeof screen) => { setScreen(next); setError(''); setNotice(''); setPassword(''); setResetSent(false); setResetCode(''); setResetPassword(''); };
-  useEffect(() => {
-    const back = (event: Event) => {
-      if (event.defaultPrevented || screen === 'welcome') return;
-      event.preventDefault();
-      if (busy) return;
-      if (screen === 'onboarding' && step > 0) setStep(value => value - 1);
-      else navigate(screen === 'signup' || screen === 'reset' || screen === 'phone' ? 'signin' : 'welcome');
-    };
-    window.addEventListener('allgo:back', back);
-    return () => window.removeEventListener('allgo:back', back);
-  }, [screen, step, busy]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy) return;
@@ -129,16 +113,19 @@ export default function AuthScreen() {
   return <main className="auth-shell safe-area-top safe-area-bottom">
     <section className={`auth-panel ${screen === 'welcome' ? 'auth-welcome' : ''}`}>
       {screen === 'welcome' ? <>
-        <h1 ref={headingRef} tabIndex={-1} className="auth-brand">AllGo</h1>
-        <p className="auth-description">Everything delivered to you.</p>
-        <div className="stitch-welcome-art"><img src="/illustrations/allgo-riders.svg" alt="" aria-hidden="true" /></div>
+        <div className="brand-mark" aria-hidden="true">A<span /></div>
+        <h1 className="auth-brand">AllGo</h1>
+        <p className="auth-eyebrow">YOUR EVERYDAY, DELIVERED</p>
+        <h2>Everything you need.<br />One app to get it.</h2>
+        <p className="auth-description">Food, groceries, parcels and rides.<br />A little less planning. A lot more living.</p>
+        <div className="service-orbit" aria-hidden="true"><ShoppingBag /><Bike /><Package /><Truck /></div>
         <div className="auth-welcome-actions">
           <button className="auth-primary auth-white" onClick={() => navigate('onboarding')}>Get started <ArrowRight size={19} /></button>
-          <button className="auth-outline" onClick={() => navigate('signin')}>Already have an account? <strong>Log in</strong></button>
+          <button className="auth-outline" onClick={() => navigate('signin')}>I already have an account</button>
         </div>
       </> : screen === 'onboarding' ? <div className="onboarding-page">
         <button className="auth-back" aria-label="Back" onClick={() => step ? setStep(step - 1) : navigate('welcome')}><ArrowLeft size={21} /></button>
-        <h1 ref={headingRef} tabIndex={-1}>{['Everything you need, in one app.', 'From your doorstep to theirs.', 'Your city. Your next stop.'][step]}</h1>
+        <h1>{['Everything you need, in one app.', 'From your doorstep to theirs.', 'Your city. Your next stop.'][step]}</h1>
         <p className="auth-description">{['Discover food and daily essentials from neighbourhood partners.', 'Send a parcel, arrange a driver or transport your vehicle.', 'Book your journey and follow your confirmed orders in one place.'][step]}</p>
         <div className="onboarding-art" aria-hidden="true">{step === 0 ? <ShoppingBag size={110} strokeWidth={1} /> : step === 1 ? <Package size={110} strokeWidth={1} /> : <Bike size={110} strokeWidth={1} />}</div>
         <div className="onboarding-dots" aria-label={`Introduction ${step + 1} of 3`}>{[0, 1, 2].map(index => <button key={index} aria-label={`Go to introduction ${index + 1}`} className={index === step ? 'selected' : ''} onClick={() => setStep(index)} />)}</div>
@@ -147,19 +134,18 @@ export default function AuthScreen() {
       </div> : <>
         <button className="auth-back" aria-label="Back to welcome" disabled={busy} onClick={() => navigate('welcome')}><ArrowLeft size={21} /></button>
         <div className="auth-wordmark">All<span>Go</span></div>
-        {(screen === 'signin'||screen==='phone') && <div className="stitch-auth-avatar" aria-hidden="true"><UserRound size={54} strokeWidth={1.3}/></div>}
         <p className="auth-eyebrow">EVERYTHING YOU NEED, IN ONE APP</p>
-        <h1 ref={headingRef} tabIndex={-1}>{screen === 'signup' ? 'Your everyday starts here.' : screen === 'reset' ? 'Let’s get you back in.' : 'Welcome to AllGo'}</h1>
+        <h1>{screen === 'signup' ? 'Your everyday starts here.' : screen === 'reset' ? 'Let’s get you back in.' : 'Welcome back.'}</h1>
         <p className="auth-description">{screen === 'signup' ? 'Create your account to order, send and go.' : screen === 'reset' ? 'We’ll send you a link to reset your password.' : 'Sign in to pick up where you left off.'}</p>
         <form onSubmit={submit} className="auth-form">
-          {screen === 'signup' && <label>Full name<input autoComplete="name" required minLength={2} maxLength={100} value={name} disabled={busy} onChange={event => setName(event.target.value)} placeholder="Your full name" /></label>}
-          {screen !== 'phone' && <label>Email address<input type="email" autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>}
-          {screen !== 'reset' && screen !== 'phone' && <label>Password<div className="auth-password"><input type={visible ? 'text' : 'password'} required minLength={screen === 'signup' ? 8 : 1} autoComplete={screen === 'signup' ? 'new-password' : 'current-password'} value={password} disabled={busy} onChange={event => setPassword(event.target.value)} placeholder={screen === 'signup' ? 'At least 8 characters' : 'Enter your password'} /><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>}
+          {screen === 'signup' && <label>Full name<input name="name" autoComplete="name" required minLength={2} maxLength={100} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>}
+          {screen !== 'phone' && <label>Email address<input name="email" type="email" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>}
+          {screen !== 'reset' && screen !== 'phone' && <label>Password<div className="auth-password"><input name="password" type={visible ? 'text' : 'password'} required minLength={screen === 'signup' ? 8 : 1} autoComplete={screen === 'signup' ? 'new-password' : 'current-password'} value={password} disabled={busy} onChange={event => setPassword(event.target.value)} /><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>}
           {screen === 'signin' && <button type="button" className="auth-text-link" disabled={busy} onClick={() => navigate('reset')}>Forgot password?</button>}
-          {screen === 'phone' && <><label>Phone number<input type="tel" autoComplete="tel" value={phone} disabled={busy || Boolean(verificationId)} onChange={event => setPhone(event.target.value)} placeholder="+91…" required /></label>{verificationId && <label>Verification code<input inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value)} required /></label>}{verificationId && <button type="button" disabled={busy} onClick={() => { setVerificationId(''); setCode(''); }}>Change phone or resend code</button>}</>}
+          {screen === 'phone' && <><label>Phone number<input name="tel" type="tel" autoComplete="tel" value={phone} disabled={busy || Boolean(verificationId)} onChange={event => setPhone(event.target.value)} placeholder="+91…" required /></label>{verificationId && <label>Verification code<input name="one-time-code" inputMode="numeric" autoComplete="one-time-code" spellCheck={false} pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value)} required /></label>}{verificationId && <button type="button" disabled={busy} onClick={() => { setVerificationId(''); setCode(''); }}>Change phone</button>}</>}
           {error && <p role="alert" className="auth-error">{error}</p>}
           {notice && <p role="status" className="auth-notice">{notice}</p>}
-          {screen === 'reset' && useNeonAccounts && resetSent && <><label>Email reset code<input autoComplete="one-time-code" value={resetCode} onChange={event => setResetCode(event.target.value)} required pattern="[a-f0-9]{64}" disabled={busy} /></label><label>New password<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={resetPassword} onChange={event => setResetPassword(event.target.value)} required disabled={busy} /></label><button type="button" disabled={busy} onClick={() => { setResetSent(false); setResetCode(''); setResetPassword(''); }}>Request another code</button></>}
+          {screen === 'reset' && useNeonAccounts && resetSent && <><label>Email reset code<input name="one-time-code" autoComplete="one-time-code" spellCheck={false} value={resetCode} onChange={event => setResetCode(event.target.value)} required pattern="[a-f0-9]{64}" disabled={busy} /></label><label>New password<input name="new-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={resetPassword} onChange={event => setResetPassword(event.target.value)} required disabled={busy} /></label><button type="button" disabled={busy} onClick={() => { setResetSent(false); setResetCode(''); setResetPassword(''); }}>Request another code</button></>}
           <button disabled={busy} className="auth-primary" type="submit">{busy ? <><LoaderCircle className="animate-spin" size={18} /> Please wait…</> : <>{screen === 'signup' ? 'Create account' : screen === 'reset' ? useNeonAccounts && resetSent ? 'Update password' : 'Send reset instructions' : screen === 'phone' ? verificationId ? 'Verify code' : 'Send code' : 'Sign in'}<ArrowRight size={18} /></>}</button>
         </form>
         {!useNeonAccounts && (!Capacitor.isNativePlatform() || Capacitor.isPluginAvailable('FirebaseAuthentication')) && screen !== 'reset' && screen !== 'phone' && <><div className="auth-divider">or</div><button className="auth-google" disabled={busy} onClick={() => void google()}>Continue with Google</button></>}

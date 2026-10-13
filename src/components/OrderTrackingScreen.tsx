@@ -14,6 +14,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const [now, setNow] = useState(Date.now());
   const [route, setRoute] = useState<Awaited<ReturnType<typeof getTrackingRoute>> | null>(null);
   const [routeError, setRouteError] = useState('');
+  const [trackingRetry, setTrackingRetry] = useState(0);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(timer); }, []);
   useEffect(() => {
     let active = true; setRoute(null); setRouteError('');
@@ -21,12 +22,12 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
     const refresh = () => { void getTrackingRoute(booking.bookingId).then(value => { if (active) { setRoute(value); setRouteError(''); } }).catch(() => { if (active) { setRoute(null); setRouteError('Travel estimate unavailable.'); } }); };
     refresh(); const timer = setInterval(refresh, 30000);
     return () => { active = false; clearInterval(timer); };
-  }, [booking.bookingId, booking.driverId, booking.status, booking.recordAuthority]);
+  }, [booking.bookingId, booking.driverId, booking.status, booking.recordAuthority, trackingRetry]);
   useEffect(() => {
     setDriver(null); setError('');
     if (!authority.liveTracking || !booking.driverId || ['cancelled', 'completed', 'delivered'].includes(booking.status)) return;
     return listenToBookingTracking(booking.bookingId, setDriver, () => setError('Live partner location is currently unavailable.'));
-  }, [booking.bookingId, booking.driverId, booking.status, booking.recordAuthority]);
+  }, [booking.bookingId, booking.driverId, booking.status, booking.recordAuthority, trackingRetry]);
   if (!authority.liveTracking) return <section className="tracking-screen"><div className="tracking-status" role="status"><span>Historical record</span><h2>Live tracking is unavailable</h2><p>This order came from the legacy account store. Its current delivery status and location are not verified by AllGo’s booking system.</p></div></section>;
   const complete = ['completed', 'delivered'].includes(booking.status);
   const isRide = booking.serviceType === 'ride';
@@ -58,6 +59,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
     {fresh && freshRoute && route && <p className="page-caption">Estimated travel to {route.destination === 'pickup' ? 'pickup' : 'drop-off'}: {route.estimatedMinutes} minutes · {(route.distanceMeters / 1000).toFixed(1)} km. Google Maps estimate; delays may change it.</p>}
     {fresh && route && !freshRoute && !complete && !cancelled && <p className="page-caption">Travel estimate is not current or could not be verified. Waiting for an updated route.</p>}
     {routeError && !complete && !cancelled && <p className="page-caption">{routeError}</p>}
+    {(error || routeError) && !complete && !cancelled && <button type="button" className="min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-bold" onClick={() => { setError(''); setRouteError(''); setTrackingRetry(value => value + 1); }}>Retry tracking</button>}
     <div className="tracking-partner"><span className="partner-avatar"><PartnerVehicleIcon size={24} /></span><div><strong>{booking.driverName || (isRide ? 'Your driver' : 'Your delivery partner')}</strong><small>{booking.driverId ? `${vehicleLabel ? `${vehicleLabel} · ` : ''}Assigned to your booking` : 'Waiting for assignment'}</small></div>{booking.driverId && !complete && !cancelled && <button aria-label={isRide ? 'Chat with driver' : 'Chat with partner'} onClick={onChat}><MessageSquare size={20} /></button>}</div>
     {booking.otp && !complete && !cancelled && <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>{isParcel ? 'Recipient handover code' : 'Delivery confirmation code'}</strong><small>{isParcel ? 'Share only after the parcel is handed to the recipient.' : 'Share only after receiving your order.'}</small></div><b>{booking.otp}</b></div>}
     {booking.pickupOtp && ['ride', 'takeover'].includes(booking.serviceType) && !complete && !cancelled && <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Trip start code</strong><small>Share at pickup after checking the assigned partner and vehicle.</small></div><b>{booking.pickupOtp}</b></div>}

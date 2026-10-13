@@ -17,6 +17,6 @@ export default function CheckoutReviewScreen({ service, partner, address, notes,
     <div className="service-assurance"><ShieldCheck size={22}/><p>Coverage, current prices and availability are checked by AllGo before payment.</p></div>
     {(error || quoteError) && <p role="alert" className="allgo-feedback error">{error || quoteError}</p>}
     {(quoteBusy || !ready) && !error && !quoteError && <p role="status" className="allgo-muted">Checking delivery coverage and charges…</p>}
-    <button className="allgo-action" disabled={busy || !ready || quoteBusy || !!quoteError || !breakdown || !address.trim() || !lines.length} onClick={onConfirm}>{busy ? 'Opening checkout…' : 'Continue to secure payment'}</button>
+    <div className="checkout-action-dock"><button className="allgo-action" disabled={busy || !ready || quoteBusy || !!quoteError || !breakdown || !address.trim() || !lines.length} onClick={onConfirm}>{busy ? 'Opening checkout…' : breakdown ? `Pay ${currency(breakdown.totalCents)} securely` : 'Continue to secure payment'}</button></div>
   </section>;
 }

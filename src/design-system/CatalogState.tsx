@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
-import { AlertCircle, Search, Utensils } from 'lucide-react';
+import { AlertCircle, Search, ShoppingBag, LoaderCircle } from 'lucide-react';
 
 type CatalogStateKind = 'loading' | 'empty' | 'no-results' | 'error';
 
 const stateIcons = {
-  loading: Utensils,
-  empty: Utensils,
+  loading: LoaderCircle,
+  empty: ShoppingBag,
   'no-results': Search,
   error: AlertCircle,
 };

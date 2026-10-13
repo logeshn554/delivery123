@@ -1,9 +1,8 @@
-import BottomNavigation from '../design-system/BottomNavigation';
 import ParcelOrderDetails from './ParcelOrderDetails';
 import TransportOrderDetails from './TransportOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  House, Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight,
+  Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight, 
   MapPin, Check, Eye, Clock, ShieldAlert, Award, FileText, Send, MessageSquare
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
@@ -32,6 +31,8 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const [vehicleNo, setVehicleNo] = useState('');
   const [licenseNo, setLicenseNo] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [profileError, setProfileError] = useState('');
+  const [profileRetry, setProfileRetry] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
   const supportRequest = useRef<{ key: string; id: string } | null>(null);
   const [otpInput, setOtpInput] = useState("");
@@ -57,21 +58,26 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   // Load or create driver profile in Firestore
   useEffect(() => {
+    let active = true;
     async function loadProfile() {
       try {
         const dProf = await getOrCreateDriverProfile(userId, detectedLat, detectedLng);
+        if (!active) return;
         setProfile(dProf);
+        setProfileError('');
         setVehicleType(dProf.vehicleType);
         setVehicleNo(dProf.vehicleNo);
         setLicenseNo(dProf.licenseNo);
       } catch (err) {
         console.error("Failed to load driver profile:", err);
+        if (active) setProfileError('Driver profile could not load. Check your connection and try again.');
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     }
     loadProfile();
-  }, [userId, detectedLat, detectedLng]);
+    return () => { active = false; };
+  }, [userId, detectedLat, detectedLng, profileRetry]);
 
   useEffect(() => listenToDriverLocation(userId, value => {
     if (value) setProfile(value);
@@ -153,7 +159,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   // Auto scroll chat to bottom
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    chatBottomRef.current?.scrollIntoView({ behavior: 'auto' });
   }, [chatMessages]);
 
   // Generate last 7 days list with names for Recharts Weekly Trend
@@ -211,15 +217,17 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     );
   }
 
+  if (!profile) return <section className="driver-profile-error" role="alert"><ShieldAlert size={28} aria-hidden="true" /><h1>Driver workspace unavailable</h1><p>{profileError || 'Your driver profile is not available yet.'}</p><button type="button" onClick={() => { setIsLoading(true); setProfileRetry(value => value + 1); }}>Try again</button></section>;
+
   return (
-    <div className="allgo-partner bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
+    <div className="allgo-driver bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
       {dialog}
       {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{usesAndroidLocation ? locationMessage : 'Location sharing requires this app to stay open on this device.'}</p>{usesAndroidLocation && <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
       
       {/* 2.5 POPUP OVERLAY DRAWER FOR SUB-VIEWS */}
       {activeSubView && (
-        <div className="absolute inset-x-0 top-0 bottom-[calc(68px+var(--allgo-safe-bottom))] bg-slate-50 flex flex-col z-40" role="region" aria-label={activeSubView === 'orders' ? 'Delivery history' : activeSubView === 'wallet' ? 'Earnings' : 'Partner support'}>
-          <div className="bg-white h-full min-h-0 flex flex-col">
+        <div className="absolute inset-0 bg-slate-100/90 backdrop-blur-xs flex flex-col justify-end z-40 animate-fadeIn">
+          <div className="bg-white border-t border-slate-200 rounded-t-3xl h-[85%] flex flex-col shadow-2xl animate-slideUp">
             
             {/* Header */}
             <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100/60 rounded-t-3xl shrink-0">
@@ -280,7 +288,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                         alert('Withdrawal requested for operations review. Funds have been reserved from your ledger balance.');
                       })}
                       disabled={actionBusy || !profile?.availableEarningsCents}
-                      className={`mt-4 w-full text-xs font-bold py-2.5 rounded-xl transition-all shadow-md ${
+                      className={`mt-4 min-h-11 w-full text-xs font-bold py-2.5 rounded-xl transition-colors shadow-md ${
                         profile?.availableEarningsCents && profile.availableEarningsCents > 0
                           ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/10'
                           : 'bg-slate-50 text-slate-500 border border-slate-750 cursor-not-allowed'
@@ -352,11 +360,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                     <h4 className="text-xs font-bold text-slate-700">File Dispatch Dispute</h4>
                     <p className="text-[10px] text-slate-400">Report delays, vehicle issues or customer safety concerns to operations.</p>
                     <div className="space-y-2">
-                      <input value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" placeholder="Dispute Subject" className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" />
-                      <textarea value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} placeholder="Please describe the delay event..." rows={3} className="w-full bg-white border border-slate-200 text-xs p-2.5 rounded-lg outline-none text-slate-900 focus:border-purple-500 transition-colors" />
+                      <label className="block text-xs font-bold text-slate-700">Dispute subject<input name="subject" autoComplete="off" value={supportSubject} onChange={(event) => setSupportSubject(event.target.value)} type="text" maxLength={150} placeholder="What happened…" className="mt-2 w-full bg-white border border-slate-200 text-base p-3 rounded-lg text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" /></label>
+                      <label className="block text-xs font-bold text-slate-700">Describe the issue<textarea name="description" autoComplete="off" value={supportMessage} onChange={(event) => setSupportMessage(event.target.value)} maxLength={2000} placeholder="Include order or safety details…" rows={3} className="mt-2 w-full bg-white border border-slate-200 text-base p-3 rounded-lg text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" /></label>
                       <button 
                         type="button" 
-                        disabled={actionBusy}
+                        disabled={actionBusy || !supportSubject.trim() || !supportMessage.trim()}
                         onClick={() => void performAction(async () => {
                           if (!supportSubject.trim() || !supportMessage.trim()) return;
                           const key = JSON.stringify([userId, supportSubject.trim(), supportMessage.trim(), currentAssignedJob?.bookingId]);
@@ -366,7 +374,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                           setSupportMessage('');
                           alert('Dispute ticket submitted to operations.');
                         })}
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all shadow-md shadow-purple-600/10"
+                        className="min-h-11 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2.5 rounded-xl transition-colors shadow-md shadow-purple-600/10"
                       >
                         Submit Dispute Ticket
                       </button>
@@ -382,7 +390,6 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
       )}
 
       {/* Driver Header */}
-      <div className="flex min-h-0 flex-1 flex-col" inert={Boolean(activeSubView)}>
       <div className="p-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
         <div>
           <div className="flex items-center gap-1.5">
@@ -393,8 +400,12 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
         </div>
 
         <button 
+          type="button"
+          disabled={actionBusy}
+          aria-label={profile.online ? 'Go offline and stop location sharing' : 'Go online and share location'}
+          aria-pressed={profile.online}
           onClick={handleToggleOnline}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-all ${
+          className={`min-h-11 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors ${
             profile?.online ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-slate-50 text-slate-400 border border-slate-700'
           }`}
         >
@@ -484,7 +495,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {(currentAssignedJob.status === 'preparing' || currentAssignedJob.status === 'ready') && (
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <p className="text-[10px] text-slate-400 mb-1.5 font-semibold">Step 2: Confirm pickup and start delivery.</p>
-                  {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-600">Customer pickup/start code<input aria-label="Customer pickup or trip start code" value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-slate-900"/></label>}
+                  {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-700">Customer pickup/start code<input name="pickupCode" autoComplete="one-time-code" spellCheck={false} value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-base text-slate-900"/></label>}
                   
                   <div className="flex gap-2">
                     <button 
@@ -502,7 +513,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {currentAssignedJob.status === 'transit' && (
                 <div>
                   <p className="text-[10px] text-slate-400 mb-2">Ask the recipient for the delivery code at the destination.</p>
-                  <input aria-label="Recipient delivery code" value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Recipient delivery code" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-slate-900" />
+                  <label className="sr-only" htmlFor="recipient-delivery-code">Recipient delivery code</label><input id="recipient-delivery-code" name="deliveryCode" autoComplete="one-time-code" spellCheck={false} value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Enter recipient delivery code…" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" />
                   <button 
                     disabled={actionBusy || otpInput.trim().length !== 4}
                     onClick={() => handleCompleteJob(currentAssignedJob)}
@@ -521,11 +532,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                 <h4 className="text-[10px] uppercase font-bold text-purple-400 tracking-wider flex items-center gap-1">
                   <MessageSquare className="w-3.5 h-3.5" /> Customer Messenger (Live)
                 </h4>
-                <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">ONLINE</span>
+                <span className="text-[8px] text-slate-500">Booking chat</span>
               </div>
 
               {/* Chat history list */}
-              <div className="flex-1 overflow-y-auto space-y-2 mb-2 pr-1 select-text">
+              <div className="flex-1 overflow-y-auto space-y-2 mb-2 pr-1 select-text" role="log" aria-label="Messages for this booking" aria-live="polite" aria-relevant="additions">
                 {chatMessages.length === 0 ? (
                   <div className="text-center py-6 text-slate-500">
                     <p className="text-[10px] font-bold">No messages yet.</p>
@@ -554,16 +565,22 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
               {/* Chat action form */}
               <form onSubmit={handleSendChat} className="flex gap-1.5">
+                <label htmlFor="driver-booking-message" className="sr-only">Message the customer about this booking</label>
                 <input 
+                  id="driver-booking-message"
+                  name="message"
                   type="text" 
-                  placeholder="Type updates to customer..."
+                  autoComplete="off"
+                  placeholder="Message the customer…"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 bg-slate-100 border border-slate-200 rounded-lg text-xs px-2.5 py-2 text-slate-900 outline-none focus:border-purple-500 transition-colors"
+                  className="min-w-0 flex-1 bg-slate-100 border border-slate-200 rounded-lg text-base px-2.5 py-2 text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                 />
                 <button 
                   type="submit" 
-                  className="bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+                  aria-label="Send booking message"
+                  disabled={actionBusy || !chatInput.trim()}
+                  className="min-h-11 min-w-11 bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg flex items-center justify-center shrink-0 active:scale-95 transition-transform disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -637,9 +654,9 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
           </h4>
           <p className="text-slate-300">Document review status: <strong className="capitalize">{profile?.status || 'pending'}</strong></p>
           {profile?.status !== 'verified' && <form onSubmit={handleSubmitVerification} className="space-y-2">
-            <select value={vehicleType} onChange={(event) => setVehicleType(event.target.value as DriverProfile['vehicleType'])} className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900"><option value="bike">Motorbike</option><option value="auto">Auto rickshaw</option><option value="car">Car</option><option value="suv">SUV</option></select>
-            <input value={vehicleNo} onChange={(event) => setVehicleNo(event.target.value)} placeholder="Vehicle registration number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900" />
-            <input value={licenseNo} onChange={(event) => setLicenseNo(event.target.value)} placeholder="Driving licence number" required className="w-full rounded-lg border border-slate-700 bg-white p-2 text-xs text-slate-900" />
+            <label className="block text-xs text-slate-700">Vehicle type<select name="vehicleType" autoComplete="off" value={vehicleType} onChange={(event) => setVehicleType(event.target.value as DriverProfile['vehicleType'])} className="mt-1 w-full rounded-lg border border-slate-700 bg-white p-3 text-base text-slate-900"><option value="bike">Motorbike</option><option value="auto">Auto rickshaw</option><option value="car">Car</option><option value="suv">SUV</option></select></label>
+            <label className="block text-xs text-slate-700">Vehicle registration number<input name="vehicleNo" autoComplete="off" value={vehicleNo} onChange={(event) => setVehicleNo(event.target.value)} required maxLength={30} className="mt-1 w-full rounded-lg border border-slate-700 bg-white p-3 text-base text-slate-900" /></label>
+            <label className="block text-xs text-slate-700">Driving licence number<input name="licenseNo" autoComplete="off" value={licenseNo} onChange={(event) => setLicenseNo(event.target.value)} required maxLength={40} className="mt-1 w-full rounded-lg border border-slate-700 bg-white p-3 text-base text-slate-900" /></label>
             <button type="submit" className="w-full rounded-lg bg-purple-600 py-2 text-xs font-bold text-white">Save details for review</button>
           </form>}
         </div>
@@ -659,21 +676,21 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
           <div className="grid grid-cols-3 gap-2 pt-1">
             <button 
               onClick={() => setActiveSubView('orders')}
-              className="bg-white hover:bg-slate-850 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer"
+              className="min-h-11 bg-white hover:bg-slate-100 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <FileText className="w-4 h-4 text-purple-400" />
               <span>View Orders</span>
             </button>
             <button 
               onClick={() => setActiveSubView('wallet')}
-              className="bg-white hover:bg-slate-850 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer"
+              className="min-h-11 bg-white hover:bg-slate-100 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <DollarSign className="w-4 h-4 text-emerald-400" />
               <span>Wallet</span>
             </button>
             <button 
               onClick={() => setActiveSubView('support')}
-              className="bg-white hover:bg-slate-850 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.97] cursor-pointer"
+              className="min-h-11 bg-white hover:bg-slate-100 border border-slate-700 text-slate-700 font-bold text-[10px] py-2 rounded-xl flex flex-col items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <ShieldAlert className="w-4 h-4 text-blue-400" />
               <span>Support</span>
@@ -683,8 +700,10 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
       </div>
 
+      {/* Driver Footer */}
+      <div className="p-3 bg-slate-100 text-center border-t border-slate-200 shrink-0">
+        <p className="text-[9px] text-slate-500">AllGo Partner App version 4.2 · Secure GPS enabled</p>
       </div>
-      <BottomNavigation items={[{ id: 'dashboard', label: 'Deliveries', icon: House }, { id: 'orders', label: 'History', icon: FileText }, { id: 'wallet', label: 'Earnings', icon: DollarSign }, { id: 'support', label: 'Support', icon: ShieldAlert }]} active={activeSubView || 'dashboard'} onNavigate={tab => setActiveSubView(tab === 'dashboard' ? null : tab)} />
 
     </div>
   );
