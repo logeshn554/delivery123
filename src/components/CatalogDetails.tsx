@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Heart, MapPin, Clock, Minus, Plus, ShoppingBag, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Heart, MapPin, Clock, Minus, Plus, ShoppingBag, AlertCircle, Utensils } from 'lucide-react';
 import type { Restaurant, GroceryStore, MenuItem, GroceryProduct } from '../types';
 import { productWithinExpiry } from '../data/productExpiry';
 
@@ -23,7 +23,7 @@ export default function CatalogDetails({ kind, partner, item, saved, onSave, onB
   return <section className="service-detail safe-area-top safe-area-bottom" role="dialog" aria-modal="true" aria-label={data?.name || 'Catalog details'}>
     <div className="service-detail-scroll"><header className="service-detail-heading"><button aria-label="Back to catalog" onClick={onBack}><ArrowLeft size={21}/></button><span>{isFood ? 'DISH DETAILS' : kind === 'product' ? 'PRODUCT DETAILS' : 'PARTNER INFORMATION'}</span><button aria-label={saved ? 'Remove favourite' : 'Save favourite'} onClick={onSave}><Heart size={20} fill={saved ? 'currentColor' : 'none'}/></button></header>
       {!data ? <div className="allgo-empty"><AlertCircle size={32}/><h2>Listing unavailable</h2><p>This listing may have changed. Return to the catalog and refresh.</p></div> : <>
-        {data.image ? <img className="service-detail-image" src={data.image} alt={data.name} width={640} height={480} loading="lazy"/> : <div className="service-detail-image empty"><ShoppingBag size={45}/></div>}
+        {data.image ? <img className="service-detail-image" src={data.image} alt={data.name} width={640} height={480} loading="lazy"/> : <div className="service-detail-image empty" aria-label={isFood ? `No photo available for ${data.name}` : 'No product photo available'}>{isFood ? <Utensils size={45} aria-hidden="true"/> : <ShoppingBag size={45} aria-hidden="true"/>}</div>}
         <div className="service-detail-body"><p className="service-eyebrow">{isFood ? dish?.category : product ? product.category : kind === 'restaurant' ? 'RESTAURANT DETAILS' : 'YOUR LOCAL PARTNER'}</p><h1>{data.name}</h1>{partner && 'cuisine' in partner && partner.cuisine && <p className="allgo-muted">{partner.cuisine}</p>}
           {kind === 'restaurant' && partner && 'cuisine' in partner && <div className="restaurant-detail-highlights"><span className={partner.pureVeg ? 'restaurant-detail-diet is-veg' : 'restaurant-detail-diet has-nonveg'}><i aria-hidden="true"/>{partner.pureVeg ? 'Pure vegetarian' : 'Includes non-vegetarian'}</span>{partner.rating > 0 && <span className="restaurant-detail-rating" aria-label={`Published rating ${partner.rating} out of 5`}>★ {partner.rating} <small>published rating</small></span>}</div>}
           {item && <div className="service-price">₹{price.toLocaleString('en-IN')}<span>{product?.unit || dish?.servingSize || 'Per selected item'}</span></div>}

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import RestaurantMenu from '../src/components/RestaurantMenu.tsx';
+import CatalogDetails from '../src/components/CatalogDetails.tsx';
 import GroceryProductCard from '../src/design-system/GroceryProductCard.tsx';
 import GroceryCategories from '../src/design-system/GroceryCategories.tsx';
 import OffersScreen from '../src/components/OffersScreen.tsx';
@@ -151,6 +152,19 @@ test('restaurant redesign renders the selected live variant price and rejects a 
   assert.match(closed,/class="stitch-add" disabled=""/);
   const unavailable=renderToStaticMarkup(createElement(RestaurantMenu,{...props,items:[{...item,variants:item.variants.map(value=>({...value,available:false}))}]}));
   assert.match(unavailable,/class="stitch-add" disabled=""/);
+});
+test('dish details render dietary evidence, missing-photo fallback and the selected live option price',()=>{
+  const dish={...item,image:'',ingredients:'Lentils, rice',allergens:['Peanuts']};
+  const html=renderToStaticMarkup(createElement(CatalogDetails,{kind:'dish',item:dish,saved:false,onSave:noop,onBack:noop,onAdd:()=>true,onBrowse:noop,quantityInCart:()=>0}));
+  assert.match(html,/No photo available for Dish with options/);
+  assert.match(html,/Vegetarian/);
+  assert.match(html,/Choose your option/);
+  assert.match(html,/<span>Small<\/span><strong>₹99<\/strong>/);
+  assert.match(html,/Ingredients: Lentils, rice/);
+  assert.match(html,/Declared allergens: Peanuts/);
+  assert.match(html,/Add 1 · ₹99/);
+  const noAllergenData=renderToStaticMarkup(createElement(CatalogDetails,{kind:'dish',item:{...dish,allergens:[]},saved:false,onSave:noop,onBack:noop,onAdd:()=>true,onBrowse:noop,quantityInCart:()=>0}));
+  assert.match(noAllergenData,/The partner has not supplied allergen information/);
 });
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};

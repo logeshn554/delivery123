@@ -171,6 +171,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   variant prices and closed-restaurant gating; the vegetarian marker now has an
   explicit screen-reader role and label. `npm run lint`, `npm test` (**137 passed,
   0 failed**) and `npm run build` passed; mobile visual QA remains pending.
+- TASK-26: dish details now use a food-specific missing-image placeholder; rendered
+  checks cover dietary data, supplied/missing allergen information, live variant
+  pricing and the add-to-cart action. `npm run lint`, `npm test` (**138 passed,
+  0 failed**) and `npm run build` passed; mobile visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
