@@ -1,13 +1,15 @@
 :root {
-  --allgo-brand: #5130ef;
+  --allgo-brand: #5b4df5;
   --allgo-primary: var(--allgo-brand);
-  --allgo-primary-strong: #4021cc;
+  --allgo-primary-strong: #412ddd;
   --allgo-ink: #201d2b;
   --allgo-text: var(--allgo-ink);
   --allgo-muted: #635d72;
   --allgo-surface: #ffffff;
-  --allgo-canvas: #f7f6f9;
-  --allgo-border: #e5e1ed;
+  --allgo-canvas: #f8f9fd;
+  --allgo-border: #eceef5;
+  /* Shared soft accent inherited from the supplied Stitch layout. */
+  --stitch-soft: #f4f2ff;
   --allgo-success: #16744e;
   --allgo-warning: #9b5909;
   --allgo-error: #b42338;
