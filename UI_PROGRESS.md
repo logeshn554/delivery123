@@ -32,6 +32,8 @@ TASK-18 now filters saved addresses by label or street, exposes selected/default
 state accessibly, and labels the address-type controls as a group.
 TASK-19 now adds service filters, recent in-session query chips, compact priced
 result cards and a close/Escape path for the global search suggestions.
+TASK-20 now gives every live service a clear action tag and adds reduced-motion-
+aware card movement; the directory clarifies estimates vary by address and request.
 TASK-01 has a scoped implementation removing competing global Stitch theme tokens;
 TASK-09 now announces catalog busy/empty/error states consistently (targeted tests
 passed). TASK-02 has a shared type scale and line-height/weight tokens, applied to
@@ -45,7 +47,7 @@ remaining visual and functional checks are recorded.
 | Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
 |---|---|---|---|---|---|---|
 | **Phase 1** | Foundations | 10 | 0 | 10 | 0 | 0 |
-| **Phase 2** | Customer Entry | 11 | 0 | 9 | 2 | 0 |
+| **Phase 2** | Customer Entry | 11 | 0 | 10 | 1 | 0 |
 | **Phase 3** | Food Delivery | 12 | 0 | 0 | 12 | 0 |
 | **Phase 4** | Grocery Delivery | 11 | 0 | 0 | 11 | 0 |
 | **Phase 5** | Parcel Delivery | 11 | 0 | 0 | 11 | 0 |
@@ -55,7 +57,7 @@ remaining visual and functional checks are recorded.
 | **Phase 9** | Driver App | 13 | 0 | 0 | 13 | 0 |
 | **Phase 10** | Merchant Portal | 11 | 0 | 0 | 11 | 0 |
 | **Phase 11** | Operations & Admin | 11 | 0 | 0 | 11 | 0 |
-| **Total** | | **125** | **0** | **20** | **105** | **0** |
+| **Total** | | **125** | **0** | **21** | **104** | **0** |
 
 ---
 
@@ -89,7 +91,7 @@ remaining visual and functional checks are recorded.
 | **TASK-17** | Customer home dashboard | `src/components/CustomerApp.tsx` (`currentTab === 'home'`) | Dual-column primary tiles, promo banner, service list | Modern Swiggy/Zepto-style service grid, active order live bar, personalized address header, search bar | In Progress | Pending | Passed (search, address, live status and tracking destination regression) | Verify dashboard at 360/390/430px and on device |
 | **TASK-18** | Address selector | `src/components/AddressSheet.tsx`, `src/components/LocationPicker.tsx` | Bottom sheet with saved list & address form | Map pin icon, Home/Work/Other tags, quick search, default address star badge, bottom action | In Progress | Pending | Passed (saved search, selection state and address labels regression) | Verify sheet and location search at mobile widths and on device |
 | **TASK-19** | Global search | `src/components/GlobalCatalogSearch.tsx`, `src/components/CustomerApp.tsx` | Functional debounced search across restaurants & products | Instant category pills, recent search chips, rich item result cards with pricing and service tag | In Progress | Pending | Passed (food/grocery filtering and recent-query regressions) | Verify suggestion navigation and results at mobile widths |
-| **TASK-20** | Service directory | `src/features/discovery/ServiceDirectory.tsx` | Grid of available services | Vibrant themed service cards with badge tags, delivery times, micro-animations | Pending | Pending | Pending | Refine service directory tiles |
+| **TASK-20** | Service directory | `src/features/discovery/ServiceDirectory.tsx` | Grid of available services | Vibrant themed service cards with badge tags, delivery times, micro-animations | In Progress | Pending | Passed (all six tags, planned-service gating and reduced-motion regression) | Verify service cards at mobile widths and on device |
 | **TASK-21** | Notifications & active-order entry | `src/components/CustomerPages.tsx` (`page === 'notifications'`), `src/components/CustomerApp.tsx` | Basic notifications list | Time-stamped event cards, unread indicators, deep-link to order tracking | Pending | Pending | Pending | Polish notifications view |
 
 ---

@@ -145,6 +145,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   remains debounced and server-backed, with retry and pagination intact. Regression
   tests plus `npm run lint`, `npm test` (**133 passed, 0 failed**) and `npm run build`
   passed; mobile suggestion layout remains pending.
+- TASK-20: the six service cards now show action tags and reduced-motion-aware
+  icon movement, while planned services remain disabled. The directory explains
+  that timing and pricing depend on address and request details rather than
+  displaying unconfigured estimates. `npm run lint`, `npm test` (**133 passed, 0
+  failed**) and `npm run build` passed; screenshots remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

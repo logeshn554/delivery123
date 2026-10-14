@@ -47,8 +47,13 @@ test('unsupported service is disabled with a readable availability label', () =>
 test('service directory retains six service commands and disables only planned domains', () => {
   assert.deepEqual(serviceDirectory.map(service => service.id), ['food', 'grocery', 'parcel', 'ride', 'takeover', 'transport']);
   const html = renderToStaticMarkup(createElement(ServiceDirectory, { onChoose() {} }));
+  const customerCss = readFileSync(new URL('../src/design-system/customer.css', import.meta.url), 'utf8');
   assert.equal((html.match(/disabled=""/g) || []).length, 2);
-  assert.match(html, /Availability and pricing are confirmed/);
+  for (const badge of ['ORDER', 'SHOP', 'SEND', 'RIDE', 'HIRE', 'CARRY']) assert.match(html, new RegExp(`>${badge}<`));
+  assert.match(html, /estimated service times and final charges depend on your address/);
+  assert.match(customerCss, /\.allgo-service-directory \.service-badge/);
+  assert.match(customerCss, /\.allgo-service-directory \.service-icon \{[^}]*transition: transform 180ms ease/);
+  assert.match(customerCss, /prefers-reduced-motion: reduce[^\n]+\.allgo-service-directory \.service-icon \{ transition: none/);
 });
 
 test('contextual cart and account pages belong to their primary navigation destinations', () => {
