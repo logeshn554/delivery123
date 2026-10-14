@@ -1,0 +1,96 @@
+/* Reference direction: warm customer discovery, blue partner tools, calm operations. */
+.auth-role-picker { display: grid; gap: 12px; }
+.auth-role-picker legend { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+.auth-form .auth-role-picker label { display: flex; align-items: center; gap: 12px; padding: 16px 12px; border: 1px solid var(--allgo-border); border-radius: 16px; cursor: pointer; }
+.auth-role-picker label:has(input:checked) { background: var(--stitch-soft); border-color: var(--allgo-brand); }
+.auth-form .auth-role-picker input { width: 18px; min-height: 18px; height: 18px; padding: 0; flex: none; accent-color: var(--allgo-brand); }
+.auth-role-picker svg { color: var(--allgo-brand); flex: none; }
+.auth-role-picker strong { font-size: 15px; }
+.auth-role-picker small { display: block; color: var(--allgo-muted); margin-top: 4px; font-size: 12px; line-height: 1.5; font-weight: 400; }
+.auth-otp-input { text-align: center; letter-spacing: .35em; font-size: 24px !important; }
+.auth-verified { display: flex; align-items: center; gap: 8px; color: var(--allgo-success); font-size: 13px; }
+.partner-onboarding { max-width: 680px; margin: auto; padding: calc(24px + var(--allgo-safe-top)) 20px calc(24px + var(--allgo-safe-bottom)); }
+.partner-onboarding header { margin-bottom: 24px; }
+.partner-onboarding h1 { font-size: 28px; font-weight: 800; letter-spacing: -.03em; margin-block: 16px 8px; }
+.partner-onboarding p { color: var(--allgo-muted); line-height: 1.6; font-size: 14px; }
+.partner-onboarding input,.partner-onboarding select,.partner-onboarding textarea { font-size: 16px; }
+.partner-onboarding button { min-height: 44px; }
+.auth-welcome .auth-primary.auth-white { background: var(--allgo-brand); color: white; }
+.auth-shell :is(.auth-text-link,.auth-switch) { color: var(--allgo-brand); }
+.allgo-customer :is(.text-indigo-600,.text-indigo-800,.text-purple-600) { color: var(--allgo-brand); }
+.allgo-customer :is(.bg-indigo-600,.bg-purple-600) { background: var(--allgo-brand); color: white; }
+.allgo-customer :is(.bg-indigo-50,.bg-purple-50) { background: var(--stitch-soft); }
+.transport-class-picker { display: grid; gap: 12px; }
+.transport-class-picker legend { margin-bottom: 12px; font-size: 16px; font-weight: 750; }
+.transport-type-card { display: flex !important; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--allgo-border); border-radius: 18px; background: var(--allgo-surface); cursor: pointer; }
+.transport-type-card:has(input:checked) { border-color: var(--allgo-brand); background: var(--stitch-soft); }
+.transport-type-card input { width: 18px !important; height: 18px; min-height: 18px !important; accent-color: var(--allgo-brand); }
+.transport-type-icon { display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 12px; background: #fff0df; color: #a44b19; }
+.transport-type-card strong { display: block; font-size: 15px; }
+.transport-type-card small { display: block; margin-top: 4px; color: var(--allgo-muted); font-size: 12px; line-height: 1.5; }
+.transport-type-check { flex: none; margin-left: auto; color: var(--allgo-brand); visibility: hidden; }
+.transport-type-card:has(input:checked) .transport-type-check { visibility: visible; }
+.allgo-customer .allgo-action, .allgo-customer .food-cart-dock, .allgo-customer .grocery-cart-dock { background: var(--allgo-brand); }
+.allgo-home-food { background: #fff1e6; }
+.allgo-customer .stitch-offer-banner { background: linear-gradient(115deg,var(--allgo-primary-strong),var(--allgo-brand)); }
+.allgo-customer-header .bg-slate-100 { background: #fff1e7; }
+.allgo-customer .allgo-home-active { background: #252d3c; }
+.parcel-booking-screen, .transport-booking-screen, .ride-booking-screen { --allgo-brand: #1762dc; --allgo-primary: var(--allgo-brand); --allgo-primary-strong: #124cad; --stitch-soft: #edf4ff; --allgo-focus: #1762dc; }
+.parcel-booking-screen .allgo-action, .transport-booking-screen .allgo-action, .ride-booking-screen .allgo-action { background: var(--allgo-brand); }
+.parcel-route-fields, .ride-route-card { border-radius: 20px; background: var(--allgo-surface); border: 1px solid var(--allgo-border); }
+.allgo-page-heading h1, .mobile-page-heading h1 { letter-spacing: -.025em; }
+.allgo-page-heading button, .food-back { background: var(--allgo-surface); border: 1px solid var(--allgo-border); }
+.allgo-driver, .allgo-merchant, .allgo-admin { --allgo-brand: #1762dc; --allgo-primary: #1762dc; --allgo-focus: #1762dc; --allgo-primary-strong: #124cad; --stitch-soft: #edf4ff; background: var(--allgo-canvas); color: var(--allgo-ink); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.bg-slate-800,.bg-slate-850,.bg-slate-900,.bg-slate-950) { background: var(--allgo-surface); color: var(--allgo-ink); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.text-white,.text-slate-100,.text-slate-200) { color: var(--allgo-ink); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.text-slate-300,.text-slate-400,.text-slate-500) { color: var(--allgo-muted); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.border-slate-700,.border-slate-800,.border-slate-850) { border-color: var(--allgo-border); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.text-purple-300,.text-purple-400,.text-blue-300,.text-blue-400) { color: var(--allgo-brand); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.text-emerald-400,.text-emerald-300) { color: #16744e; }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.text-rose-400,.text-rose-200) { color: #b42338; }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.bg-purple-600,.bg-blue-600,.bg-emerald-600,.bg-rose-600) { color: white; }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.bg-purple-600,.bg-blue-600) { background: var(--allgo-brand); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(.text-\[7px\],.text-\[8px\],.text-\[9px\],.text-\[10px\],.text-\[11px\]) { font-size: 12px; line-height: 1.5; }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is(input,select,textarea) { font-size: 16px; color: var(--allgo-ink); }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) button { min-height: 44px; }
+.allgo-driver > div:first-of-type, .merchant-header { background: var(--allgo-surface); }
+.allgo-driver > div:nth-last-of-type(1), .allgo-merchant > div:nth-last-of-type(1) { scroll-padding-block: 20px; }
+.allgo-driver .shadow-lg, .allgo-driver .shadow-xl, .allgo-merchant .shadow-lg { box-shadow: var(--allgo-shadow-card); }
+.allgo-driver .bg-gradient-to-br { background: #edf4ff; }
+:is(.allgo-driver,.allgo-merchant,.allgo-admin-content) :is([class*='bg-slate-800/'],[class*='bg-slate-900/'],[class*='bg-slate-950/']) { background: var(--allgo-canvas); color: var(--allgo-ink); }
+.merchant-overview { background: #edf4ff; border-color: #d4e3fb; }
+.merchant-overview strong { color: var(--allgo-ink); }
+.merchant-overview span { color: var(--allgo-muted); }
+.role-section-title { margin-bottom: 16px; font-size: 20px; font-weight: 750; letter-spacing: -.025em; }
+.role-navigation { display: flex; flex: none; gap: 4px; padding: 8px 8px calc(8px + var(--allgo-safe-bottom)); border-top: 1px solid var(--allgo-border); background: var(--allgo-surface); }
+.role-navigation button { flex: 1; min-width: 0; min-height: 58px; display: grid; justify-items: center; align-content: center; gap: 5px; font-size: 12px; color: var(--allgo-muted); border-radius: 12px; }
+.role-navigation button[aria-current='page'] { background: var(--stitch-soft); color: var(--allgo-brand); font-weight: 700; }
+.allgo-driver > div.z-40 { bottom: calc(76px + var(--allgo-safe-bottom)); background: var(--allgo-canvas); }
+.allgo-driver > div.z-40 > div { height: 100%; border-radius: 0; box-shadow: none; border-top: 0; }
+.role-profile-card { display: grid; gap: 16px; padding: 24px; border-radius: 20px; background: var(--allgo-surface); border: 1px solid var(--allgo-border); }
+.role-profile-card h2 { font-size: 24px; font-weight: 750; }
+.role-profile-card p { color: var(--allgo-muted); font-size: 14px; }
+.role-profile-card dl { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-block: 16px; border-block: 1px solid var(--allgo-border); font-size: 14px; }
+.role-profile-card dt { color: var(--allgo-muted); }
+.role-profile-card dd { overflow-wrap: anywhere; text-align: right; font-weight: 650; }
+.role-avatar { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 20px; background: var(--stitch-soft); color: var(--allgo-brand); font-size: 26px; font-weight: 750; }
+.role-text-action { color: var(--allgo-brand); font-size: 14px; font-weight: 650; }
+.allgo-admin { display: flex; height: 100%; min-width: 0; overflow: hidden; }
+.allgo-admin-content { flex: 1; min-width: 0; color: var(--allgo-ink); background: var(--allgo-canvas); scroll-behavior: smooth; scroll-padding-top: 24px; }
+.admin-section-navigation { width: 208px; flex: none; display: flex; flex-direction: column; gap: 8px; padding: 24px 14px; background: #172338; color: white; }
+.admin-wordmark { font-size: 25px; font-weight: 850; padding: 0 12px 24px; }
+.admin-wordmark small { display: block; font-size: 12px; font-weight: 500; margin-top: 6px; color: #b9c6d8; }
+.admin-section-navigation a { min-height: 44px; display: flex; align-items: center; padding: 12px; border-radius: 10px; font-size: 13px; color: #e1e8f2; }
+.admin-section-navigation a:hover, .admin-section-navigation a:focus-visible { background: #274367; color: white; }
+.allgo-admin-content > section { display: grid; gap: 20px; }
+.allgo-admin-content th { color: var(--allgo-muted); background: #f6f8fc; }
+.allgo-admin-content td { padding-block: 16px; }
+.allgo-admin-content table { min-width: 650px; }
+@media (max-width: 767px) {
+  .allgo-admin { flex-direction: column; }
+  .admin-section-navigation { width: 100%; flex-direction: row; overflow-x: auto; padding: 8px; gap: 4px; }
+  .admin-wordmark { display: none; }
+  .admin-section-navigation a { flex: none; white-space: nowrap; }
+  .allgo-admin-content { padding: 16px; min-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .allgo-admin-content { scroll-behavior: auto; } }

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import RestaurantMenu from '../src/components/RestaurantMenu.tsx';
@@ -9,6 +10,19 @@ import OffersScreen from '../src/components/OffersScreen.tsx';
 import ProfileScreen from '../src/components/ProfileScreen.tsx';
 import { customerDestination } from '../src/app/customerNavigation.ts';
 const noop=()=>{};
+test('customer, sign-in and partner screens share semantic surfaces and brand tokens',()=>{
+  const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
+  const tokens=read('../src/design-system/tokens.css');
+  const roles=read('../src/design-system/roles.css');
+  const global=read('../src/index.css');
+  assert.match(tokens,/--allgo-brand:\s*#5130ef/i);
+  assert.match(tokens,/--allgo-canvas:\s*#f8f7fc/i);
+  assert.match(tokens,/--allgo-surface:\s*#ffffff/i);
+  assert.match(roles,/\.allgo-customer \.stitch-offer-banner[^{]*\{[^}]*var\(--allgo-primary-strong\)[^}]*var\(--allgo-brand\)/);
+  assert.doesNotMatch(roles,/\.allgo-customer,\s*\.auth-shell,\s*\.stitch-address-sheet\s*\{[^}]*--allgo-brand:/);
+  assert.match(global,/\.auth-shell\s*\{[^}]*background:\s*var\(--allgo-canvas\)/);
+  assert.match(global,/\.auth-panel\s*\{[^}]*background:\s*var\(--allgo-surface\)/);
+});
 const restaurant={id:'test',name:'Test kitchen',cuisine:'Indian',image:'',rating:0,deliveryTime:'',address:'',pureVeg:true};
 const item={id:'dish',restaurantId:'test',name:'Dish with options',category:'Kitchen specials',description:'',price:99,isVeg:true,image:'',variants:[{id:'small',label:'Small',price:99},{id:'large',label:'Large',price:249}]};
 const props={restaurant,items:[item],categories:['All','Kitchen specials'],category:'All',onCategory:noop,loading:false,error:'',onRetry:noop,onClear:noop,onAbout:noop,favoriteIds:[],onFavorite:noop,onDetails:noop,quantities:()=>0,selectedVariants:{dish:'large'},onVariant:noop,onAdd:noop,onRemove:noop};

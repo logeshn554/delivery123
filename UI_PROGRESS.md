@@ -13,13 +13,16 @@ Target Platforms: Responsive Mobile Web (tested at 360px, 390px, 430px), Android
 TASK-01 has a scoped implementation removing competing global Stitch theme tokens;
 TASK-09 now announces catalog busy/empty/error states consistently (targeted tests
 passed). TASK-02 has a shared type scale and line-height/weight tokens, applied to
-shared headings, auth text, form labels and status panels. The inventory is a backlog,
-not proof of missing code or production readiness; phase totals remain unchanged
-until full visual and functional acceptance.
+shared headings, auth text, form labels and status panels. TASK-03 now uses semantic
+canvas/surface and brand tokens across auth, customer and catalog styles; service
+accents remain scoped. The inventory is a backlog, not proof of missing code or
+production readiness; phase totals remain unchanged until full visual and functional
+acceptance. TASK-01, TASK-02, TASK-03 and TASK-09 remain in progress until their
+remaining visual and functional checks are recorded.
 
 | Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
 |---|---|---|---|---|---|---|
-| **Phase 1** | Foundations | 10 | 0 | 1 | 9 | 0 |
+| **Phase 1** | Foundations | 10 | 0 | 4 | 6 | 0 |
 | **Phase 2** | Customer Entry | 11 | 0 | 0 | 11 | 0 |
 | **Phase 3** | Food Delivery | 12 | 0 | 0 | 12 | 0 |
 | **Phase 4** | Grocery Delivery | 11 | 0 | 0 | 11 | 0 |
@@ -39,14 +42,14 @@ until full visual and functional acceptance.
 | ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
 |---|---|---|---|---|---|---|---|---|
 | **TASK-01** | Design-token consolidation | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/stitch.css`, `src/design-system/mobile.css` | Disjointed tokens, missing variables in `tokens.css` referenced by `mobile.css`, competing brand colors (`#5130ef` vs `#5b4df5` vs `#ff5428`) | Consolidate 3-layer token system (primitive -> semantic -> component) in `tokens.css`; unify brand indigo `#5130EF`; fix missing radius, safe area, elevation, typography tokens; remove conflicting overrides | **In Progress** | Pending | Lint/Build Pending | Complete token consolidation in `tokens.css`, sync with `index.css`, `stitch.css`, `mobile.css` |
-| **TASK-02** | Typography | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/mobile.css` | Raw pixel sizes scattered across CSS, inconsistent line heights, potential iOS 16px input zoom bugs | Define standard typography scale tokens: display, headline, title, subtitle, body, callout, caption, tiny; ensure inputs >=16px; set line-height & font-weight tokens | Pending | Pending | Pending | Apply type tokens to shared styles |
-| **TASK-03** | Color and surface consistency | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/stitch.css` | Inconsistent card backgrounds, mixed border colors, raw hexes | Standardize canvas `#F8F7FC`, card surfaces `#FFFFFF`, border `#EBE8F2`, ink `#1B1726`, muted `#696277`, semantic state colors & service tokens | Pending | Pending | Pending | Consolidate surface and color tokens |
+| **TASK-02** | Typography | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/mobile.css` | Raw pixel sizes scattered across CSS, inconsistent line heights, potential iOS 16px input zoom bugs | Define standard typography scale tokens: display, headline, title, subtitle, body, callout, caption, tiny; ensure inputs >=16px; set line-height & font-weight tokens | In Progress | Pending | Pending | Apply tokens to remaining shared roles and verify mobile layouts |
+| **TASK-03** | Color and surface consistency | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/stitch.css` | Inconsistent card backgrounds, mixed border colors, raw hexes | Standardize canvas `#F8F7FC`, card surfaces `#FFFFFF`, border `#EBE8F2`, ink `#1B1726`, muted `#696277`, semantic state colors & service tokens | In Progress | Pending | Pending | Complete the remaining surface and semantic color pass |
 | **TASK-04** | Shared buttons and input controls | `src/design-system/tokens.css`, `src/design-system/mobile.css`, `src/index.css` | Button heights vary from 40px to 54px; inconsistent focus rings and active states | Standardize button hierarchy (primary, secondary, outline, ghost, destructive); min 44px touch targets; active micro-scale; accessible focus rings | Pending | Pending | Pending | Verify button & input tokens across components |
 | **TASK-05** | Shared cards and service tiles | `src/design-system/ServiceTile.tsx`, `src/design-system/GroceryProductCard.tsx`, `src/design-system/RideOptions.tsx` | Multiple ad-hoc card borders and radii | Standardize card padding, corner radii (20px), subtle elevation shadows, micro-interaction press effects | Pending | Pending | Pending | Review & align shared card components |
 | **TASK-06** | Headers and page headings | `src/design-system/PageHeading.tsx`, `src/design-system/mobile.css` | Different headers in customer, driver, merchant, admin | Standardize back-button dimensions (44x44px), title typography, sticky top safe-area insets | Pending | Pending | Pending | Unify header component & styling |
 | **TASK-07** | Bottom navigation | `src/design-system/BottomNavigation.tsx`, `src/app/customerNavigation.ts` | Stretched full-width on wide displays; inconsistent tab bar badges | Constrain to max-width (448px); safe-area bottom padding; clear active icon and label states; badge indicators | Pending | Pending | Pending | Polish BottomNavigation layout and responsiveness |
 | **TASK-08** | Dialogs and bottom sheets | `src/components/useFeedbackDialog.tsx`, `src/components/AddressSheet.tsx` | Ad-hoc modal transitions, scrim opacities | Standardize backdrop blur, bottom sheet drag handle, focus trap, smooth entrance/exit | Pending | Pending | Pending | Audit dialog/sheet styling and accessibility |
-| **TASK-09** | Loading, empty and error components | `src/design-system/CatalogState.tsx`, `src/design-system/StatusPanel.tsx`, `src/components/ConnectionStatus.tsx` | Divergent spinner styles, raw error text | Standardize `CatalogState` & `StatusPanel` with animated pulse skeleton, clear error icons, retry CTAs | Pending | Pending | Pending | Unify feedback and empty states |
+| **TASK-09** | Loading, empty and error components | `src/design-system/CatalogState.tsx`, `src/design-system/StatusPanel.tsx`, `src/components/ConnectionStatus.tsx` | Divergent spinner styles, raw error text | Standardize `CatalogState` & `StatusPanel` with animated pulse skeleton, clear error icons, retry CTAs | In Progress | Pending | Passed (state announcement tests) | Complete visual states and retry QA |
 | **TASK-10** | Global mobile safe-area and responsive behavior | `src/index.css`, `src/design-system/tokens.css`, `src/design-system/mobile.css` | Safe-area paddings inconsistent on notched devices and Android navigation bars | Ensure `env(safe-area-inset-top)` and `env(safe-area-inset-bottom)` applied to fixed shells; test at 360, 390, 430px | Pending | Pending | Pending | Verify layout at all 3 mobile breakpoints |
 
 ---

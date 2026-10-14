@@ -31,6 +31,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   callout and tiny sizes; added line-height and weight tokens; applied the tokens
   to common authentication, mobile heading and status styles. The shared
   phone/browser input size stays 16px to avoid iOS focus zoom.
+- TASK-03: moved the shared indigo tint into the token layer, aligned the app
+  canvas with `#f8f7fc`, and removed the orange customer/auth brand override.
+  Authentication surfaces and menu rails now use shared canvas/surface tokens;
+  white cards across the customer and role styles now use the surface token.
+  Food/grocery/transport colors remain service accents. The corresponding regression
+  test checks the customer, sign-in, and partner theme selectors.
 - `src/design-system/stitch.css`: removed competing global brand, strong-brand,
   canvas and border definitions. Welcome wordmark/buttons and cart shadows now
   consume the shared tokens. Existing layout and service-specific styles retained.
@@ -54,6 +60,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - TASK-02 `npm run lint`: passed.
 - TASK-02 `npm test`: **113 passed, 0 failed** across Functions, UI, server and
   secret-scan checks.
+- TASK-03 `npm run lint`: passed.
+- TASK-03 `npm test`: **114 passed, 0 failed** across Functions, UI, server and
+  secret-scan checks.
+- TASK-03 `npm run build`: passed; Vite still reports the existing `accounts` chunk
+  above 500 kB.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -67,6 +78,7 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - [x] Identify source modules, discover REA and run baseline checks.
 - [x] Fix competing global theme overrides and catalog announcements.
 - [x] Add the shared typography size, line-height and weight scale.
+- [x] Consolidate root brand, canvas and authentication/catalog surfaces.
 - [x] Repair the two local TypeScript blockers.
 - [ ] Complete design-system consolidation and 360/390/430px visual QA.
 - [ ] Verify customer/merchant/driver/admin entry routing and auth/OTP end to end.

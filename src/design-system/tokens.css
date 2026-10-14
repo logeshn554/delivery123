@@ -28,12 +28,13 @@
   --allgo-brand: #5130ef;
   --allgo-primary: var(--allgo-brand);
   --allgo-primary-strong: #4021cc;
-  --allgo-ink: #201d2b;
+  --stitch-soft: #f3efff;
+  --allgo-ink: #1b1726;
   --allgo-text: var(--allgo-ink);
-  --allgo-muted: #635d72;
+  --allgo-muted: #696277;
   --allgo-surface: #ffffff;
-  --allgo-canvas: #f7f6f9;
-  --allgo-border: #e5e1ed;
+  --allgo-canvas: #f8f7fc;
+  --allgo-border: #ebe8f2;
   --allgo-success: #16744e;
   --allgo-warning: #9b5909;
   --allgo-error: #b42338;
