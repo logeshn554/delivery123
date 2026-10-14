@@ -1,13 +1,13 @@
 /* Adapted from the supplied Stitch layouts. Data and actions belong to real workflows. */
-:root { --allgo-brand: #5b4df5; --allgo-primary-strong: #412ddd; --allgo-canvas: #f8f9fd; --allgo-border: #eceef5; --stitch-soft: #f4f2ff; }
+:root { --stitch-soft: #f4f2ff; }
 .auth-welcome { color: var(--allgo-ink); background: white; padding-top: calc(64px + var(--allgo-safe-top)); }
-.auth-welcome .auth-brand { margin: 0 0 10px; font-size: 52px; color: #ff5428; background: linear-gradient(90deg,#ff422c,#f6aa00); background-clip: text; -webkit-text-fill-color: transparent; }
+.auth-welcome .auth-brand { margin: 0 0 10px; font-size: 52px; color: var(--allgo-brand); }
 .auth-welcome .auth-description { color: var(--allgo-muted); font-size: 16px; }
 .stitch-welcome-art { width: 100%; flex: 1; min-height: 250px; max-height: 390px; display: grid; place-items: center; margin: 32px 0; }
 .stitch-welcome-art img { width: 100%; max-width: 420px; height: auto; }
-.auth-welcome .auth-white { background: #ff5327; color: white; box-shadow: 0 8px 20px #ff532733; }
+.auth-welcome .auth-white { background: var(--allgo-brand); color: white; box-shadow: var(--allgo-shadow-card); }
 .auth-welcome .auth-outline { color: var(--allgo-muted); border: 0; font-size: 14px; }
-.auth-welcome .auth-outline strong { color: #e44821; margin-left: 6px; }
+.auth-welcome .auth-outline strong { color: var(--allgo-primary-strong); margin-left: 6px; }
 .stitch-auth-avatar { width: 96px; height: 96px; border-radius: 50%; border: 3px solid #e3e4ff; display: grid; place-items: center; background: #f4f5f9; color: #8f98b1; margin: 12px auto 28px; }
 .auth-panel:not(.auth-welcome) .auth-wordmark { font-size: 28px; }
 .allgo-customer { background: var(--allgo-canvas); }
@@ -54,7 +54,7 @@
 .stitch-stepper output { font-size: 12px; font-weight: 750; }
 .stitch-dish-save { justify-self: end; width: 44px; display: grid; place-items: center; color: #8d6470; }
 .stitch-menu-items .catalog-state { flex-wrap: wrap; padding: 14px; }
-.food-cart-dock, .grocery-cart-dock { background: var(--allgo-brand); color: white; border-radius: 18px; box-shadow: 0 8px 20px #5b4df526; }
+.food-cart-dock, .grocery-cart-dock { background: var(--allgo-brand); color: white; border-radius: 18px; box-shadow: var(--allgo-shadow-card); }
 .food-cart-dock p, .grocery-cart-dock p { color: #ebe7ff; }
 .food-cart-dock button, .grocery-cart-dock button { background: white; color: var(--allgo-brand); }
 .stitch-grocery-categories { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px 10px; padding-block: 12px; }
