@@ -636,6 +636,15 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .service-detail-image.empty { display: grid; place-items: center; color: #9c83c3; }
 .service-detail-body { padding: 24px 20px; }
 .service-detail-body h1 { font-size: 28px; font-weight: 800; letter-spacing: -.8px; line-height: 1.2; margin: 8px 0; }
+.restaurant-detail-highlights { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin: 14px 0 20px; }
+.restaurant-detail-diet, .restaurant-detail-rating { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 11px; background: var(--allgo-surface); color: var(--allgo-ink); font-size: 12px; font-weight: 700; }
+.restaurant-detail-diet i { width: 9px; height: 9px; border: 1px solid currentColor; border-radius: 2px; }
+.restaurant-detail-diet.is-veg i { color: #16834e; background: #16834e; }
+.restaurant-detail-diet.has-nonveg i { color: #c35043; background: #c35043; }
+.restaurant-detail-rating { color: #715318; }
+.restaurant-detail-rating small { color: var(--allgo-muted); font-size: 10px; font-weight: 500; }
+.restaurant-detail-note h2 { margin: 0 0 6px; font-size: 15px; }
+.restaurant-detail-note p { margin: 0; color: var(--allgo-muted); font-size: 13px; line-height: 1.55; }
 .service-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #9b739d; }
 .service-price { display: flex; align-items: center; gap: 14px; font-size: 25px; font-weight: 800; margin: 20px 0; }
 .service-price span { font-weight: 500; font-size: 11px; color: #8d7d9f; }

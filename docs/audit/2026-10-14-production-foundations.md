@@ -162,6 +162,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   and filter controls sticky, and exposes active criteria with individual removal
   and a clear-all action. `npm run lint`, `npm test` (**136 passed, 0 failed**) and
   `npm run build` passed; mobile visual QA remains pending.
+- TASK-24: restaurant details highlight the partner's published rating and menu
+  type, clarify checkout verification, and point customers with dietary needs to
+  the restaurant for ingredient/allergen questions. `npm run lint`, `npm test`
+  (**137 passed, 0 failed**) and `npm run build` passed; mobile visual QA remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

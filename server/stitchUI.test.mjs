@@ -194,3 +194,14 @@ test('restaurant filters include live cuisine chips, active filter removal and a
   assert.match(customer,/setSelectedFoodCuisine\(''\); setVegetarianOnly\(false\); setShowFavoritesOnly\(false\)/);
   assert.match(styles,/\.food-discovery-controls \{ position: sticky/);
 });
+test('restaurant details distinguish published partner data from checkout-confirmed availability',()=>{
+  const details=readFileSync(new URL('../src/components/CatalogDetails.tsx',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(details,/kind === 'restaurant' && partner && 'cuisine' in partner/);
+  assert.match(details,/Published rating \$\{partner\.rating\} out of 5/);
+  assert.match(details,/partner\.pureVeg \? 'Pure vegetarian' : 'Includes non-vegetarian'/);
+  assert.match(details,/Availability and delivery estimates are checked during checkout/);
+  assert.match(details,/Ask the restaurant about ingredients or allergens/);
+  assert.match(styles,/\.restaurant-detail-highlights/);
+  assert.match(styles,/\.restaurant-detail-note/);
+});
