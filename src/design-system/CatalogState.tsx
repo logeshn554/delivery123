@@ -30,6 +30,7 @@ export function CatalogState({
         <p>{description}</p>
       </div>
       {action && <div className="catalog-state-action">{action}</div>}
+      {kind === 'loading' && <span className="allgo-status-skeleton" aria-hidden="true"><i /><i /><i /></span>}
     </section>
   );
 }

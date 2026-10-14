@@ -164,18 +164,28 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .catalog-empty { display: grid; gap: 10px; justify-items: start; padding: 22px; background: #f8f5ff; border-radius: 20px; color: #78668d; font-size: 13px; line-height: 1.5; }
 .catalog-empty strong { color: #3a285a; }
 .catalog-empty button { color: #5130ef; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-.catalog-state { display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 20px; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); color: var(--allgo-ink); }
-.catalog-state-icon { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border-radius: 14px; background: #fff1e9; color: var(--allgo-food); }
+.catalog-state, .allgo-status { display: flex; align-items: flex-start; gap: var(--allgo-card-gap); width: 100%; padding: var(--allgo-card-padding); border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); color: var(--allgo-ink); box-shadow: var(--allgo-shadow-card); }
+.catalog-state-icon, .allgo-status-icon { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border-radius: var(--allgo-radius-control); background: var(--stitch-soft); color: var(--allgo-brand); }
 .catalog-state-copy { min-width: 0; flex: 1; }
 .catalog-state-copy h3 { margin: 1px 0 5px; font-size: 15px; line-height: 1.35; font-weight: 750; }
 .catalog-state-copy p { margin: 0; color: var(--allgo-muted); font-size: 13px; line-height: 1.55; }
 .catalog-state-action { display: flex; flex-shrink: 0; align-items: center; }
 .catalog-state-action button { min-width: var(--allgo-touch-target); min-height: var(--allgo-touch-target); border-radius: 12px; padding: 0 14px; background: var(--allgo-brand); color: white; font-size: 13px; font-weight: 700; }
-.catalog-state-loading .catalog-state-icon svg { animation: catalog-spin 1.2s linear infinite; }
-@keyframes catalog-spin { to { transform: rotate(360deg); } }
-.catalog-state-error { border-color: #f4d7d6; background: #fffafa; }
+.allgo-status-copy { min-width: 0; flex: 1; }
+.allgo-status-copy h2 { margin: 1px 0 5px; font-size: var(--allgo-type-callout); line-height: var(--allgo-line-title); font-weight: var(--allgo-weight-bold); }
+.allgo-status-copy p { margin: 0; color: var(--allgo-muted); font-size: var(--allgo-type-body); line-height: var(--allgo-line-relaxed); }
+.allgo-status-action { display: flex; margin-top: 10px; }
+.allgo-status-action button { min-height: var(--allgo-touch); padding-inline: 14px; border-radius: var(--allgo-radius-control); background: var(--allgo-primary); color: white; }
+.catalog-state-error, .allgo-status-error { border-color: #f4d7d6; background: #fffafa; }
 .catalog-state-error .catalog-state-icon { color: #b83232; background: #fff0ef; }
 .catalog-state-no-results .catalog-state-icon { color: #726a81; background: #f3f1f5; }
+.allgo-status-error .allgo-status-icon { color: var(--allgo-danger); background: var(--allgo-danger-soft); }
+.allgo-status-loading .allgo-status-icon svg, .catalog-state-loading .catalog-state-icon svg { animation: allgo-spin 1.2s linear infinite; }
+.allgo-status-skeleton { display: grid; flex: 0 0 88px; gap: 7px; padding-top: 5px; }
+.allgo-status-skeleton i { display: block; height: 7px; border-radius: 999px; background: linear-gradient(90deg,var(--stitch-soft),#ece8f5,var(--stitch-soft)); background-size: 200% 100%; animation: allgo-skeleton-pulse 1.4s ease-in-out infinite; }
+.allgo-status-skeleton i:nth-child(2) { width: 78%; }
+.allgo-status-skeleton i:nth-child(3) { width: 58%; }
+@keyframes allgo-skeleton-pulse { 50% { opacity: .45; } }
 @keyframes catalog-pulse { 50% { opacity: .4; transform: scale(.92); } }
 .food-page { display: grid; gap: 20px; color: var(--allgo-ink); }
 .food-page-heading { display: flex; align-items: center; gap: 12px; }

@@ -88,6 +88,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   visual handle, and both modal backdrops blur while entrance motion respects
   reduced-motion settings. `npm run lint`, `npm test` (**120 passed, 0 failed**)
   and `npm run build` passed. Native focus and sheet-animation QA remains pending.
+- TASK-09: catalog and shared status panels now share card/icon treatments and a
+  reduced-motion-aware loading skeleton; accessible busy/error announcements and
+  retry actions remain intact. `npm run lint`, `npm test` (**121 passed, 0 failed**)
+  and `npm run build` passed. Route-by-route visual QA remains outstanding.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -107,6 +111,7 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - [x] Unify common heading/back-button styles and tokenized safe-area padding.
 - [x] Constrain bottom navigation and apply shared safe-area spacing.
 - [x] Improve dialog IDs, backdrop treatment, sheet affordance and motion handling.
+- [x] Align loading, empty and error states across catalog and shared status panels.
 - [x] Repair the two local TypeScript blockers.
 - [ ] Complete design-system consolidation and 360/390/430px visual QA.
 - [ ] Verify customer/merchant/driver/admin entry routing and auth/OTP end to end.

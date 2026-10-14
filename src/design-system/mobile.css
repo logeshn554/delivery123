@@ -9,13 +9,6 @@
 .allgo-page-heading > button, .mobile-page-heading > button, .grocery-page-heading > button:first-child { display: grid; width: var(--allgo-touch); min-width: var(--allgo-touch); height: var(--allgo-touch); min-height: var(--allgo-touch); flex: 0 0 var(--allgo-touch); place-items: center; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-control); background: var(--allgo-surface); }
 .allgo-page-heading h1, .mobile-page-heading h1, .grocery-page-heading h1 { min-width: 0; color: var(--allgo-ink); font-size: var(--allgo-type-title); font-weight: var(--allgo-weight-heavy); line-height: var(--allgo-line-tight); overflow-wrap: anywhere; }
 .allgo-page-heading p, .grocery-page-heading p { color: var(--allgo-muted); }
-.allgo-status { display: grid; justify-items: center; gap: var(--allgo-space-3); padding: 32px 20px; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); text-align: center; }
-.allgo-status > svg { color: var(--allgo-brand); }
-.allgo-status h2 { font-size: var(--allgo-type-callout); font-weight: var(--allgo-weight-bold); color: var(--allgo-ink); }
-.allgo-status p { max-width: 34ch; color: var(--allgo-muted); font-size: var(--allgo-type-body); line-height: var(--allgo-line-relaxed); }
-.allgo-status-error { background: var(--allgo-danger-soft); border-color: #edcaca; }
-.allgo-status-error > svg { color: var(--allgo-danger); }
-.allgo-status-loading > svg { animation: allgo-spin 1s linear infinite; }
 @keyframes allgo-spin { to { transform: rotate(360deg); } }
 :where(.allgo-customer, .allgo-partner, .auth-panel) :where(button, a, summary) { touch-action: manipulation; }
 :where(.allgo-customer, .allgo-partner) :where(button, input:not([type="checkbox"]):not([type="radio"]), select, summary) { min-height: var(--allgo-touch); }
@@ -80,6 +73,6 @@ html[data-allgo-offline="true"] :is(.allgo-workspace, .auth-shell) { padding-top
 @keyframes allgo-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .allgo-feedback-dialog button { min-height: var(--allgo-touch); }
 @media (max-width: 360px) { .allgo-customer-header { padding-inline: 12px; } .allgo-customer-header > div { gap: 6px; } .allgo-customer-header > div > div { gap: 2px; } .allgo-heading h1 { font-size: 22px; } }
-@media (prefers-reduced-motion: reduce) { .allgo-status-loading > svg { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .allgo-status-loading > svg, .allgo-status-loading .allgo-status-icon svg, .catalog-state-loading .catalog-state-icon svg, .allgo-status-skeleton i { animation: none; } }
 @media (prefers-reduced-motion: reduce) { :where(.allgo-customer, .allgo-partner, .allgo-operations, .allgo-admin, .allgo-admin-content, .auth-panel) :where(button:not(:disabled)) { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .allgo-feedback-dialog[open], .stitch-address-sheet[open] { animation: none; } }

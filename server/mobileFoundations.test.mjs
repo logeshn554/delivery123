@@ -61,6 +61,19 @@ test('loading and failed catalog states expose different assistive announcements
   assert.match(failed, /Try again when connected/);
 });
 
+test('catalog and shared status panels use consistent loading skeletons and semantic error states', () => {
+  const loading = renderToStaticMarkup(createElement(StatusPanel, { state: 'loading', title: 'Loading offers' }));
+  const error = renderToStaticMarkup(createElement(StatusPanel, { state: 'error', title: 'Offers unavailable' }, 'Try again later.'));
+  const catalogLoading = renderToStaticMarkup(createElement(CatalogState, { kind: 'loading', title: 'Loading catalog', description: 'Checking availability.' }));
+  assert.match(loading, /class="allgo-status-icon"/);
+  assert.match(loading, /class="allgo-status-skeleton" aria-hidden="true"/);
+  assert.match(loading, /aria-busy="true"/);
+  assert.match(error, /role="alert"/);
+  assert.match(error, /Try again later/);
+  assert.doesNotMatch(error, /allgo-status-skeleton/);
+  assert.match(catalogLoading, /allgo-status-skeleton/);
+});
+
 test('page back control is named and cannot accidentally submit an enclosing form', () => {
   const html = renderToStaticMarkup(createElement(PageHeading, { title: 'Store settings', description: 'Manage your store', onBack() {} }));
   assert.match(html, /<h1[^>]*>Store settings<\/h1>/);
