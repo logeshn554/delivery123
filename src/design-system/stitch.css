@@ -32,8 +32,11 @@
 .stitch-dish-title { display: block; text-align: left; font-size: 14px; font-weight: 750; line-height: 1.35; min-height: 44px; }
 .stitch-dish-copy > strong { display: block; font-size: 13px; margin-top: 5px; }
 .stitch-dish-copy p { color: var(--allgo-muted); font-size: 12px; margin-top: 6px; line-height: 1.5; }
-.stitch-dish-copy label { display: grid; gap: 6px; margin-top: 10px; font-size: 12px; }
-.stitch-dish-copy select { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--allgo-border); border-radius: 8px; padding: 7px; }
+.stitch-variant-options { display: grid; gap: 6px; min-width: 0; margin-top: 10px; border: 0; padding: 0; }
+.stitch-variant-options legend { margin-bottom: 5px; color: var(--allgo-muted); font-size: 12px; }
+.stitch-variant-option { display: flex; min-width: 0; min-height: 44px; align-items: center; gap: 8px; border: 1px solid var(--allgo-border); border-radius: 10px; padding: 5px 9px; font-size: 12px; }
+.stitch-variant-option input { width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--allgo-brand); }
+.stitch-variant-option strong { margin-left: auto; white-space: nowrap; }
 .stitch-dish-end { flex: 0 0 70px; width: 70px; display: grid; gap: 7px; }
 .stitch-dish-image { width: 70px; height: 64px; overflow: hidden; border-radius: 10px; }
 .stitch-dish-image-inner { width: 100%; height: 100%; object-fit: cover; background: #fff4eb; color: #a86e42; display: grid; place-items: center; }

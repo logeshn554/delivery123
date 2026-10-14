@@ -175,6 +175,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   checks cover dietary data, supplied/missing allergen information, live variant
   pricing and the add-to-cart action. `npm run lint`, `npm test` (**138 passed,
   0 failed**) and `npm run build` passed; mobile visual QA remains pending.
+- TASK-27: menu variant choices now use accessible radio controls with each current
+  price visible. Add-ons are not exposed because catalog storage and checkout
+  pricing currently have no partner-configured add-on contract; that work remains
+  open rather than showing non-functional options. `npm run lint`, `npm test`
+  (**138 passed, 0 failed**) and `npm run build` passed.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

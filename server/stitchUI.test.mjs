@@ -143,10 +143,12 @@ const props={restaurant,items:[item],categories:['All','Kitchen specials'],categ
 test('restaurant redesign renders the selected live variant price and rejects a closed-store add',()=>{
   const html=renderToStaticMarkup(createElement(RestaurantMenu,props));
   assert.match(html,/<strong>₹249<\/strong>/);
-  assert.match(html,/value="large" selected=""/);
+  assert.match(html,/aria-label="Dish with options: Large, ₹249" name="variant-dish" checked="" value="large"/);
   assert.match(html,/<nav[^>]*aria-label="Menu categories"/);
   assert.match(html,/role="img" class="stitch-diet vegetarian" aria-label="Vegetarian"/);
-  assert.match(html,/aria-label="Dish with options option"/);
+  assert.match(html,/aria-label="Dish with options: Small, ₹99"/);
+  assert.match(html,/aria-label="Dish with options: Large, ₹249"/);
+  assert.match(html,/class="stitch-variant-option"/);
   assert.match(html,/aria-pressed="true"/);
   const closed=renderToStaticMarkup(createElement(RestaurantMenu,{...props,restaurant:{...restaurant,acceptingOrders:false}}));
   assert.match(closed,/class="stitch-add" disabled=""/);
