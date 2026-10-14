@@ -27,6 +27,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 
 ## Implemented
 
+- TASK-02: extended the shared type scale with display, headline, subtitle,
+  callout and tiny sizes; added line-height and weight tokens; applied the tokens
+  to common authentication, mobile heading and status styles. The shared
+  phone/browser input size stays 16px to avoid iOS focus zoom.
 - `src/design-system/stitch.css`: removed competing global brand, strong-brand,
   canvas and border definitions. Welcome wordmark/buttons and cart shadows now
   consume the shared tokens. Existing layout and service-specific styles retained.
@@ -47,6 +51,9 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   implementation; after local repairs, TypeScript completed without diagnostics.
 - `npm run build`: passed in development mode; large-chunk warning remains.
 - Targeted foundation/navigation/Stitch tests: **12 passed, 0 failed**.
+- TASK-02 `npm run lint`: passed.
+- TASK-02 `npm test`: **113 passed, 0 failed** across Functions, UI, server and
+  secret-scan checks.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -59,6 +66,7 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - [x] Inspect origin/base state and preserve existing work.
 - [x] Identify source modules, discover REA and run baseline checks.
 - [x] Fix competing global theme overrides and catalog announcements.
+- [x] Add the shared typography size, line-height and weight scale.
 - [x] Repair the two local TypeScript blockers.
 - [ ] Complete design-system consolidation and 360/390/430px visual QA.
 - [ ] Verify customer/merchant/driver/admin entry routing and auth/OTP end to end.

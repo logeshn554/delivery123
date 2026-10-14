@@ -1,14 +1,14 @@
 /* Shared mobile foundations for customer, delivery partner and store workflows. */
 .allgo-heading { display: flex; align-items: center; gap: var(--allgo-space-3); margin-bottom: var(--allgo-space-5); }
 .allgo-heading > div { min-width: 0; }
-.allgo-heading h1 { font-size: var(--allgo-type-title); font-weight: 800; line-height: 1.2; letter-spacing: -.6px; overflow-wrap: anywhere; }
-.allgo-heading p { margin-top: 6px; color: var(--allgo-muted); font-size: var(--allgo-type-body); line-height: 1.5; }
+.allgo-heading h1 { font-size: var(--allgo-type-title); font-weight: var(--allgo-weight-heavy); line-height: var(--allgo-line-tight); letter-spacing: -.6px; overflow-wrap: anywhere; }
+.allgo-heading p { margin-top: 6px; color: var(--allgo-muted); font-size: var(--allgo-type-body); line-height: var(--allgo-line-body); }
 .allgo-heading-back { display: grid; place-items: center; width: var(--allgo-touch); min-height: var(--allgo-touch); flex-shrink: 0; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-control); background: var(--allgo-surface); }
 .allgo-heading-action { margin-left: auto; flex-shrink: 0; }
 .allgo-status { display: grid; justify-items: center; gap: var(--allgo-space-3); padding: 32px 20px; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); text-align: center; }
 .allgo-status > svg { color: var(--allgo-brand); }
-.allgo-status h2 { font-size: 16px; font-weight: 750; color: var(--allgo-ink); }
-.allgo-status p { max-width: 34ch; color: var(--allgo-muted); font-size: var(--allgo-type-body); line-height: 1.6; }
+.allgo-status h2 { font-size: var(--allgo-type-callout); font-weight: var(--allgo-weight-bold); color: var(--allgo-ink); }
+.allgo-status p { max-width: 34ch; color: var(--allgo-muted); font-size: var(--allgo-type-body); line-height: var(--allgo-line-relaxed); }
 .allgo-status-error { background: var(--allgo-danger-soft); border-color: #edcaca; }
 .allgo-status-error > svg { color: var(--allgo-danger); }
 .allgo-status-loading > svg { animation: allgo-spin 1s linear infinite; }

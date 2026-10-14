@@ -12,9 +12,10 @@ Target Platforms: Responsive Mobile Web (tested at 360px, 390px, 430px), Android
 [`docs/audit/2026-10-14-production-foundations.md`](docs/audit/2026-10-14-production-foundations.md).
 TASK-01 has a scoped implementation removing competing global Stitch theme tokens;
 TASK-09 now announces catalog busy/empty/error states consistently (targeted tests
-passed). Local token additions already resolve several missing values described
-below. The inventory is a backlog, not proof of missing code or production readiness;
-phase totals remain unchanged until full visual and functional acceptance.
+passed). TASK-02 has a shared type scale and line-height/weight tokens, applied to
+shared headings, auth text, form labels and status panels. The inventory is a backlog,
+not proof of missing code or production readiness; phase totals remain unchanged
+until full visual and functional acceptance.
 
 | Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
 |---|---|---|---|---|---|---|
