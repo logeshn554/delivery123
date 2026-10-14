@@ -58,6 +58,19 @@ test('sign-in password visibility is explicit, controllable and cleared on navig
   assert.match(auth,/aria-controls="auth-password-input" aria-pressed=\{visible\} aria-label=\{visible \? 'Hide password' : 'Show password'\}/);
   assert.match(auth,/id="auth-error" role="alert" className="auth-error"/);
 });
+test('signup adds bounded password guidance and links only configured policy URLs',()=>{
+  const auth=readFileSync(new URL('../src/components/AuthScreen.tsx',import.meta.url),'utf8');
+  const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(auth,/maxLength=\{screen === 'signup' \? 128 : undefined\}/);
+  assert.match(auth,/role="progressbar" aria-label="Password strength"/);
+  assert.match(auth,/aria-valuetext=\{`Password strength: \$\{strengthLabel\}`\}/);
+  assert.match(auth,/id="signup-password-help"/);
+  assert.match(auth,/By creating an account, you agree to/);
+  assert.match(auth,/href=\{business\.terms\}/);
+  assert.match(auth,/href=\{business\.privacy\}/);
+  assert.match(global,/\.auth-password-strength i\.filled[^\n]+var\(--allgo-brand\)/);
+  assert.match(global,/\.auth-legal a[^\n]+text-decoration:\s*underline/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

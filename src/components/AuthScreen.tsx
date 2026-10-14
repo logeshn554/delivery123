@@ -5,6 +5,8 @@ import { nativeGoogleSignIn, nativeAppleSignIn, completeNativePhoneSignIn } from
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, updateProfile } from 'firebase/auth';
 import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { auth, googleProvider } from '../firebase';
+import { business } from '../business';
+import { passwordStrength, passwordStrengthLabel } from '../auth/passwordStrength';
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
 import { useNeonAccounts, signInAccount, forgotPasswordAccount, resetPasswordAccount } from '../accounts';
 import PhoneAccountFlow from './PhoneAccountFlow';
@@ -49,6 +51,8 @@ export default function AuthScreen() {
   const [verificationId, setVerificationId] = useState('');
   const [code, setCode] = useState('');
   const [resendAt, setResendAt] = useState(0);
+  const strength = passwordStrength(password);
+  const strengthLabel = password ? passwordStrengthLabel(strength) : 'Not set';
   useEffect(() => {
     if (useNeonAccounts) return;
     if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('FirebaseAuthentication')) return;
@@ -147,7 +151,8 @@ export default function AuthScreen() {
           {screen==='signin' && useNeonAccounts && <button type="button" className="auth-google" disabled={busy} onClick={()=>navigate('phone')}>Sign in with phone & OTP</button>}
           {screen === 'signup' && <label>Full name<input name="name" autoComplete="name" required minLength={2} maxLength={100} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>}
           {screen !== 'phone' && <label>Email address<input id="auth-email-input" name="email" type="email" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>}
-          {screen !== 'reset' && screen !== 'phone' && <label>Password<div className="auth-password"><input id="auth-password-input" name="password" type={visible ? 'text' : 'password'} required minLength={screen === 'signup' ? 8 : 1} autoComplete={screen === 'signup' ? 'new-password' : 'current-password'} value={password} disabled={busy} onChange={event => setPassword(event.target.value)} /><button type="button" aria-controls="auth-password-input" aria-pressed={visible} aria-label={visible ? 'Hide password' : 'Show password'} disabled={busy} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>}
+          {screen !== 'reset' && screen !== 'phone' && <label>Password<div className="auth-password"><input id="auth-password-input" name="password" type={visible ? 'text' : 'password'} required minLength={screen === 'signup' ? 8 : 1} maxLength={screen === 'signup' ? 128 : undefined} autoComplete={screen === 'signup' ? 'new-password' : 'current-password'} value={password} disabled={busy} onChange={event => setPassword(event.target.value)} /><button type="button" aria-controls="auth-password-input" aria-pressed={visible} aria-label={visible ? 'Hide password' : 'Show password'} disabled={busy} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{screen === 'signup' && <><span className="auth-password-strength" role="progressbar" aria-label="Password strength" aria-valuemin={0} aria-valuemax={4} aria-valuenow={strength} aria-valuetext={`Password strength: ${strengthLabel}`}><span aria-hidden="true">{[0, 1, 2, 3].map(index => <i key={index} className={index < strength ? 'filled' : ''} />)}</span><strong>{strengthLabel}</strong></span><small id="signup-password-help">Use at least 8 characters; longer passwords with a mix of letters, numbers or symbols are stronger.</small></>}</label>}
+          {screen === 'signup' && <p className="auth-legal">By creating an account, you agree to {business.terms ? <a href={business.terms} target="_blank" rel="noopener noreferrer">the Terms of Service</a> : 'the AllGo Terms of Service'} and acknowledge {business.privacy ? <a href={business.privacy} target="_blank" rel="noopener noreferrer">the Privacy Policy</a> : 'the AllGo Privacy Policy'}.</p>}
           {screen === 'signin' && <button type="button" className="auth-text-link" disabled={busy} onClick={() => navigate('reset')}>Forgot password?</button>}
           {screen === 'phone' && <><label>Phone number<input name="tel" type="tel" autoComplete="tel" value={phone} disabled={busy || Boolean(verificationId)} onChange={event => setPhone(event.target.value)} placeholder="+91…" required /></label>{verificationId && <label>Verification code<input name="one-time-code" inputMode="numeric" autoComplete="one-time-code" spellCheck={false} pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value)} required /></label>}{verificationId && <button type="button" disabled={busy} onClick={() => { setVerificationId(''); setCode(''); }}>Change phone</button>}</>}
           {error && <p id="auth-error" role="alert" className="auth-error">{error}</p>}

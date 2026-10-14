@@ -114,6 +114,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   Sign-in errors retain a stable alert ID. `npm run lint`, `npm test` (**125
   passed, 0 failed**) and `npm run build` passed; mobile visual verification remains
   pending.
+- TASK-14: added a four-level signup password strength indicator based on length
+  and character variety, aligned the password field with the backend's 128-character
+  limit, and added terms/privacy copy that links to only the configured HTTPS policy
+  URLs. `npm run lint`, `npm test` (**127 passed, 0 failed**) and `npm run build`
+  passed; screenshots remain pending because the local preview is unavailable.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
