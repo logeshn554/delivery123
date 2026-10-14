@@ -83,6 +83,9 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .auth-password-strength strong { min-width: 46px; color: var(--allgo-ink); font-size: 11px; text-align: right; }
 .auth-legal { color: var(--allgo-muted); font-size: 11px; line-height: 1.55; text-align: center; }
 .auth-legal a { color: var(--allgo-primary-strong); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.auth-reset-instructions { padding: 14px 16px; border: 1px solid #ddd5fb; border-radius: 14px; background: #f7f5ff; color: var(--allgo-ink); }
+.auth-reset-instructions strong { font-size: 13px; }
+.auth-reset-instructions p { margin-top: 5px; color: var(--allgo-muted); font-size: 12px; font-weight: 400; line-height: 1.55; }
 .auth-password { position: relative; }
 .auth-password input { padding-right: 48px; }
 .auth-password button { position: absolute; right: 4px; top: 4px; width: 44px; height: 44px; display: grid; place-items: center; color: #7b748f; }

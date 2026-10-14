@@ -82,6 +82,16 @@ test('phone OTP inputs support six-digit autofill, numeric entry and a visible r
   assert.match(phone,/Request another code in \$\{resendWait\}s/);
   assert.match(global,/\.auth-form input\.auth-otp-input[^\n]+letter-spacing:\s*\.45em[^\n]+text-align:\s*center/);
 });
+test('password recovery explains delivery and confirms the replacement password',()=>{
+  const auth=readFileSync(new URL('../src/components/AuthScreen.tsx',import.meta.url),'utf8');
+  const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(auth,/if \(resetPassword !== resetPasswordConfirm\) throw new Error\('The new passwords do not match\.'\)/);
+  assert.match(auth,/name="confirm-new-password" type="password" autoComplete="new-password" minLength=\{8\} maxLength=\{128\}/);
+  assert.match(auth,/className="auth-reset-instructions"/);
+  assert.match(auth,/If the message is missing, check your spam folder/);
+  assert.match(auth,/We’ll send you a password reset link if an account exists for this email/);
+  assert.match(global,/\.auth-reset-instructions\s*\{[^}]*background:\s*#f7f5ff/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

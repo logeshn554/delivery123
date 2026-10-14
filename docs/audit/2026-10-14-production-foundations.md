@@ -125,6 +125,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   only after a successful provider request. `npm run lint`, `npm test` (**128
   passed, 0 failed**) and `npm run build` passed; device SMS/email verification
   remains required.
+- TASK-16: password recovery now explains the code/link flow, provides a distinct
+  instructions panel and requires matching new-password entries before the account
+  API is called. Firebase reset-link behavior remains unchanged. `npm run lint`,
+  `npm test` (**129 passed, 0 failed**) and `npm run build` passed; live provider
+  delivery remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
