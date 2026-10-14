@@ -2,8 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import StatusPanel from '../src/design-system/StatusPanel.tsx';
 import PageHeading from '../src/design-system/PageHeading.tsx';
+
+test('shared controls retain 44px touch targets, semantic focus rings and reduced-motion support', () => {
+  const mobile = readFileSync(new URL('../src/design-system/mobile.css', import.meta.url), 'utf8');
+  const global = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  assert.match(mobile, /:where\(\.allgo-customer, \.allgo-partner\) :where\(button, input[^\n]+min-height: var\(--allgo-touch\)/);
+  assert.match(global, /:focus-visible\s*\{\s*outline:\s*3px solid var\(--allgo-focus\)/);
+  assert.match(mobile, /:where\(button:not\(:disabled\):active\)\s*\{\s*transform:\s*scale\(\.98\)/);
+  assert.match(mobile, /prefers-reduced-motion: reduce[^\n]+transition: none/);
+  assert.match(global, /\.allgo-action\s*\{[^}]*min-height:\s*52px/);
+});
 import { CatalogState } from '../src/design-system/CatalogState.tsx';
 
 test('catalog loading, empty results and failures announce state consistently', () => {

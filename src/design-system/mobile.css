@@ -15,6 +15,9 @@
 @keyframes allgo-spin { to { transform: rotate(360deg); } }
 :where(.allgo-customer, .allgo-partner, .auth-panel) :where(button, a, summary) { touch-action: manipulation; }
 :where(.allgo-customer, .allgo-partner) :where(button, input:not([type="checkbox"]):not([type="radio"]), select, summary) { min-height: var(--allgo-touch); }
+:where(.allgo-customer, .allgo-partner, .allgo-operations, .allgo-admin, .allgo-admin-content, .auth-panel) :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) { min-height: var(--allgo-control-height); font-size: var(--allgo-type-input); border-radius: var(--allgo-control-radius); }
+:where(.allgo-customer, .allgo-partner, .allgo-operations, .allgo-admin, .allgo-admin-content, .auth-panel) :where(button:not(:disabled)) { transition: transform 120ms ease; }
+:where(.allgo-customer, .allgo-partner, .allgo-operations, .allgo-admin, .allgo-admin-content, .auth-panel) :where(button:not(:disabled):active) { transform: scale(.98); }
 .allgo-workspace :is(.allgo-customer, .allgo-partner) :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select),
 .auth-panel :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) { font-size: var(--allgo-type-input); max-width: 100%; }
 .allgo-workspace :is(.allgo-customer, .allgo-partner, .allgo-operations) :where(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\]) { font-size: var(--allgo-type-caption); line-height: 1.5; }
@@ -71,3 +74,4 @@ html[data-allgo-offline="true"] :is(.allgo-workspace, .auth-shell) { padding-top
 .allgo-feedback-dialog button { min-height: var(--allgo-touch); }
 @media (max-width: 360px) { .allgo-customer-header { padding-inline: 12px; } .allgo-customer-header > div { gap: 6px; } .allgo-customer-header > div > div { gap: 2px; } .allgo-heading h1 { font-size: 22px; } }
 @media (prefers-reduced-motion: reduce) { .allgo-status-loading > svg { animation: none; } }
+@media (prefers-reduced-motion: reduce) { :where(.allgo-customer, .allgo-partner, .allgo-operations, .allgo-admin, .allgo-admin-content, .auth-panel) :where(button:not(:disabled)) { transition: none; } }

@@ -45,8 +45,8 @@ button { touch-action: manipulation; }
 }
 
 button:not(:disabled) { cursor: pointer; }
-button:disabled { opacity: .6; cursor: wait; }
-:focus-visible { outline: 3px solid #9d87ff; outline-offset: 3px; }
+button:disabled { opacity: .6; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--allgo-focus); outline-offset: 3px; }
 .auth-shell { min-height: 100dvh; display: grid; place-items: center; background: var(--allgo-canvas); color: var(--allgo-ink); }
 .auth-panel { width: 100%; max-width: 448px; min-height: 100dvh; background: var(--allgo-surface); padding: 28px; }
 .auth-panel h1 { font-size: var(--allgo-type-headline); line-height: var(--allgo-line-tight); font-weight: var(--allgo-weight-heavy); letter-spacing: -1px; margin: 24px 0 12px; }
@@ -607,8 +607,8 @@ button:disabled { opacity: .6; cursor: wait; }
 .allgo-row > svg { flex-shrink: 0; color: #6942dd; }
 .allgo-row > strong:last-child, .allgo-row > button:last-child { margin-left: auto; }
 .allgo-full { text-align: left; width: 100%; }
-.allgo-action { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 48px; border-radius: 14px; background: #5931df; color: white; font-size: 13px; font-weight: 750; margin-top: 18px; padding: 12px; }
-.allgo-action.secondary { color: #5831d6; background: #f0eaff; }
+.allgo-action { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 52px; border-radius: var(--allgo-control-radius); background: var(--allgo-primary); color: white; font-size: var(--allgo-type-callout); font-weight: 750; margin-top: 18px; padding: 12px; }
+.allgo-action.secondary { color: var(--allgo-primary-strong); background: var(--stitch-soft); }
 .allgo-action:disabled, .allgo-text:disabled { opacity: .5; cursor: not-allowed; }
 .allgo-text { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: #613ada; font-weight: 700; min-height: 44px; }
 .allgo-danger { color: #cf3158; padding: 12px; }
@@ -618,7 +618,7 @@ button:disabled { opacity: .6; cursor: wait; }
 .allgo-form input, .allgo-form textarea, .allgo-form select { width: 100%; border: 1px solid #e5deee; border-radius: 12px; padding: 13px 12px; background: #fcfaff; color: #31253f; font-size: 13px; min-height: 46px; }
 .allgo-form input:read-only { background: #f5f2f9; color: #82768f; }
 .allgo-form textarea { min-height: 110px; resize: vertical; }
-.allgo-form input:focus, .allgo-form textarea:focus, .allgo-form select:focus { outline: 2px solid #9474ed; outline-offset: 2px; }
+.allgo-form input:focus, .allgo-form textarea:focus, .allgo-form select:focus { outline: 2px solid var(--allgo-focus); outline-offset: 2px; }
 .allgo-form legend { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
 .allgo-stars { display: flex; gap: 8px; color: #e9b434; }
 .allgo-stars button { min-height: 44px; min-width: 44px; }

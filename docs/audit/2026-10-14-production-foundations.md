@@ -65,6 +65,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   secret-scan checks.
 - TASK-03 `npm run build`: passed; Vite still reports the existing `accounts` chunk
   above 500 kB.
+- TASK-04: centralized control height/radius, kept customer/partner controls at
+  the 44px touch target, raised form text to 16px, unified focus color, and added
+  pressed feedback that honors reduced motion. `npm run lint`, `npm test`
+  (**115 passed, 0 failed**) and `npm run build` passed. Native device checks remain
+  outstanding.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -79,6 +84,7 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - [x] Fix competing global theme overrides and catalog announcements.
 - [x] Add the shared typography size, line-height and weight scale.
 - [x] Consolidate root brand, canvas and authentication/catalog surfaces.
+- [x] Add shared control height, input sizing, focus and reduced-motion feedback.
 - [x] Repair the two local TypeScript blockers.
 - [ ] Complete design-system consolidation and 360/390/430px visual QA.
 - [ ] Verify customer/merchant/driver/admin entry routing and auth/OTP end to end.

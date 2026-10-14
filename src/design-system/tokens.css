@@ -53,6 +53,8 @@
   --allgo-radius-card: 20px;
   --allgo-touch: 44px;
   --allgo-touch-target: var(--allgo-touch);
+  --allgo-control-height: 48px;
+  --allgo-control-radius: var(--allgo-radius-control);
 }
 
 .allgo-navigation {
@@ -118,6 +120,18 @@
 
 .allgo-customer button:disabled {
   cursor: not-allowed;
+}
+
+.allgo-action {
+  min-height: 52px;
+  border-radius: var(--allgo-radius-control);
+  background: var(--allgo-primary);
+  font-size: var(--allgo-type-callout);
+}
+
+.allgo-action.secondary {
+  background: var(--stitch-soft);
+  color: var(--allgo-primary-strong);
 }
 
 .allgo-workspace {
