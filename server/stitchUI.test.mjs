@@ -181,6 +181,17 @@ test('food cart uses announced quantities, touch-sized steppers and server-quote
   assert.match(functions,/function priceLeg\(uid, input\)/);
   assert.match(styles,/\.food-cart-stepper button \{[^}]*min-width: 44px[^}]*min-height: 44px/);
 });
+test('checkout review keeps total payable visible, makes bill details collapsible and links cancellation terms',()=>{
+  const review=readFileSync(new URL('../src/components/CheckoutReviewScreen.tsx',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(review,/<details className="checkout-bill-details" open>/);
+  assert.match(review,/Total · \{currency\(breakdown\.totalCents\)\}/);
+  assert.match(review,/\{business\.cancellation\}/);
+  assert.match(review,/Read cancellation policy/);
+  assert.match(review,/The published cancellation policy is not available yet/);
+  assert.match(review,/Payment method/);
+  assert.match(styles,/\.checkout-bill-details > summary/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));

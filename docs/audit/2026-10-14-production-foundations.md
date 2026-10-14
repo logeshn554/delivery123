@@ -184,6 +184,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   current quantity. Existing service/partner isolation and server-quoted checkout
   breakdown are covered. `npm run lint`, `npm test` (**139 passed, 0 failed**) and
   `npm run build` passed; tip selection remains open pending payout accounting.
+- TASK-29: checkout now keeps the server total visible while bill line items can
+  collapse, and shows the configured cancellation policy or a clear unavailable
+  message. Coupon entry remains in the preceding cart step. `npm run lint`,
+  `npm test` (**140 passed, 0 failed**) and `npm run build` passed; mobile QA remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

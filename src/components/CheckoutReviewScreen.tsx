@@ -1,5 +1,6 @@
 import { ArrowLeft, MapPin, ShieldCheck, ShoppingBag, CreditCard, Wallet, Banknote, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { PriceBreakdown } from '../types';
+import { business } from '../business';
 
 export type PaymentMethodOption = 'online' | 'wallet' | 'cod';
 
@@ -149,34 +150,40 @@ export default function CheckoutReviewScreen({
       {/* Price Breakdown */}
       {breakdown && (
         <article className="allgo-card">
-          <div className="allgo-row">
-            <CreditCard size={19} />
-            <h2>Bill breakdown</h2>
-          </div>
-          {([
-            ['Items', breakdown.itemCents],
-            ['Delivery', breakdown.deliveryCents],
-            ['Packaging', breakdown.packagingCents],
-            ['Platform fee', breakdown.platformCents],
-            ['Tax', breakdown.taxCents],
-          ] as [string, number][]).map(([label, cents]) => (
-            <div className="service-bill-line" key={label}>
-              <span>{label}</span>
-              <strong>{currency(cents)}</strong>
+          <details className="checkout-bill-details" open>
+            <summary><span><CreditCard size={19} aria-hidden="true"/>Bill breakdown</span><strong>Total · {currency(breakdown.totalCents)}</strong></summary>
+            {([
+              ['Items', breakdown.itemCents],
+              ['Delivery', breakdown.deliveryCents],
+              ['Packaging', breakdown.packagingCents],
+              ['Platform fee', breakdown.platformCents],
+              ['Tax', breakdown.taxCents],
+            ] as [string, number][]).map(([label, cents]) => (
+              <div className="service-bill-line" key={label}>
+                <span>{label}</span>
+                <strong>{currency(cents)}</strong>
+              </div>
+            ))}
+            {breakdown.discountCents > 0 && (
+              <div className="service-bill-line">
+                <span>Offer discount</span>
+                <strong className="text-emerald-600">−{currency(breakdown.discountCents)}</strong>
+              </div>
+            )}
+            <div className="service-bill-line border-t pt-2 font-black text-slate-900">
+              <strong>Total payable</strong>
+              <strong className="text-base text-indigo-700">{currency(breakdown.totalCents)}</strong>
             </div>
-          ))}
-          {breakdown.discountCents > 0 && (
-            <div className="service-bill-line">
-              <span>Offer discount</span>
-              <strong className="text-emerald-600">−{currency(breakdown.discountCents)}</strong>
-            </div>
-          )}
-          <div className="service-bill-line border-t pt-2 font-black text-slate-900">
-            <strong>Total payable</strong>
-            <strong className="text-base text-indigo-700">{currency(breakdown.totalCents)}</strong>
-          </div>
+          </details>
         </article>
       )}
+
+      <article className="allgo-card checkout-cancellation-policy">
+        <h2>Cancellation policy</h2>
+        {business.cancellation
+          ? <p>Review the operator’s cancellation terms before placing your order. Eligibility and any refund depend on the order status. <a href={business.cancellation} target="_blank" rel="noopener noreferrer">Read cancellation policy</a></p>
+          : <p>The published cancellation policy is not available yet. Cancellation eligibility and any refund depend on order status; contact support if you need clarification before ordering.</p>}
+      </article>
 
       {/* Payment Method Selector */}
       <article className="allgo-card">

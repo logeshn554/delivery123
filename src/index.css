@@ -263,6 +263,14 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .food-cart-stepper { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; border: 1px solid var(--allgo-border); border-radius: 12px; background: var(--allgo-surface); color: var(--allgo-ink); }
 .food-cart-stepper button { display: grid; width: 44px; min-width: 44px; min-height: 44px; place-items: center; border-radius: 10px; color: var(--allgo-brand); }
 .food-cart-stepper output { min-width: 24px; text-align: center; font-size: 13px; font-weight: 750; }
+.checkout-bill-details > summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
+.checkout-bill-details > summary::-webkit-details-marker { display: none; }
+.checkout-bill-details > summary span { display: inline-flex; align-items: center; gap: 8px; font-weight: 750; }
+.checkout-bill-details > summary strong { color: var(--allgo-brand); font-size: 13px; }
+.checkout-bill-details[open] > summary { margin-bottom: 8px; }
+.checkout-cancellation-policy h2 { margin: 0 0 7px; font-size: 14px; }
+.checkout-cancellation-policy p { margin: 0; color: var(--allgo-muted); font-size: 12px; line-height: 1.5; }
+.checkout-cancellation-policy a { color: var(--allgo-brand); font-weight: 700; text-decoration: underline; }
 .food-address-summary { min-width: 0; max-width: min(54vw,360px); }
 .food-address-summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grocery-page { display: grid; gap: 18px; padding-bottom: 16px; color: var(--allgo-ink); }
