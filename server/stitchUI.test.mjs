@@ -166,3 +166,10 @@ test('offers navigation is a real destination and empty-cart offers expose no cl
   assert.match(html,/disabled="">Review in cart/);
   assert.doesNotMatch(html,/FOOD50|GROCERY30|50%|VERIFIED/);
 });
+test('order notifications expose machine-readable timestamps and an announced unread state',()=>{
+  const pages=readFileSync(new URL('../src/components/CustomerPages.tsx',import.meta.url),'utf8');
+  assert.match(pages,/<time dateTime=\{dateTime\(updatedAt\)\}>\{date\(updatedAt\)\}<\/time>/);
+  assert.match(pages,/<span className="allgo-unread" aria-hidden="true"\/><span className="sr-only">Unread update<\/span>/);
+  assert.match(pages,/onOrder\(booking\.bookingId\)/);
+  assert.match(pages,/onClick=\{markSeen\}>Mark all read/);
+});

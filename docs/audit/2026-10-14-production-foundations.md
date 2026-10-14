@@ -150,6 +150,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   that timing and pricing depend on address and request details rather than
   displaying unconfigured estimates. `npm run lint`, `npm test` (**133 passed, 0
   failed**) and `npm run build` passed; screenshots remain pending.
+- TASK-21: order updates now expose machine-readable timestamps and a screen-reader
+  unread label; selecting an update continues directly to that order. Functional
+  regression checks pass; `npm run lint`, `npm test` (**134 passed, 0 failed**) and
+  `npm run build` passed; mobile visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
