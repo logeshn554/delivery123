@@ -10,6 +10,9 @@ Target Platforms: Responsive Mobile Web (tested at 360px, 390px, 430px), Android
 
 2026-10-14 source reconciliation: see
 [`docs/audit/2026-10-14-production-foundations.md`](docs/audit/2026-10-14-production-foundations.md).
+TASK-10 now routes platform safe-area spacing through shared top/bottom tokens
+with zero fallbacks. Its responsive visual check remains pending because the
+local browser preview cannot reach the development server in this environment.
 TASK-01 has a scoped implementation removing competing global Stitch theme tokens;
 TASK-09 now announces catalog busy/empty/error states consistently (targeted tests
 passed). TASK-02 has a shared type scale and line-height/weight tokens, applied to
@@ -22,7 +25,7 @@ remaining visual and functional checks are recorded.
 
 | Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
 |---|---|---|---|---|---|---|
-| **Phase 1** | Foundations | 10 | 0 | 9 | 1 | 0 |
+| **Phase 1** | Foundations | 10 | 0 | 10 | 0 | 0 |
 | **Phase 2** | Customer Entry | 11 | 0 | 0 | 11 | 0 |
 | **Phase 3** | Food Delivery | 12 | 0 | 0 | 12 | 0 |
 | **Phase 4** | Grocery Delivery | 11 | 0 | 0 | 11 | 0 |
@@ -33,7 +36,7 @@ remaining visual and functional checks are recorded.
 | **Phase 9** | Driver App | 13 | 0 | 0 | 13 | 0 |
 | **Phase 10** | Merchant Portal | 11 | 0 | 0 | 11 | 0 |
 | **Phase 11** | Operations & Admin | 11 | 0 | 0 | 11 | 0 |
-| **Total** | | **125** | **0** | **1** | **124** | **0** |
+| **Total** | | **125** | **0** | **10** | **115** | **0** |
 
 ---
 
@@ -50,7 +53,7 @@ remaining visual and functional checks are recorded.
 | **TASK-07** | Bottom navigation | `src/design-system/BottomNavigation.tsx`, `src/app/customerNavigation.ts` | Stretched full-width on wide displays; inconsistent tab bar badges | Constrain to max-width (448px); safe-area bottom padding; clear active icon and label states; badge indicators | In Progress | Pending | Pending | Verify responsive width and active tab announcements |
 | **TASK-08** | Dialogs and bottom sheets | `src/components/useFeedbackDialog.tsx`, `src/components/AddressSheet.tsx` | Ad-hoc modal transitions, scrim opacities | Standardize backdrop blur, bottom sheet drag handle, focus trap, smooth entrance/exit | In Progress | Pending | Pending | Verify modal labels, unique IDs, dismissal and reduced-motion behavior |
 | **TASK-09** | Loading, empty and error components | `src/design-system/CatalogState.tsx`, `src/design-system/StatusPanel.tsx`, `src/components/ConnectionStatus.tsx` | Divergent spinner styles, raw error text | Standardize `CatalogState` & `StatusPanel` with animated pulse skeleton, clear error icons, retry CTAs | In Progress | Pending | Passed (loading, empty and error tests) | Verify all catalog and shared fallback layouts |
-| **TASK-10** | Global mobile safe-area and responsive behavior | `src/index.css`, `src/design-system/tokens.css`, `src/design-system/mobile.css` | Safe-area paddings inconsistent on notched devices and Android navigation bars | Ensure `env(safe-area-inset-top)` and `env(safe-area-inset-bottom)` applied to fixed shells; test at 360, 390, 430px | Pending | Pending | Pending | Verify layout at all 3 mobile breakpoints |
+| **TASK-10** | Global mobile safe-area and responsive behavior | `src/index.css`, `src/design-system/tokens.css`, `src/design-system/mobile.css` | Safe-area paddings inconsistent on notched devices and Android navigation bars | Ensure `env(safe-area-inset-top)` and `env(safe-area-inset-bottom)` applied to fixed shells; test at 360, 390, 430px | In Progress | Pending | Passed (shared token and zero-fallback regression test) | Verify layout at all 3 mobile breakpoints |
 
 ---
 

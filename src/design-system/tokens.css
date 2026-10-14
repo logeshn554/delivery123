@@ -164,7 +164,7 @@
   gap: 12px;
   background: var(--allgo-surface);
   border-bottom: 1px solid var(--allgo-border);
-  padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+  padding: max(12px, var(--allgo-safe-top)) 16px 12px;
 }
 
 .allgo-workspace-header button {

@@ -33,7 +33,7 @@ button, input, textarea, select { font: inherit; }
 button { touch-action: manipulation; }
 
 .safe-area-top { padding-top: var(--allgo-safe-top); }
-.safe-area-bottom { padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom)); }
+.safe-area-bottom { padding-bottom: var(--allgo-safe-bottom); }
 
 @theme {
   --color-indigo-50: #f3efff;
@@ -231,7 +231,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .food-quantity { display: flex; align-items: center; gap: 3px; border: 1px solid #efcbb8; border-radius: 12px; background: #fff7f2; color: #a94e22; }
 .food-quantity button { width: 40px; color: #a94e22; font-size: 19px; }
 .food-quantity span { min-width: 20px; text-align: center; font-size: 13px; font-weight: 750; }
-.food-cart-dock { position: sticky; bottom: max(8px,env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #352947; border-radius: 18px; background: #282235; color: white; box-shadow: 0 8px 24px #20192d30; }
+.food-cart-dock { position: sticky; bottom: max(8px,var(--allgo-safe-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #352947; border-radius: 18px; background: #282235; color: white; box-shadow: 0 8px 24px #20192d30; }
 .food-cart-dock p { margin: 2px 0 0; color: #d4cedc; font-size: 12px; }
 .food-cart-dock button { min-height: 44px; padding: 0 15px; border-radius: 12px; background: var(--allgo-food); color: white; font-size: 13px; font-weight: 750; }
 .food-address-summary { min-width: 0; max-width: min(54vw,360px); }
@@ -299,14 +299,14 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .grocery-quantity button { width: 44px; height: 44px; color: #286443; font-size: 20px; }
 .grocery-quantity button:disabled { color: #929992; }
 .grocery-quantity span { font-size: 14px; font-weight: 800; }
-.grocery-cart-dock { position: sticky; bottom: max(8px,env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #245e3e; border-radius: 18px; background: #203b2b; color: white; box-shadow: 0 8px 24px #14251a40; }
+.grocery-cart-dock { position: sticky; bottom: max(8px,var(--allgo-safe-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #245e3e; border-radius: 18px; background: #203b2b; color: white; box-shadow: 0 8px 24px #14251a40; }
 .grocery-cart-dock p { margin: 2px 0 0; color: #d1e2d4; font-size: 12px; }
 .grocery-cart-dock button { min-height: var(--allgo-touch-target); padding: 0 15px; border-radius: 12px; background: #3f9460; color: white; font-size: 13px; font-weight: 750; }
 .grocery-cart-conflict { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid #e7c6a4; border-radius: 16px; background: #fff9ef; color: #533d24; }
 .grocery-cart-conflict strong { font-size: 13px; }
 .grocery-cart-conflict p { margin: 3px 0 0; color: #705b41; font-size: 12px; line-height: 1.45; }
 .grocery-cart-conflict button { min-width: 44px; min-height: 44px; flex: 0 0 auto; border-radius: 12px; padding: 0 12px; background: #8a5a24; color: white; font-size: 12px; font-weight: 750; }
-.ride-booking-screen { display: grid; gap: 16px; padding-bottom: max(18px,env(safe-area-inset-bottom)); color: var(--allgo-ink); }
+.ride-booking-screen { display: grid; gap: 16px; padding-bottom: max(18px,var(--allgo-safe-bottom)); color: var(--allgo-ink); }
 .ride-booking-screen .mobile-page-heading { gap: 12px; margin: 0; }
 .ride-booking-screen .mobile-page-heading button { width: var(--allgo-touch-target); height: var(--allgo-touch-target); flex: 0 0 44px; border-radius: 14px; background: #edf1fb; color: #3655a8; }
 .ride-booking-screen .mobile-page-heading h1 { font-size: 22px; }
@@ -383,8 +383,8 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .ride-tracking-screen .tracking-partner button { display: grid; width: 44px; height: 44px; place-items: center; background: #edf2ff; color: var(--allgo-ride); }
 .ride-tracking-screen .tracking-otp { border: 1px solid #dce4f8; background: #eef3ff; color: #3556ad; }
 @media (max-width: 360px) { .ride-booking-intro { padding: 17px; } .ride-location-picker { padding: 11px; } .ride-route-connector { left: 25px; } .ride-vehicle-options { gap: 7px; } .ride-vehicle-options button { min-height: 100px; } }
-.parcel-booking-screen { display: grid; gap: 12px; padding-bottom: max(20px,env(safe-area-inset-bottom)); color: var(--allgo-ink); }
-.transport-booking-screen { display: grid; gap: 16px; padding-bottom: max(20px,env(safe-area-inset-bottom)); }
+.parcel-booking-screen { display: grid; gap: 12px; padding-bottom: max(20px,var(--allgo-safe-bottom)); color: var(--allgo-ink); }
+.transport-booking-screen { display: grid; gap: 16px; padding-bottom: max(20px,var(--allgo-safe-bottom)); }
 .transport-progress { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
 .transport-progress span { min-width: 0; padding: 9px 4px; border-bottom: 3px solid var(--allgo-border); color: var(--allgo-muted); text-align: center; font-size: 12px; font-weight: 700; }
 .transport-progress span.done { border-color: var(--allgo-ride); color: var(--allgo-ink); }
@@ -590,8 +590,8 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .service-stepper { display: flex; gap: 10px; align-items: center; border: 1px solid #e8dff4; border-radius: 12px; font-size: 13px; }
 .service-stepper button { min-width: 36px; min-height: 44px; display: grid; place-items: center; }
 .service-stepper button:disabled { opacity: .35; }
-.checkout-review { position: absolute; inset: 0; z-index: 30; overflow-y: auto; background: #faf7fe; padding: max(22px,var(--safe-area-inset-top,env(safe-area-inset-top))) 20px max(24px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom))); }
-.checkout-action-dock { position: sticky; bottom: 0; margin: 18px -20px calc(-1 * max(24px,env(safe-area-inset-bottom))); padding: 12px 20px max(12px,env(safe-area-inset-bottom)); border-top: 1px solid var(--allgo-border); background: var(--allgo-surface); }
+.checkout-review { position: absolute; inset: 0; z-index: 30; overflow-y: auto; background: #faf7fe; padding: max(22px,var(--allgo-safe-top)) 20px max(24px,var(--allgo-safe-bottom)); }
+.checkout-action-dock { position: sticky; bottom: 0; margin: 18px -20px calc(-1 * max(24px,var(--allgo-safe-bottom))); padding: 12px 20px max(12px,var(--allgo-safe-bottom)); border-top: 1px solid var(--allgo-border); background: var(--allgo-surface); }
 .checkout-action-dock .allgo-action { width: 100%; }
 .service-bill-line { display: flex; justify-content: space-between; gap: 16px; padding: 15px 0; border-bottom: 1px solid #efe8f5; font-size: 12px; }
 .service-bill-line small { display: block; margin-top: 4px; }
@@ -668,7 +668,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .allgo-support label input, .allgo-support label textarea, .allgo-support label select { min-height: 48px; border-color: var(--allgo-border); border-radius: 12px; color: var(--allgo-ink); font-size: 16px; }
 .allgo-support button[type='submit'] { min-height: 48px; font-size: 14px; }
 .allgo-support-empty { padding: 16px; border: 1px dashed var(--allgo-border); border-radius: var(--allgo-radius); color: var(--allgo-muted); font-size: 13px; line-height: 1.5; }
-.allgo-address-sheet { padding-bottom: max(24px,env(safe-area-inset-bottom)); }
+.allgo-address-sheet { padding-bottom: max(24px,var(--allgo-safe-bottom)); }
 .allgo-address-sheet-heading { position: sticky; top: -24px; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -24px -24px 12px; padding: 12px 18px; border-bottom: 1px solid var(--allgo-border); background: var(--allgo-surface); }
 .allgo-address-sheet-heading h2 { color: var(--allgo-ink); font-size: 17px; font-weight: 800; }
 .allgo-address-sheet-heading button { width: 44px; height: 44px; flex: none; border-radius: 12px; color: var(--allgo-muted); font-size: 25px; }

@@ -89,3 +89,21 @@ test('page heading variants share a 44px safe touch target and semantic title st
   assert.match(mobile, /\.allgo-page-heading h1, \.mobile-page-heading h1[^\n]+font-size: var\(--allgo-type-title\)/);
   assert.match(global, /\.safe-area-top \{ padding-top: var\(--allgo-safe-top\); \}/);
 });
+
+test('mobile safe-area spacing shares zero-fallback tokens across fixed and scrolling surfaces', () => {
+  const tokens = readFileSync(new URL('../src/design-system/tokens.css', import.meta.url), 'utf8');
+  const global = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  const customer = readFileSync(new URL('../src/components/CustomerApp.tsx', import.meta.url), 'utf8');
+  assert.match(tokens, /--allgo-safe-top:\s*var\(--safe-area-inset-top,\s*env\(safe-area-inset-top,\s*0px\)\)/);
+  assert.match(tokens, /--allgo-safe-bottom:\s*var\(--safe-area-inset-bottom,\s*env\(safe-area-inset-bottom,\s*0px\)\)/);
+  assert.match(global, /\.safe-area-top \{ padding-top: var\(--allgo-safe-top\); \}/);
+  assert.match(global, /\.safe-area-bottom \{ padding-bottom: var\(--allgo-safe-bottom\); \}/);
+  for (const selector of ['.food-cart-dock', '.grocery-cart-dock', '.ride-booking-screen', '.parcel-booking-screen', '.transport-booking-screen', '.checkout-review', '.checkout-action-dock', '.allgo-address-sheet']) {
+    const rule = global.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}\\s*\\{[^}]+\\}`));
+    assert.ok(rule, `${selector} should define a safe-area aware layout rule`);
+    assert.match(rule[0], /var\(--allgo-safe-bottom\)/, `${selector} should use the shared bottom inset token`);
+  }
+  assert.match(global, /\.checkout-review \{[^}]+var\(--allgo-safe-top\)/);
+  assert.match(customer, /pb-\[max\(1rem,var\(--allgo-safe-bottom\)\)\]/);
+  assert.doesNotMatch(global + tokens + customer, /env\(safe-area-inset-(?:top|bottom)\)(?!,\s*0px)/);
+});

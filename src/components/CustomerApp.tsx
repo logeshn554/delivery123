@@ -893,7 +893,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       </div>
 
       {/* BODY SCROLLABLE PANELS */}
-      <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,var(--allgo-safe-bottom))]">
 
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
         {currentTab === 'services' && activeWorkflow === 'none' && <div className="space-y-4">

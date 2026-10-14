@@ -92,6 +92,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   reduced-motion-aware loading skeleton; accessible busy/error announcements and
   retry actions remain intact. `npm run lint`, `npm test` (**121 passed, 0 failed**)
   and `npm run build` passed. Route-by-route visual QA remains outstanding.
+- TASK-10: fixed shells, cart docks, booking pages, checkout and address surfaces
+  now use the shared safe-area tokens; native environment values resolve to `0px`
+  when no inset is supplied. `npm run lint`, `npm test` (**122 passed, 0 failed**),
+  `npm run build` and `git diff --check` passed. Existing Android address-screen
+  evidence shows content within the system bars. Current screenshots at 360/390/430px
+  remain pending: the preview browser returned `ERR_NETWORK_CHANGED` for localhost.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
