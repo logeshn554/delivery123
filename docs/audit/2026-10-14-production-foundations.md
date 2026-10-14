@@ -154,6 +154,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   unread label; selecting an update continues directly to that order. Functional
   regression checks pass; `npm run lint`, `npm test` (**134 passed, 0 failed**) and
   `npm run build` passed; mobile visual QA remains pending.
+- TASK-22: restaurant cards now show a catalog-backed vegetarian/menu badge and
+  style the partner-provided delivery estimate as a pill, alongside cuisine,
+  image and rating. `npm run lint`, `npm test` (**135 passed, 0 failed**) and
+  `npm run build` passed; responsive visual checks remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

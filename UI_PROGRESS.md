@@ -100,7 +100,7 @@ remaining visual and functional checks are recorded.
 
 | ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
 |---|---|---|---|---|---|---|---|---|
-| **TASK-22** | Restaurant discovery | `src/components/CustomerApp.tsx` (`activeWorkflow === 'food'`) | List of restaurant cards, filter chips | Premium Swiggy-style cards: imagery, rating badge, ETA pill, cuisine tag, veg/non-veg badge | Pending | Pending | Pending | Polish restaurant discovery grid |
+| **TASK-22** | Restaurant discovery | `src/components/CustomerApp.tsx` (`activeWorkflow === 'food'`) | List of restaurant cards, filter chips | Premium cards with partner imagery, rating, ETA and cuisine; catalog-backed vegetarian menu badge | In Progress | Pending | Passed (catalog data and diet/estimate labels regression) | Verify partner data and cards across mobile widths |
 | **TASK-23** | Restaurant search and filters | `src/components/CustomerApp.tsx` | Search bar, veg filter, category chips | Sticky filter bar, sort dropdown, active filter pill indicators | Pending | Pending | Pending | Enhance food search & filters |
 | **TASK-24** | Restaurant details | `src/components/CatalogDetails.tsx` (`kind === 'restaurant'`) | Modal with restaurant information | Hero cover image, rating breakdown, delivery time, address card, safety info | Pending | Pending | Pending | Polish restaurant details sheet |
 | **TASK-25** | Restaurant menu | `src/components/RestaurantMenu.tsx`, `src/components/CustomerApp.tsx` | Vertical menu with left category rail | Sticky category rail, dish cards with image, veg dot icon, customizable options | Pending | Pending | Pending | Polish menu layout & category rail |

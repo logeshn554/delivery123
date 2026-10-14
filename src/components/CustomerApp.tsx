@@ -983,9 +983,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                     <article key={rest.id} className="food-restaurant-card">
                       <button aria-label={`${favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'Remove' : 'Save'} ${rest.name}`} onClick={() => toggleFavorite(`restaurant:${rest.id}`)} aria-pressed={favoriteCatalogIds.includes(`restaurant:${rest.id}`)} className="food-restaurant-favorite"><Heart size={19} fill={favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'currentColor' : 'none'} /></button>
                       <button onClick={() => { setSelectedFoodCategory('All'); setSelectedRestaurant(rest); }} className="food-restaurant-open">
-                        <CatalogImage src={rest.image} alt="" className="food-restaurant-image-fallback" fallback={<Utensils size={32} />} />
+                        <span className="food-restaurant-image-wrap"><CatalogImage src={rest.image} alt="" className="food-restaurant-image-fallback" fallback={<Utensils size={32} />} /><span className={`food-diet-badge ${rest.pureVeg ? 'is-veg' : 'has-nonveg'}`}><span className="food-diet-indicator" aria-hidden="true" />{rest.pureVeg ? 'Pure vegetarian' : 'Includes non-vegetarian'}</span></span>
                         <div className="food-restaurant-copy"><div className="food-restaurant-title"><h3>{rest.name}</h3>{rest.rating > 0 && <span aria-label={`Rating ${rest.rating}`}>★ {rest.rating}</span>}</div>
-                          <div className="food-restaurant-meta"><span>{rest.cuisine}</span>{rest.deliveryTime && <span><Clock size={14} aria-hidden="true" />{rest.deliveryTime}</span>}</div>
+                          <div className="food-restaurant-meta"><span>{rest.cuisine}</span>{rest.deliveryTime && <span className="food-eta-pill" aria-label={`Partner delivery estimate: ${rest.deliveryTime}`}><Clock size={14} aria-hidden="true" />{rest.deliveryTime}</span>}</div>
                           {rest.acceptingOrders === false && <p className="mt-2 text-xs font-semibold text-amber-800">Not accepting orders right now</p>}
                         </div>
                       </button>

@@ -173,3 +173,14 @@ test('order notifications expose machine-readable timestamps and an announced un
   assert.match(pages,/onOrder\(booking\.bookingId\)/);
   assert.match(pages,/onClick=\{markSeen\}>Mark all read/);
 });
+test('restaurant discovery cards surface cuisine, partner estimate and menu diet flags from catalog data',()=>{
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(customer,/className="food-restaurant-image-wrap"/);
+  assert.match(customer,/rest\.pureVeg \? 'Pure vegetarian' : 'Includes non-vegetarian'/);
+  assert.match(customer,/aria-label=\{`Partner delivery estimate: \$\{rest\.deliveryTime\}`\}/);
+  assert.match(customer,/rest\.cuisine/);
+  assert.match(styles,/\.food-diet-badge\.is-veg/);
+  assert.match(styles,/\.food-diet-badge\.has-nonveg/);
+  assert.match(styles,/\.food-eta-pill/);
+});

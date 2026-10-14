@@ -224,6 +224,12 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .food-restaurant-card { position: relative; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); box-shadow: var(--allgo-shadow-card); }
 .food-restaurant-open { display: block; width: 100%; min-height: 0; text-align: left; }
 .food-restaurant-open img, .food-restaurant-image-fallback { display: grid; width: 100%; height: 158px; place-items: center; object-fit: cover; background: #f4f0f5; color: #9b92a3; }
+.food-restaurant-image-wrap { position: relative; display: block; }
+.food-diet-badge { position: absolute; bottom: 10px; left: 10px; display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 20px); border-radius: 999px; padding: 6px 10px; background: #fff; color: #292431; box-shadow: 0 2px 10px #24133a20; font-size: 11px; font-weight: 750; }
+.food-diet-indicator { width: 9px; height: 9px; flex: 0 0 9px; border: 1px solid currentColor; border-radius: 2px; }
+.food-diet-badge.is-veg .food-diet-indicator { color: #16834e; background: #16834e; }
+.food-diet-badge.has-nonveg .food-diet-indicator { color: #c35043; background: #c35043; }
+.food-eta-pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 4px 8px; background: #f2efff; color: #4932aa; font-weight: 700; }
 .catalog-image-fallback { display: grid; place-items: center; }
 .food-restaurant-copy { padding: 14px; }
 .food-restaurant-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
