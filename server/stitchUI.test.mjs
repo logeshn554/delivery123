@@ -168,6 +168,19 @@ test('dish details render dietary evidence, missing-photo fallback and the selec
   const noAllergenData=renderToStaticMarkup(createElement(CatalogDetails,{kind:'dish',item:{...dish,allergens:[]},saved:false,onSave:noop,onBack:noop,onAdd:()=>true,onBrowse:noop,quantityInCart:()=>0}));
   assert.match(noAllergenData,/The partner has not supplied allergen information/);
 });
+test('food cart uses announced quantities, touch-sized steppers and server-quoted checkout totals',()=>{
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  const review=readFileSync(new URL('../src/components/CheckoutReviewScreen.tsx',import.meta.url),'utf8');
+  const functions=readFileSync(new URL('../functions/index.js',import.meta.url),'utf8');
+  assert.match(customer,/className="food-cart-stepper"/);
+  assert.match(customer,/aria-label=\{`Quantity of \$\{item\.name\}`\}/);
+  assert.match(customer,/Your cart has items from another service/);
+  assert.match(customer,/cartQuote\?\.priceBreakdown/);
+  assert.match(review,/Bill breakdown/);
+  assert.match(functions,/function priceLeg\(uid, input\)/);
+  assert.match(styles,/\.food-cart-stepper button \{[^}]*min-width: 44px[^}]*min-height: 44px/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));

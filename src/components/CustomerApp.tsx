@@ -1105,7 +1105,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                     return <div key={`${item.id}:${variant?.id || ''}`} className="flex items-center gap-3 py-3">
                       <CatalogImage src={item.image} alt="" className="cart-line-image" fallback={<ShoppingBag size={20} />} />
                       <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{item.name}</p>{variant && <p className="text-[10px] text-slate-500">{variant.label}</p>}<p className="text-[10px] text-slate-500">₹{livePrice} each</p></div>
-                      <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-2 py-1 text-xs font-bold"><button aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}><Minus size={13} /></button><span>{quantity}</span><button aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleAddToCart(item, cartService!, variant)}><Plus size={13} /></button></div>
+                      <div className="food-cart-stepper"><button type="button" aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}><Minus size={16} /></button><output aria-label={`Quantity of ${item.name}`}>{quantity}</output><button type="button" aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleAddToCart(item, cartService!, variant)}><Plus size={16} /></button></div>
                       <span className="w-14 text-right text-xs font-black text-slate-900">₹{livePrice * quantity}</span>
                     </div>;
                   })}</div>

@@ -180,6 +180,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   pricing currently have no partner-configured add-on contract; that work remains
   open rather than showing non-functional options. `npm run lint`, `npm test`
   (**138 passed, 0 failed**) and `npm run build` passed.
+- TASK-28: cart quantity buttons now meet the 44px touch target and announce the
+  current quantity. Existing service/partner isolation and server-quoted checkout
+  breakdown are covered. `npm run lint`, `npm test` (**139 passed, 0 failed**) and
+  `npm run build` passed; tip selection remains open pending payout accounting.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

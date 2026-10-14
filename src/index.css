@@ -260,6 +260,9 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .food-cart-dock { position: sticky; bottom: max(8px,var(--allgo-safe-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #352947; border-radius: 18px; background: #282235; color: white; box-shadow: 0 8px 24px #20192d30; }
 .food-cart-dock p { margin: 2px 0 0; color: #d4cedc; font-size: 12px; }
 .food-cart-dock button { min-height: 44px; padding: 0 15px; border-radius: 12px; background: var(--allgo-food); color: white; font-size: 13px; font-weight: 750; }
+.food-cart-stepper { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 2px; border: 1px solid var(--allgo-border); border-radius: 12px; background: var(--allgo-surface); color: var(--allgo-ink); }
+.food-cart-stepper button { display: grid; width: 44px; min-width: 44px; min-height: 44px; place-items: center; border-radius: 10px; color: var(--allgo-brand); }
+.food-cart-stepper output { min-width: 24px; text-align: center; font-size: 13px; font-weight: 750; }
 .food-address-summary { min-width: 0; max-width: min(54vw,360px); }
 .food-address-summary p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grocery-page { display: grid; gap: 18px; padding-bottom: 16px; color: var(--allgo-ink); }
