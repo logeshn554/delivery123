@@ -78,6 +78,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   44px semantic controls and common title styles; safe-area top padding now uses
   the token with a zero fallback. `npm run lint`, `npm test` (**117 passed,
   0 failed**) and `npm run build` passed. Native notched-device QA remains pending.
+- TASK-07: constrained shared bottom navigation to 448px, centered it in the
+  phone canvas and switched bottom inset spacing to the shared safe-area token.
+  Existing active-tab and cart-count accessibility labels are covered by the
+  navigation render test. `npm run lint`, `npm test` (**118 passed, 0 failed**)
+  and `npm run build` passed. Device-width visual QA remains outstanding.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -95,6 +100,7 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - [x] Add shared control height, input sizing, focus and reduced-motion feedback.
 - [x] Apply shared card radius, spacing, surface and elevation tokens.
 - [x] Unify common heading/back-button styles and tokenized safe-area padding.
+- [x] Constrain bottom navigation and apply shared safe-area spacing.
 - [x] Repair the two local TypeScript blockers.
 - [ ] Complete design-system consolidation and 360/390/430px visual QA.
 - [ ] Verify customer/merchant/driver/admin entry routing and auth/OTP end to end.

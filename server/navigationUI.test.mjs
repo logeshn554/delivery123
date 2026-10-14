@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import BottomNavigation from '../src/design-system/BottomNavigation.tsx';
@@ -18,6 +19,14 @@ test('shared navigation names its landmark, active destination and cart count', 
   assert.equal((html.match(/aria-current="page"/g) || []).length, 1);
   assert.match(html, /aria-label="Cart, 3 items"/);
   assert.equal((html.match(/type="button"/g) || []).length, 2);
+});
+
+test('shared bottom navigation is centered, capped at phone width and safe-area aware', () => {
+  const css = readFileSync(new URL('../src/design-system/tokens.css', import.meta.url), 'utf8');
+  const navigation = css.match(/\.allgo-navigation\s*\{([^}]*)\}/)?.[1] || '';
+  assert.match(navigation, /max-width:\s*448px/);
+  assert.match(navigation, /margin-inline:\s*auto/);
+  assert.match(navigation, /var\(--allgo-safe-bottom\)/);
 });
 
 test('unverified combined booking exposes no checkout or invented catalog', () => {

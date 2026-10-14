@@ -60,11 +60,14 @@
 }
 
 .allgo-navigation {
+  width: 100%;
+  max-width: 448px;
+  margin-inline: auto;
   display: flex;
   flex: none;
   border-top: 1px solid var(--allgo-border);
   background: var(--allgo-surface);
-  padding: 6px 4px max(6px, env(safe-area-inset-bottom));
+  padding: 6px 4px max(6px, var(--allgo-safe-bottom));
 }
 
 .allgo-navigation button {
