@@ -19,7 +19,6 @@ function catalogSearchFunctions({ onCall, onDocumentWritten, db, REGION, databas
   return {
     indexFoodCatalog: trigger('food'), indexGroceryCatalog: trigger('grocery'),
     searchPublishedCatalog: onCall({ operation: 'searchPublishedCatalog', region: REGION }, async request => {
-      if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to search the catalog.');
       const text = cleanText(request.data?.text, 'Search', 100), terms = words(text).slice(0, 5);
       if (!terms.length || terms[0].length < 2) throw new HttpsError('invalid-argument', 'Enter at least two letters of an item name.');
       let search = db.collection('catalog_search').where('prefixes', 'array-contains', terms[0].slice(0, 24)).orderBy('__name__').limit(51);

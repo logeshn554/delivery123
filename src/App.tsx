@@ -1,3 +1,4 @@
+import { appAudience, appTitle } from './app/audience';
 import { lazy, Suspense, useEffect, useState, useRef } from 'react';
 import { LogOut } from 'lucide-react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -9,8 +10,6 @@ import AuthScreen, { authMessage } from './components/AuthScreen';
 import { getOrCreateUserProfile, listenToAccountProfile, listenToBookings, listenToCustomerBookings, listenToDriverBookings, listenToDriverProfiles, listenToMerchantBookings } from './data/firestoreHelper';
 import { Booking, DriverProfile, UserProfile } from './types';
 const CustomerApp = lazy(() => import('./components/CustomerApp'));
-const DriverApp = lazy(() => import('./components/DriverApp'));
-const MerchantPortal = lazy(() => import('./components/MerchantPortal'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 
 
@@ -22,6 +21,8 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
+  const [continueAsCustomer,setContinueAsCustomer]=useState(false);
+  useEffect(()=>setContinueAsCustomer(false),[currentUser?.uid]);
   const accountUid = useRef<string | null>(null);
 
   useEffect(() => {
@@ -74,12 +75,12 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser || !userProfile) return;
-    return listenToAccountProfile(currentUser.uid, setUserProfile, error => setProfileError(authMessage(error)));
+    return listenToAccountProfile(currentUser.uid, profile => { setUserProfile(profile); setProfileError(''); }, error => setProfileError(authMessage(error)));
   }, [currentUser?.uid, Boolean(userProfile), hasServiceIdentity]);
 
   useEffect(() => {
     if (!currentUser || !userProfile) return;
-    const stopBookings = userProfile.role === 'customer'
+    const stopBookings = appAudience === 'customer'
       ? listenToCustomerBookings(currentUser.uid, setBookings)
       : userProfile.role === 'driver'
         ? listenToDriverBookings(currentUser.uid, setBookings)
@@ -93,31 +94,28 @@ export default function App() {
   }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, hasServiceIdentity]);
 
   if (authChecking) return <div className="auth-shell"><section className="auth-panel grid place-content-center text-center"><div className="auth-wordmark">All<span>Go</span></div><p role="status">Opening your account…</p></section></div>;
-  if (profileError) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Let’s reconnect.</h1><p role="alert">{profileError}</p><button className="auth-primary" onClick={() => setRetry(value => value + 1)}>Try again</button>{currentUser && <button className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button>}</section></div>;
+  if (profileError && (!currentUser || !userProfile)) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Let’s reconnect.</h1><p role="alert">{profileError}</p><button className="auth-primary" onClick={() => setRetry(value => value + 1)}>Try again</button>{currentUser ? <button className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button>:<button className="auth-switch" onClick={()=>setProfileError('')}>Open sign-in options</button>}</section></div>;
   if (!currentUser || !userProfile) return <AuthScreen />;
-  if (useNeonAccounts && userProfile.serviceIdentityEnabled && !userProfile.emailVerified) return <VerifyAccount email={userProfile.email} onSignOut={nativeSignOut} />;
-
-  return (
-    <div className="allgo-workspace">
-      {userProfile.role === 'customer' ? (
-        <main className="mx-auto h-full w-full max-w-md">
-          <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-500">Opening AllGo…</div>}><CustomerApp key={currentUser.uid} userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings.filter((booking) => booking.customerId === currentUser.uid)} userProfile={userProfile} detectedAddress={undefined} onSignOut={() => nativeSignOut()} /></Suspense>
+  if (useNeonAccounts && userProfile.serviceIdentityEnabled && !userProfile.emailVerified && !userProfile.phoneVerified) return <VerifyAccount email={userProfile.email} onSignOut={nativeSignOut} />;
+  if (userProfile.role === 'admin') {
+    return (
+      <div className="allgo-workspace">
+        <header className="allgo-workspace-header">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-indigo-600 px-2.5 py-1 font-black text-white">AllGo</div>
+            <span className="text-xs capitalize text-slate-500">Operations Hub</span>
+          </div>
+          <button type="button" aria-label="Sign out" title="Sign out" onClick={() => nativeSignOut()} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50">
+            <LogOut size={18} />
+          </button>
+        </header>
+        <main className="allgo-workspace-main max-w-7xl overflow-auto">
+          <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-500">Opening AllGo…</div>}>
+            <AdminDashboard activeBookings={bookings} driverProfiles={drivers} />
+          </Suspense>
         </main>
-      ) : (
-        <>
-          <header className="allgo-workspace-header">
-            <div className="flex items-center gap-3"><div className="rounded-xl bg-indigo-600 px-2.5 py-1 font-black text-white">AllGo</div><span className="text-xs capitalize text-slate-500">{userProfile.role} app</span></div>
-            <button type="button" aria-label="Sign out" title="Sign out" onClick={() => nativeSignOut()} className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"><LogOut size={18} /></button>
-          </header>
-          <main className={`allgo-workspace-main ${userProfile.role === 'admin' ? 'max-w-7xl overflow-auto' : 'max-w-md overflow-hidden'}`}>
-            <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-500">Opening AllGo…</div>}>
-              {userProfile.role === 'driver' && <DriverApp userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings} detectedLat={undefined} detectedLng={undefined} />}
-              {userProfile.role === 'merchant' && <MerchantPortal activeBookings={bookings} merchantId={userProfile.merchantId} merchantType={userProfile.merchantType} />}
-              {userProfile.role === 'admin' && <AdminDashboard activeBookings={bookings} driverProfiles={drivers} />}
-            </Suspense>
-          </main>
-        </>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+  return <div className="allgo-workspace">{profileError && <aside role="alert" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Account updates are temporarily unavailable. Your current screen is preserved. {profileError}</aside>}<main className="mx-auto h-full w-full max-w-md"><Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-500">Opening AllGo…</div>}><CustomerApp key={currentUser.uid} userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings.filter(booking => booking.customerId === currentUser.uid)} userProfile={userProfile} onSignOut={()=>nativeSignOut()}/></Suspense></main></div>;
 }

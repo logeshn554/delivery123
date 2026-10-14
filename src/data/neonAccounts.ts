@@ -1,4 +1,4 @@
-import { accountRequest, getAccount, pollAccount, updateAccount } from '../accounts';
+import { accountRequest, getAccount, pollAccount, updateAccount, serviceAccessError } from '../accounts';
 
 const own = (_uid: string) => getAccount(); // The API derives ownership from the verified session.
 export const neonAccountHandlers: Record<string, (...args: any[]) => any> = {
@@ -12,8 +12,8 @@ export const neonAccountHandlers: Record<string, (...args: any[]) => any> = {
   listenToSavedAddresses: (_uid, callback) => pollAccount('/account/items/addresses', callback),
   saveUserAddress: async (_uid, label, address, deliveryDetails) => (await accountRequest<{ id: string }>('/account/items/addresses', 'POST', { label, address, deliveryDetails })).id,
   deleteSavedAddress: (_uid, id) => accountRequest(`/account/items/addresses/${encodeURIComponent(id)}`, 'DELETE'),
-  createSupportTicket: () => Promise.reject(new Error('Support requires a connected service session. Sign in again to connect, then retry your request.')),
-  listenToSupportTickets: (_uid, _callback, error) => { error?.(new Error('Support history requires a connected service session. Sign in again to reconnect.')); return () => {}; },
+  createSupportTicket: () => Promise.reject(serviceAccessError()),
+  listenToSupportTickets: (_uid, _callback, error) => { error?.(serviceAccessError()); return () => {}; },
   requestAccountDeletion: () => accountRequest('/account/items/deletion', 'POST', {}),
   listenToCustomerBookings: (_uid, callback) => pollAccount('/data/bookings', callback),
   listenToBookingContacts: (id, callback, error) => pollAccount(`/data/bookings/${encodeURIComponent(id)}/contacts`, callback, error),

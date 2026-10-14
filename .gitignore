@@ -23,4 +23,5 @@ credentials*.json
 GoogleService-Info.plist
 google-services.json
 service-account*.json
+qa-*.png
 

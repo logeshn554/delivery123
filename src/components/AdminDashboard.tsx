@@ -71,15 +71,15 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
   };
 
   return (
-    <div className="bg-slate-950 text-slate-100 h-full p-6 overflow-y-auto space-y-6 font-sans">
+    <div className="allgo-admin"><nav className="admin-section-navigation" aria-label="Administration sections"><div className="admin-wordmark">AllGo <small>Operations</small></div>{[['admin-overview','Overview'],['admin-bookings','Orders'],['admin-partners','Delivery partners'],['admin-finance','Payments & refunds'],['admin-business','Businesses'],['admin-policy','Dispatch policy'],['admin-support','Support']].map(([id,label])=><a key={id} href={`#${id}`}>{label}</a>)}</nav><div className="allgo-admin-content bg-slate-950 text-slate-100 h-full p-6 overflow-y-auto space-y-6 font-sans">
       
       {/* 1. Header Area */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-5 shrink-0">
+      <div id="admin-overview" className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-5 shrink-0">
         <div>
           <div className="flex items-center gap-2 text-blue-400 font-extrabold text-xs uppercase tracking-widest">
             <Shield className="w-4 h-4" /> Operations Hub Control
           </div>
-          <h1 className="text-2xl font-black text-white mt-1">AllGo Super App Analytics</h1>
+          <h1 className="text-2xl font-black text-white mt-1">Operations overview</h1>
           <p className="text-xs text-slate-400">Monitor bookings, delivery partners and verification requests.</p>
         </div>
 
@@ -135,7 +135,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
       </div>
       
       {/* 3. Grid for Live dispatch monitor + KYC queue */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div id="admin-partners" className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
         <div className="xl:col-span-2 space-y-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-md">
           <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Delivery partner locations</h3>
@@ -186,7 +186,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
       <PayoutRequests />
       <DeletionRequests />
       {/* 4. Live bookings table monitor */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
+      <div id="admin-bookings" className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
         {cancelError && <p role="alert" className="mb-3 rounded-lg border border-rose-800 bg-rose-950/50 p-3 text-sm text-rose-200">{cancelError}</p>}
         {cancelSuccess && <p role="status" className="mb-3 rounded-lg border border-emerald-800 bg-emerald-950/50 p-3 text-sm text-emerald-200">{cancelSuccess}</p>}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
@@ -302,13 +302,12 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
       </div>
 
       <OperationsConsole drivers={driverProfiles}/>
-      <FinanceJournalPanel/>
-      <RefundReviewQueue/>
-      <DispatchPolicyEditor/>
-      <MerchantBusinessSetup/>
+      <section id="admin-finance"><FinanceJournalPanel/><RefundReviewQueue/></section>
+      <section id="admin-policy"><DispatchPolicyEditor/></section>
+      <section id="admin-business"><MerchantBusinessSetup/></section>
       <PartnerApplicationPanel staff/>
-      <SupportOperationsQueue/>
+      <section id="admin-support"><SupportOperationsQueue/></section>
       <section className="space-y-3 rounded-xl border p-4"><h2 className="font-bold">Bookings awaiting problem review</h2>{activeBookings.filter(booking => booking.exception?.status === 'open').map(booking => <div key={booking.bookingId}><h3 className="mb-1 text-xs font-bold">{booking.bookingId} · {booking.serviceType}</h3><BookingExceptionPanel booking={booking} staff/></div>)}{!activeBookings.some(booking => booking.exception?.status === 'open') && <p className="text-sm">No reported problems in the loaded bookings.</p>}</section>
-    </div>
+    </div></div>
   );
 }

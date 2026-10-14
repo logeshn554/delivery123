@@ -3,6 +3,8 @@ import { Component, lazy, Suspense, type ReactNode } from 'react';
 import './index.css';
 import './design-system/mobile.css';
 import './design-system/stitch.css';
+import './design-system/customer.css';
+import './design-system/roles.css';
 import ConnectionStatus from './components/ConnectionStatus';
 import { Capacitor } from '@capacitor/core';
 

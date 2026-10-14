@@ -5,11 +5,11 @@ import { saveAccountName, deleteSavedAddress, updateUserAddress, createSupportTi
 import { accountRequest, useNeonAccounts, hasServiceIdentity } from '../accounts';
 import { business } from '../business';
 import AccountDataExport from './AccountDataExport';
-import PartnerApplicationPanel from './PartnerApplicationPanel';
+
 import { useFeedbackDialog } from './useFeedbackDialog';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 
-export type CustomerPage = 'edit-profile' | 'addresses' | 'favorites' | 'notifications' | 'receipts' | 'reviews' | 'security' | 'help' | 'safety' | 'policies' | 'partners' | 'about';
+export type CustomerPage = 'edit-profile' | 'addresses' | 'favorites' | 'notifications' | 'receipts' | 'reviews' | 'security' | 'help' | 'safety' | 'policies' | 'about';
 export const customerPages = [
   { id: 'edit-profile', title: 'Personal details', detail: 'Update your account name', Icon: UserRound },
   { id: 'addresses', title: 'Saved addresses', detail: 'Choose where your delivery goes', Icon: MapPin },
@@ -21,7 +21,6 @@ export const customerPages = [
   { id: 'help', title: 'Help centre', detail: 'Answers for every AllGo service', Icon: HelpCircle },
   { id: 'safety', title: 'Safety centre', detail: 'Safer pickups, rides and payments', Icon: ShieldCheck },
   { id: 'policies', title: 'Policies & privacy', detail: 'Terms, cancellations and your data', Icon: FileText },
-  { id: 'partners', title: 'Become a partner', detail: 'Apply to deliver or list your business', Icon: BriefcaseBusiness },
   { id: 'about', title: 'About AllGo', detail: 'Services, coverage and contact details', Icon: Package },
 ] as const;
 const currency = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number.isFinite(amount) ? amount : 0);
@@ -84,8 +83,8 @@ export default function CustomerPages({ page, userId, profile, bookings, address
     {page === 'help' && <><div className="allgo-card"><h2>A little help, whenever you need it.</h2><p>Find an answer below or send a request linked to your account.</p><button className="allgo-action" onClick={onSupport}>Contact support <ArrowRight size={17}/></button></div>{faq.map(([question,answer]) => <details className="allgo-card allgo-faq" key={question}><summary>{question}</summary><p>{answer}</p></details>)}</>}
     {page === 'safety' && <><div className="allgo-card allgo-feature"><ShieldCheck size={38}/><h2>Your safety comes first</h2><p>If you are in immediate danger, contact your local emergency service. Support requests are not monitored as an emergency service.</p></div>{[['Before a ride','Check the partner’s identity and vehicle against your order. Do not start the trip if the details do not match.'],['At pickup and delivery','Confirm the address and recipient. Share a delivery code only when the correct parcel or order is handed over.'],['Protect your account','Never share your password, bank OTP or card PIN. Use the app’s payment flow and keep payment references.'],['For parcels and vehicle transport','Declare contents and weight accurately. Do not send prohibited items. Record the condition of your vehicle and confirm the handover details with your partner.']].map(([heading,body]) => <article className="allgo-card" key={heading}><h2>{heading}</h2><p>{body}</p></article>)}<button onClick={onSupport} className="allgo-action">Report a safety concern</button></>}
     {page === 'policies' && <><p className="allgo-muted">Read the operator’s published documents before confirming a booking.</p>{[['Privacy policy',business.privacy,'How personal data is collected, used and retained.'],['Terms of service',business.terms,'Service responsibilities, eligibility and booking conditions.'],['Cancellation & refund policy',business.cancellation,'Cancellation eligibility, charges and refund handling.']].map(([heading,url,body]) => <article className="allgo-card" key={heading}><h2>{heading}</h2><p>{body}</p>{url ? <a className="allgo-text" href={url} target="_blank" rel="noopener noreferrer">Read published policy <ArrowRight size={15}/></a> : <p className="allgo-muted">The published policy is not available yet. Contact support for clarification.</p>}</article>)}<AccountDataExport/></>}
-    {page === 'partners' && <PartnerApplicationPanel userId={userId}/>}
     {page === 'about' && <><div className="allgo-card allgo-feature"><div className="allgo-receipt-brand">AllGo</div><h2>Everyday deliveries. One place.</h2><p>Food, groceries, parcels, rides, driver hire and vehicle transport.</p></div><article className="allgo-card"><h2>{business.name}</h2><p>Service availability is confirmed for the addresses selected in your booking.</p>{business.cities && <p>Service areas: {business.cities}</p>}{business.supportEmail && <a className="allgo-text" href={`mailto:${business.supportEmail}`}>{business.supportEmail}</a>}{business.supportPhone && <a className="allgo-text" href={`tel:${business.supportPhone}`}>{business.supportPhone}</a>}<button className="allgo-action secondary" onClick={onSupport}>Contact AllGo support</button></article></>}
     {busy && <div className="allgo-busy" role="status"><LoaderCircle className="animate-spin" size={16}/>Saving…</div>}
   </section>;
 }
+

@@ -1,8 +1,19 @@
 import { createRequire } from 'node:module';
+import { phoneRegistrationIdentity } from './phoneRegistrationPolicy.mjs';
 
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 let services;
 export const identityBridgeEnabled = () => process.env.ACCOUNT_FIREBASE_BRIDGE_ENABLED === 'true';
+export async function verifyPhoneIdentity(token) {
+  if (!identityBridgeEnabled()) throw Object.assign(new Error('Phone verification is not configured. Please contact support.'), { status: 503, code: 'unavailable' });
+  if (typeof token !== 'string' || token.length < 100 || token.length > 8000) throw Object.assign(new Error('Verify your phone to continue.'), { status: 401, code: 'auth/invalid-credential' });
+  const { auth } = firebase();
+  const claims = await auth.verifyIdToken(token, true);
+  const identity = phoneRegistrationIdentity(claims);
+  const user = await auth.getUser(identity.uid);
+  if (user.disabled || user.phoneNumber !== identity.phone) throw Object.assign(new Error('This phone identity is unavailable.'), { status: 403, code: 'permission-denied' });
+  return identity;
+}
 function firebase() {
   if (!services) {
     const { initializeApp, applicationDefault, getApps } = require('firebase-admin/app');
@@ -16,7 +27,7 @@ function firebase() {
 }
 export async function bridgeIdentity(pool, account, sessionHash) {
   if (!identityBridgeEnabled()) return null;
-  if (account.profile.emailVerified !== true) throw Object.assign(new Error('Verify your email before booking or using partner services.'), { status: 403, code: 'auth/email-verification-required' });
+  if (account.profile.emailVerified !== true && account.profile.phoneVerified !== true) throw Object.assign(new Error('Verify your email or phone before booking or using partner services.'), { status: 403, code: 'auth/email-verification-required' });
   const { auth, db, Timestamp } = firebase();
   const client = await pool.connect();
   try {
@@ -41,13 +52,17 @@ export async function bridgeIdentity(pool, account, sessionHash) {
       uid = user.uid;
       await client.query("UPDATE allgo_accounts SET profile=profile || jsonb_build_object('firebaseUid', $2::text) WHERE id=$1", [current.id, uid]);
     }
-    if (user.disabled || user.email?.toLowerCase() !== current.email || !user.emailVerified) throw Object.assign(new Error('The service identity is disabled or needs verification.'), { status: 403, code: 'permission-denied' });
+    const verifiedPhone = current.profile.phoneVerified === true && user.phoneNumber === current.profile.phone && user.uid === current.profile.firebaseUid;
+    if (user.disabled || !verifiedPhone && (user.email?.toLowerCase() !== current.email || !user.emailVerified)) throw Object.assign(new Error('The service identity is disabled or needs verification.'), { status: 403, code: 'permission-denied' });
     await client.query('INSERT INTO allgo_identity_links (account_id,firebase_uid) VALUES ($1,$2) ON CONFLICT (account_id) DO NOTHING', [current.id, uid]);
     const profileRef = db.doc(`users/${uid}`);
     await db.runTransaction(async tx => {
       const existing = await tx.get(profileRef);
-if (!existing.exists) tx.create(profileRef, { uid, accountAuthority: 'neon', neonAccountId: current.id, name: current.name, email: current.email, role: 'customer', walletBalance: 0, createdAt: current.created_at.toISOString(), ...(current.profile.preferences ? { preferences: current.profile.preferences } : {}), ...(Array.isArray(current.profile.favorites) ? { favorites: current.profile.favorites } : {}), ...(current.profile.defaultAddressId ? { defaultAddressId: current.profile.defaultAddressId } : {}), ...(current.profile.defaultAddress ? { defaultAddress: current.profile.defaultAddress } : {}) });
-      if (existing.exists) tx.update(profileRef, { accountAuthority: 'neon', neonAccountId: current.id });
+if (!existing.exists) tx.create(profileRef, { uid, accountAuthority: 'neon', neonAccountId: current.id, name: current.name, email: current.email, role: 'customer', walletBalance: 0, createdAt: current.created_at.toISOString(), ...(current.profile.phoneVerified ? { phone: current.profile.phone, phoneVerified: true } : {}), ...(current.profile.requestedRole ? { requestedRole: current.profile.requestedRole } : {}), ...(current.profile.preferences ? { preferences: current.profile.preferences } : {}), ...(Array.isArray(current.profile.favorites) ? { favorites: current.profile.favorites } : {}), ...(current.profile.defaultAddressId ? { defaultAddressId: current.profile.defaultAddressId } : {}), ...(current.profile.defaultAddress ? { defaultAddress: current.profile.defaultAddress } : {}) });
+      if (existing.exists) {
+        if (existing.data().neonAccountId && existing.data().neonAccountId !== current.id) throw Object.assign(new Error('This phone is already linked to another account.'), { status: 409, code: 'auth/account-exists-with-different-credential' });
+        tx.update(profileRef, { accountAuthority: 'neon', neonAccountId: current.id, ...(current.profile.requestedRole ? {requestedRole:current.profile.requestedRole} : {}), ...(verifiedPhone ? {phone:current.profile.phone,phoneVerified:true} : {}) });
+      }
     });
     // Migrate only saved addresses, once. Never turn unverified JSON bookings into paid orders.
     if (!current.profile.addressMigrationComplete) {
@@ -63,7 +78,7 @@ if (!existing.exists) tx.create(profileRef, { uid, accountAuthority: 'neon', neo
     await db.doc(`bridge_sessions/${sessionHash}`).set({ uid, neonAccountId: current.id, expiresAt: Timestamp.fromDate(sessions.rows[0].expires_at) });
     const customToken = await auth.createCustomToken(uid, { allgoSession: sessionHash });
     const snapshot = await profileRef.get();
-    const profile = { ...snapshot.data(), uid, emailVerified: true, serviceIdentityEnabled: true };
+    const profile = { ...snapshot.data(), uid, name: current.name, email: current.email, emailVerified: current.profile.emailVerified === true, phoneVerified: current.profile.phoneVerified === true, serviceIdentityEnabled: true };
     if (profile.role === 'admin' && user.customClaims?.admin !== true) throw Object.assign(new Error('Operations approval is missing.'), { status: 403, code: 'permission-denied' });
     await client.query('COMMIT');
     return { customToken, profile };

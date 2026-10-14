@@ -11,13 +11,19 @@ export const serviceDirectory = [
 ] as const;
 export type CustomerService = typeof serviceDirectory[number]['id'];
 export default function ServiceDirectory({ onChoose, onMoversInfo }: { onChoose: (service: CustomerService) => void; onMoversInfo?:()=>void }) {
-  return <section aria-label="Explore services">
-    <div className="section-heading"><h2>Explore services</h2></div>
-    <p className="mb-4 text-sm text-slate-600">Availability and pricing are confirmed when you request a quote for your location.</p>
-    <div className="service-grid">
-      {serviceDirectory.map(service => <ServiceTile key={service.id} {...service} onChoose={() => onChoose(service.id)} />)}
+  return <section className="allgo-service-directory" aria-label="Explore services">
+    <header className="allgo-heading"><div><h1>Everyday, delivered.</h1><p>Shop, send a package, or plan your next journey.</p></div></header>
+    {[
+      { title: 'Food & essentials', services: serviceDirectory.slice(0, 2) },
+      { title: 'Delivery & travel', services: serviceDirectory.slice(2) },
+    ].map(group => <section key={group.title} aria-label={group.title}>
+      <div className="section-heading"><h2>{group.title}</h2></div>
+      <div className="service-grid">{group.services.map(service => <ServiceTile key={service.id} {...service} onChoose={() => onChoose(service.id)} />)}</div>
+    </section>)}
+    <p className="allgo-service-note">Availability and pricing are confirmed for your location when you request a quote.</p>
+    <details className="allgo-planned-services"><summary>More services on the way</summary><div className="service-grid">
       <ServiceTile label="Goods transport" description="Planned · not available" icon={Truck} unavailable />
       <ServiceTile label="Movers" description="Planned · not available" icon={House} unavailable={!onMoversInfo} onChoose={onMoversInfo} />
-    </div>
+    </div></details>
   </section>;
 }

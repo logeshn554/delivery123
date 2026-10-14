@@ -4,8 +4,8 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase';
 import PartnerEvidencePanel from './PartnerEvidencePanel';
 type Application = { applicationId: string; type: string; name: string; phone: string; city: string; status: string; revision: number; feedback?: string };
-export default function PartnerApplicationPanel({ userId, staff = false }: { userId?: string; staff?: boolean }) {
-  const [rows, setRows] = useState<Application[]>([]), [selected, setSelected] = useState<Application | null>(null), [type, setType] = useState('driver'), [name, setName] = useState(''), [phone, setPhone] = useState(''), [city, setCity] = useState(''), [consent, setConsent] = useState(false), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [more, setMore] = useState(false);
+export default function PartnerApplicationPanel({ userId, staff = false, initialType='driver', initialName='', initialPhone='' }: { userId?: string; staff?: boolean; initialType?:'driver'|'restaurant';initialName?:string;initialPhone?:string }) {
+  const [rows, setRows] = useState<Application[]>([]), [selected, setSelected] = useState<Application | null>(null), [type, setType] = useState<string>(initialType), [name, setName] = useState(initialName), [phone, setPhone] = useState(initialPhone), [city, setCity] = useState(''), [consent, setConsent] = useState(false), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [more, setMore] = useState(false);
   const cursor = useRef<QueryDocumentSnapshot<DocumentData> | null>(null), command = useRef<{ key: string; id: string } | null>(null), generation = useRef(0);
   const load = async (reset: boolean) => {
     const version = generation.current;

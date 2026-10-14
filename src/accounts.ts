@@ -3,11 +3,16 @@ import type { UserProfile } from './types';
 import { signInWithCustomToken, signOut, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { auth } from './firebase';
 import { sessionToken, saveSession, clearSession } from './sessionStorage';
+import { normalizeAccountProfile } from './app/accountProfile';
+import { serviceAccessError as accessError } from './app/serviceAccess';
 
 export const useNeonAccounts = import.meta.env.VITE_AUTH_PROVIDER === 'neon';
 const base = ((Capacitor.isNativePlatform() ? import.meta.env.VITE_ACCOUNT_API_URL : '') || '').replace(/\/$/, '');
 export let hasServiceIdentity = false;
 let activeProfile: UserProfile | null = null;
+export function serviceAccessError() {
+  return accessError(activeProfile);
+}
 let sessionGeneration = 0;
 const listeners = new Set<(profile: UserProfile | null) => void>();
 function publish(value: UserProfile | null) { activeProfile = value; listeners.forEach(listener => listener(value)); }
@@ -29,18 +34,27 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
     throw Object.assign(new Error(controller.signal.aborted ? 'The account server took too long to respond. Please try again.' : 'Cannot reach the account server. Check your connection and that the account server is running.'), { code: 'auth/network-request-failed' });
   } finally { clearTimeout(timeout); }
 }
-export async function signInAccount(email: string, password: string, name?: string) {
-  const result = await accountRequest<{ token?: string; profile: UserProfile }>(name === undefined ? '/auth/login' : '/auth/signup', 'POST', { email, password, name });
-  sessionGeneration++; await saveSession(result.token); const profile = await connectServiceIdentity(result.profile); publish(profile); return profile;
+async function acceptAccountSession(result: { token?: string; profile: UserProfile }) {
+  if (Capacitor.isNativePlatform() && !/^[a-f0-9]{64}$/.test(result?.token || '')) throw new Error('Sign-in did not return a valid session. Please try again.');
+  const account=normalizeAccountProfile(result?.profile);
+  sessionGeneration++; await saveSession(result.token); const profile = await connectServiceIdentity(account); publish(profile); return profile;
+}
+export async function signInAccount(email: string, password: string, name?: string, registration?: {phoneIdToken:string;requestedRole:'customer'|'driver'|'merchant'}) {
+  return acceptAccountSession(await accountRequest<{token?:string;profile:UserProfile}>(name === undefined ? '/auth/login' : '/auth/signup','POST',{email,password,name,...registration}));
+}
+export async function signInPhoneAccount(phoneIdToken: string) {
+  return acceptAccountSession(await accountRequest<{token?:string;profile:UserProfile}>('/auth/phone-login','POST',{phoneIdToken}));
 }
 async function connectServiceIdentity(profile: UserProfile): Promise<UserProfile> {
   hasServiceIdentity = false;
-  if (!profile.serviceIdentityEnabled || !profile.emailVerified) { await signOut(auth); return profile; }
+  if (!profile.serviceIdentityEnabled || !profile.emailVerified && !profile.phoneVerified) { await signOut(auth); return profile; }
   const result = await accountRequest<{ customToken: string; profile: UserProfile }>('/auth/service-identity', 'POST');
+  if(typeof result?.customToken!=='string'||!result.customToken)throw new Error('Your booking session could not be connected. Please sign in again or contact support.');
+  const serviceProfile=normalizeAccountProfile(result.profile);
   await setPersistence(auth, inMemoryPersistence);
   const credential = await signInWithCustomToken(auth, result.customToken);
-  if (credential.user.uid !== result.profile.uid) { await signOut(auth); throw new Error('Service account identity did not match. Please sign in again.'); }
-  hasServiceIdentity = true; return result.profile;
+  if (credential.user.uid !== serviceProfile.uid) { await signOut(auth); throw new Error('Service account identity did not match. Please sign in again.'); }
+  hasServiceIdentity = true; return serviceProfile;
 }
 export async function signOutAccount() {
   const generation = sessionGeneration;
@@ -51,7 +65,7 @@ export function watchAccount(listener: (value: UserProfile | null) => void, onEr
   let cancelled = false; listeners.add(listener);
   const generation = sessionGeneration;
   void accountRequest<UserProfile>('/account').then(async value => {
-    if (!cancelled && generation === sessionGeneration) { const profile = await connectServiceIdentity(value); if (!cancelled && generation === sessionGeneration) publish(profile); }
+    if (!cancelled && generation === sessionGeneration) { const profile = await connectServiceIdentity(normalizeAccountProfile(value)); if (!cancelled && generation === sessionGeneration) publish(profile); }
   }).catch(error => { if (!cancelled && generation === sessionGeneration) onError(error); });
   return () => { cancelled = true; listeners.delete(listener); };
 }

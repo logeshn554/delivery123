@@ -7,6 +7,7 @@ import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, 
 import { auth, googleProvider } from '../firebase';
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
 import { useNeonAccounts, signInAccount, forgotPasswordAccount, resetPasswordAccount } from '../accounts';
+import PhoneAccountFlow from './PhoneAccountFlow';
 
 export function authMessage(error: unknown): string {
   const code = (error as { code?: string })?.code;
@@ -27,7 +28,7 @@ export function authMessage(error: unknown): string {
     'permission-denied': 'We could not access your account profile. Please contact support.',
     'unavailable': 'Account services are temporarily unavailable. Please try again.',
   };
-  if (useNeonAccounts && error instanceof Error) return error.message;
+  if (useNeonAccounts && error instanceof Error && error.message.trim() && !['undefined','null'].includes(error.message.trim())) return error.message;
   return (code && messages[code]) || 'We could not complete this request. Please try again.';
 }
 
@@ -110,6 +111,8 @@ export default function AuthScreen() {
     finally { setBusy(false); }
   };
 
+  if (useNeonAccounts && ['signup','phone'].includes(screen)) return <PhoneAccountFlow key={screen} mode={screen==='signup'?'signup':'signin'} onBack={()=>navigate('welcome')} onEmailLogin={()=>navigate('signin')} onModeChange={mode=>navigate(mode==='signup'?'signup':'phone')}/>;
+
   return <main className="auth-shell safe-area-top safe-area-bottom">
     <section className={`auth-panel ${screen === 'welcome' ? 'auth-welcome' : ''}`}>
       {screen === 'welcome' ? <>
@@ -120,8 +123,8 @@ export default function AuthScreen() {
         <p className="auth-description">Food, groceries, parcels and rides.<br />A little less planning. A lot more living.</p>
         <div className="service-orbit" aria-hidden="true"><ShoppingBag /><Bike /><Package /><Truck /></div>
         <div className="auth-welcome-actions">
-          <button className="auth-primary auth-white" onClick={() => navigate('onboarding')}>Get started <ArrowRight size={19} /></button>
-          <button className="auth-outline" onClick={() => navigate('signin')}>I already have an account</button>
+          <button className="auth-primary auth-white" onClick={() => navigate(useNeonAccounts?'signup':'onboarding')}>Get started <ArrowRight size={19} /></button>
+          <button className="auth-outline" onClick={() => navigate(useNeonAccounts?'phone':'signin')}>I already have an account</button>
         </div>
       </> : screen === 'onboarding' ? <div className="onboarding-page">
         <button className="auth-back" aria-label="Back" onClick={() => step ? setStep(step - 1) : navigate('welcome')}><ArrowLeft size={21} /></button>
@@ -138,6 +141,7 @@ export default function AuthScreen() {
         <h1>{screen === 'signup' ? 'Your everyday starts here.' : screen === 'reset' ? 'Let’s get you back in.' : 'Welcome back.'}</h1>
         <p className="auth-description">{screen === 'signup' ? 'Create your account to order, send and go.' : screen === 'reset' ? 'We’ll send you a link to reset your password.' : 'Sign in to pick up where you left off.'}</p>
         <form onSubmit={submit} className="auth-form">
+          {screen==='signin' && useNeonAccounts && <button type="button" className="auth-google" disabled={busy} onClick={()=>navigate('phone')}>Sign in with phone & OTP</button>}
           {screen === 'signup' && <label>Full name<input name="name" autoComplete="name" required minLength={2} maxLength={100} value={name} disabled={busy} onChange={event => setName(event.target.value)} /></label>}
           {screen !== 'phone' && <label>Email address<input name="email" type="email" inputMode="email" autoCapitalize="none" spellCheck={false} autoComplete="email" required value={email} disabled={busy} onChange={event => setEmail(event.target.value)} placeholder="you@example.com" /></label>}
           {screen !== 'reset' && screen !== 'phone' && <label>Password<div className="auth-password"><input name="password" type={visible ? 'text' : 'password'} required minLength={screen === 'signup' ? 8 : 1} autoComplete={screen === 'signup' ? 'new-password' : 'current-password'} value={password} disabled={busy} onChange={event => setPassword(event.target.value)} /><button type="button" aria-label={visible ? 'Hide password' : 'Show password'} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>}
