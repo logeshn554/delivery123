@@ -170,6 +170,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [addressLookup, setAddressLookup] = useState(false);
   const [addressLabel, setAddressLabel] = useState('Home');
   const [searchQuery, setSearchQuery] = useState("");
+  const [globalSearchFocused, setGlobalSearchFocused] = useState(false);
+  const [recentGlobalSearches, setRecentGlobalSearches] = useState<string[]>([]);
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
   const [foodSearch, setFoodSearch] = useState('');
   const [selectedFoodVariants, setSelectedFoodVariants] = useState<Record<string, string>>({});
@@ -735,15 +737,19 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 3);
   const currentParcels = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'parcel' && !['completed', 'delivered', 'cancelled'].includes(booking.status))
     .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt)).slice(0, 3);
+  const rememberGlobalSearch = (term: string) => {
+    const value = term.trim();
+    if (value) setRecentGlobalSearches(current => [value, ...current.filter(item => item.toLowerCase() !== value.toLowerCase())].slice(0, 5));
+  };
   const globalSearchTerm = searchQuery.trim().toLowerCase();
-  const matchingServiceLinks = [
+  const matchingServiceLinks = globalSearchTerm ? [
     { label: 'Food delivery', workflow: 'food' as const },
     { label: 'Groceries', workflow: 'grocery' as const },
     { label: 'Ride booking', workflow: 'ride' as const },
     { label: 'Send a parcel', workflow: 'parcel' as const },
     { label: 'Hire a driver', workflow: 'takeover' as const },
     { label: 'Vehicle transport', workflow: 'transport' as const },
-  ].filter((item) => item.label.toLowerCase().includes(globalSearchTerm));
+  ].filter((item) => item.label.toLowerCase().includes(globalSearchTerm)) : [];
   const matchingRestaurants = globalSearchTerm ? restaurantsList.filter((rest) => `${rest.name} ${rest.cuisine}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
   const matchingStores = globalSearchTerm ? groceryStoresList.filter((store) => `${store.name} ${store.address}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
   const visibleRestaurants = restaurantsList.filter((rest) => {
@@ -876,17 +882,21 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               placeholder="Search food, groceries, rides, or parcels…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setGlobalSearchFocused(true)}
+              onKeyDown={event => { if (event.key === 'Escape') { setSearchQuery(''); setGlobalSearchFocused(false); event.currentTarget.blur(); } }}
               className="w-full bg-slate-100/90 text-slate-800 placeholder-slate-500 text-base rounded-xl pl-9 pr-4 py-3 border-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus:bg-white transition-colors"
             />
-            {searchQuery.trim() && <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
-              {matchingServiceLinks.map((item) => <button key={item.workflow} onClick={() => { setActiveWorkflow(item.workflow); setSearchQuery(''); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Browse {item.label}</button>)}
-              {matchingRestaurants.map((rest) => <button key={`restaurant:${rest.id}`} onClick={() => { setSelectedFoodCategory('All'); setSelectedRestaurant(rest); setFoodSearch(''); setActiveWorkflow('food'); setSearchQuery(''); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{rest.name}</span><span className="ml-2 text-slate-400">Restaurant · {rest.cuisine}</span></button>)}
-              <GlobalCatalogSearch text={searchQuery} onChoose={item => {
+            {(searchQuery.trim() || globalSearchFocused) && <div className="global-search-popover absolute z-20 top-full left-0 right-0 mt-1 max-h-96 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+              <div className="global-search-popover-header"><strong>{searchQuery.trim() ? 'Search suggestions' : 'Recent searches'}</strong><button type="button" onClick={() => { setSearchQuery(''); setGlobalSearchFocused(false); }}>Close</button></div>
+              {matchingServiceLinks.map((item) => <button type="button" key={item.workflow} onClick={() => { rememberGlobalSearch(searchQuery); setActiveWorkflow(item.workflow); setSearchQuery(''); setGlobalSearchFocused(false); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50">Browse {item.label}</button>)}
+              {matchingRestaurants.map((rest) => <button type="button" key={`restaurant:${rest.id}`} onClick={() => { rememberGlobalSearch(searchQuery); setSelectedFoodCategory('All'); setSelectedRestaurant(rest); setFoodSearch(''); setActiveWorkflow('food'); setSearchQuery(''); setGlobalSearchFocused(false); }} className="block w-full border-b border-slate-50 px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{rest.name}</span><span className="ml-2 text-slate-400">Restaurant · {rest.cuisine}</span></button>)}
+              <GlobalCatalogSearch text={searchQuery} recentSearches={recentGlobalSearches} onRecentSearch={term => setSearchQuery(term)} onChoose={item => {
+                rememberGlobalSearch(searchQuery);
                 if (item.service === 'food') { const parent = restaurantsList.find(entry => entry.id === item.parentId); if (!parent) { alert('This restaurant listing is unavailable. Reload available partners.'); return; } setSelectedRestaurant(parent); setSelectedFoodCategory('All'); setFoodSearch(item.name); }
                 else { setSelectedStoreId(item.parentId); setSelectedGroceryCategory('All'); setGrocerySearch(item.name); }
-                setShowFavoritesOnly(false); setCurrentTab('home'); setActiveWorkflow(item.service); setSearchQuery('');
+                setShowFavoritesOnly(false); setCurrentTab('home'); setActiveWorkflow(item.service); setSearchQuery(''); setGlobalSearchFocused(false);
               }}/>
-              {matchingStores.map((store) => <button key={`store:${store.id}`} onClick={() => { setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); setGrocerySearch(''); setActiveWorkflow('grocery'); setSearchQuery(''); }} className="block w-full px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{store.name}</span><span className="ml-2 text-slate-400">Grocery store · {store.address}</span></button>)}
+              {matchingStores.map((store) => <button type="button" key={`store:${store.id}`} onClick={() => { rememberGlobalSearch(searchQuery); setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); setGrocerySearch(''); setActiveWorkflow('grocery'); setSearchQuery(''); setGlobalSearchFocused(false); }} className="block w-full px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{store.name}</span><span className="ml-2 text-slate-400">Grocery store · {store.address}</span></button>)}
             </div>}
           </div>
         )}

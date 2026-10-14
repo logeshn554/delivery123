@@ -311,6 +311,27 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .grocery-product-actions { padding: 0 12px 12px; }
 .grocery-product-actions > button, .grocery-quantity { display: flex; width: 100%; min-height: var(--allgo-touch-target); align-items: center; justify-content: center; border: 1px solid #4c8b62; border-radius: 12px; background: var(--allgo-surface); color: #286443; font-size: 13px; font-weight: 750; }
 .grocery-product-actions > button:disabled { border-color: #d7ddd8; background: #f3f4f3; color: #747b75; }
+.global-search-popover { max-height: min(70vh, 430px); }
+.global-search-popover-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--allgo-border); background: var(--allgo-surface); color: var(--allgo-ink); font-size: 12px; }
+.global-search-popover-header button { min-height: 36px; padding-inline: 10px; border-radius: 8px; color: var(--allgo-primary-strong); font-weight: 700; }
+.global-search-panel { padding: 12px; border-top: 1px solid var(--allgo-border); color: var(--allgo-ink); font-size: 12px; }
+.global-search-panel h3 { font-size: 13px; font-weight: 800; }
+.global-search-panel > p { margin-top: 5px; color: var(--allgo-muted); line-height: 1.45; }
+.global-search-recents, .global-search-filters { display: flex; align-items: center; gap: 7px; overflow-x: auto; padding-block: 10px; }
+.global-search-recents > span { flex: none; color: var(--allgo-muted); font-size: 11px; font-weight: 700; }
+.global-search-recents button, .global-search-filters button { min-height: 36px; flex: none; padding: 0 12px; border: 1px solid var(--allgo-border); border-radius: 999px; background: var(--allgo-surface); color: var(--allgo-ink); font-size: 11px; font-weight: 700; }
+.global-search-filters button[aria-pressed="true"] { border-color: var(--allgo-brand); background: var(--stitch-soft); color: var(--allgo-primary-strong); }
+.global-search-results { display: grid; gap: 7px; }
+.global-search-results > button { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--allgo-border); border-radius: 12px; background: var(--allgo-surface); text-align: left; }
+.global-search-service { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border-radius: 11px; }
+.global-search-service.food, .global-search-tag.food { background: #fff1e8; color: #a44a1d; }
+.global-search-service.grocery, .global-search-tag.grocery { background: #eaf6ef; color: #17613d; }
+.global-search-copy { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.global-search-copy strong { overflow: hidden; color: var(--allgo-ink); text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.global-search-copy small { overflow: hidden; color: var(--allgo-muted); text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.global-search-tag { padding: 4px 7px; border-radius: 999px; font-size: 9px; font-weight: 750; }
+.global-search-price { flex: none; color: var(--allgo-ink); font-size: 12px; }
+.global-search-more { min-height: 40px; margin-top: 8px; padding-inline: 12px; border: 1px solid var(--allgo-border); border-radius: 10px; color: var(--allgo-primary-strong); font-weight: 700; }
 .grocery-quantity { justify-content: space-between; overflow: hidden; background: #eef7ef; }
 .grocery-quantity button { width: 44px; height: 44px; color: #286443; font-size: 20px; }
 .grocery-quantity button:disabled { color: #929992; }

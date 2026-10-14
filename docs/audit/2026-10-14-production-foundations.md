@@ -140,6 +140,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   type buttons have a named group. `npm run lint`, `npm test` (**131 passed, 0
   failed**) and `npm run build` passed; mobile sheet and geolocation checks remain
   pending.
+- TASK-19: global search now offers in-session recent-query chips, All/Food/Grocery
+  filters and service-tagged result cards with current catalog prices. The search
+  remains debounced and server-backed, with retry and pagination intact. Regression
+  tests plus `npm run lint`, `npm test` (**133 passed, 0 failed**) and `npm run build`
+  passed; mobile suggestion layout remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

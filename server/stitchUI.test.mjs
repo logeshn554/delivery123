@@ -112,6 +112,20 @@ test('address selection provides searchable saved locations and announced select
   assert.match(address,/No saved address matches/);
   assert.match(stitch,/\.stitch-address-search:focus-within[^\n]+outline:\s*3px solid var\(--allgo-focus\)/);
 });
+test('global catalog search exposes service filters, recent queries and readable price cards',()=>{
+  const search=readFileSync(new URL('../src/components/GlobalCatalogSearch.tsx',import.meta.url),'utf8');
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(search,/aria-label="Recent searches"/);
+  assert.match(search,/aria-label="Filter search results by service"/);
+  assert.match(search,/aria-pressed=\{serviceFilter===filter\.id\}/);
+  assert.match(search,/global-search-price/);
+  assert.match(search,/search more matches/i);
+  assert.match(customer,/const \[recentGlobalSearches, setRecentGlobalSearches\] = useState<string\[]>\(\[\]\)/);
+  assert.match(customer,/searchQuery\.trim\(\) \|\| globalSearchFocused/);
+  assert.match(global,/\.global-search-results > button[^\n]+border-radius:\s*12px/);
+  assert.match(global,/\.global-search-filters button\[aria-pressed="true"\]/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
