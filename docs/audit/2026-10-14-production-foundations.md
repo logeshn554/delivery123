@@ -109,6 +109,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   account creation paths remain available. `npm run lint`, `npm test` (**124
   passed, 0 failed**) and `npm run build` passed; responsive visual checks remain
   pending while localhost preview is blocked.
+- TASK-13: password visibility now resets when leaving a sign-in mode, and its
+  toggle exposes the controlled field and pressed state to assistive technology.
+  Sign-in errors retain a stable alert ID. `npm run lint`, `npm test` (**125
+  passed, 0 failed**) and `npm run build` passed; mobile visual verification remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

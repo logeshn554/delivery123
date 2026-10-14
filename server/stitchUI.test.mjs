@@ -50,6 +50,14 @@ test('onboarding progress is announced, directly selectable and compact-screen a
   assert.match(global,/@media \(max-height:\s*720px\)[^\n]+\.onboarding-art/);
   assert.match(mobile,/@media \(prefers-reduced-motion:\s*reduce\)[^\n]+\.onboarding-copy/);
 });
+test('sign-in password visibility is explicit, controllable and cleared on navigation',()=>{
+  const auth=readFileSync(new URL('../src/components/AuthScreen.tsx',import.meta.url),'utf8');
+  assert.match(auth,/setPassword\(''\); setVisible\(false\)/);
+  assert.match(auth,/id="auth-email-input"[^>]*autoComplete="email"/);
+  assert.match(auth,/id="auth-password-input"/);
+  assert.match(auth,/aria-controls="auth-password-input" aria-pressed=\{visible\} aria-label=\{visible \? 'Hide password' : 'Show password'\}/);
+  assert.match(auth,/id="auth-error" role="alert" className="auth-error"/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

@@ -17,6 +17,8 @@ TASK-11 now has a consistent electric-indigo welcome hero, white high-contrast
 primary action, preserved sign-in/signup routing, and a compact-height layout.
 TASK-12 now announces onboarding step changes, exposes directly selectable step
 controls, honors reduced motion and scales its illustration for short screens.
+TASK-13 now resets password visibility on navigation, exposes the visibility
+toggle state and control relationship, and gives the sign-in error a stable alert ID.
 TASK-01 has a scoped implementation removing competing global Stitch theme tokens;
 TASK-09 now announces catalog busy/empty/error states consistently (targeted tests
 passed). TASK-02 has a shared type scale and line-height/weight tokens, applied to
@@ -30,7 +32,7 @@ remaining visual and functional checks are recorded.
 | Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
 |---|---|---|---|---|---|---|
 | **Phase 1** | Foundations | 10 | 0 | 10 | 0 | 0 |
-| **Phase 2** | Customer Entry | 11 | 0 | 1 | 10 | 0 |
+| **Phase 2** | Customer Entry | 11 | 0 | 3 | 8 | 0 |
 | **Phase 3** | Food Delivery | 12 | 0 | 0 | 12 | 0 |
 | **Phase 4** | Grocery Delivery | 11 | 0 | 0 | 11 | 0 |
 | **Phase 5** | Parcel Delivery | 11 | 0 | 0 | 11 | 0 |
@@ -40,7 +42,7 @@ remaining visual and functional checks are recorded.
 | **Phase 9** | Driver App | 13 | 0 | 0 | 13 | 0 |
 | **Phase 10** | Merchant Portal | 11 | 0 | 0 | 11 | 0 |
 | **Phase 11** | Operations & Admin | 11 | 0 | 0 | 11 | 0 |
-| **Total** | | **125** | **0** | **12** | **113** | **0** |
+| **Total** | | **125** | **0** | **14** | **111** | **0** |
 
 ---
 
@@ -67,7 +69,7 @@ remaining visual and functional checks are recorded.
 |---|---|---|---|---|---|---|---|---|
 | **TASK-11** | Welcome screen | `src/components/AuthScreen.tsx` (`screen === 'welcome'`) | Disjointed brand colors (orange logo vs purple system), oversized ghost watermark | Clean brand hero with electric indigo gradient mark, value proposition carousel/orbit, high-impact CTA | In Progress | Pending | Passed (account actions and style regression) | Verify welcome layout at 360/390/430px and on device |
 | **TASK-12** | Onboarding | `src/components/AuthScreen.tsx` (`screen === 'onboarding'`) | Simple 3-step text with raw Lucide icon boxes | Polished illustration cards, smooth step transitions, clear progress dots, quick skip action | In Progress | Pending | Passed (step announcements, navigation and reduced-motion regression) | Verify onboarding at 360/390/430px and on device |
-| **TASK-13** | Login | `src/components/AuthScreen.tsx` (`screen === 'signin'`) | Functional form, basic inputs | Floating labels or clean modern input containers, password visibility toggle, accessible error alerts | Pending | Pending | Pending | Polish signin layout & feedback |
+| **TASK-13** | Login | `src/components/AuthScreen.tsx` (`screen === 'signin'`) | Functional form, basic inputs | Floating labels or clean modern input containers, password visibility toggle, accessible error alerts | In Progress | Pending | Passed (visibility, recovery and alert semantics regression) | Verify sign-in states at mobile widths and on device |
 | **TASK-14** | Signup | `src/components/AuthScreen.tsx` (`screen === 'signup'`) | Basic name/email/password fields | Form hierarchy, inline strength indicator, password show/hide, terms disclaimer | Pending | Pending | Pending | Polish signup form layout |
 | **TASK-15** | OTP & account verification | `src/components/AuthScreen.tsx` (phone), `src/components/VerifyAccount.tsx` | Functional 6-digit input | Modern segmented digit boxes or formatted input, resend timer countdown, auto-focus | Pending | Pending | Pending | Polish OTP verification flow |
 | **TASK-16** | Password recovery | `src/components/AuthScreen.tsx` (`screen === 'reset'`), `src/components/AccountActionScreen.tsx` | Basic email reset trigger | Clear instructions card, confirmation notice, password update form with validation | Pending | Pending | Pending | Polish password reset experience |
