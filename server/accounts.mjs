@@ -3,7 +3,8 @@ import pg from 'pg';
 import { config } from 'dotenv';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { identityBridgeEnabled, bridgeIdentity, revokeBridgeSessions } from './firebaseIdentity.mjs';
+import { identityBridgeEnabled, bridgeIdentity, revokeBridgeSessions, verifyPhoneIdentity } from './firebaseIdentity.mjs';
+import { registrationRole } from './phoneRegistrationPolicy.mjs';
 import { readSessionCookie, sessionCookieName, cookieOptions } from './sessionPolicy.mjs';
 import { projectLegacyBooking } from './legacyBookingReadModel.mjs';
 import { accountActionLink } from './accountActionPolicy.mjs';
@@ -48,7 +49,7 @@ const verify = (password, stored) => { const [salt, hash] = stored.split(':'); r
 const text = (value, min, max, label) => { if (typeof value !== 'string' || value.trim().length < min || value.trim().length > max) throw fail(`Enter a valid ${label}.`); return value.trim(); };
 const emailOf = value => { const email = text(value, 3, 254, 'email address').toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw fail('Enter a valid email address.', 400, 'auth/invalid-email'); return email; };
 const passwordOf = value => { if (typeof value !== 'string' || value.length < 8 || value.length > 128) throw fail('Choose a password between 8 and 128 characters.', 400, 'auth/weak-password'); return value; };
-const profile = row => ({ ...row.profile, uid: row.id, email: row.email, name: row.name, role: 'customer', createdAt: row.created_at.toISOString(), walletBalance: 0, serviceIdentityEnabled: identityBridgeEnabled() });
+const profile = row => ({ ...row.profile, uid: row.id, email: row.email, name: row.name, role: row.profile?.role || 'customer', createdAt: row.created_at.toISOString(), walletBalance: 0, serviceIdentityEnabled: identityBridgeEnabled() });
 const checkRateLimit = async (ip) => {
   const key = `rl:${ip}`;
   try {
@@ -124,6 +125,8 @@ CREATE TABLE IF NOT EXISTS allgo_email_verifications (
   expires_at timestamptz NOT NULL,
   used boolean NOT NULL DEFAULT false
 );`);
+await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS allgo_verified_phone_unique ON allgo_accounts ((profile->>'phone')) WHERE profile->>'phoneVerified'='true'");
+await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS allgo_verified_phone_uid_unique ON allgo_accounts ((profile->>'firebaseUid')) WHERE profile->>'phoneVerified'='true'");
 const session = async (client, account) => {
   const token = randomBytes(32).toString('hex');
   await client.query('DELETE FROM allgo_sessions WHERE expires_at < now()');
@@ -137,14 +140,24 @@ const sendSession = (req, res, result, status = 200) => {
 app.get('/api/health', route(async (_req, res) => { await pool.query('SELECT 1'); res.json({ ok: true, identityBridgeEnabled: identityBridgeEnabled() }); }));
 app.post('/api/auth/signup', route(async (req, res) => {
   const email = emailOf(req.body.email), password = passwordOf(req.body.password), name = text(req.body.name, 2, 100, 'name');
+  const requestedRole = registrationRole('customer');
+  const identity = await verifyPhoneIdentity(req.body.phoneIdToken);
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query('INSERT INTO allgo_accounts (id,email,name,password_hash) VALUES ($1,$2,$3,$4) RETURNING *', [randomUUID(), email, name, hashPassword(password)]);
+    const linked = await client.query('SELECT id FROM allgo_accounts WHERE profile->>\'firebaseUid\'=$1 OR (profile->>\'phone\'=$2 AND profile->>\'phoneVerified\'=\'true\')', [identity.uid, identity.phone]);
+    if (linked.rows.length) throw fail('This phone already has an account. Sign in with phone instead.', 409, 'auth/account-exists-with-different-credential');
+    const { rows } = await client.query('INSERT INTO allgo_accounts (id,email,name,password_hash,profile) VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING *', [randomUUID(), email, name, hashPassword(password), JSON.stringify({ phone: identity.phone, phoneVerified: true, firebaseUid: identity.uid, requestedRole })]);
     const result = await session(client, rows[0]);
     await client.query('COMMIT'); sendSession(req, res, result, 201);
-  } catch (error) { await client.query('ROLLBACK'); if (error.code === '23505') throw fail('An account already uses this email. Please sign in.', 409, 'auth/email-already-in-use'); throw error; }
+  } catch (error) { await client.query('ROLLBACK'); if (error.code === '23505') throw fail('An account already uses this email or verified phone. Please sign in.', 409, 'auth/email-already-in-use'); throw error; }
   finally { client.release(); }
+}));
+app.post('/api/auth/phone-login', route(async (req,res) => {
+  const identity = await verifyPhoneIdentity(req.body.phoneIdToken);
+  const { rows } = await pool.query("SELECT * FROM allgo_accounts WHERE profile->>'phone'=$1 AND profile->>'phoneVerified'='true' AND profile->>'firebaseUid'=$2", [identity.phone,identity.uid]);
+  if (!rows[0]) throw fail('No account is registered with this phone. Create an account to continue.', 404, 'auth/user-not-found');
+  sendSession(req,res,await session(pool,rows[0]));
 }));
 const dummyPassword = hashPassword(randomBytes(32).toString('hex'));
 app.post('/api/auth/login', route(async (req, res) => {
@@ -360,3 +373,4 @@ const port = Number(process.env.ACCOUNT_API_PORT || process.env.PORT || 3004);
 const host = process.env.ACCOUNT_API_HOST || '127.0.0.1';
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('ACCOUNT_API_PORT must be a valid TCP port.');
 app.listen(port, host, () => console.log(`AllGo account API ready on port ${port}`));
+

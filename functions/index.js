@@ -205,7 +205,7 @@ exports.advanceMerchantBooking = onCall({ operation: 'advanceMerchantBooking', r
     if (!merchant || merchant.role !== 'merchant' || !merchant.merchantId || !['restaurant', 'grocery'].includes(merchant.merchantType) || !booking || booking.merchantId !== merchant.merchantId || booking.serviceType !== service) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
     if (booking.status === next) return { status: next };
     if (booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
-    if (booking.paymentStatus !== 'paid' || booking.driverId || booking.status !== (next === 'preparing' ? 'pending' : 'preparing')) throw new HttpsError('failed-precondition', 'The order changed. Refresh before continuing.');
+    if (!['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.driverId || booking.status !== (next === 'preparing' ? 'pending' : 'preparing')) throw new HttpsError('failed-precondition', 'The order changed. Refresh before continuing.');
     const stage = merchantTransition(booking.serviceType, booking.status, next);
     if (booking.serviceType === 'grocery' && next === 'ready' && !fullyPicked(booking)) throw new HttpsError('failed-precondition', 'Confirm all reserved grocery quantities before marking this order ready. Report missing items for review.');
     transaction.update(bookingRef, { status: next, ...(next === 'ready' ? { dispatchStartedAt: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
@@ -568,19 +568,19 @@ exports.getCartQuote = onCall({ operation: 'getCartQuote', region: REGION, secre
   return { amount: quote.amount, priceBreakdown: quote.booking.priceBreakdown };
 });
 
-async function settleCapturedPayment(orderId, paymentId, providerPayment, walletPayment = false) {
+async function settleCapturedPayment(orderId, paymentId, providerPayment, walletPayment = false, codPayment = false) {
   const attemptRef = db.doc(`payment_attempts/${orderId}`);
   const attemptSnap = await attemptRef.get();
   if (!attemptSnap.exists) throw new HttpsError('not-found', 'Payment request could not be found.');
   const attempt = attemptSnap.data();
-  if (attempt.status === 'paid') return { bookingId: attempt.bookingId || null, status: 'paid' };
+  if (attempt.status === 'paid' || attempt.status === 'pending_cod') return { bookingId: attempt.bookingId || null, status: attempt.status };
   if (['refunded', 'refund_processing', 'refund_required'].includes(attempt.status)) {
     throw new HttpsError('failed-precondition', 'This payment is already in refund handling and cannot create another booking.');
   }
-  if (!walletPayment && (providerPayment.status !== 'captured' || providerPayment.order_id !== orderId || providerPayment.amount !== attempt.amount || providerPayment.currency !== CURRENCY)) {
+  if (!walletPayment && !codPayment && (providerPayment.status !== 'captured' || providerPayment.order_id !== orderId || providerPayment.amount !== attempt.amount || providerPayment.currency !== CURRENCY)) {
     throw new HttpsError('failed-precondition', 'Payment has not been captured for this order.');
   }
-  if (!walletPayment) {
+  if (!walletPayment && !codPayment) {
     // Capture is recorded even when inventory allocation later fails and is refunded.
     const receiptRef = db.doc(`financial_journals/capture_${orderId}`);
     await db.runTransaction(async tx => {
@@ -618,8 +618,8 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
       const walletBalance = Math.round((walletAccount?.data()?.walletBalance || 0) * 100);
       if (walletPayment && (!Number.isSafeInteger(walletBalance) || walletBalance < attempt.amount)) throw new HttpsError('resource-exhausted', 'Insufficient AllGo wallet balance.');
       const acceptedMethods = ['upi', 'card', 'netbanking', 'wallet', 'emi'];
-      const paymentMethod = walletPayment ? 'wallet' : acceptedMethods.includes(providerPayment.method) ? providerPayment.method : 'other';
-      const booking = { ...attempt.booking, paymentOrderId: orderId, paymentId, paymentMethod };
+      const paymentMethod = codPayment ? 'cash' : walletPayment ? 'wallet' : acceptedMethods.includes(providerPayment.method) ? providerPayment.method : 'other';
+      const booking = { ...attempt.booking, paymentOrderId: orderId, paymentId, paymentMethod, paymentStatus: codPayment ? 'pending_cod' : 'paid' };
       try { calculateDriverSettlement(booking); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
       const couponRef = booking.couponCode ? db.doc(`coupons/${booking.couponCode}`) : null;
@@ -674,11 +674,11 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
       transaction.create(db.doc(`booking_codes/${booking.bookingId}`), { customerId: booking.customerId, code: otp, attempts: 0, ...(contractFor(booking.serviceType).pickupProof ? { pickupCode: String(crypto.randomInt(1000, 10000)), pickupAttempts: 0 } : {}) });
       transaction.create(db.doc(`bookings/${booking.bookingId}`), publicBooking);
       transaction.create(db.doc(`bookings/${booking.bookingId}/events/confirmed`), { stage: 'confirmed', actorRole: 'system', createdAt: new Date().toISOString() });
-      transaction.create(db.doc(`financial_journals/allocate_${orderId}`), journal(walletPayment ? 'wallet_booking' : 'provider_booking', walletPayment ? 'wallet_liability' : 'customer_funds_pending', 'booking_funds_unallocated', attempt.amount, { orderId, paymentId, bookingId: booking.bookingId, customerId: attempt.uid }));
-      transaction.update(attemptRef, { status: 'paid', bookingId: booking.bookingId, paymentId, paymentMethod, paidAt: Timestamp.now() });
+      transaction.create(db.doc(`financial_journals/allocate_${orderId}`), journal(codPayment ? 'cod_booking' : walletPayment ? 'wallet_booking' : 'provider_booking', codPayment ? 'customer_receivable_cod' : walletPayment ? 'wallet_liability' : 'customer_funds_pending', 'booking_funds_unallocated', attempt.amount, { orderId, paymentId, bookingId: booking.bookingId, customerId: attempt.uid }));
+      transaction.update(attemptRef, { status: codPayment ? 'pending_cod' : 'paid', bookingId: booking.bookingId, paymentId, paymentMethod, ...(codPayment ? {} : { paidAt: Timestamp.now() }) });
     });
   } catch (error) {
-    if (!walletPayment && error instanceof HttpsError && error.code === 'failed-precondition') {
+    if (!walletPayment && !codPayment && error instanceof HttpsError && error.code === 'failed-precondition') {
       const state = await db.runTransaction(async transaction => {
         const latest = await transaction.get(attemptRef), status = latest.data()?.status;
         if (['paid', 'refunded', 'refund_processing', 'refund_required'].includes(status)) return status;
@@ -706,7 +706,7 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
     }
     throw error;
   }
-  return { bookingId: attempt.booking.bookingId, status: 'paid' };
+  return { bookingId: attempt.booking.bookingId, status: codPayment ? 'pending_cod' : 'paid' };
 }
 
 exports.searchServiceLocations = onCall({ operation: 'searchServiceLocations', region: REGION, secrets: [MAPS_API_KEY] }, async (request) => {
@@ -829,7 +829,7 @@ exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGIO
   const snapshots = await Promise.all(services.flatMap(service => nearZones.filter(zone => zone.data().serviceTypes?.includes(service)).map(zone => db.collection('bookings').where('serviceType', '==', service).where('status', '==', ['food', 'grocery'].includes(service) ? 'ready' : 'pending').where('driverId', '==', null).where('details.pickupZoneId', '==', zone.id).limit(100).get())));
   const candidates = [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(doc => [doc.id, doc])).values()].filter(document => {
     const booking = document.data();
-    return booking.exception?.status !== 'open' && pickupEligibility(driver, booking) !== null && booking.paymentStatus === 'paid' && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities,booking.details));
+    return booking.exception?.status !== 'open' && pickupEligibility(driver, booking) !== null && ['paid', 'pending_cod'].includes(booking.paymentStatus) && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities,booking.details));
   }).sort((a, b) => pickupEligibility(driver, a.data()) - pickupEligibility(driver, b.data())).slice(0, 30);
   const expiresAt = Timestamp.fromMillis(Date.now() + 30000);
   const batch = db.batch();
@@ -851,7 +851,7 @@ exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region:
     const data = booking.data();
     if (!offer.exists || offer.data().expiresAt.toMillis() <= Date.now() || offer.data().bookingVersion !== (data?.updatedAt || data?.createdAt) || !data || pickupEligibility(driver.data(), data) === null) throw new HttpsError('failed-precondition', 'This pickup offer expired or your location is stale. Refresh offers.');
     const dispatchable = data && (['food', 'grocery'].includes(data.serviceType) ? data.status === 'ready' : data.status === 'pending');
-    if (!dispatchable || data.driverId || data.exception?.status === 'open' || data.paymentStatus !== 'paid' || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available.');
+    if (!dispatchable || data.driverId || data.exception?.status === 'open' || !['paid', 'pending_cod'].includes(data.paymentStatus) || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available.');
     if (data.serviceType === 'ride' && data.details?.vehicleType !== driver.data().vehicleType) throw new HttpsError('failed-precondition', 'Your verified vehicle does not match this ride.');
     // A customer's vehicle class is not the carrier's equipment class.
     // Operations must approve transport equipment separately from ordinary ride vehicles.
@@ -879,7 +879,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     const [booking, driver, code] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef)]);
     const data = booking.data();
     if (!data || data.driverId !== uid || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'This job is not assigned to you.');
-    if (data.paymentStatus !== 'paid') throw new HttpsError('failed-precondition', 'This job is in payment or cancellation review. Contact operations.');
+    if (!['paid', 'pending_cod'].includes(data.paymentStatus)) throw new HttpsError('failed-precondition', 'This job is in payment or cancellation review. Contact operations.');
     if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
     if (data.status === next) return { status: next };
@@ -910,10 +910,15 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
       const today = new Date().toISOString().slice(0, 10);
       const current = driver.data();
       const payoutCents = Math.round(payout * 100);
+      const wasCod = data.paymentStatus === 'pending_cod';
+      if (wasCod) {
+        const priceCents = Math.round(Number(data.price || 0) * 100);
+        transaction.create(db.doc(`financial_journals/cod_collected_${bookingId}`), journal('cod_cash_collected', 'cash_in_hand_driver', 'customer_receivable_cod', priceCents, { bookingId, driverId: uid }));
+      }
       transaction.update(driverRef, { activeBookingId: null, earningsDate: today, todayEarnings: addCents(current.earningsDate === today ? Math.round(Number(current.todayEarnings || 0) * 100) : 0, payoutCents) / 100, availableEarningsCents: addCents(Number(current.availableEarningsCents || 0), payoutCents), completedJobs: Number(current.completedJobs || 0) + 1 });
       transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}`), { bookingId, amountCents: payoutCents, type: 'delivery_earning', createdAt: Timestamp.now() });
       if (payoutCents > 0) transaction.create(db.doc(`financial_journals/driver_earning_${bookingId}`), journal('driver_earning', 'driver_expense_pending_allocation', 'driver_payable', payoutCents, { bookingId, driverId: uid }));
-      transaction.update(bookingRef, { status: next, driverPayout: payout, driverSettlement: settlement, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      transaction.update(bookingRef, { status: next, ...(wasCod ? { paymentStatus: 'paid', cashCollectedAt: new Date().toISOString() } : {}), driverPayout: payout, driverSettlement: settlement, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       transaction.delete(codeRef);
     } else transaction.update(bookingRef, { status: next, ...(next === 'preparing' ? { arrivedAtPickup: new Date().toISOString() } : next === 'transit' ? { pickupCompletedAt: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
     transaction.create(db.doc(`bookings/${bookingId}/events/${next}_${uid}`), { stage: transition.stage, actorRole: 'driver', actorId: uid, ...(next === 'completed' ? { proofMethod: 'recipient_code' } : transition.requiresPickupCode ? { proofMethod: 'pickup_code' } : {}), createdAt: new Date().toISOString() });
@@ -932,7 +937,7 @@ exports.rejectDriverBooking = onCall({ operation: 'rejectDriverBooking', region:
     if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified' || !data) throw new HttpsError('permission-denied', 'This job is unavailable.');
     if (data.driverId && data.driverId !== uid) throw new HttpsError('permission-denied', 'This job belongs to another partner.');
     if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Keep custody of this job until operations resolves the reported problem.');
-    if (!['pending', 'ready', 'accepted', 'preparing'].includes(data.status) || data.paymentStatus !== 'paid') throw new HttpsError('failed-precondition', 'This job cannot be rejected at its current stage. Contact operations.');
+    if (!['pending', 'ready', 'accepted', 'preparing'].includes(data.status) || !['paid', 'pending_cod'].includes(data.paymentStatus)) throw new HttpsError('failed-precondition', 'This job cannot be rejected at its current stage. Contact operations.');
     const rejectedBookingIds = [...new Set([...(driver.data().rejectedBookingIds || []), bookingId])].slice(-100);
     transaction.update(driverRef, { rejectedBookingIds, ...(data.driverId === uid ? { activeBookingId: null } : {}) });
     if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', dispatchStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
@@ -1149,6 +1154,52 @@ exports.payWithWallet = onCall({ operation: 'payWithWallet', region: REGION, sec
     if (paid) return paid;
     throw error;
   }
+});
+
+exports.createCodBooking = onCall({ operation: 'createCodBooking', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
+  const uid = requireUser(request);
+  const requestId = documentId(request.data?.requestId, 'Checkout request');
+  const orderId = `cod_${uid}_${requestId}`, ref = db.doc(`payment_attempts/${orderId}`);
+  const existing = await ref.get();
+  if (!existing.exists) {
+    let quote;
+    let serviceQuoteRef;
+    if (['food', 'grocery'].includes(request.data?.booking?.serviceType)) {
+      quote = await priceAndPrepareBooking(uid, request.data.booking);
+    } else {
+      const quoteRef = db.doc(`service_quotes/${documentId(request.data?.booking?.details?.quoteId, 'Quote ID')}`);
+      serviceQuoteRef = quoteRef;
+      quote = await db.runTransaction(async transaction => {
+        const [snapshot, previous] = await Promise.all([transaction.get(quoteRef), transaction.get(ref)]), data = snapshot.data();
+        if (previous.exists) return { ...previous.data(), booking: previous.data().booking, attemptAlreadyCreated: true };
+        if (!data || data.uid !== uid || data.booking.serviceType !== request.data.booking.serviceType || data.expiresAt.toMillis() <= Date.now() || data.claimed) throw new HttpsError('failed-precondition', 'Request a fresh fare before cash on delivery checkout.');
+        if (data.couponLocked && request.data?.booking?.couponCode) throw new HttpsError('invalid-argument', 'Request a new fare to change its coupon.');
+        if (data.amount !== request.data.expectedAmountCents) throw new HttpsError('failed-precondition', 'The price changed. Refresh and review the current total.');
+        transaction.create(ref, { uid, kind: 'cod_booking', bookingId: data.booking.bookingId, booking: data.booking, amount: data.amount, items: data.items || [], restaurantId: data.restaurantId || null, storeId: data.storeId || null, quoteId: quoteRef.id, status: 'created', createdAt: Timestamp.now() });
+        transaction.update(quoteRef, { claimed: true, codOrderId: orderId });
+        return data;
+      });
+      if (quote.couponLocked && request.data?.booking?.couponCode) {
+        throw new HttpsError('invalid-argument', 'A discount was already applied to this fare.');
+      }
+    }
+    const needsCoupon = ['food', 'grocery'].includes(request.data?.booking?.serviceType) && !quote.booking?.couponCode;
+    if (needsCoupon) {
+      quote = await applyCoupon(uid, quote, request.data?.booking?.couponCode);
+    }
+    if (quote.amount !== request.data.expectedAmountCents) throw new HttpsError('failed-precondition', 'The price changed. Refresh and review the current total.');
+    if (quote.amount > 200000) {
+      throw new HttpsError('failed-precondition', 'Cash on delivery is limited to orders up to ₹2,000. Please select an online payment method or AllGo wallet.');
+    }
+    if (!serviceQuoteRef) {
+      try {
+        await ref.create({ uid, kind: 'cod_booking', bookingId: quote.booking.bookingId, booking: quote.booking, amount: quote.amount, items: quote.items || [], restaurantId: quote.restaurantId || null, storeId: quote.storeId || null, status: 'created', createdAt: Timestamp.now() });
+      } catch (error) {
+        if (error.code !== 6) throw error;
+      }
+    }
+  }
+  return await settleCapturedPayment(orderId, orderId, null, false, true);
 });
 
 exports.requestAccountDeletion = onCall({ operation: 'requestAccountDeletion', region: REGION }, async request => {

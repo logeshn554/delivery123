@@ -1,4 +1,6 @@
 export interface UserProfile {
+  phoneVerified?: boolean;
+  requestedRole?: 'customer' | 'driver' | 'merchant';
   emailVerified?: boolean;
   serviceIdentityEnabled?: boolean;
   favorites?: string[];
@@ -140,8 +142,8 @@ export interface Booking {
   merchantId?: string;
   otp?: string;
   pickupOtp?: string;
-  paymentStatus?: 'paid' | 'refund_processing' | 'refunded' | 'refund_required';
-  paymentMethod?: 'upi' | 'card' | 'netbanking' | 'wallet' | 'emi' | 'other';
+  paymentStatus?: 'paid' | 'pending_cod' | 'refund_processing' | 'refunded' | 'refund_required';
+  paymentMethod?: 'upi' | 'card' | 'netbanking' | 'wallet' | 'cash' | 'emi' | 'other';
   paymentOrderId?: string;
   paymentId?: string;
   bundleId?: string;

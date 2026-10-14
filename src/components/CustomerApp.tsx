@@ -11,7 +11,7 @@ import ParcelBookingScreen from './ParcelBookingScreen';
 import TransportBookingScreen from './TransportBookingScreen';
 import ShopAgainScreen from './ShopAgainScreen';
 import CatalogDetails, { type CatalogPage } from './CatalogDetails';
-import CheckoutReviewScreen from './CheckoutReviewScreen';
+import CheckoutReviewScreen, { type PaymentMethodOption } from './CheckoutReviewScreen';
 import OrderTrackingScreen from './OrderTrackingScreen';
 import ParcelOrderDetails from './ParcelOrderDetails';
 import TransportOrderDetails from './TransportOrderDetails';
@@ -27,7 +27,7 @@ import {
   Search, MapPin, Bell, User, Clock, Star, ArrowRight, ArrowLeft, ShoppingBag, Heart,
   Map, Truck, Shield, AlertCircle, Sparkles, Check, CheckCircle2, Ticket, CreditCard,
   HelpCircle, LogOut, ChevronRight, CheckSquare, Plus, Minus, Filter, Phone, PhoneCall, Car, Navigation, Send, MessageSquare,
-  Utensils, Package, Bike, UserRound, UserRoundCog, House, ClipboardList, LifeBuoy, Settings, ShoppingCart, Trash2
+  Utensils, Package, Bike, UserRound, UserRoundCog, House, ClipboardList, LifeBuoy, Settings, ShoppingCart, Trash2, X
 } from 'lucide-react';
 import { Booking, Restaurant, MenuItem, GroceryStore, GroceryProduct, SupportTicket } from '../types';
 import {
@@ -45,7 +45,7 @@ import {
   updateUserAddress,
   updateUserPreferences,
   updateUserFavorites,
-  startOnlinePayment, payWithWallet, requestAccountDeletion, previewCartCoupon, getCartQuote,
+  startOnlinePayment, payWithWallet, createCodBooking, requestAccountDeletion, previewCartCoupon, getCartQuote,
   confirmOnlinePayment,
   requestBookingCancellation,
 } from '../data/firestoreHelper';
@@ -72,7 +72,7 @@ interface CustomerAppProps {
   onSignOut: () => void;
 }
 
-type CartLine = { item: MenuItem | GroceryProduct; quantity: number; variant?: { id: string; label: string } };
+type CartLine = { item: MenuItem | GroceryProduct; quantity: number; partnerName?: string; variant?: { id: string; label: string } };
 
 function readCart(userId: string): { items: CartLine[]; service: 'food' | 'grocery' | null } {
   try {
@@ -87,6 +87,7 @@ function readCart(userId: string): { items: CartLine[]; service: 'food' | 'groce
 
 export default function CustomerApp({ userId, userName, activeBookings, userProfile, detectedAddress, onSignOut }: CustomerAppProps) {
   const { alert, confirm, dialog } = useFeedbackDialog();
+  const firstName = userName.trim().split(/\s+/)[0] || 'there';
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
   const [selectedStoreId, setSelectedStoreId] = useState(() => {
     const savedCart = readCart(userId);
@@ -293,7 +294,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [cartQuoteError, setCartQuoteError] = useState('');
   const [cartQuoteBusy, setCartQuoteBusy] = useState(false);
   useEffect(() => { if (currentTab !== 'cart') setShowCheckoutReview(false); }, [currentTab]);
-  const [useWallet, setUseWallet] = useState(false);
+  const [paymentMethodChoice, setPaymentMethodChoice] = useState<PaymentMethodOption>('online');
+  const useWallet = paymentMethodChoice === 'wallet';
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [couponError, setCouponError] = useState('');
@@ -456,7 +458,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         alert('Your cart has items from another service. Empty your cart before switching between food and groceries.');
         return false;
       }
-      setCart([{ item: cartItem, quantity: units, ...(variant ? { variant } : {}) }]);
+      setCart([{ item: cartItem, quantity: units, partnerName: partner?.name, ...(variant ? { variant } : {}) }]);
       setCartService(service);
       return true;
     }
@@ -470,7 +472,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     if (existing) {
       setCart(cart.map(c => c === existing ? { ...c, quantity: c.quantity + units } : c));
     } else {
-      setCart([...cart, { item: cartItem, quantity: units, ...(variant ? { variant } : {}) }]);
+      setCart([...cart, { item: cartItem, quantity: units, partnerName: partner?.name, ...(variant ? { variant } : {}) }]);
     }
     return true;
   };
@@ -550,6 +552,45 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       if (!cartQuote || cartQuoteBusy || cartQuoteError) return;
       price = cartQuote.amount / 100;
     } else price = Math.round(price * 100 - (appliedCoupon?.discountCents || 0)) / 100;
+    if (paymentMethodChoice === 'cod') {
+      const priceCents = Math.round(price * 100);
+      if (priceCents > 200000) {
+        alert('Cash on delivery is limited to orders up to ₹2,000. Please select Online Payment or AllGo Wallet.');
+        return;
+      }
+      setPaymentBusy(true);
+      const draft = {
+        couponCode: appliedCoupon?.code,
+        serviceType,
+        customerName: userName || 'AllGo Customer',
+        pickupAddress: route?.pickupAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? pickupSpot : serviceType === 'parcel' ? parcelPickup : serviceType === 'transport' ? transportOrigin : deliveryAddress),
+        dropAddress: route?.dropAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? dropSpot : serviceType === 'parcel' ? parcelDrop : serviceType === 'transport' ? transportDestination : ''),
+        details: extraDetails
+      };
+      try {
+        const result = await createCodBooking({
+          booking: draft,
+          expectedAmountCents: priceCents,
+          requestId: crypto.randomUUID()
+        });
+        if (!result.bookingId) throw new Error('Cash on delivery order could not be confirmed.');
+        if (serviceType === 'food' || serviceType === 'grocery') {
+          setCart([]);
+          setCartService(null);
+          setOrderNotes('');
+          localStorage.removeItem(`allgo-cart-${userId}`);
+        }
+        setSuccessBookingId(result.bookingId);
+        setActiveWorkflow('none');
+        setSelectedOrderId(result.bookingId);
+        setCurrentTab('orders');
+      } catch (error) {
+        alert(error instanceof Error ? error.message : 'Cash on delivery order failed.');
+      } finally {
+        setPaymentBusy(false);
+      }
+      return;
+    }
     if (useWallet) {
       setPaymentBusy(true);
       const draft = { couponCode: appliedCoupon?.code, serviceType, customerName: userName, pickupAddress: route?.pickupAddress ?? deliveryAddress, dropAddress: route?.dropAddress ?? '', details: extraDetails };
@@ -643,7 +684,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         return;
       }
       const items = currentItems as { id: string; name: string; price: number; quantity: number; variantId?: string; variantName?: string }[];
-      void handleCheckout('food', items.reduce((total, item) => total + item.price * item.quantity, 0), {
+      const quotePrice = cartQuote?.amount ? cartQuote.amount / 100 : items.reduce((total, item) => total + item.price * item.quantity, 0);
+      void handleCheckout('food', quotePrice, {
         restaurantId,
         restaurantName: restaurant.name,
         items,
@@ -663,7 +705,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       return;
     }
     const items = currentItems as { id: string; name: string; price: number; quantity: number }[];
-    void handleCheckout('grocery', items.reduce((total, item) => total + item.price * item.quantity, 0), {
+    const quotePrice = cartQuote?.amount ? cartQuote.amount / 100 : items.reduce((total, item) => total + item.price * item.quantity, 0);
+    void handleCheckout('grocery', quotePrice, {
       storeId,
       items,
       notes: orderNotes.trim()
@@ -796,7 +839,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       )}
 
       {/* SECOND PAGE HEADER */}
-      <div className="safe-area-top sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white px-4 py-3 shadow-sm">
+      <div className="allgo-customer-header safe-area-top sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white px-4 py-3">
         <div className="flex items-center justify-between">
           <button type="button" disabled={paymentBusy} aria-label={`Choose delivery address. Current address: ${deliveryAddress || detectedAddress || 'not selected'}`} className="flex min-w-0 max-w-[72%] flex-1 items-center gap-2 text-left" onClick={() => setShowAddressModal(true)}>
             <div className="bg-slate-100 p-2.5 rounded-xl text-slate-800">
@@ -860,10 +903,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
         {currentTab === 'home' && activeWorkflow === 'none' && (
           <div className="allgo-home animate-fadeIn">
-            <div className="allgo-home-intro"><p>Welcome to AllGo</p><h1>What can we help with today?</h1><span>Everyday essentials and journeys, in one place.</span></div>
+            <div className="allgo-home-intro"><p>Welcome back, {firstName}</p><h1>What can we help with today?</h1><span>Everyday essentials and journeys, in one place.</span></div>
+            {latestOpenBooking && <section className="allgo-home-active" aria-label="Active booking"><div><span>IN PROGRESS</span><strong>{latestOpenBooking.serviceType} · {latestOpenBooking.status.replace(/_/g, ' ')}</strong><small>Booking #{latestOpenBooking.bookingId}</small></div><button type="button" onClick={() => { setActiveWorkflow('none'); setCurrentTab('orders'); }}>View activity <ArrowRight size={16} aria-hidden="true" /></button></section>}
             <section aria-label="Shop and send" className="allgo-home-primary">
               <button type="button" className="allgo-home-feature allgo-home-food" onClick={() => setActiveWorkflow('food')}><span className="allgo-home-feature-icon"><Utensils size={26} aria-hidden="true" /></span><strong>Food delivery</strong><small>Explore restaurants</small><ArrowRight size={18} aria-hidden="true" /></button>
-              <button type="button" className="allgo-home-feature allgo-home-grocery" onClick={() => setActiveWorkflow('grocery')}><span className="allgo-home-feature-icon"><ShoppingBag size={26} aria-hidden="true" /></span><strong>Groceries</strong><small>Shop nearby stores</small><ArrowRight size={18} aria-hidden="true" /></button>
+              <button type="button" className="allgo-home-feature allgo-home-grocery" onClick={() => setActiveWorkflow('grocery')}><span className="allgo-home-feature-icon"><ShoppingBag size={26} aria-hidden="true" /></span><strong>Groceries</strong><small>Browse grocery stores</small><ArrowRight size={18} aria-hidden="true" /></button>
             </section>
             <section aria-labelledby="allgo-home-services"><div className="section-heading"><h2 id="allgo-home-services">Go places. Send things.</h2><button type="button" onClick={() => setCurrentTab('services')}>All services <ArrowRight size={16} aria-hidden="true" /></button></div>
               <div className="allgo-home-service-list">
@@ -873,12 +917,11 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 <button type="button" onClick={() => setActiveWorkflow('transport')}><Truck size={20} aria-hidden="true" /><span>Vehicle transport</span><ChevronRight size={17} aria-hidden="true" /></button>
               </div>
             </section>
-            {latestOpenBooking && <section className="allgo-home-active" aria-label="Active order"><div><span>ACTIVE ORDER</span><strong>{latestOpenBooking.serviceType} · {latestOpenBooking.status.replace(/_/g, ' ')}</strong><small>Booking #{latestOpenBooking.bookingId}</small></div><button type="button" onClick={() => { setActiveWorkflow('none'); setCurrentTab('orders'); }}>View activity <ArrowRight size={16} aria-hidden="true" /></button></section>}
             <section className="live-discovery"><div className="section-heading"><h2>Discover restaurants</h2><button onClick={() => setActiveWorkflow('food')}>See all <ArrowRight size={14} /></button></div>
-              {restaurantCatalogError ? <div className="catalog-empty" role="alert"><strong>Restaurants could not load</strong><p>{restaurantCatalogError}</p><button type="button" onClick={() => setCatalogRetry(value => value + 1)}>Try again <ArrowRight size={14} /></button></div> : restaurantsLoading ? <p role="status" className="catalog-empty">Finding restaurants near you…</p> : restaurantsList.length ? <div className="discovery-strip">{restaurantsList.slice(0, 5).map(restaurant => <button key={restaurant.id} className="discovery-card" onClick={() => { setSelectedRestaurant(restaurant); setActiveWorkflow('food'); setFoodSearch(''); }}>
+              {restaurantCatalogError ? <div className="catalog-empty" role="alert"><strong>Restaurants could not load</strong><p>{restaurantCatalogError}</p><button type="button" onClick={() => setCatalogRetry(value => value + 1)}>Try again <ArrowRight size={14} /></button></div> : restaurantsLoading ? <p role="status" className="catalog-empty">Loading available restaurants…</p> : restaurantsList.length ? <div className="discovery-strip">{restaurantsList.slice(0, 5).map(restaurant => <button key={restaurant.id} className="discovery-card" onClick={() => { setSelectedRestaurant(restaurant); setActiveWorkflow('food'); setFoodSearch(''); }}>
                 <CatalogImage src={restaurant.image} alt="" className="discovery-image" fallback={<Utensils size={32} />} />
                 <strong>{restaurant.name}</strong><span>{restaurant.cuisine}</span><small>{restaurant.rating > 0 ? '★ ' + restaurant.rating + ' · ' : ''}{restaurant.deliveryTime || ''}</small>
-              </button>)}</div> : <div className="catalog-empty"><ShoppingBag size={26} /><strong>Your neighbourhood, coming together.</strong><p>Restaurant listings will appear here when menus are available.</p><button onClick={() => setShowAddressModal(true)}>Choose your delivery address <ArrowRight size={14} /></button></div>}
+              </button>)}</div> : <div className="catalog-empty"><ShoppingBag size={26} /><strong>Restaurant listings are on the way.</strong><p>Listings will appear here when partner menus are available.</p><button onClick={() => setShowAddressModal(true)}>Choose your delivery address <ArrowRight size={14} /></button></div>}
             </section>
 
           </div>
@@ -908,7 +951,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <button aria-label={selectedRestaurant ? 'Back to restaurants' : 'Back to home'} onClick={() => { if (selectedRestaurant) { setSelectedRestaurant(null); setFoodSearch(''); } else setActiveWorkflow('none'); }} className="food-back">
                 <ArrowLeft className="w-5 h-5 text-slate-700" />
               </button>
-              <div className="min-w-0"><h1>{selectedRestaurant?.name || 'Food delivery'}</h1><p>{selectedRestaurant ? `${selectedRestaurant.cuisine} · ${selectedRestaurant.address}` : 'Discover restaurants and menus near you'}</p></div>
+              <div className="min-w-0"><h1>{selectedRestaurant?.name || 'Food delivery'}</h1><p>{selectedRestaurant ? `${selectedRestaurant.cuisine} · ${selectedRestaurant.address}` : 'Discover restaurants and explore their menus'}</p></div>
               <button className="food-order-again" onClick={() => setShopAgain('food')}>Order again</button>
             </div>
 
@@ -922,10 +965,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
             {!selectedRestaurant ? (
               <section aria-labelledby="food-restaurants-heading">
-                <div className="food-section-head"><div><h2 id="food-restaurants-heading">Restaurants near you</h2><p>Availability and details come from listed partners.</p></div>
+                <div className="food-section-head"><div><h2 id="food-restaurants-heading">Explore restaurants</h2><p>Delivery availability is confirmed at checkout.</p></div>
                   <label className="food-sort">Sort<select aria-label="Sort restaurants" value={foodSort} onChange={event => setFoodSort(event.target.value)}><option value="name">Name</option><option value="rating">Rating</option></select></label>
                 </div>
-                {restaurantCatalogError ? <CatalogState kind="error" title="Restaurants could not load" description={restaurantCatalogError} action={<button onClick={() => { setRestaurantCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : restaurantsLoading ? <CatalogState kind="loading" title="Finding restaurants" description="Loading available partner listings for your area." /> : restaurantsList.length === 0 ? <CatalogState kind="empty" title="No restaurants in this area yet" description="Restaurants will appear here when partners are available for your delivery location." action={<button onClick={() => setShowAddressModal(true)}>Change location</button>} /> : visibleRestaurants.length === 0 ? <CatalogState kind="no-results" title="No restaurants match" description="Try another search or clear a filter to see more partner listings." action={<button onClick={() => { setFoodSearch(''); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : (
+                {restaurantCatalogError ? <CatalogState kind="error" title="Restaurants could not load" description={restaurantCatalogError} action={<button onClick={() => { setRestaurantCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : restaurantsLoading ? <CatalogState kind="loading" title="Finding restaurants" description="Loading available partner listings." /> : restaurantsList.length === 0 ? <CatalogState kind="empty" title="Restaurant listings are on the way" description="Partner menus will appear here when published. Check back soon." action={<button onClick={() => setShowAddressModal(true)}>Change location</button>} /> : visibleRestaurants.length === 0 ? <CatalogState kind="no-results" title="No restaurants match" description="Try another search or clear a filter to see more partner listings." action={<button onClick={() => { setFoodSearch(''); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : (
                   <div className="food-restaurant-grid">{visibleRestaurants.map(rest => (
                     <article key={rest.id} className="food-restaurant-card">
                       <button aria-label={`${favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'Remove' : 'Save'} ${rest.name}`} onClick={() => toggleFavorite(`restaurant:${rest.id}`)} aria-pressed={favoriteCatalogIds.includes(`restaurant:${rest.id}`)} className="food-restaurant-favorite"><Heart size={19} fill={favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'currentColor' : 'none'} /></button>
@@ -1027,7 +1070,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         )}
 
         {/* WORKFLOW: RIDE BOOKING */}
-        {(currentTab === 'cart' || ['ride', 'parcel', 'takeover', 'transport'].includes(activeWorkflow)) && <label className="flex min-h-11 items-center gap-3 rounded-xl border bg-white p-3 text-xs font-bold"><input type="checkbox" checked={useWallet} disabled={paymentBusy} onChange={event => setUseWallet(event.target.checked)} /> Pay with AllGo wallet (₹{userProfile?.walletBalance || 0} available)</label>}
+        {(currentTab === 'cart' || ['ride', 'parcel', 'takeover', 'transport'].includes(activeWorkflow)) && <label className="flex min-h-11 items-center gap-3 rounded-xl border bg-white p-3 text-xs font-bold"><input type="checkbox" checked={useWallet} disabled={paymentBusy} onChange={event => setPaymentMethodChoice(event.target.checked ? 'wallet' : 'online')} /> Pay with AllGo wallet (₹{userProfile?.walletBalance || 0} available)</label>}
         {activeWorkflow === 'parcel' && <ParcelBookingScreen customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} recentShipments={currentParcels} onOpenShipment={bookingId => { setSelectedOrderId(bookingId); setCurrentTab('orders'); setActiveWorkflow('none'); }} onBack={() => setActiveWorkflow('none')} onPay={(draft,price) => handleCheckout('parcel',price,draft.details,{pickupAddress:draft.pickupAddress,dropAddress:draft.dropAddress})}/> }
         {(['ride', 'takeover'] as const).map(service => activeWorkflow === service && <ServiceBookingScreen key={service} service={service} customerName={userName} initialAddress={deliveryAddress || detectedAddress || ''} busy={paymentBusy} recentRides={service === 'ride' ? recentRides : undefined} onRecentRide={bookingId => { setSelectedOrderId(bookingId); setCurrentTab('orders'); setActiveWorkflow('none'); }} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout(service, price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />)}
         {activeWorkflow === 'transport' && <TransportBookingScreen customerName={userName} initialAddress={deliveryAddress} busy={paymentBusy} onBack={() => setActiveWorkflow('none')} onPay={(draft, price) => handleCheckout('transport', price, draft.details, { pickupAddress: draft.pickupAddress, dropAddress: draft.dropAddress })} />}
@@ -1080,7 +1123,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               const items = Array.isArray(bk.details?.items) ? bk.details.items : [];
               const authority = bookingAuthorityCapabilities(bk);
               const legacy = !authority.verifiedPayment;
-              return <>{legacy ? <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" role="status"><strong>Legacy read-only history.</strong> AllGo cannot verify this order against current booking, tracking or payment records.</div> : <OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} />}<ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{legacy ? `Recorded: ${bk.status}` : bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Recorded delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{legacy ? 'Unverified historical data' : bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className="font-bold capitalize text-amber-800">{legacy ? 'Not verified by payment ledger' : bk.paymentStatus || 'Not recorded'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Recorded payment reference (unverified): {bk.paymentId}</p>}{!legacy && bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{!legacy && bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{!legacy && bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{!legacy && bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{!legacy && bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{!legacy && bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
+              return <>{legacy ? <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" role="status"><strong>Legacy read-only history.</strong> AllGo cannot verify this order against current booking, tracking or payment records.</div> : <OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} />}<ParcelOrderDetails booking={bk}/><TransportOrderDetails booking={bk}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{legacy ? `Recorded: ${bk.status}` : bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Recorded delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{legacy ? 'Unverified historical data' : bk.paymentMethod === 'cash' ? 'Cash on Delivery (COD)' : bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className={`font-bold capitalize ${bk.paymentStatus === 'pending_cod' ? 'text-amber-700' : 'text-slate-800'}`}>{legacy ? 'Not verified by payment ledger' : bk.paymentStatus === 'pending_cod' ? 'Cash on Delivery (Pay upon arrival)' : bk.paymentStatus || 'Not recorded'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Recorded payment reference (unverified): {bk.paymentId}</p>}{!legacy && bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{!legacy && bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{!legacy && bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{!legacy && bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => void handleCancelOrder(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{!legacy && bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{!legacy && bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
             })()}
 
             {!selectedOrderId && activeBookings.length === 0 ? (
@@ -1168,20 +1211,20 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
         {currentTab === 'offers' && activeWorkflow === 'none' && <OffersScreen hasCart={cart.length>0} onBack={()=>setCurrentTab('home')} onApply={code=>{setCouponCode(code);setCouponError('');setCurrentTab('cart');}} onBrowse={service=>{setCurrentTab('home');setActiveWorkflow(service);}}/>}
         {currentTab === 'profile' && activeWorkflow === 'none' && <ProfileScreen profile={userProfile} name={userName} onSignOut={onSignOut} actions={[
-          {label:'Personal information',Icon:User,onClick:()=>openPage('edit-profile')},
-          {label:'Saved addresses',Icon:MapPin,onClick:()=>openPage('addresses')},
-          {label:'Delivery location',Icon:House,onClick:()=>setShowAddressModal(true)},
-          {label:'Wallet & payments',Icon:CreditCard,value:typeof userProfile?.walletBalance==='number'?'₹'+userProfile.walletBalance.toLocaleString('en-IN'):undefined,onClick:()=>setCurrentTab('wallet')},
-          {label:'Order history',Icon:ClipboardList,onClick:()=>setCurrentTab('orders')},
-          {label:'Offers & coupons',Icon:Ticket,onClick:()=>setCurrentTab('offers')},
-          {label:'Help & support',Icon:LifeBuoy,onClick:()=>setCurrentTab('support')},
-          {label:'Settings',Icon:Settings,onClick:()=>setCurrentTab('settings')},
-        ]}><div className="stitch-profile-links">{customerPages.filter(page=>!['edit-profile','addresses'].includes(page.id)).map(({id,title,detail,Icon})=><button type="button" key={id} onClick={()=>openPage(id)}><Icon size={18}/><span><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={16}/></button>)}</div></ProfileScreen>}
+          {label:'Personal information',group:'Account & addresses',Icon:User,onClick:()=>openPage('edit-profile')},
+          {label:'Saved addresses',group:'Account & addresses',Icon:MapPin,onClick:()=>openPage('addresses')},
+          {label:'Delivery location',group:'Account & addresses',Icon:House,onClick:()=>setShowAddressModal(true)},
+          {label:'Wallet & payments',group:'Orders & payments',Icon:CreditCard,value:typeof userProfile?.walletBalance==='number'?'₹'+userProfile.walletBalance.toLocaleString('en-IN'):undefined,onClick:()=>setCurrentTab('wallet')},
+          {label:'Order history',group:'Orders & payments',Icon:ClipboardList,onClick:()=>setCurrentTab('orders')},
+          {label:'Offers & coupons',group:'Orders & payments',Icon:Ticket,onClick:()=>setCurrentTab('offers')},
+          {label:'Help & support',group:'Help & preferences',Icon:LifeBuoy,onClick:()=>setCurrentTab('support')},
+          {label:'Settings',group:'Help & preferences',Icon:Settings,onClick:()=>setCurrentTab('settings')},
+        ]}><div className="stitch-profile-links">{customerPages.filter(page=>!['edit-profile','addresses','partners'].includes(page.id)).map(({id,title,detail,Icon})=><button type="button" key={id} onClick={()=>openPage(id)}><Icon size={18}/><span><strong>{title}</strong><small>{detail}</small></span><ChevronRight size={16}/></button>)}</div></ProfileScreen>}
 
       </div>
 
       {catalogPage && <CatalogDetails key={catalogPage.kind+catalogPage.id} kind={catalogPage.kind} partner={catalogPage.kind === 'restaurant' || catalogPage.kind === 'dish' ? selectedRestaurant || restaurantsList.find(item => item.id === catalogPage.id) : groceryStoresList.find(item => item.id === selectedStoreId)} item={catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : catalogPage.kind === 'product' ? productsList.find(item => item.id === catalogPage.id) : undefined} saved={favoriteCatalogIds.includes((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onSave={() => toggleFavorite((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onBack={() => setCatalogPage(null)} quantityInCart={variantId => cart.find(line => line.item.id === catalogPage.id && line.variant?.id === variantId)?.quantity || 0} onBrowse={() => setCatalogPage(null)} onAdd={(quantity,variant) => { const item = catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : productsList.find(item => item.id === catalogPage.id); if (!item) return false; return handleAddToCart(item,catalogPage.kind === 'dish' ? 'food' : 'grocery',variant,quantity); }} />}
-      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || ''} address={deliveryAddress} notes={orderNotes} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
+      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || ''} address={deliveryAddress} notes={orderNotes} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} paymentMethod={paymentMethodChoice} walletBalance={userProfile?.walletBalance ?? 0} onSelectPaymentMethod={setPaymentMethodChoice} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
 
       {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}
 
@@ -1198,6 +1241,113 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       />}
 
       {showAddressModal && <AddressSheet addresses={savedAddresses} currentAddress={deliveryAddress} defaultId={userProfile?.defaultAddressId} fields={{address:addressDraft,label:addressLabel,building:addressBuilding,landmark:addressLandmark,instructions:addressInstructions}} busy={addressSaving} onField={(key,value)=>{if(key==='address')setAddressDraft(value);else if(key==='label')setAddressLabel(value);else if(key==='building')setAddressBuilding(value);else if(key==='landmark')setAddressLandmark(value);else setAddressInstructions(value);}} onSelect={address=>void handleSelectSavedAddress(address)} onDelete={address=>void handleDeleteSavedAddress(address)} onSave={()=>void handleSaveAddress()} onClose={()=>setShowAddressModal(false)}/>} 
+
+      {/* REAL-TIME IN-APP CHAT WITH DELIVERY PARTNER MODAL */}
+      {activeChatBookingId && (() => {
+        const chatBooking = activeBookings.find(b => b.bookingId === activeChatBookingId);
+        const partnerName = chatBooking?.driverName || 'Delivery Partner';
+        const cannedReplies = ["I'm at the gate", "Call when you arrive", "Please leave at the door", "On my way down"];
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md h-[520px] flex flex-col shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              {/* Chat Header */}
+              <div className="p-3.5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white shrink-0">
+                    <Bike className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-white">{partnerName}</h3>
+                    <p className="text-[10px] text-slate-300 font-mono">
+                      Order #{activeChatBookingId.slice(-6)} · {chatBooking?.serviceType || 'Delivery'}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setActiveChatBookingId(null)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+                  aria-label="Close chat"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Messages Body */}
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5 bg-slate-50" role="log" aria-label="Order messages">
+                {chatMessages.length === 0 ? (
+                  <div className="text-center py-20 text-slate-400 text-xs">
+                    <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    <p className="font-bold text-slate-600">No messages yet</p>
+                    <p className="text-[11px] text-slate-500 mt-1 max-w-xs mx-auto">
+                      Send a message or quick direction to your delivery partner.
+                    </p>
+                  </div>
+                ) : (
+                  chatMessages.map(msg => {
+                    const isMe = msg.senderId === userId;
+                    return (
+                      <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`p-2.5 rounded-2xl text-xs max-w-[82%] leading-relaxed ${
+                          isMe 
+                            ? 'bg-blue-600 text-white rounded-br-xs shadow-sm' 
+                            : 'bg-white text-slate-800 border border-slate-200 rounded-bl-xs shadow-xs'
+                        }`}>
+                          {!isMe && <p className="text-[9px] font-bold text-slate-400 mb-0.5">{msg.senderName}</p>}
+                          <p>{msg.text}</p>
+                        </div>
+                        <span className="text-[8px] text-slate-400 mt-0.5 mx-1 font-mono">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Canned Quick Replies */}
+              <div className="px-3 py-1.5 bg-slate-100 border-t border-slate-200 flex gap-1.5 overflow-x-auto scrollbar-none">
+                {cannedReplies.map(reply => (
+                  <button
+                    key={reply}
+                    type="button"
+                    disabled={chatSending}
+                    onClick={() => {
+                      setChatInput(reply);
+                    }}
+                    className="text-[10px] font-semibold bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 transition-colors active:scale-95"
+                  >
+                    {reply}
+                  </button>
+                ))}
+              </div>
+
+              {/* Chat Input Bar */}
+              <form onSubmit={handleSendChatMessage} className="p-2.5 bg-white border-t border-slate-200 flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  placeholder="Type a message to your partner..."
+                  className="flex-1 bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  disabled={chatSending || !chatInput.trim()}
+                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center shadow-sm shadow-blue-500/20 active:scale-95 transition-all"
+                >
+                  {chatSending ? (
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

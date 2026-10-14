@@ -1,5 +1,5 @@
 import * as firebase from './firebaseHelper';
-import { useNeonAccounts, hasServiceIdentity } from '../accounts';
+import { useNeonAccounts, hasServiceIdentity, serviceAccessError } from '../accounts';
 import { neonAccountHandlers } from './neonAccounts';
 export * from './firebaseHelper';
 export const listenToMerchantHours = route('listenToMerchantHours');
@@ -16,7 +16,7 @@ function route<K extends keyof typeof firebase>(name: K): typeof firebase[K] {
   return ((...args: any[]) => {
     if (!useNeonAccounts || hasServiceIdentity) return (firebase[name] as (...args: any[]) => any)(...args);
     if (neonAccountHandlers[name]) return neonAccountHandlers[name](...args);
-    const error = Object.assign(new Error('Service access is not connected. Verify your email and ask the operator to configure the secure account bridge.'), { code: 'unavailable' });
+    const error = serviceAccessError();
     if (String(name).startsWith('listenTo')) {
       const errorPositions: Record<string, number> = { listenToAccountProfile: 2, listenToBookingContacts: 2, listenToDriverLocation: 2, listenToBookingTracking: 2, listenToBookingEvents: 2, listenToPayoutRequests: 2, listenToWalletLedger: 2, listenToRestaurants: 1, listenToGroceryStores: 1, listenToMenuItems: 2, listenToGroceryProducts: 2, listenToMerchantHours: 3 };
       errorPositions.listenToOrderReviews = 2;
@@ -45,6 +45,7 @@ export const getOrCreateDriverProfile = route('getOrCreateDriverProfile');
 export const updateDriverStatus = route('updateDriverStatus');
 export const updateDriverVerification = route('updateDriverVerification');
 export const startOnlinePayment = route('startOnlinePayment');
+export const createCodBooking = route('createCodBooking');
 export const getServiceQuote = route('getServiceQuote');
 export const searchServiceLocations = route('searchServiceLocations');
 export const listenToAccountProfile = route('listenToAccountProfile');

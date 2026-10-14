@@ -201,6 +201,12 @@ export async function startOnlinePayment(booking: Pick<Booking, 'serviceType' | 
   return result.data;
 }
 
+export async function createCodBooking(data: { booking: Pick<Booking, 'serviceType' | 'customerName' | 'pickupAddress' | 'dropAddress' | 'details'> & { couponCode?: string }; expectedAmountCents: number; requestId: string }) {
+  const createCod = httpsCallable<typeof data, { bookingId: string; status: string }>(functions, 'createCodBooking');
+  const result = await createCod(data);
+  return result.data;
+}
+
 export async function getServiceQuote(booking: Pick<Booking, 'serviceType' | 'customerName' | 'pickupAddress' | 'dropAddress' | 'details'> & { couponCode?: string }) {
   const quote = httpsCallable<typeof booking, { quoteId: string; amount: number; currency: string; price: number; expiresAt: string; estimatedKm: number; estimatedMinutes: number }>(functions, 'getServiceQuote');
   return (await quote(booking)).data;

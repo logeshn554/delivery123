@@ -3,7 +3,8 @@ import TransportOrderDetails from './TransportOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight, 
-  MapPin, Check, Eye, Clock, ShieldAlert, Award, FileText, Send, MessageSquare
+  MapPin, Check, Eye, Clock, ShieldAlert, Award, FileText, Send, MessageSquare,
+  Phone, Camera, Banknote, X
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
 import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages } from '../data/firestoreHelper';
@@ -42,7 +43,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     const timer = setInterval(() => setOfferNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const [activeSubView, setActiveSubView] = useState<'orders' | 'wallet' | 'support' | null>(null);
+  const [activeSubView, setActiveSubView] = useState<'orders' | 'wallet' | 'support' | 'profile' | null>(null);
   useEffect(() => {
     const back = (event: Event) => { if (activeSubView) { event.preventDefault(); setActiveSubView(null); } };
     window.addEventListener('allgo:back', back);
@@ -54,6 +55,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   // Real-time Chat States inside Active Job panel
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [podImage, setPodImage] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Load or create driver profile in Firestore
@@ -200,7 +202,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const handleRejectJob = (jobId: string) => performAction(() => rejectDriverBooking(jobId));
   const handleArrivedAtPickup = (jobId: string) => performAction(() => advanceDriverBooking(jobId, 'preparing'));
   const handleVerifyOTP = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'transit', pickupCode));
-  const handleCompleteJob = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'completed', otpInput));
+  const handleCompleteJob = (job: Booking) => performAction(async () => {
+    await advanceDriverBooking(job.bookingId, 'completed', otpInput);
+    setPodImage(null);
+    setOtpInput('');
+  });
 
   // Handle Send Chat message
   const handleSendChat = async (e: React.FormEvent) => {
@@ -239,7 +245,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                   ✕ Close
                 </button>
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 ml-2">
-                  {activeSubView === 'orders' ? 'Fulfillment History' : activeSubView === 'wallet' ? 'Driver Wallet' : 'Support Desk'}
+                  {activeSubView === 'orders' ? 'Your deliveries' : activeSubView === 'wallet' ? 'Your earnings' : activeSubView === 'profile' ? 'Partner profile' : 'Help & support'}
                 </h3>
               </div>
               <span className="text-[9px] bg-purple-500/15 text-purple-400 font-extrabold px-2 py-0.5 rounded-full border border-purple-500/20">PARTNER HUB</span>
@@ -247,6 +253,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 select-text">
+              {activeSubView === 'profile' && <section className="role-profile-card"><div className="role-avatar">{userName?.[0] || 'D'}</div><h2>{userName || 'Delivery partner'}</h2><p>Verification: {profile.status}</p><dl><dt>Vehicle</dt><dd>{profile.vehicleType || 'Not provided'}</dd><dt>Registration</dt><dd>{profile.vehicleNo || 'Not provided'}</dd><dt>Completed deliveries</dt><dd>{profile.completedJobs || 0}</dd></dl><button type="button" className="allgo-action" onClick={()=>setActiveSubView(null)}>View dashboard & verification</button><button type="button" className="role-text-action" onClick={()=>setActiveSubView('support')}>Help & support</button></section>}
               {activeSubView === 'orders' && (
                 <div className="space-y-3">
                   <p className="text-[10px] text-slate-400 font-medium">Your completed deliveries & dispatches:</p>
@@ -447,6 +454,68 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               </div>
             </div>
 
+            {/* Customer Contact & Payment Status */}
+            {(() => {
+              const contactPhone = currentAssignedJob.details?.parcelContacts?.recipientPhone || 
+                currentAssignedJob.details?.parcelContacts?.senderPhone || 
+                (currentAssignedJob.details as any)?.customerPhone || 
+                (currentAssignedJob.details as any)?.phone || 
+                '';
+              const isCod = currentAssignedJob.paymentMethod === 'cash' || currentAssignedJob.paymentStatus === 'pending_cod';
+              return (
+                <div className="space-y-2">
+                  {/* Payment Collection Banner */}
+                  {isCod ? (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950 shadow-sm animate-pulse">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-black text-xs uppercase tracking-wider text-amber-900">
+                          <Banknote className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>CASH ON DELIVERY (COD)</span>
+                        </div>
+                        <span className="bg-amber-200 text-amber-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                          Collect Cash
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-baseline justify-between border-t border-amber-200/60 pt-2">
+                        <span className="text-xs text-amber-900 font-semibold">Collect from customer:</span>
+                        <strong className="text-base font-black text-amber-950">₹{currentAssignedJob.price}</strong>
+                      </div>
+                      <p className="mt-1 text-[10px] text-amber-800">
+                        Collect physical cash before asking for the 4-digit delivery OTP.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Paid Online (₹{currentAssignedJob.price})
+                      </span>
+                      <span className="text-[10px] font-semibold text-emerald-700">Do NOT collect cash</span>
+                    </div>
+                  )}
+
+                  {/* Customer Call bar */}
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-2.5">
+                    <div className="min-w-0 pr-2">
+                      <p className="text-[9px] uppercase tracking-wider font-bold text-slate-400">Customer</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{currentAssignedJob.customerName || 'Customer'}</p>
+                    </div>
+                    {contactPhone ? (
+                      <a
+                        href={`tel:${contactPhone}`}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors shadow-sm"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>Call</span>
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 italic">No phone attached</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Address specifics */}
             <div className="space-y-2 text-xs py-1">
               <div className="flex gap-2">
@@ -511,16 +580,61 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               )}
 
               {currentAssignedJob.status === 'transit' && (
-                <div>
-                  <p className="text-[10px] text-slate-400 mb-2">Ask the recipient for the delivery code at the destination.</p>
-                  <label className="sr-only" htmlFor="recipient-delivery-code">Recipient delivery code</label><input id="recipient-delivery-code" name="deliveryCode" autoComplete="one-time-code" spellCheck={false} value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Enter recipient delivery code…" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" />
-                  <button 
-                    disabled={actionBusy || otpInput.trim().length !== 4}
-                    onClick={() => handleCompleteJob(currentAssignedJob)}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15"
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> Mark Job Completed (Payout Release)
-                  </button>
+                <div className="space-y-3">
+                  {/* Proof of Delivery Photo (Optional) */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Camera className="w-4 h-4 text-purple-600" />
+                        <span>Proof of Delivery Photo (Optional)</span>
+                      </div>
+                      {podImage && <span className="text-[10px] font-bold text-emerald-600">Photo Attached ✓</span>}
+                    </div>
+                    {podImage ? (
+                      <div className="relative rounded-lg overflow-hidden border border-slate-200">
+                        <img src={podImage} alt="Delivery proof" className="w-full h-32 object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setPodImage(null)}
+                          className="absolute top-1.5 right-1.5 bg-slate-900/80 hover:bg-slate-900 text-white p-1 rounded-full text-xs shadow"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                        <Camera className="w-5 h-5 text-slate-400 mb-1" />
+                        <span className="text-[11px] font-semibold text-slate-600">Snap doorstep / parcel photo</span>
+                        <span className="text-[9px] text-slate-400">Helpful for contactless handover</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => setPodImage(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] text-slate-400 mb-2">Ask the recipient for the delivery code at the destination.</p>
+                    <label className="sr-only" htmlFor="recipient-delivery-code">Recipient delivery code</label><input id="recipient-delivery-code" name="deliveryCode" autoComplete="one-time-code" spellCheck={false} value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Enter recipient delivery code…" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" />
+                    <button 
+                      disabled={actionBusy || otpInput.trim().length !== 4}
+                      onClick={() => handleCompleteJob(currentAssignedJob)}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15"
+                    >
+                      <CheckCircle2 className="w-4 h-4" /> Mark Job Completed (Payout Release)
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -701,9 +815,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
       </div>
 
       {/* Driver Footer */}
-      <div className="p-3 bg-slate-100 text-center border-t border-slate-200 shrink-0">
-        <p className="text-[9px] text-slate-500">AllGo Partner App version 4.2 · Secure GPS enabled</p>
-      </div>
+      <nav className="role-navigation" aria-label="Delivery partner navigation">{([{id:null,label:'Home',Icon:Navigation},{id:'orders',label:'Orders',Icon:FileText},{id:'wallet',label:'Earnings',Icon:DollarSign},{id:'profile',label:'Profile',Icon:Award}] as const).map(({id,label,Icon})=><button type="button" key={label} aria-current={activeSubView===id?'page':undefined} onClick={()=>setActiveSubView(id)}><Icon size={21} aria-hidden="true"/><span>{label}</span></button>)}</nav>
 
     </div>
   );
