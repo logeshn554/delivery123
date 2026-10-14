@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import RestaurantMenu from '../src/components/RestaurantMenu.tsx';
 import CatalogDetails from '../src/components/CatalogDetails.tsx';
+import OrderConfirmationScreen from '../src/components/OrderConfirmationScreen.tsx';
 import GroceryProductCard from '../src/design-system/GroceryProductCard.tsx';
 import GroceryCategories from '../src/design-system/GroceryCategories.tsx';
 import OffersScreen from '../src/components/OffersScreen.tsx';
@@ -191,6 +192,20 @@ test('checkout review keeps total payable visible, makes bill details collapsibl
   assert.match(review,/The published cancellation policy is not available yet/);
   assert.match(review,/Payment method/);
   assert.match(styles,/\.checkout-bill-details > summary/);
+});
+test('order confirmation separates verified payment from COD and routes to tracking',()=>{
+  const paid=renderToStaticMarkup(createElement(OrderConfirmationScreen,{bookingId:'order-123',cashOnDelivery:false,onTrack:noop,onContinue:noop}));
+  const cod=renderToStaticMarkup(createElement(OrderConfirmationScreen,{bookingId:'order-456',cashOnDelivery:true,onTrack:noop,onContinue:noop}));
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(paid,/PAYMENT VERIFIED/);
+  assert.match(paid,/Your order is confirmed/);
+  assert.match(paid,/order-123/);
+  assert.match(paid,/Track this order/);
+  assert.match(paid,/Delivery timing will appear in tracking/);
+  assert.match(cod,/ORDER PLACED/);
+  assert.match(cod,/Pay the delivery partner/);
+  assert.match(styles,/\.order-confirmation-mark/);
+  assert.match(styles,/@media \(prefers-reduced-motion: reduce\) \{ \.order-confirmation-card/);
 });
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};

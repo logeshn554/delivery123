@@ -12,6 +12,7 @@ import TransportBookingScreen from './TransportBookingScreen';
 import ShopAgainScreen from './ShopAgainScreen';
 import CatalogDetails, { type CatalogPage } from './CatalogDetails';
 import CheckoutReviewScreen, { type PaymentMethodOption } from './CheckoutReviewScreen';
+import OrderConfirmationScreen from './OrderConfirmationScreen';
 import OrderTrackingScreen from './OrderTrackingScreen';
 import ParcelOrderDetails from './ParcelOrderDetails';
 import TransportOrderDetails from './TransportOrderDetails';
@@ -356,6 +357,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const onOrderSynchronized = useCallback((booking: Booking) => setSynchronizedOrder(booking), []);
   const visibleBookings = synchronizedOrder && !activeBookings.some(booking => booking.bookingId === synchronizedOrder.bookingId) ? [...activeBookings, synchronizedOrder] : activeBookings;
   const [successBookingId, setSuccessBookingId] = useState<string | null>(null);
+  const [successCashOnDelivery, setSuccessCashOnDelivery] = useState(false);
 
   // REAL-TIME MESSAGING CHAT STATES
   const [activeChatBookingId, setActiveChatBookingId] = useState<string | null>(null);
@@ -584,6 +586,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           localStorage.removeItem(`allgo-cart-${userId}`);
         }
         setSuccessBookingId(result.bookingId);
+        setSuccessCashOnDelivery(true);
         setActiveWorkflow('none');
         setSelectedOrderId(result.bookingId);
         setCurrentTab('orders');
@@ -604,7 +607,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         if (result.status !== 'paid' || !result.bookingId) throw new Error('Wallet payment is not confirmed. Check payment activity.');
         if (serviceType === 'food' || serviceType === 'grocery') { setCart([]); setCartService(null); setOrderNotes(''); localStorage.removeItem(`allgo-cart-${userId}`); }
         walletRequest.current = { fingerprint: '', id: '' };
-        setSuccessBookingId(result.bookingId); setActiveWorkflow('none'); setSelectedOrderId(result.bookingId); setCurrentTab('orders');
+        setSuccessBookingId(result.bookingId); setSuccessCashOnDelivery(false); setActiveWorkflow('none'); setSelectedOrderId(result.bookingId); setCurrentTab('orders');
       } catch (error) { alert(error instanceof Error ? error.message : 'Wallet checkout failed.'); }
       finally { setPaymentBusy(false); }
       return;
@@ -646,6 +649,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       }
       if (result.status !== 'paid') throw new Error('Payment is still processing. Check Orders before trying again.');
       setSuccessBookingId(result.bookingId);
+      setSuccessCashOnDelivery(false);
       if (serviceType === 'food' || serviceType === 'grocery') {
         setCart([]);
         setCartService(null);
@@ -1129,7 +1133,6 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           <div className="space-y-4 animate-fadeIn">
             {!selectedOrderId && <BundleActivity userId={userId} onOpen={id => { setTrackedBundleId(id); setActiveWorkflow('bundle_tracking'); }} />}
             <div className="flex items-center gap-2">{selectedOrderId && <button aria-label="Back to orders" onClick={() => setSelectedOrderId(null)} className="rounded-lg p-1"><ArrowLeft size={18} /></button>}<h3 className="text-base font-black text-slate-900">{selectedOrderId ? 'Track your order' : 'Orders & tracking'}</h3></div>
-            {successBookingId && <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><span><strong>Payment confirmed.</strong> Order reference: {successBookingId}. Details may take a moment to load.</span><button aria-label="Dismiss" onClick={() => setSuccessBookingId(null)} className="rounded-lg px-2 py-1 font-bold hover:bg-emerald-100">×</button></div>}
 
             {selectedOrderId && !visibleBookings.some(booking => booking.bookingId === selectedOrderId) && <OrderSynchronization bookingId={selectedOrderId} userId={userId} onFound={onOrderSynchronized} onPayments={() => setCurrentTab('wallet')}/>}
             {selectedOrderId && visibleBookings.find((booking) => booking.bookingId === selectedOrderId) && (() => {
@@ -1239,6 +1242,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
       {catalogPage && <CatalogDetails key={catalogPage.kind+catalogPage.id} kind={catalogPage.kind} partner={catalogPage.kind === 'restaurant' || catalogPage.kind === 'dish' ? selectedRestaurant || restaurantsList.find(item => item.id === catalogPage.id) : groceryStoresList.find(item => item.id === selectedStoreId)} item={catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : catalogPage.kind === 'product' ? productsList.find(item => item.id === catalogPage.id) : undefined} saved={favoriteCatalogIds.includes((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onSave={() => toggleFavorite((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onBack={() => setCatalogPage(null)} quantityInCart={variantId => cart.find(line => line.item.id === catalogPage.id && line.variant?.id === variantId)?.quantity || 0} onBrowse={() => setCatalogPage(null)} onAdd={(quantity,variant) => { const item = catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : productsList.find(item => item.id === catalogPage.id); if (!item) return false; return handleAddToCart(item,catalogPage.kind === 'dish' ? 'food' : 'grocery',variant,quantity); }} />}
       {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || ''} address={deliveryAddress} notes={orderNotes} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} paymentMethod={paymentMethodChoice} walletBalance={userProfile?.walletBalance ?? 0} onSelectPaymentMethod={setPaymentMethodChoice} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
+      {successBookingId && <OrderConfirmationScreen bookingId={successBookingId} cashOnDelivery={successCashOnDelivery} onTrack={() => setSuccessBookingId(null)} onContinue={() => { setSuccessBookingId(null); setSelectedOrderId(null); setCurrentTab('home'); setActiveWorkflow('none'); }} />}
 
       {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}
 

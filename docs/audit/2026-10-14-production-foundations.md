@@ -189,6 +189,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   message. Coupon entry remains in the preceding cart step. `npm run lint`,
   `npm test` (**140 passed, 0 failed**) and `npm run build` passed; mobile QA remains
   pending.
+- TASK-30: successful checkout now shows a dedicated order reference and tracking
+  action, distinguishing verified online/wallet payments from COD placement.
+  The pricing API has no delivery ETA field, so the confirmation directs customers
+  to tracking for partner updates instead of showing a made-up time. `npm run lint`,
+  `npm test` (**141 passed, 0 failed**) and `npm run build` passed; mobile QA remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
