@@ -139,7 +139,11 @@
 .stitch-address-icon { display: grid; place-items: center; width: 46px; height: 46px; flex-shrink: 0; background: var(--stitch-soft); color: var(--allgo-brand); border-radius: 50%; }
 .stitch-address-list strong { display: block; font-size: 15px; }
 .stitch-address-list p { color: var(--allgo-muted); font-size: 13px; line-height: 1.5; margin-top: 5px; overflow-wrap: anywhere; }
-.stitch-default { display: inline-block; color: #137148; background: #ecf8ef; border-radius: 5px; padding: 2px 5px; margin-left: 6px; font-size: 10px; }
+.stitch-address-search { display: flex; align-items: center; gap: 8px; min-height: 48px; margin: 14px 0; padding: 0 12px; border: 1px solid var(--allgo-border); border-radius: 12px; background: var(--allgo-canvas); color: var(--allgo-muted); }
+.stitch-address-search:focus-within { outline: 3px solid var(--allgo-focus); outline-offset: 2px; }
+.stitch-address-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--allgo-ink); font-size: 16px; }
+.stitch-address-search input:focus-visible { outline: none; }
+.stitch-default { display: inline-flex; align-items: center; gap: 3px; color: #137148; background: #ecf8ef; border-radius: 5px; padding: 2px 5px; margin-left: 6px; font-size: 10px; }
 .stitch-add-address { display: flex; align-items: center; gap: 16px; border: 1px dashed #cfcadd; border-radius: 20px; width: 100%; padding: 18px; color: var(--allgo-brand); margin-top: 18px; background: var(--allgo-surface); font-weight: 650; }
 .stitch-address-types { display: flex; gap: 8px; }
 .stitch-address-types button { display: flex; flex: 1; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--allgo-border); border-radius: 12px; background: var(--allgo-surface); font-size: 13px; }

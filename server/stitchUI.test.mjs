@@ -101,6 +101,17 @@ test('customer home connects search, address selection and live booking status t
   assert.match(customer,/Track booking/);
   assert.match(customer,/className="allgo-home-service-list"/);
 });
+test('address selection provides searchable saved locations and announced selection state',()=>{
+  const address=readFileSync(new URL('../src/components/AddressSheet.tsx',import.meta.url),'utf8');
+  const stitch=readFileSync(new URL('../src/design-system/stitch.css',import.meta.url),'utf8');
+  assert.match(address,/aria-label="Search saved addresses"/);
+  assert.match(address,/addresses\.filter\(address=>!query\|\|`\$\{address\.label\} \$\{address\.address\}`\.toLocaleLowerCase\(\)\.includes\(query\)\)/);
+  assert.match(address,/aria-pressed=\{address\.address===currentAddress\}/);
+  assert.match(address,/Star size=\{10\} fill="currentColor"/);
+  assert.match(address,/role="group" aria-label="Save this address as"/);
+  assert.match(address,/No saved address matches/);
+  assert.match(stitch,/\.stitch-address-search:focus-within[^\n]+outline:\s*3px solid var\(--allgo-focus\)/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

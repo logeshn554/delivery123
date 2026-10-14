@@ -135,6 +135,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   catalog search and service navigation remain data-backed. `npm run lint`,
   `npm test` (**130 passed, 0 failed**) and `npm run build` passed; mobile
   screenshots remain pending.
+- TASK-18: saved addresses can now be searched by label or address, selected state
+  is exposed with `aria-pressed`, the default badge includes a star, and address
+  type buttons have a named group. `npm run lint`, `npm test` (**131 passed, 0
+  failed**) and `npm run build` passed; mobile sheet and geolocation checks remain
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
