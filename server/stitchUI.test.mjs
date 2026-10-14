@@ -92,6 +92,15 @@ test('password recovery explains delivery and confirms the replacement password'
   assert.match(auth,/We’ll send you a password reset link if an account exists for this email/);
   assert.match(global,/\.auth-reset-instructions\s*\{[^}]*background:\s*#f7f5ff/);
 });
+test('customer home connects search, address selection and live booking status to real destinations',()=>{
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  assert.match(customer,/aria-label=\{`Choose delivery address\. Current address:/);
+  assert.match(customer,/aria-label="Search AllGo services, restaurants, and stores"/);
+  assert.match(customer,/className="allgo-home-active" aria-label="Active booking" aria-live="polite" aria-atomic="true"/);
+  assert.match(customer,/setSelectedOrderId\(latestOpenBooking\.bookingId\)/);
+  assert.match(customer,/Track booking/);
+  assert.match(customer,/className="allgo-home-service-list"/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

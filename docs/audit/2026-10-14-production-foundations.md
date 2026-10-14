@@ -130,6 +130,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   API is called. Firebase reset-link behavior remains unchanged. `npm run lint`,
   `npm test` (**129 passed, 0 failed**) and `npm run build` passed; live provider
   delivery remains pending.
+- TASK-17: the customer dashboard now announces active booking status changes and
+  its tracking action opens that exact booking. Personalized address selection,
+  catalog search and service navigation remain data-backed. `npm run lint`,
+  `npm test` (**130 passed, 0 failed**) and `npm run build` passed; mobile
+  screenshots remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
