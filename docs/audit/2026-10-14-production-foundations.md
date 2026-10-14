@@ -167,6 +167,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   the restaurant for ingredient/allergen questions. `npm run lint`, `npm test`
   (**137 passed, 0 failed**) and `npm run build` passed; mobile visual QA remains
   pending.
+- TASK-25: the existing live menu keeps its sticky category rail, image cards,
+  variant prices and closed-restaurant gating; the vegetarian marker now has an
+  explicit screen-reader role and label. `npm run lint`, `npm test` (**137 passed,
+  0 failed**) and `npm run build` passed; mobile visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
