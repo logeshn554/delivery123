@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import StatusPanel from '../src/design-system/StatusPanel.tsx';
 import PageHeading from '../src/design-system/PageHeading.tsx';
+import { useFeedbackDialog } from '../src/components/useFeedbackDialog.tsx';
 
 test('shared controls retain 44px touch targets, semantic focus rings and reduced-motion support', () => {
   const mobile = readFileSync(new URL('../src/design-system/mobile.css', import.meta.url), 'utf8');
@@ -28,6 +29,26 @@ test('catalog loading, empty results and failures announce state consistently', 
     assert.match(html, /Current search outcome/);
     assert.match(html, /<button type="button">Retry<\/button>/);
   }
+});
+
+test('multiple feedback dialogs have distinct labels and safe non-submit actions', () => {
+  function DialogHarness() { return useFeedbackDialog().dialog; }
+  const html = renderToStaticMarkup(createElement('div', null,
+    createElement(DialogHarness), createElement(DialogHarness)));
+  const ids = [...html.matchAll(/aria-labelledby="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(ids.length, 2);
+  assert.notEqual(ids[0], ids[1]);
+  assert.equal((html.match(/type="button"/g) || []).length, 2);
+});
+
+test('dialog motion and dimmed backdrops retain a reduced-motion escape and sheet handle', () => {
+  const mobile = readFileSync(new URL('../src/design-system/mobile.css', import.meta.url), 'utf8');
+  const stitch = readFileSync(new URL('../src/design-system/stitch.css', import.meta.url), 'utf8');
+  const address = readFileSync(new URL('../src/components/AddressSheet.tsx', import.meta.url), 'utf8');
+  assert.match(mobile, /\.allgo-feedback-dialog::backdrop[^\n]+backdrop-filter: blur/);
+  assert.match(mobile, /prefers-reduced-motion: reduce[^\n]+\.allgo-feedback-dialog\[open\][^\n]+animation: none/);
+  assert.match(stitch, /\.stitch-address-sheet::backdrop[^\n]+backdrop-filter: blur/);
+  assert.match(address, /className="stitch-sheet-handle" aria-hidden="true"/);
 });
 
 test('loading and failed catalog states expose different assistive announcements', () => {

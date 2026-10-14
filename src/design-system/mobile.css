@@ -75,7 +75,11 @@
 .allgo-offline { position: fixed; inset-inline: 12px; top: calc(12px + var(--allgo-safe-top)); z-index: 100; margin-inline: auto; max-width: 560px; padding: 14px 18px; background: var(--allgo-warning-soft); color: var(--allgo-warning); border: 1px solid #e9d3a6; border-radius: var(--allgo-radius-control); box-shadow: var(--allgo-shadow-overlay); font-size: 14px; line-height: 1.5; }
 html[data-allgo-offline="true"] :is(.allgo-workspace, .auth-shell) { padding-top: calc(var(--allgo-offline-height, 112px) + 24px + var(--allgo-safe-top)); }
 .allgo-feedback-dialog { max-height: calc(100dvh - 48px - var(--allgo-safe-top) - var(--allgo-safe-bottom)); overflow-y: auto; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); box-shadow: var(--allgo-shadow-overlay); }
+.allgo-feedback-dialog[open] { animation: allgo-dialog-in 160ms ease-out both; }
+.allgo-feedback-dialog::backdrop { background: rgb(32 29 43 / 40%); backdrop-filter: blur(3px); }
+@keyframes allgo-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .allgo-feedback-dialog button { min-height: var(--allgo-touch); }
 @media (max-width: 360px) { .allgo-customer-header { padding-inline: 12px; } .allgo-customer-header > div { gap: 6px; } .allgo-customer-header > div > div { gap: 2px; } .allgo-heading h1 { font-size: 22px; } }
 @media (prefers-reduced-motion: reduce) { .allgo-status-loading > svg { animation: none; } }
 @media (prefers-reduced-motion: reduce) { :where(.allgo-customer, .allgo-partner, .allgo-operations, .allgo-admin, .allgo-admin-content, .auth-panel) :where(button:not(:disabled)) { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .allgo-feedback-dialog[open], .stitch-address-sheet[open] { animation: none; } }

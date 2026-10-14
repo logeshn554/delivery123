@@ -83,6 +83,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   Existing active-tab and cart-count accessibility labels are covered by the
   navigation render test. `npm run lint`, `npm test` (**118 passed, 0 failed**)
   and `npm run build` passed. Device-width visual QA remains outstanding.
+- TASK-08: feedback-dialog label IDs are unique across mounted dialogs; action
+  buttons cannot submit surrounding forms. Address sheets have a non-announced
+  visual handle, and both modal backdrops blur while entrance motion respects
+  reduced-motion settings. `npm run lint`, `npm test` (**120 passed, 0 failed**)
+  and `npm run build` passed. Native focus and sheet-animation QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -101,6 +106,7 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - [x] Apply shared card radius, spacing, surface and elevation tokens.
 - [x] Unify common heading/back-button styles and tokenized safe-area padding.
 - [x] Constrain bottom navigation and apply shared safe-area spacing.
+- [x] Improve dialog IDs, backdrop treatment, sheet affordance and motion handling.
 - [x] Repair the two local TypeScript blockers.
 - [ ] Complete design-system consolidation and 360/390/430px visual QA.
 - [ ] Verify customer/merchant/driver/admin entry routing and auth/OTP end to end.

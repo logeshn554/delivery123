@@ -121,8 +121,10 @@
 .stitch-browse-row strong { display: block; font-size: 14px; }
 .stitch-browse-row small { display: block; margin-top: 4px; font-size: 12px; color: var(--allgo-muted); }
 .stitch-address-sheet { position: fixed; inset: 0; width: min(100%,448px); height: 100dvh; max-height: 100dvh; margin: 0 auto; border: 0; padding: 0; background: var(--allgo-canvas); color: var(--allgo-ink); }
-.stitch-address-sheet[open] { display: flex; flex-direction: column; }
-.stitch-address-sheet::backdrop { background: #201d2b88; }
+.stitch-address-sheet[open] { display: flex; flex-direction: column; animation: allgo-sheet-in 220ms cubic-bezier(.2,.7,.2,1) both; }
+.stitch-address-sheet::backdrop { background: rgb(32 29 43 / 48%); backdrop-filter: blur(3px); }
+.stitch-sheet-handle { width: 36px; height: 4px; flex: none; align-self: center; margin-top: 8px; border-radius: 999px; background: #c8c3d1; }
+@keyframes allgo-sheet-in { from { opacity: .7; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 .stitch-address-sheet > header { display: flex; align-items: center; gap: 12px; padding: calc(16px + var(--allgo-safe-top)) 16px 16px; border-bottom: 1px solid var(--allgo-border); background: var(--allgo-surface); flex-shrink: 0; }
 .stitch-address-sheet > header button { width: 44px; height: 44px; display: grid; place-items: center; }
 .stitch-address-sheet h1 { font-size: 21px; font-weight: 750; }
