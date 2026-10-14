@@ -51,8 +51,10 @@ export default function AuthScreen() {
   const [verificationId, setVerificationId] = useState('');
   const [code, setCode] = useState('');
   const [resendAt, setResendAt] = useState(0);
+  const [clock, setClock] = useState(Date.now());
   const strength = passwordStrength(password);
   const strengthLabel = password ? passwordStrengthLabel(strength) : 'Not set';
+  const phoneResendWait = Math.max(0, Math.ceil((resendAt - clock) / 1000));
   useEffect(() => {
     if (useNeonAccounts) return;
     if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('FirebaseAuthentication')) return;
@@ -64,12 +66,18 @@ export default function AuthScreen() {
     ]);
     return () => { active = false; void handles.then(values => Promise.all(values.map(handle => handle.remove()))); };
   }, []);
+  useEffect(() => {
+    if (screen !== 'phone' || resendAt <= clock) return;
+    const ticker = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(ticker);
+  }, [screen, resendAt, clock]);
+  const canonicalPhone = phone.replace(/[\s()-]/g, '');
   const phoneSubmit = async () => {
     if (verificationId) { await FirebaseAuthentication.confirmVerificationCode({ verificationId, verificationCode: code }); await completeNativePhoneSignIn(); return; }
-    if (!/^\+[1-9]\d{7,14}$/.test(phone)) throw new Error('Enter your phone number with country code, such as +91…');
+    if (!/^\+[1-9]\d{7,14}$/.test(canonicalPhone)) throw new Error('Enter your phone number with country code, such as +91…');
     if (Date.now() < resendAt) throw new Error('Wait one minute before requesting another code.');
-    setResendAt(Date.now() + 60000);
-    await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: phone, skipNativeAuth: false });
+    await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: canonicalPhone, skipNativeAuth: false });
+    setResendAt(Date.now() + 60000); setClock(Date.now());
   };
   const navigate = (next: typeof screen) => { setScreen(next); setError(''); setNotice(''); setPassword(''); setVisible(false); setResetSent(false); setResetCode(''); setResetPassword(''); };
   const submit = async (event: FormEvent) => {
@@ -154,7 +162,7 @@ export default function AuthScreen() {
           {screen !== 'reset' && screen !== 'phone' && <label>Password<div className="auth-password"><input id="auth-password-input" name="password" type={visible ? 'text' : 'password'} required minLength={screen === 'signup' ? 8 : 1} maxLength={screen === 'signup' ? 128 : undefined} autoComplete={screen === 'signup' ? 'new-password' : 'current-password'} value={password} disabled={busy} onChange={event => setPassword(event.target.value)} /><button type="button" aria-controls="auth-password-input" aria-pressed={visible} aria-label={visible ? 'Hide password' : 'Show password'} disabled={busy} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{screen === 'signup' && <><span className="auth-password-strength" role="progressbar" aria-label="Password strength" aria-valuemin={0} aria-valuemax={4} aria-valuenow={strength} aria-valuetext={`Password strength: ${strengthLabel}`}><span aria-hidden="true">{[0, 1, 2, 3].map(index => <i key={index} className={index < strength ? 'filled' : ''} />)}</span><strong>{strengthLabel}</strong></span><small id="signup-password-help">Use at least 8 characters; longer passwords with a mix of letters, numbers or symbols are stronger.</small></>}</label>}
           {screen === 'signup' && <p className="auth-legal">By creating an account, you agree to {business.terms ? <a href={business.terms} target="_blank" rel="noopener noreferrer">the Terms of Service</a> : 'the AllGo Terms of Service'} and acknowledge {business.privacy ? <a href={business.privacy} target="_blank" rel="noopener noreferrer">the Privacy Policy</a> : 'the AllGo Privacy Policy'}.</p>}
           {screen === 'signin' && <button type="button" className="auth-text-link" disabled={busy} onClick={() => navigate('reset')}>Forgot password?</button>}
-          {screen === 'phone' && <><label>Phone number<input name="tel" type="tel" autoComplete="tel" value={phone} disabled={busy || Boolean(verificationId)} onChange={event => setPhone(event.target.value)} placeholder="+91…" required /></label>{verificationId && <label>Verification code<input name="one-time-code" inputMode="numeric" autoComplete="one-time-code" spellCheck={false} pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value)} required /></label>}{verificationId && <button type="button" disabled={busy} onClick={() => { setVerificationId(''); setCode(''); }}>Change phone</button>}</>}
+          {screen === 'phone' && <><label>Phone number<input name="tel" type="tel" autoComplete="tel" value={phone} disabled={busy || Boolean(verificationId)} onChange={event => setPhone(event.target.value)} placeholder="+91…" required /></label>{verificationId && <><label>Verification code<input className="auth-otp-input" name="one-time-code" inputMode="numeric" enterKeyHint="done" autoComplete="one-time-code" autoFocus spellCheck={false} pattern="[0-9]{6}" maxLength={6} value={code} disabled={busy} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} required /></label><button type="button" className="auth-text-link" disabled={busy || phoneResendWait > 0} onClick={() => { setVerificationId(''); setCode(''); }}>{phoneResendWait ? `Request another code in ${phoneResendWait}s` : 'Request another code'}</button><button type="button" className="auth-text-link" disabled={busy} onClick={() => { setVerificationId(''); setCode(''); }}>Change phone number</button></>}</>}
           {error && <p id="auth-error" role="alert" className="auth-error">{error}</p>}
           {notice && <p role="status" className="auth-notice">{notice}</p>}
           {screen === 'reset' && useNeonAccounts && resetSent && <><label>Email reset code<input name="one-time-code" autoComplete="one-time-code" spellCheck={false} value={resetCode} onChange={event => setResetCode(event.target.value)} required pattern="[a-f0-9]{64}" disabled={busy} /></label><label>New password<input name="new-password" type="password" autoComplete="new-password" minLength={8} maxLength={128} value={resetPassword} onChange={event => setResetPassword(event.target.value)} required disabled={busy} /></label><button type="button" disabled={busy} onClick={() => { setResetSent(false); setResetCode(''); setResetPassword(''); }}>Request another code</button></>}

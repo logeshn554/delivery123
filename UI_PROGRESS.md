@@ -21,6 +21,8 @@ TASK-13 now resets password visibility on navigation, exposes the visibility
 toggle state and control relationship, and gives the sign-in error a stable alert ID.
 TASK-14 now adds a bounded password-strength meter and a signup policy disclaimer
 that links to the configured HTTPS terms and privacy pages.
+TASK-15 now autofocuses six-digit SMS inputs, uses numeric/paste-friendly entry,
+and exposes the resend cooldown in both configured phone sign-in paths.
 TASK-01 has a scoped implementation removing competing global Stitch theme tokens;
 TASK-09 now announces catalog busy/empty/error states consistently (targeted tests
 passed). TASK-02 has a shared type scale and line-height/weight tokens, applied to
@@ -34,7 +36,7 @@ remaining visual and functional checks are recorded.
 | Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
 |---|---|---|---|---|---|---|
 | **Phase 1** | Foundations | 10 | 0 | 10 | 0 | 0 |
-| **Phase 2** | Customer Entry | 11 | 0 | 4 | 7 | 0 |
+| **Phase 2** | Customer Entry | 11 | 0 | 5 | 6 | 0 |
 | **Phase 3** | Food Delivery | 12 | 0 | 0 | 12 | 0 |
 | **Phase 4** | Grocery Delivery | 11 | 0 | 0 | 11 | 0 |
 | **Phase 5** | Parcel Delivery | 11 | 0 | 0 | 11 | 0 |
@@ -44,7 +46,7 @@ remaining visual and functional checks are recorded.
 | **Phase 9** | Driver App | 13 | 0 | 0 | 13 | 0 |
 | **Phase 10** | Merchant Portal | 11 | 0 | 0 | 11 | 0 |
 | **Phase 11** | Operations & Admin | 11 | 0 | 0 | 11 | 0 |
-| **Total** | | **125** | **0** | **15** | **110** | **0** |
+| **Total** | | **125** | **0** | **16** | **109** | **0** |
 
 ---
 
@@ -73,7 +75,7 @@ remaining visual and functional checks are recorded.
 | **TASK-12** | Onboarding | `src/components/AuthScreen.tsx` (`screen === 'onboarding'`) | Simple 3-step text with raw Lucide icon boxes | Polished illustration cards, smooth step transitions, clear progress dots, quick skip action | In Progress | Pending | Passed (step announcements, navigation and reduced-motion regression) | Verify onboarding at 360/390/430px and on device |
 | **TASK-13** | Login | `src/components/AuthScreen.tsx` (`screen === 'signin'`) | Functional form, basic inputs | Floating labels or clean modern input containers, password visibility toggle, accessible error alerts | In Progress | Pending | Passed (visibility, recovery and alert semantics regression) | Verify sign-in states at mobile widths and on device |
 | **TASK-14** | Signup | `src/components/AuthScreen.tsx` (`screen === 'signup'`) | Basic name/email/password fields | Form hierarchy, inline strength indicator, password show/hide, terms disclaimer | In Progress | Pending | Passed (password strength boundaries and configured policy-link checks) | Verify signup validation and links on device |
-| **TASK-15** | OTP & account verification | `src/components/AuthScreen.tsx` (phone), `src/components/VerifyAccount.tsx` | Functional 6-digit input | Modern segmented digit boxes or formatted input, resend timer countdown, auto-focus | Pending | Pending | Pending | Polish OTP verification flow |
+| **TASK-15** | OTP & account verification | `src/components/AuthScreen.tsx` (phone), `src/components/VerifyAccount.tsx` | Functional 6-digit input | Modern segmented digit boxes or formatted input, resend timer countdown, auto-focus | In Progress | Pending | Passed (numeric OTP, autofill and cooldown regression) | Verify email and SMS verification on device |
 | **TASK-16** | Password recovery | `src/components/AuthScreen.tsx` (`screen === 'reset'`), `src/components/AccountActionScreen.tsx` | Basic email reset trigger | Clear instructions card, confirmation notice, password update form with validation | Pending | Pending | Pending | Polish password reset experience |
 | **TASK-17** | Customer home dashboard | `src/components/CustomerApp.tsx` (`currentTab === 'home'`) | Dual-column primary tiles, promo banner, service list | Modern Swiggy/Zepto-style service grid, active order live bar, personalized address header, search bar | Pending | Pending | Pending | Polish home screen composition |
 | **TASK-18** | Address selector | `src/components/AddressSheet.tsx`, `src/components/LocationPicker.tsx` | Bottom sheet with saved list & address form | Map pin icon, Home/Work/Other tags, quick search, default address star badge, bottom action | Pending | Pending | Pending | Refine address bottom sheet |

@@ -71,6 +71,17 @@ test('signup adds bounded password guidance and links only configured policy URL
   assert.match(global,/\.auth-password-strength i\.filled[^\n]+var\(--allgo-brand\)/);
   assert.match(global,/\.auth-legal a[^\n]+text-decoration:\s*underline/);
 });
+test('phone OTP inputs support six-digit autofill, numeric entry and a visible resend cooldown',()=>{
+  const auth=readFileSync(new URL('../src/components/AuthScreen.tsx',import.meta.url),'utf8');
+  const phone=readFileSync(new URL('../src/components/PhoneAccountFlow.tsx',import.meta.url),'utf8');
+  const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(auth,/className="auth-otp-input" name="one-time-code" inputMode="numeric" enterKeyHint="done" autoComplete="one-time-code" autoFocus/);
+  assert.match(auth,/Request another code in \$\{phoneResendWait\}s/);
+  assert.match(auth,/await FirebaseAuthentication\.signInWithPhoneNumber[\s\S]+setResendAt\(Date\.now\(\)\s*\+\s*60000\)/);
+  assert.match(phone,/autoComplete="one-time-code" autoFocus pattern="\[0-9\]\{6\}"/);
+  assert.match(phone,/Request another code in \$\{resendWait\}s/);
+  assert.match(global,/\.auth-form input\.auth-otp-input[^\n]+letter-spacing:\s*\.45em[^\n]+text-align:\s*center/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

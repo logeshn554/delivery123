@@ -119,6 +119,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   limit, and added terms/privacy copy that links to only the configured HTTPS policy
   URLs. `npm run lint`, `npm test` (**127 passed, 0 failed**) and `npm run build`
   passed; screenshots remain pending because the local preview is unavailable.
+- TASK-15: both phone OTP flows now autofocus the six-digit field, use numeric
+  autofill/paste-friendly entry and display a resend countdown. The legacy native
+  flow now normalizes common phone formatting and starts its 60-second cooldown
+  only after a successful provider request. `npm run lint`, `npm test` (**128
+  passed, 0 failed**) and `npm run build` passed; device SMS/email verification
+  remains required.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
