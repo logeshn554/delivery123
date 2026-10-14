@@ -61,7 +61,9 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const complete = ['completed', 'delivered'].includes(booking.status);
   const isRide = booking.serviceType === 'ride';
   const isParcel = booking.serviceType === 'parcel';
+  const isFood = booking.serviceType === 'food';
   const stage = complete ? 3 : booking.status === 'transit' ? 2 : ['accepted', 'preparing', 'ready'].includes(booking.status) ? 1 : 0;
+  const foodStage = complete ? 4 : booking.status === 'transit' ? 3 : ['preparing', 'ready'].includes(booking.status) ? 2 : booking.status === 'accepted' ? 1 : 0;
   const cancelled = booking.status === 'cancelled';
   const isCod = booking.paymentMethod === 'cash' || booking.paymentStatus === 'pending_cod';
   
@@ -70,10 +72,12 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const PartnerVehicleIcon = vehicleType === 'bike' ? Bike : vehicleType === 'car' ? Car : vehicleType === 'auto' ? Truck : booking.serviceType === 'parcel' ? Package : Bike;
   
   const parcelTracking = isParcel ? getParcelTrackingPresentation(booking.status) : null;
-  const trackingStages = isRide ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] : isParcel ? parcelTracking!.steps : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
+  const trackingStages = isRide ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] : isParcel ? parcelTracking!.steps : isFood ? ['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'] : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
+  const foodStatusTitle = cancelled ? 'Food order cancelled' : complete ? 'Your order has arrived' : booking.status === 'transit' ? 'Your order is out for delivery' : booking.status === 'ready' ? 'Your order is ready for pickup' : booking.status === 'preparing' ? 'The restaurant is preparing your order' : booking.status === 'accepted' ? 'The restaurant confirmed your order' : 'Your order was placed';
   const serviceStatusTitle = isRide 
     ? (cancelled ? 'Ride cancelled' : complete ? 'Ride complete' : stage === 2 ? 'Your ride is in progress' : stage === 1 ? 'Your driver has accepted' : 'Finding a driver') 
     : isParcel ? parcelTracking!.title 
+    : isFood ? foodStatusTitle
     : cancelled ? 'Booking cancelled' 
     : complete ? 'Delivered! Enjoy your order.' 
     : stage === 2 ? 'Your partner is on the way' 
@@ -184,8 +188,8 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
       {!cancelled && (
         <ol className="tracking-steps">
           {trackingStages.map((label, index) => (
-            <li key={label} className={index <= stage ? 'done' : ''}>
-              <span>{index <= stage ? <Check size={13} /> : index + 1}</span>
+            <li key={label} className={index <= (isFood ? foodStage : stage) ? 'done' : ''}>
+              <span>{index <= (isFood ? foodStage : stage) ? <Check size={13} /> : index + 1}</span>
               <small>{label}</small>
             </li>
           ))}

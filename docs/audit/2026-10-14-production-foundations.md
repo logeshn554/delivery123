@@ -195,6 +195,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   to tracking for partner updates instead of showing a made-up time. `npm run lint`,
   `npm test` (**141 passed, 0 failed**) and `npm run build` passed; mobile QA remains
   pending.
+- TASK-31: food tracking now maps current booking states to five restaurant-specific
+  milestones, including ready-for-pickup and arrived. Stale-location guards remain
+  unchanged. `npm run lint`, `npm test` (**142 passed, 0 failed**) and `npm run build`
+  passed; mobile visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

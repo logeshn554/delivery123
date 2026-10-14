@@ -207,6 +207,15 @@ test('order confirmation separates verified payment from COD and routes to track
   assert.match(styles,/\.order-confirmation-mark/);
   assert.match(styles,/@media \(prefers-reduced-motion: reduce\) \{ \.order-confirmation-card/);
 });
+test('food tracking maps canonical booking states to restaurant-specific milestones',()=>{
+  const tracking=readFileSync(new URL('../src/components/OrderTrackingScreen.tsx',import.meta.url),'utf8');
+  assert.match(tracking,/isFood \? \['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'\]/);
+  assert.match(tracking,/booking\.status === 'transit' \? 3/);
+  assert.match(tracking,/booking\.status === 'ready' \? 'Your order is ready for pickup'/);
+  assert.match(tracking,/booking\.status === 'preparing' \? 'The restaurant is preparing your order'/);
+  assert.match(tracking,/isFood \? foodStage : stage/);
+  assert.match(tracking,/isFreshTrackingTimestamp/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
