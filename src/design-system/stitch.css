@@ -11,7 +11,7 @@
 .auth-panel:not(.auth-welcome) .auth-wordmark { font-size: 28px; }
 .allgo-customer { background: var(--allgo-canvas); }
 .allgo-customer-header { border-bottom-color: var(--allgo-border); }
-.stitch-menu { background: var(--allgo-surface); border-radius: 20px; overflow: hidden; border: 1px solid var(--allgo-border); }
+.stitch-menu { background: var(--allgo-surface); border-radius: var(--allgo-radius-card); overflow: hidden; border: 1px solid var(--allgo-border); box-shadow: var(--allgo-shadow-card); }
 .stitch-restaurant-hero { position: relative; }
 .stitch-restaurant-cover { width: 100%; aspect-ratio: 1.9; object-fit: cover; background: linear-gradient(130deg,#fce0c8,#f7eddf); display: grid; place-items: center; color: #a55c32; }
 .stitch-restaurant-hero > button { position: absolute; right: 14px; top: 14px; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #ffffffec; color: #e04860; box-shadow: 0 2px 12px #0002; }
@@ -30,7 +30,7 @@
 .stitch-menu-rail button { min-height: 56px; font-size: 12px; line-height: 1.4; text-align: left; padding: 10px 8px; color: var(--allgo-muted); overflow-wrap: anywhere; border-left: 3px solid transparent; }
 .stitch-menu-rail button[aria-pressed="true"] { color: var(--allgo-brand); background: var(--allgo-surface); border-left-color: var(--allgo-brand); font-weight: 750; }
 .stitch-menu-items { min-width: 0; padding: 10px; display: grid; gap: 10px; }
-.stitch-dish { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; border: 1px solid var(--allgo-border); border-radius: 16px; padding: 12px 10px; box-shadow: 0 2px 6px #201d2b04; }
+.stitch-dish { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); padding: var(--allgo-space-3) 10px; box-shadow: var(--allgo-shadow-card); }
 .stitch-dish-copy { min-width: 0; flex: 1; }
 .stitch-diet { display: grid; place-items: center; width: 14px; height: 14px; border: 1px solid currentColor; border-radius: 2px; margin-bottom: 7px; color: #b13d43; }
 .stitch-diet.vegetarian { color: #168454; }
@@ -79,7 +79,7 @@
 .grocery-product-actions { padding: 0 12px 12px; }
 .grocery-product-actions > button { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; color: white; background: var(--allgo-brand); border-radius: 12px; min-height: 44px; }
 .stitch-ride-options { display: grid; gap: 14px; }
-.stitch-ride-options > button { display: flex; align-items: center; gap: 14px; padding: 16px; text-align: left; border: 1px solid var(--allgo-border); border-radius: 20px; background: var(--allgo-surface); box-shadow: var(--allgo-shadow-card); }
+.stitch-ride-options > button { display: flex; align-items: center; gap: var(--allgo-card-gap); padding: var(--allgo-card-padding); text-align: left; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); box-shadow: var(--allgo-shadow-card); }
 .stitch-ride-options > button[aria-pressed="true"] { border: 2px solid var(--allgo-brand); padding: 15px; }
 .stitch-ride-icon { display: grid; place-items: center; width: 54px; height: 54px; flex-shrink: 0; border-radius: 16px; color: #c47b25; background: #ffedd6; }
 .stitch-ride-icon.sky { color: #3e67d1; background: #edf2ff; }

@@ -44,6 +44,8 @@
   --allgo-space-4: 16px;
   --allgo-space-6: 24px;
   --allgo-shadow-card: 0 4px 18px rgb(32 29 43 / 6%);
+  --allgo-card-padding: 20px;
+  --allgo-card-gap: 12px;
   --allgo-focus: #7659f6;
   --allgo-food: #ee7d43;
   --allgo-grocery: #20835a;
@@ -132,6 +134,14 @@
 .allgo-action.secondary {
   background: var(--stitch-soft);
   color: var(--allgo-primary-strong);
+}
+
+.allgo-card {
+  padding: var(--allgo-card-padding);
+  border: 1px solid var(--allgo-border);
+  border-radius: var(--allgo-radius-card);
+  background: var(--allgo-surface);
+  box-shadow: var(--allgo-shadow-card);
 }
 
 .allgo-workspace {

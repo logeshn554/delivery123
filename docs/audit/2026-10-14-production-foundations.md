@@ -70,6 +70,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   pressed feedback that honors reduced motion. `npm run lint`, `npm test`
   (**115 passed, 0 failed**) and `npm run build` passed. Native device checks remain
   outstanding.
+- TASK-05: added shared card padding/gap tokens and applied the 20px radius,
+  semantic border/surface and card shadow to service, food, grocery and ride cards.
+  `npm run lint`, `npm test` (**116 passed, 0 failed**) and `npm run build` passed.
+  Visual comparison at the target phone widths remains outstanding.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -85,6 +89,7 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - [x] Add the shared typography size, line-height and weight scale.
 - [x] Consolidate root brand, canvas and authentication/catalog surfaces.
 - [x] Add shared control height, input sizing, focus and reduced-motion feedback.
+- [x] Apply shared card radius, spacing, surface and elevation tokens.
 - [x] Repair the two local TypeScript blockers.
 - [ ] Complete design-system consolidation and 360/390/430px visual QA.
 - [ ] Verify customer/merchant/driver/admin entry routing and auth/OTP end to end.

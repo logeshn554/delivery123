@@ -195,7 +195,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .food-sort { display: flex; align-items: center; gap: 6px; color: #696472; font-size: 12px; }
 .food-sort select { max-width: 145px; min-height: var(--allgo-touch-target); border: 1px solid var(--allgo-border); border-radius: 12px; padding: 0 9px; background: var(--allgo-surface); color: var(--allgo-ink); }
 .food-restaurant-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,250px),1fr)); gap: 14px; }
-.food-restaurant-card { position: relative; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: 18px; background: var(--allgo-surface); box-shadow: 0 3px 12px #24133a08; }
+.food-restaurant-card { position: relative; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); box-shadow: var(--allgo-shadow-card); }
 .food-restaurant-open { display: block; width: 100%; min-height: 0; text-align: left; }
 .food-restaurant-open img, .food-restaurant-image-fallback { display: grid; width: 100%; height: 158px; place-items: center; object-fit: cover; background: #f4f0f5; color: #9b92a3; }
 .catalog-image-fallback { display: grid; place-items: center; }
@@ -207,7 +207,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .food-restaurant-meta span { display: inline-flex; align-items: center; gap: 5px; }
 .food-restaurant-favorite { position: absolute; top: 10px; right: 10px; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffffffed; color: #ca4265; box-shadow: 0 2px 10px #24133a20; }
 .food-menu-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,270px),1fr)); gap: 12px; }
-.food-menu-card { display: flex; min-width: 0; gap: 12px; padding: 12px; border: 1px solid var(--allgo-border); border-radius: 18px; background: var(--allgo-surface); }
+.food-menu-card { display: flex; min-width: 0; gap: var(--allgo-card-gap); padding: var(--allgo-space-3); border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); }
 .food-menu-image, .food-menu-image-fallback { width: 82px; height: 82px; flex: 0 0 82px; border-radius: 14px; object-fit: cover; background: #f4f0f5; }
 .food-menu-image-fallback { display: grid; place-items: center; color: #9b92a3; }
 .food-menu-copy { min-width: 0; flex: 1; }
@@ -272,7 +272,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .grocery-favorites { display: inline-flex; align-items: center; gap: 7px; }
 .grocery-favorites[aria-pressed="true"], .grocery-product-save[aria-pressed="true"] { color: #b8405c; }
 .grocery-product-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,155px),1fr)); gap: 12px; }
-.grocery-product-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: 18px; background: var(--allgo-surface); box-shadow: 0 3px 12px #193e2708; }
+.grocery-product-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); box-shadow: var(--allgo-shadow-card); }
 .grocery-product-visual { position: relative; overflow: hidden; background: #f3f6f1; }
 .grocery-product-image, .grocery-product-image-fallback { display: grid; width: 100%; aspect-ratio: 1.2; place-items: center; object-fit: cover; background: #edf4ed; color: #78927d; }
 .grocery-product-save { position: absolute; top: 8px; right: 8px; display: grid; width: 44px; height: 44px; place-items: center; border-radius: 50%; background: #ffffffed; color: #716e75; box-shadow: 0 2px 10px #17251b20; }
@@ -598,7 +598,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .allgo-page-heading > button { width: 42px; height: 42px; border: 1px solid #e9e5f1; border-radius: 14px; display: grid; place-items: center; background: var(--allgo-surface); flex-shrink: 0; }
 .allgo-page-heading p { font-size: 9px; font-weight: 800; letter-spacing: 1.8px; color: #8b7f9e; margin-bottom: 4px; }
 .allgo-page-heading h1 { font-size: 23px; font-weight: 800; line-height: 1.2; }
-.allgo-card { background: var(--allgo-surface); border: 1px solid #ede8f3; border-radius: 20px; padding: 20px; margin: 14px 0; }
+.allgo-card { background: var(--allgo-surface); border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); padding: var(--allgo-card-padding); margin: 14px 0; box-shadow: var(--allgo-shadow-card); }
 .allgo-card h2 { font-size: 15px; font-weight: 750; line-height: 1.5; }
 .allgo-card p { font-size: 12px; color: #766c86; line-height: 1.75; margin-top: 8px; overflow-wrap: anywhere; }
 .allgo-card small { color: #897e99; font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }

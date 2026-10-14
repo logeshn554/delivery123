@@ -1,0 +1,70 @@
+/* Customer composition and interaction rules shared by the live app and review gallery. */
+.allgo-customer { color: var(--allgo-ink); }
+.allgo-customer-header { padding-bottom: 14px; box-shadow: 0 2px 12px rgb(32 29 43 / 3%); }
+.allgo-customer-header > div:first-child { gap: 12px; }
+.allgo-customer-header .food-address-summary { flex: 1; }
+.allgo-customer-header input { background: var(--allgo-canvas); }
+.allgo-home { gap: var(--allgo-space-6); }
+.allgo-home-intro { margin: 4px 0 0; }
+.allgo-home-intro h1 { max-width: 18ch; font-size: clamp(26px, 6vw, 32px); line-height: 1.18; }
+.allgo-home-intro span { display: block; margin-top: 10px; line-height: 1.5; }
+.allgo-home-feature { min-height: 178px !important; padding: var(--allgo-card-padding); gap: 8px; border-radius: var(--allgo-radius-card); box-shadow: var(--allgo-shadow-card); }
+.allgo-home-feature strong { font-size: 19px; }
+.allgo-home-feature small { line-height: 1.45; }
+.allgo-home-feature-icon { width: 50px; height: 50px; }
+.allgo-home-service-list { gap: 10px; }
+.allgo-home-service-list button { min-height: 72px; padding: 14px 12px; background: var(--allgo-surface); }
+.allgo-home-service-list button span { font-size: 13px; line-height: 1.4; }
+.allgo-service-directory { display: grid; gap: 24px; }
+.allgo-service-directory .allgo-heading { margin-bottom: 0; }
+.allgo-service-directory .section-heading { margin: 0 0 12px; }
+.allgo-service-directory .service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.allgo-service-directory .service-tile { align-items: flex-start; text-align: left; padding: var(--allgo-card-padding); border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); box-shadow: var(--allgo-shadow-card); }
+.allgo-service-directory .service-icon { width: 46px; height: 46px; border-radius: 14px; margin-bottom: 14px; }
+.allgo-service-directory .service-icon svg { width: 24px; height: 24px; }
+.allgo-service-directory .service-tile strong { font-size: 15px; }
+.allgo-service-directory .service-tile small { font-size: 12px; line-height: 1.5; }
+.allgo-service-note { padding: 14px 16px; background: var(--stitch-soft); border-radius: var(--allgo-radius-control); color: var(--allgo-muted); font-size: 13px; line-height: 1.6; }
+.allgo-planned-services { border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius); background: var(--allgo-surface); padding: 0 16px; }
+.allgo-planned-services summary { min-height: 48px; padding: 14px 0; cursor: pointer; font-size: 13px; font-weight: 650; }
+.allgo-planned-services .service-grid { padding-bottom: 16px; }
+.allgo-navigation { padding-bottom: calc(8px + var(--allgo-safe-bottom)); box-shadow: 0 -3px 16px rgb(32 29 43 / 3%); }
+.allgo-navigation button { min-height: 56px; gap: 5px; font-size: 11px; }
+.allgo-navigation button > svg { box-sizing: content-box; padding: 5px 15px; border-radius: 999px; }
+.allgo-navigation button[aria-current="page"] > svg { background: var(--stitch-soft); }
+.stitch-profile > header { text-align: left; margin-bottom: 20px; }
+.stitch-profile-person { display: flex; align-items: center; gap: 16px; padding: 20px; margin-bottom: 24px; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); }
+.stitch-profile-avatar { width: 64px; height: 64px; flex: none; border-radius: 20px; border-width: 1px; }
+.stitch-profile-person > div { min-width: 0; }
+.stitch-profile-person h2 { margin: 0; font-size: 20px; }
+.stitch-profile-person p { font-size: 13px; line-height: 1.5; }
+.stitch-profile-links button > span:first-of-type { min-width: 0; }
+.stitch-profile-links strong { font-weight: 650; line-height: 1.4; }
+.stitch-profile-links small { line-height: 1.5; }
+.stitch-profile-links button { min-height: 64px; }
+.stitch-signout { border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-control); background: var(--allgo-surface); }
+.stitch-address-sheet { max-width: 100vw; }
+.stitch-address-sheet .allgo-form input:read-only { cursor: default; }
+.stitch-address-sheet .allgo-action { width: 100%; min-height: 52px; }
+.allgo-form input:not([type='checkbox']):not([type='radio']), .allgo-form textarea, .allgo-form select { font-size: var(--allgo-type-input); }
+.allgo-faq summary { min-height: 44px; line-height: 1.5; }
+.catalog-state { flex-wrap: wrap; }
+.catalog-state-copy { flex-basis: 180px; }
+.catalog-state-action { margin-left: auto; }
+.allgo-customer :is(button, a, summary), .stitch-address-sheet button { transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease; }
+.allgo-customer button:disabled, .stitch-address-sheet button:disabled { cursor: not-allowed; }
+@media (hover: hover) {
+  .service-tile:not(:disabled):hover, .allgo-home-service-list button:hover, .stitch-profile-links button:hover { background: var(--stitch-soft); border-color: var(--allgo-focus); }
+}
+@media (max-width: 360px) {
+  .allgo-home-feature { padding: 14px; }
+  .allgo-service-directory .service-tile { padding: 14px 12px; }
+  .stitch-profile-person { padding: 16px; gap: 12px; }
+}
+@media (min-width: 768px) {
+  .allgo-workspace:has(.allgo-customer) > main { max-width: 760px; }
+  .allgo-customer > div:has(> .allgo-home) { padding: 24px; }
+  .allgo-home-service-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .allgo-service-directory .service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stitch-address-sheet { height: min(90dvh, 840px); margin: auto; border-radius: 24px; }
+}

@@ -23,6 +23,16 @@ test('customer, sign-in and partner screens share semantic surfaces and brand to
   assert.match(global,/\.auth-shell\s*\{[^}]*background:\s*var\(--allgo-canvas\)/);
   assert.match(global,/\.auth-panel\s*\{[^}]*background:\s*var\(--allgo-surface\)/);
 });
+test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
+  const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
+  const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  const stitch=readFileSync(new URL('../src/design-system/stitch.css',import.meta.url),'utf8');
+  assert.match(tokens,/--allgo-radius-card:\s*20px/);
+  assert.match(tokens,/--allgo-shadow-card:/);
+  assert.match(global,/\.food-restaurant-card[^\n]+border-radius:\s*var\(--allgo-radius-card\)[^\n]+box-shadow:\s*var\(--allgo-shadow-card\)/);
+  assert.match(global,/\.grocery-product-card[^\n]+border-radius:\s*var\(--allgo-radius-card\)[^\n]+box-shadow:\s*var\(--allgo-shadow-card\)/);
+  assert.match(stitch,/\.stitch-ride-options > button[^\n]+border-radius:\s*var\(--allgo-radius-card\)[^\n]+box-shadow:\s*var\(--allgo-shadow-card\)/);
+});
 const restaurant={id:'test',name:'Test kitchen',cuisine:'Indian',image:'',rating:0,deliveryTime:'',address:'',pureVeg:true};
 const item={id:'dish',restaurantId:'test',name:'Dish with options',category:'Kitchen specials',description:'',price:99,isVeg:true,image:'',variants:[{id:'small',label:'Small',price:99},{id:'large',label:'Large',price:249}]};
 const props={restaurant,items:[item],categories:['All','Kitchen specials'],category:'All',onCategory:noop,loading:false,error:'',onRetry:noop,onClear:noop,onAbout:noop,favoriteIds:[],onFavorite:noop,onDetails:noop,quantities:()=>0,selectedVariants:{dish:'large'},onVariant:noop,onAdd:noop,onRemove:noop};
