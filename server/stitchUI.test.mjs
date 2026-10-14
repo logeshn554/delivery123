@@ -38,6 +38,18 @@ test('welcome screen keeps a high-contrast brand hero and usable account actions
   assert.match(auth,/navigate\(useNeonAccounts\?'phone':'signin'\)[^\n]+I already have an account/);
   assert.match(auth,/className="service-orbit" aria-hidden="true"/);
 });
+test('onboarding progress is announced, directly selectable and compact-screen aware',()=>{
+  const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
+  const global=read('../src/index.css');
+  const mobile=read('../src/design-system/mobile.css');
+  const auth=read('../src/components/AuthScreen.tsx');
+  assert.match(auth,/className="onboarding-copy" key=\{step\} aria-live="polite" aria-atomic="true"/);
+  assert.match(auth,/role="group" aria-label=\{`Introduction step \$\{step \+ 1\} of 3`\}/);
+  assert.match(auth,/aria-current=\{index === step \? 'step' : undefined\}/);
+  assert.match(auth,/Skip · Sign in/);
+  assert.match(global,/@media \(max-height:\s*720px\)[^\n]+\.onboarding-art/);
+  assert.match(mobile,/@media \(prefers-reduced-motion:\s*reduce\)[^\n]+\.onboarding-copy/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

@@ -103,6 +103,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   layout. Existing signup/onboarding and sign-in destinations remain intact.
   `npm run lint`, `npm test` (**123 passed, 0 failed**) and `npm run build` passed;
   visual screenshots remain pending while the preview browser cannot load localhost.
+- TASK-12: onboarding steps now announce copy changes, expose selected progress
+  state to assistive technology, animate the copy only when motion is allowed, and
+  scale the illustration for short viewports. The existing skip-to-sign-in and
+  account creation paths remain available. `npm run lint`, `npm test` (**124
+  passed, 0 failed**) and `npm run build` passed; responsive visual checks remain
+  pending while localhost preview is blocked.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

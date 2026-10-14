@@ -567,11 +567,22 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .payment-activity small { display: block; color: #8a8298; margin-top: 5px; font-size: 11px; }
 .payment-activity b { font-size: 14px; }
 .onboarding-page { display: flex; flex-direction: column; min-height: calc(100dvh - 56px); }
-.onboarding-page h1 { max-width: 280px; font-size: 34px; }
-.onboarding-art { display: grid; place-items: center; border-radius: 50% 30% 45% 25%; min-height: 260px; margin: 30px 0; color: #6542e2; background: radial-gradient(circle at 70% 20%, #ffedc2, #ebe6ff 65%); }
-.onboarding-dots { display: flex; justify-content: center; gap: 8px; margin: auto 0 24px; }
-.onboarding-dots button { width: 8px; height: 8px; border-radius: 50%; background: #ded5ef; }
-.onboarding-dots .selected { width: 24px; border-radius: 10px; background: #5130ef; }
+.onboarding-page .auth-back { flex: none; }
+.onboarding-copy { animation: onboarding-copy-in 180ms ease-out both; }
+.onboarding-copy .auth-eyebrow { margin: 4px 0 14px; color: var(--allgo-brand); }
+.onboarding-page h1 { max-width: 320px; font-size: clamp(29px, 8vw, 34px); line-height: var(--allgo-line-tight); }
+.onboarding-page .auth-description { max-width: 360px; }
+.onboarding-art { position: relative; isolation: isolate; display: grid; place-items: center; overflow: hidden; border: 1px solid #e5defb; border-radius: 34px 24px 38px 24px; min-height: clamp(180px, 34vh, 270px); margin: 24px 0; color: var(--allgo-brand); background: radial-gradient(circle at 72% 18%, #fff1ca, transparent 35%), radial-gradient(circle at 26% 75%, #d9d0ff, transparent 48%), linear-gradient(140deg, #f3f0ff, #fbfaff); box-shadow: var(--allgo-shadow-card); }
+.onboarding-art::before, .onboarding-art::after { position: absolute; z-index: -1; border: 1px solid #7659f633; border-radius: 50%; content: ''; }
+.onboarding-art::before { width: 190px; height: 190px; }
+.onboarding-art::after { width: 245px; height: 245px; }
+.onboarding-dots { display: flex; justify-content: center; gap: 4px; margin: auto 0 16px; }
+.onboarding-dots button { display: grid; width: var(--allgo-touch); height: var(--allgo-touch); place-items: center; border-radius: 50%; background: transparent; }
+.onboarding-dots button::before { width: 8px; height: 8px; border-radius: 10px; background: var(--allgo-border); content: ''; transition: width 160ms ease, background-color 160ms ease; }
+.onboarding-dots button[aria-current="step"]::before { width: 24px; background: var(--allgo-brand); }
+.onboarding-page .auth-switch { margin-top: 4px; }
+@keyframes onboarding-copy-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-height: 720px) { .onboarding-page { min-height: calc(100dvh - 56px); } .onboarding-art { min-height: clamp(140px, 24vh, 190px); margin: 16px 0; } .onboarding-dots { margin-bottom: 8px; } }
 
 /* Account and delivery information pages */
 .service-detail { position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; background: #fcfaff; }

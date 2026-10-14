@@ -126,15 +126,18 @@ export default function AuthScreen() {
           <button className="auth-primary auth-white" onClick={() => navigate(useNeonAccounts?'signup':'onboarding')}>Get started <ArrowRight size={19} /></button>
           <button className="auth-outline" onClick={() => navigate(useNeonAccounts?'phone':'signin')}>I already have an account</button>
         </div>
-      </> : screen === 'onboarding' ? <div className="onboarding-page">
-        <button className="auth-back" aria-label="Back" onClick={() => step ? setStep(step - 1) : navigate('welcome')}><ArrowLeft size={21} /></button>
-        <h1>{['Everything you need, in one app.', 'From your doorstep to theirs.', 'Your city. Your next stop.'][step]}</h1>
-        <p className="auth-description">{['Discover food and daily essentials from neighbourhood partners.', 'Send a parcel, arrange a driver or transport your vehicle.', 'Book your journey and follow your confirmed orders in one place.'][step]}</p>
-        <div className="onboarding-art" aria-hidden="true">{step === 0 ? <ShoppingBag size={110} strokeWidth={1} /> : step === 1 ? <Package size={110} strokeWidth={1} /> : <Bike size={110} strokeWidth={1} />}</div>
-        <div className="onboarding-dots" aria-label={`Introduction ${step + 1} of 3`}>{[0, 1, 2].map(index => <button key={index} aria-label={`Go to introduction ${index + 1}`} className={index === step ? 'selected' : ''} onClick={() => setStep(index)} />)}</div>
-        <button className="auth-primary" onClick={() => step < 2 ? setStep(step + 1) : navigate('signup')}>{step < 2 ? 'Next' : 'Create your account'}<ArrowRight size={18} /></button>
-        <button className="auth-switch" onClick={() => navigate('signin')}>Skip · Sign in</button>
-      </div> : <>
+      </> : screen === 'onboarding' ? <section className="onboarding-page" aria-label="AllGo introduction">
+        <button type="button" className="auth-back" aria-label="Back" onClick={() => step ? setStep(step - 1) : navigate('welcome')}><ArrowLeft size={21} /></button>
+        <div className="onboarding-copy" key={step} aria-live="polite" aria-atomic="true">
+          <p className="auth-eyebrow">INTRODUCTION · {step + 1} OF 3</p>
+          <h1>{['Everything you need, in one app.', 'From your doorstep to theirs.', 'Your city. Your next stop.'][step]}</h1>
+          <p className="auth-description">{['Discover food and daily essentials from neighbourhood partners.', 'Send a parcel, arrange a driver or transport your vehicle.', 'Book your journey and follow your confirmed orders in one place.'][step]}</p>
+        </div>
+        <div className="onboarding-art" aria-hidden="true">{step === 0 ? <ShoppingBag size={88} strokeWidth={1.25} /> : step === 1 ? <Package size={88} strokeWidth={1.25} /> : <Bike size={88} strokeWidth={1.25} />}</div>
+        <div className="onboarding-dots" role="group" aria-label={`Introduction step ${step + 1} of 3`}>{[0, 1, 2].map(index => <button type="button" key={index} aria-label={`Go to introduction ${index + 1}`} aria-current={index === step ? 'step' : undefined} className={index === step ? 'selected' : ''} onClick={() => setStep(index)} />)}</div>
+        <button type="button" className="auth-primary" onClick={() => step < 2 ? setStep(step + 1) : navigate('signup')}>{step < 2 ? 'Next' : 'Create your account'}<ArrowRight size={18} /></button>
+        <button type="button" className="auth-switch" onClick={() => navigate('signin')}>Skip · Sign in</button>
+      </section> : <>
         <button className="auth-back" aria-label="Back to welcome" disabled={busy} onClick={() => navigate('welcome')}><ArrowLeft size={21} /></button>
         <div className="auth-wordmark">All<span>Go</span></div>
         <p className="auth-eyebrow">EVERYTHING YOU NEED, IN ONE APP</p>
