@@ -17,12 +17,12 @@ shared headings, auth text, form labels and status panels. TASK-03 now uses sema
 canvas/surface and brand tokens across auth, customer and catalog styles; service
 accents remain scoped. The inventory is a backlog, not proof of missing code or
 production readiness; phase totals remain unchanged until full visual and functional
-acceptance. TASK-01, TASK-02, TASK-03 and TASK-09 remain in progress until their
+acceptance. TASK-01 through TASK-06 and TASK-09 remain in progress until their
 remaining visual and functional checks are recorded.
 
 | Phase | Category | Total Tasks | Completed | In Progress | Pending | Blocked |
 |---|---|---|---|---|---|---|
-| **Phase 1** | Foundations | 10 | 0 | 7 | 3 | 0 |
+| **Phase 1** | Foundations | 10 | 0 | 8 | 2 | 0 |
 | **Phase 2** | Customer Entry | 11 | 0 | 0 | 11 | 0 |
 | **Phase 3** | Food Delivery | 12 | 0 | 0 | 12 | 0 |
 | **Phase 4** | Grocery Delivery | 11 | 0 | 0 | 11 | 0 |
@@ -46,7 +46,7 @@ remaining visual and functional checks are recorded.
 | **TASK-03** | Color and surface consistency | `src/design-system/tokens.css`, `src/index.css`, `src/design-system/stitch.css` | Inconsistent card backgrounds, mixed border colors, raw hexes | Standardize canvas `#F8F7FC`, card surfaces `#FFFFFF`, border `#EBE8F2`, ink `#1B1726`, muted `#696277`, semantic state colors & service tokens | In Progress | Pending | Pending | Complete the remaining surface and semantic color pass |
 | **TASK-04** | Shared buttons and input controls | `src/design-system/tokens.css`, `src/design-system/mobile.css`, `src/index.css` | Button heights vary from 40px to 54px; inconsistent focus rings and active states | Standardize button hierarchy (primary, secondary, outline, ghost, destructive); min 44px touch targets; active micro-scale; accessible focus rings | In Progress | Pending | Pending | Verify focus, reduced motion and mobile control sizing |
 | **TASK-05** | Shared cards and service tiles | `src/design-system/ServiceTile.tsx`, `src/design-system/GroceryProductCard.tsx`, `src/design-system/RideOptions.tsx` | Multiple ad-hoc card borders and radii | Standardize card padding, corner radii (20px), subtle elevation shadows, micro-interaction press effects | In Progress | Pending | Pending | Verify service, restaurant, grocery and ride cards in mobile layouts |
-| **TASK-06** | Headers and page headings | `src/design-system/PageHeading.tsx`, `src/design-system/mobile.css` | Different headers in customer, driver, merchant, admin | Standardize back-button dimensions (44x44px), title typography, sticky top safe-area insets | Pending | Pending | Pending | Unify header component & styling |
+| **TASK-06** | Headers and page headings | `src/design-system/PageHeading.tsx`, `src/design-system/mobile.css` | Different headers in customer, driver, merchant, admin | Standardize back-button dimensions (44x44px), title typography, sticky top safe-area insets | In Progress | Pending | Pending | Verify all entry pages and notched-device insets |
 | **TASK-07** | Bottom navigation | `src/design-system/BottomNavigation.tsx`, `src/app/customerNavigation.ts` | Stretched full-width on wide displays; inconsistent tab bar badges | Constrain to max-width (448px); safe-area bottom padding; clear active icon and label states; badge indicators | Pending | Pending | Pending | Polish BottomNavigation layout and responsiveness |
 | **TASK-08** | Dialogs and bottom sheets | `src/components/useFeedbackDialog.tsx`, `src/components/AddressSheet.tsx` | Ad-hoc modal transitions, scrim opacities | Standardize backdrop blur, bottom sheet drag handle, focus trap, smooth entrance/exit | Pending | Pending | Pending | Audit dialog/sheet styling and accessibility |
 | **TASK-09** | Loading, empty and error components | `src/design-system/CatalogState.tsx`, `src/design-system/StatusPanel.tsx`, `src/components/ConnectionStatus.tsx` | Divergent spinner styles, raw error text | Standardize `CatalogState` & `StatusPanel` with animated pulse skeleton, clear error icons, retry CTAs | In Progress | Pending | Passed (state announcement tests) | Complete visual states and retry QA |

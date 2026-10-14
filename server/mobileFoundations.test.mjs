@@ -46,3 +46,12 @@ test('page back control is named and cannot accidentally submit an enclosing for
   assert.match(html, /type="button"/);
   assert.match(html, /aria-label="Go back"/);
 });
+
+test('page heading variants share a 44px safe touch target and semantic title styles', () => {
+  const mobile = readFileSync(new URL('../src/design-system/mobile.css', import.meta.url), 'utf8');
+  const global = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+  assert.match(mobile, /\.allgo-page-heading, \.mobile-page-heading, \.grocery-page-heading/);
+  assert.match(mobile, /\.allgo-page-heading > button, \.mobile-page-heading > button[^\n]+width: var\(--allgo-touch\)[^\n]+min-height: var\(--allgo-touch\)/);
+  assert.match(mobile, /\.allgo-page-heading h1, \.mobile-page-heading h1[^\n]+font-size: var\(--allgo-type-title\)/);
+  assert.match(global, /\.safe-area-top \{ padding-top: var\(--allgo-safe-top\); \}/);
+});

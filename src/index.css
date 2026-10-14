@@ -32,7 +32,7 @@ body {
 button, input, textarea, select { font: inherit; }
 button { touch-action: manipulation; }
 
-.safe-area-top { padding-top: var(--safe-area-inset-top, env(safe-area-inset-top)); }
+.safe-area-top { padding-top: var(--allgo-safe-top); }
 .safe-area-bottom { padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom)); }
 
 @theme {
@@ -497,7 +497,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 
 .mobile-page-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .mobile-page-heading h1 { font-size: 19px; font-weight: 800; letter-spacing: -.5px; }
-.mobile-page-heading button { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #f5f2fa; }
+.mobile-page-heading button { width: var(--allgo-touch); height: var(--allgo-touch); border-radius: var(--allgo-radius-control); display: grid; place-items: center; background: var(--allgo-surface); }
 .page-caption { font-size: 12px; color: #8a8298; line-height: 1.6; margin: 12px 0 22px; }
 .segmented-control { background: #f4f2f9; border-radius: 14px; display: flex; padding: 4px; margin: 22px 0; }
 .segmented-control button { flex: 1; border-radius: 11px; padding: 10px; font-size: 12px; font-weight: 650; }
@@ -595,7 +595,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .parcel-summary dd { font-size: 13px; margin-top: 4px; line-height: 1.6; }
 .allgo-page { color: #251f35; padding-bottom: 12px; }
 .allgo-page-heading { display: flex; gap: 14px; align-items: center; margin: 4px 0 24px; }
-.allgo-page-heading > button { width: 42px; height: 42px; border: 1px solid #e9e5f1; border-radius: 14px; display: grid; place-items: center; background: var(--allgo-surface); flex-shrink: 0; }
+.allgo-page-heading > button { width: var(--allgo-touch); height: var(--allgo-touch); min-height: var(--allgo-touch); border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-control); display: grid; place-items: center; background: var(--allgo-surface); flex-shrink: 0; }
 .allgo-page-heading p { font-size: 9px; font-weight: 800; letter-spacing: 1.8px; color: #8b7f9e; margin-bottom: 4px; }
 .allgo-page-heading h1 { font-size: 23px; font-weight: 800; line-height: 1.2; }
 .allgo-card { background: var(--allgo-surface); border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); padding: var(--allgo-card-padding); margin: 14px 0; box-shadow: var(--allgo-shadow-card); }
