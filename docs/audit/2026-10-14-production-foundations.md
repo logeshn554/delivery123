@@ -158,6 +158,10 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   style the partner-provided delivery estimate as a pill, alongside cuisine,
   image and rating. `npm run lint`, `npm test` (**135 passed, 0 failed**) and
   `npm run build` passed; responsive visual checks remain pending.
+- TASK-23: restaurant discovery now filters on live cuisine values, keeps search
+  and filter controls sticky, and exposes active criteria with individual removal
+  and a clear-all action. `npm run lint`, `npm test` (**136 passed, 0 failed**) and
+  `npm run build` passed; mobile visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

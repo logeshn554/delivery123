@@ -174,6 +174,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [recentGlobalSearches, setRecentGlobalSearches] = useState<string[]>([]);
   const [selectedFoodCategory, setSelectedFoodCategory] = useState<string>("All");
   const [foodSearch, setFoodSearch] = useState('');
+  const [selectedFoodCuisine, setSelectedFoodCuisine] = useState('');
   const [selectedFoodVariants, setSelectedFoodVariants] = useState<Record<string, string>>({});
   const [grocerySearch, setGrocerySearch] = useState('');
   const [selectedGroceryCategory, setSelectedGroceryCategory] = useState('All');
@@ -754,8 +755,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const matchingStores = globalSearchTerm ? groceryStoresList.filter((store) => `${store.name} ${store.address}`.toLowerCase().includes(globalSearchTerm)).slice(0, 4) : [];
   const visibleRestaurants = restaurantsList.filter((rest) => {
     const matchesQuery = `${rest.name} ${rest.cuisine} ${rest.address}`.toLowerCase().includes(foodSearch.trim().toLowerCase());
-    return matchesQuery && (!showFavoritesOnly || favoriteCatalogIds.includes(`restaurant:${rest.id}`)) && (!vegetarianOnly || rest.pureVeg);
+    const matchesCuisine = !selectedFoodCuisine || rest.cuisine === selectedFoodCuisine;
+    return matchesQuery && matchesCuisine && (!showFavoritesOnly || favoriteCatalogIds.includes(`restaurant:${rest.id}`)) && (!vegetarianOnly || rest.pureVeg);
   }).sort((a, b) => foodSort === 'rating' ? (b.rating || 0) - (a.rating || 0) : a.name.localeCompare(b.name));
+  const foodCuisines = [...new Set(restaurantsList.map(rest => rest.cuisine.trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b));
   const visibleFoodItems = menuItemsList.filter((item) => item.restaurantId === selectedRestaurant?.id && item.available !== false &&
     (selectedFoodCategory === 'All' || item.category === selectedFoodCategory) &&
     (!foodSearch.trim() || `${item.name} ${item.description} ${item.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) &&
@@ -965,12 +968,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <button className="food-order-again" onClick={() => setShopAgain('food')}>Order again</button>
             </div>
 
-            <label className="food-search"><Search size={18} aria-hidden="true" /><input aria-label={selectedRestaurant ? `Search ${selectedRestaurant.name} menu` : 'Search restaurants'} value={foodSearch} onChange={(event) => setFoodSearch(event.target.value)} placeholder={selectedRestaurant ? 'Search dishes on this menu' : 'Search restaurants'} /></label>
-
-            <div className="food-filter-row" aria-label="Food filters">
-              <button onClick={() => setVegetarianOnly((value) => !value)} aria-pressed={vegetarianOnly} className="food-filter-chip">Vegetarian</button>
-              <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className="food-filter-chip">{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
-
+            <div className="food-discovery-controls"><label className="food-search"><Search size={18} aria-hidden="true" /><input aria-label={selectedRestaurant ? `Search ${selectedRestaurant.name} menu` : 'Search restaurants'} value={foodSearch} onChange={(event) => setFoodSearch(event.target.value)} placeholder={selectedRestaurant ? 'Search dishes on this menu' : 'Search restaurants'} /></label>
+              <div className="food-filter-row" role="group" aria-label={selectedRestaurant ? 'Menu filters' : 'Restaurant filters'}>
+                {!selectedRestaurant && <><button onClick={() => setSelectedFoodCuisine('')} aria-pressed={!selectedFoodCuisine} className="food-filter-chip">All cuisines</button>{foodCuisines.map(cuisine => <button key={cuisine} onClick={() => setSelectedFoodCuisine(current => current === cuisine ? '' : cuisine)} aria-pressed={selectedFoodCuisine === cuisine} className="food-filter-chip">{cuisine}</button>)}</>}
+                <button onClick={() => setVegetarianOnly((value) => !value)} aria-pressed={vegetarianOnly} className="food-filter-chip">Vegetarian</button>
+                <button onClick={() => setShowFavoritesOnly((value) => !value)} aria-pressed={showFavoritesOnly} className="food-filter-chip">{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
+              </div>
+              {!selectedRestaurant && (foodSearch.trim() || selectedFoodCuisine || vegetarianOnly || showFavoritesOnly) && <div className="food-active-filters" aria-live="polite"><span>Active filters</span>{foodSearch.trim() && <button onClick={() => setFoodSearch('')}>Search: {foodSearch.trim()} ×</button>}{selectedFoodCuisine && <button onClick={() => setSelectedFoodCuisine('')}>{selectedFoodCuisine} ×</button>}{vegetarianOnly && <button onClick={() => setVegetarianOnly(false)}>Vegetarian ×</button>}{showFavoritesOnly && <button onClick={() => setShowFavoritesOnly(false)}>Saved ×</button>}<button className="food-clear-filters" onClick={() => { setFoodSearch(''); setSelectedFoodCuisine(''); setVegetarianOnly(false); setShowFavoritesOnly(false); }}>Clear all</button></div>}
             </div>
 
             {!selectedRestaurant ? (
@@ -978,7 +982,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 <div className="food-section-head"><div><h2 id="food-restaurants-heading">Explore restaurants</h2><p>Delivery availability is confirmed at checkout.</p></div>
                   <label className="food-sort">Sort<select aria-label="Sort restaurants" value={foodSort} onChange={event => setFoodSort(event.target.value)}><option value="name">Name</option><option value="rating">Rating</option></select></label>
                 </div>
-                {restaurantCatalogError ? <CatalogState kind="error" title="Restaurants could not load" description={restaurantCatalogError} action={<button onClick={() => { setRestaurantCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : restaurantsLoading ? <CatalogState kind="loading" title="Finding restaurants" description="Loading available partner listings." /> : restaurantsList.length === 0 ? <CatalogState kind="empty" title="Restaurant listings are on the way" description="Partner menus will appear here when published. Check back soon." action={<button onClick={() => setShowAddressModal(true)}>Change location</button>} /> : visibleRestaurants.length === 0 ? <CatalogState kind="no-results" title="No restaurants match" description="Try another search or clear a filter to see more partner listings." action={<button onClick={() => { setFoodSearch(''); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : (
+                {restaurantCatalogError ? <CatalogState kind="error" title="Restaurants could not load" description={restaurantCatalogError} action={<button onClick={() => { setRestaurantCatalogError(''); setCatalogRetry(value => value + 1); }}>Try again</button>} /> : restaurantsLoading ? <CatalogState kind="loading" title="Finding restaurants" description="Loading available partner listings." /> : restaurantsList.length === 0 ? <CatalogState kind="empty" title="Restaurant listings are on the way" description="Partner menus will appear here when published." action={<button onClick={() => setShowAddressModal(true)}>Change location</button>} /> : visibleRestaurants.length === 0 ? <CatalogState kind="no-results" title="No restaurants match" description="Try another search or clear a filter to see more partner listings." action={<button onClick={() => { setFoodSearch(''); setSelectedFoodCuisine(''); setShowFavoritesOnly(false); setVegetarianOnly(false); }}>Clear filters</button>} /> : (
                   <div className="food-restaurant-grid">{visibleRestaurants.map(rest => (
                     <article key={rest.id} className="food-restaurant-card">
                       <button aria-label={`${favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'Remove' : 'Save'} ${rest.name}`} onClick={() => toggleFavorite(`restaurant:${rest.id}`)} aria-pressed={favoriteCatalogIds.includes(`restaurant:${rest.id}`)} className="food-restaurant-favorite"><Heart size={19} fill={favoriteCatalogIds.includes(`restaurant:${rest.id}`) ? 'currentColor' : 'none'} /></button>

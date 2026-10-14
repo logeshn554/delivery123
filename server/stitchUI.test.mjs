@@ -184,3 +184,13 @@ test('restaurant discovery cards surface cuisine, partner estimate and menu diet
   assert.match(styles,/\.food-diet-badge\.has-nonveg/);
   assert.match(styles,/\.food-eta-pill/);
 });
+test('restaurant filters include live cuisine chips, active filter removal and a sticky control bar',()=>{
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(customer,/const foodCuisines = \[\.\.\.new Set\(restaurantsList\.map\(rest => rest\.cuisine\.trim\(\)\)/);
+  assert.match(customer,/const matchesCuisine = !selectedFoodCuisine \|\| rest\.cuisine === selectedFoodCuisine/);
+  assert.match(customer,/role="group" aria-label=\{selectedRestaurant \? 'Menu filters' : 'Restaurant filters'\}/);
+  assert.match(customer,/className="food-active-filters" aria-live="polite"/);
+  assert.match(customer,/setSelectedFoodCuisine\(''\); setVegetarianOnly\(false\); setShowFavoritesOnly\(false\)/);
+  assert.match(styles,/\.food-discovery-controls \{ position: sticky/);
+});

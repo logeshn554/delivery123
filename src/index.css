@@ -211,10 +211,14 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .food-order-again { min-height: 44px; margin-left: auto; padding: 0 12px; color: var(--allgo-brand); font-size: 13px; font-weight: 700; }
 .food-search { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 15px; border: 1px solid var(--allgo-border); border-radius: 16px; background: var(--allgo-surface); color: #76717e; }
 .food-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--allgo-ink); font-size: 16px; }
+.food-discovery-controls { position: sticky; top: 0; z-index: 15; display: grid; gap: 8px; padding: 8px 0; background: var(--allgo-canvas); }
 .food-filter-row { display: flex; gap: 9px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: none; }
 .food-filter-row::-webkit-scrollbar { display: none; }
 .food-filter-chip { min-height: var(--allgo-touch-target); flex: 0 0 auto; border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 15px; background: var(--allgo-surface); color: #5d5865; font-size: 13px; font-weight: 650; }
 .food-filter-chip[aria-pressed="true"] { border-color: #e8a17a; background: #fff1e9; color: #a94e22; }
+.food-active-filters { display: flex; align-items: center; gap: 7px; overflow-x: auto; color: var(--allgo-muted); font-size: 11px; scrollbar-width: none; }
+.food-active-filters button { min-height: 32px; flex: 0 0 auto; border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 10px; background: var(--allgo-surface); color: var(--allgo-ink); font-size: 11px; font-weight: 650; }
+.food-active-filters .food-clear-filters { border-color: transparent; background: transparent; color: var(--allgo-brand); text-decoration: underline; }
 .food-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
 .food-section-head h2 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -.35px; }
 .food-section-head p { margin: 4px 0 0; color: var(--allgo-muted); font-size: 12px; }
