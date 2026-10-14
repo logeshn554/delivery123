@@ -98,6 +98,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   `npm run build` and `git diff --check` passed. Existing Android address-screen
   evidence shows content within the system bars. Current screenshots at 360/390/430px
   remain pending: the preview browser returned `ERR_NETWORK_CHANGED` for localhost.
+- TASK-11: refreshed the welcome screen with a layered indigo background, compact
+  logo mark, service icon orbit, high-contrast account actions and a short-height
+  layout. Existing signup/onboarding and sign-in destinations remain intact.
+  `npm run lint`, `npm test` (**123 passed, 0 failed**) and `npm run build` passed;
+  visual screenshots remain pending while the preview browser cannot load localhost.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

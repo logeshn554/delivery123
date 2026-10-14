@@ -23,6 +23,21 @@ test('customer, sign-in and partner screens share semantic surfaces and brand to
   assert.match(global,/\.auth-shell\s*\{[^}]*background:\s*var\(--allgo-canvas\)/);
   assert.match(global,/\.auth-panel\s*\{[^}]*background:\s*var\(--allgo-surface\)/);
 });
+test('welcome screen keeps a high-contrast brand hero and usable account actions',()=>{
+  const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
+  const global=read('../src/index.css');
+  const stitch=read('../src/design-system/stitch.css');
+  const auth=read('../src/components/AuthScreen.tsx');
+  assert.match(global,/\.auth-welcome\s*\{[^}]*linear-gradient\(155deg,\s*#3820b7,\s*#1f124f\)/);
+  assert.match(global,/\.brand-mark\s*\{[^}]*width:\s*82px[^}]*border-radius:\s*25px/);
+  assert.match(global,/\.auth-welcome \.auth-primary\s*\{[^}]*background:\s*white[^}]*color:\s*#3921a9/);
+  assert.match(global,/\.auth-welcome \.auth-outline\s*\{[^}]*color:\s*white/);
+  assert.match(global,/@media \(max-height:\s*720px\)[^\n]+\.auth-welcome/);
+  assert.doesNotMatch(stitch,/^\.auth-welcome(?:\s|[.#:{])/m);
+  assert.match(auth,/navigate\(useNeonAccounts\?'signup':'onboarding'\)[^\n]+Get started/);
+  assert.match(auth,/navigate\(useNeonAccounts\?'phone':'signin'\)[^\n]+I already have an account/);
+  assert.match(auth,/className="service-orbit" aria-hidden="true"/);
+});
 test('service, menu, grocery and ride cards use shared card radius and elevation tokens',()=>{
   const tokens=readFileSync(new URL('../src/design-system/tokens.css',import.meta.url),'utf8');
   const global=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

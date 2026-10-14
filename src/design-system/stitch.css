@@ -1,12 +1,6 @@
 /* Adapted from the supplied Stitch layouts. Data and actions belong to real workflows. */
-.auth-welcome { color: var(--allgo-ink); background: var(--allgo-surface); padding-top: calc(64px + var(--allgo-safe-top)); }
-.auth-welcome .auth-brand { margin: 0 0 10px; font-size: 52px; color: var(--allgo-brand); }
-.auth-welcome .auth-description { color: var(--allgo-muted); font-size: 16px; }
 .stitch-welcome-art { width: 100%; flex: 1; min-height: 250px; max-height: 390px; display: grid; place-items: center; margin: 32px 0; }
 .stitch-welcome-art img { width: 100%; max-width: 420px; height: auto; }
-.auth-welcome .auth-white { background: var(--allgo-brand); color: white; box-shadow: var(--allgo-shadow-card); }
-.auth-welcome .auth-outline { color: var(--allgo-muted); border: 0; font-size: 14px; }
-.auth-welcome .auth-outline strong { color: var(--allgo-primary-strong); margin-left: 6px; }
 .stitch-auth-avatar { width: 96px; height: 96px; border-radius: 50%; border: 3px solid #e3e4ff; display: grid; place-items: center; background: #f4f5f9; color: #8f98b1; margin: 12px auto 28px; }
 .auth-panel:not(.auth-welcome) .auth-wordmark { font-size: 28px; }
 .allgo-customer { background: var(--allgo-canvas); }
