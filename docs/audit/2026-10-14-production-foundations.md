@@ -385,6 +385,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   are not returned by this quote API. `npm run lint`, `npm test` (**179 passed,
   0 failed**), `npm run build` and scoped `git diff --check` passed. Responsive
   visual QA remains pending.
+- TASK-62: transport review now includes a pre-handover checklist to validate
+  vehicle measurements, record visible damage and verify the assigned carrier.
+  Existing ownership authorization and fresh server quote gates remain intact.
+  `npm run lint`, `npm test` (**180 passed, 0 failed**), `npm run build` and
+  scoped `git diff --check` passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

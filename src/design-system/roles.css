@@ -26,6 +26,9 @@
 .transport-assignment-note strong { font-size: 12px; }
 .transport-assignment-note p, .transport-terms-note { margin: 5px 0 0; font-size: 11px; line-height: 1.5; }
 .transport-terms-note { color: var(--allgo-muted); }
+.transport-inspection { margin: 12px 0; border-top: 1px solid var(--allgo-border); padding-top: 12px; }
+.transport-inspection h3 { margin: 0 0 6px; font-size: 12px; font-weight: 750; }
+.transport-inspection ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; color: var(--allgo-muted); font-size: 11px; line-height: 1.5; }
 .quote-expiry-meter { overflow: hidden; height: 5px; margin-top: 8px; border-radius: 99px; background: #e6e1f1; }
 .quote-expiry-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--allgo-brand); transition: width .4s linear; }
 @media (prefers-reduced-motion: reduce) { .quote-expiry-meter > span { transition: none; } }

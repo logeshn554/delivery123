@@ -450,6 +450,13 @@ test('ride and vehicle transport quote cards show server route estimates and acc
   assert.match(transport,/\{quote\.estimatedKm\.toFixed\(1\)\} km · \{quote\.estimatedMinutes\} min estimated route travel/);
   assert.match(transport,/This quote does not show separate toll or tax amounts/);
 });
+test('vehicle transport review includes route specs and a before-handover inspection checklist',()=>{
+  const screen=readFileSync(new URL('../src/components/TransportBookingScreen.tsx',import.meta.url),'utf8');
+  assert.match(screen,/Before carrier handover/);
+  assert.match(screen,/Review and record any visible damage/);
+  assert.match(screen,/Verify the assigned carrier before handing over the keys/);
+  assert.match(screen,/I own this vehicle or have the owner’s authorisation/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
