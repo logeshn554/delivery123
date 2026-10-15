@@ -309,6 +309,14 @@ test('parcel entry shows recent AllGo shipments and only backend-supported route
   assert.match(customer,/booking\.serviceType === 'parcel'\)\s*\.sort/);
   assert.match(screen,/Coverage and available rates|confirms coverage and the fare before you pay/);
 });
+test('parcel pickup access details flow into the bounded server instruction field',()=>{
+  const screen=readFileSync(new URL('../src/components/ParcelBookingScreen.tsx',import.meta.url),'utf8');
+  assert.match(screen,/Pickup floor, gate or landmark/);
+  assert.match(screen,/buildParcelInstructions\(pickupAccess,notes\)/);
+  assert.match(screen,/getPickupInstructionsLimit\(notes\)/);
+  assert.match(screen,/getDeliveryInstructionsLimit\(pickupAccess\)/);
+  assert.match(screen,/Pickup and delivery notes share the existing 500-character limit/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
