@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { getParcelTrackingPresentation } from '../../src/design-system/parcelTracking.ts';
 
 test('parcel tracking copy follows recorded booking status', () => {
@@ -15,4 +16,17 @@ test('parcel tracking copy follows recorded booking status', () => {
   assert.equal(getParcelTrackingPresentation('delivered').stage, 3);
   assert.equal(getParcelTrackingPresentation('completed').terminal, true);
   assert.equal(getParcelTrackingPresentation('cancelled').title, 'Shipment cancelled');
+});
+
+test('parcel tracking exposes sender pickup proof, custody events and recipient delivery proof', () => {
+  const tracking = readFileSync(new URL('../../src/components/OrderTrackingScreen.tsx', import.meta.url), 'utf8');
+  const timeline = readFileSync(new URL('../../src/components/BookingTimeline.tsx', import.meta.url), 'utf8');
+  assert.match(tracking, /isParcel \|\| \['ride', 'takeover'\]\.includes\(booking\.serviceType\)/);
+  assert.match(tracking, /Sender pickup code/);
+  assert.match(tracking, /assigned partner checks and takes custody/);
+  assert.match(tracking, /Recipient handover code/);
+  assert.match(tracking, /Partner heading to pickup/);
+  assert.match(timeline, /Sender pickup code verified/);
+  assert.match(timeline, /Recipient delivery code verified/);
+  assert.match(timeline, /Parcel picked up/);
 });

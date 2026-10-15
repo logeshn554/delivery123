@@ -333,6 +333,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   tracking action. `npm run lint`, `npm test` (**170 passed, 0 failed**),
   `npm run build` and scoped `git diff --check` passed. Responsive visual QA
   remains pending.
+- TASK-53: parcel tracking now exposes the sender pickup code, describes when
+  it should be shared, labels parcel pickup status accurately, and shows
+  server-recorded pickup and recipient code proofs in the handover history.
+  The location map continues to rely on fresh assigned-partner GPS. `npm run
+  lint`, `npm test` (**171 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

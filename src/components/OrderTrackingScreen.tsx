@@ -230,7 +230,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
                 </span>
                 <div>
                   <p className="text-[11px] font-bold text-white flex items-center gap-1">
-                    <span>{stage === 2 ? 'On the way' : 'Driver heading to store'}</span>
+                    <span>{stage === 2 ? 'On the way' : isParcel ? 'Partner heading to pickup' : 'Driver heading to store'}</span>
                     {freshRoute && route && (
                       <span className="text-emerald-400 font-extrabold font-mono">
                         · ~{route.estimatedMinutes} mins
@@ -378,12 +378,12 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
         </div>
       )}
 
-      {booking.pickupOtp && ['ride', 'takeover'].includes(booking.serviceType) && !complete && !cancelled && (
+      {booking.pickupOtp && (isParcel || ['ride', 'takeover'].includes(booking.serviceType)) && !complete && !cancelled && (
         <div className="tracking-otp">
           <ShieldCheck size={20} />
           <div>
-            <strong>Trip start code</strong>
-            <small>Share at pickup after checking the assigned partner and vehicle.</small>
+            <strong>{isParcel ? 'Sender pickup code' : 'Trip start code'}</strong>
+            <small>{isParcel ? 'Share only after the assigned partner checks and takes custody of the parcel.' : 'Share at pickup after checking the assigned partner and vehicle.'}</small>
           </div>
           <b>{booking.pickupOtp}</b>
         </div>
