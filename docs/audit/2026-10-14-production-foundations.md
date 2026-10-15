@@ -225,6 +225,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   neither is presented as verified. `npm run lint`, `npm test` (**146 passed,
   0 failed**), `npm run build` and `git diff --check` passed. Physical-device QA
   remains pending.
+- TASK-36: grocery categories now render as selectable cards with the existing
+  category-specific pastel icon backgrounds, a clear active glow, keyboard focus
+  styling and accessible pressed state. `npm run lint`, `npm test` (**147 passed,
+  0 failed**), `npm run build` and `git diff --check` passed. Physical-device QA
+  remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

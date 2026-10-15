@@ -53,11 +53,12 @@
 .food-cart-dock, .grocery-cart-dock { background: var(--allgo-brand); color: white; border-radius: 18px; box-shadow: var(--allgo-shadow-card); }
 .food-cart-dock p, .grocery-cart-dock p { color: #ebe7ff; }
 .food-cart-dock button, .grocery-cart-dock button { background: var(--allgo-surface); color: var(--allgo-brand); }
-.stitch-grocery-categories { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px 10px; padding-block: 12px; }
-.stitch-grocery-categories button { display: grid; justify-items: center; align-content: start; gap: 7px; padding: 4px; min-width: 0; }
-.stitch-grocery-categories .service-icon { width: 62px; height: 62px; margin: 0; border: 2px solid transparent; }
-.stitch-grocery-categories button[aria-pressed="true"] .service-icon { border-color: var(--allgo-brand); }
-.stitch-grocery-categories strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.stitch-grocery-categories { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; padding-block: 8px; }
+.stitch-grocery-categories button { display: grid; min-width: 0; min-height: 96px; justify-items: center; align-content: center; gap: 8px; padding: 10px 6px; border: 1px solid var(--allgo-border); border-radius: 18px; background: var(--allgo-surface); color: var(--allgo-ink); box-shadow: 0 2px 8px #2116440a; text-align: center; }
+.stitch-grocery-categories button[aria-pressed="true"] { border-color: #328255; background: #f6fbf7; box-shadow: 0 0 0 2px #32825522, 0 5px 14px #32825518; }
+.stitch-grocery-categories button:focus-visible { outline: 3px solid #328255; outline-offset: 2px; }
+.stitch-grocery-categories .service-icon { width: 48px; height: 48px; margin: 0; border: 0; border-radius: 16px; }
+.stitch-grocery-categories strong { max-width: 100%; font-size: 12px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
 .grocery-page-heading > button:first-child { background: var(--allgo-surface); color: var(--allgo-ink); }
 .grocery-hero { min-height: auto; padding: 0 0 8px; background: none; border-radius: 0; }
 .grocery-hero h2 { color: var(--allgo-ink); font-size: 26px; }

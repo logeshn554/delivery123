@@ -267,6 +267,17 @@ test('grocery store cards show only published status and timing, with a clear ca
   assert.match(styles,/\.grocery-store-status\.is-open/);
   assert.match(styles,/\.grocery-store-status\.is-closed/);
 });
+test('grocery categories use labeled selectable cards with pastel icon tones and visible selection',()=>{
+  const html=renderToStaticMarkup(createElement(GroceryCategories,{categories:['All','Fruit','Dairy'],selected:'Fruit',onSelect:noop}));
+  const styles=readFileSync(new URL('../src/design-system/stitch.css',import.meta.url),'utf8');
+  assert.match(html,/<nav class="stitch-grocery-categories" aria-label="Grocery categories"/);
+  assert.match(html,/class="peach" aria-pressed="true"/);
+  assert.match(html,/class="lavender" aria-pressed="false"/);
+  assert.match(html,/aria-hidden="true"/);
+  assert.match(styles,/\.stitch-grocery-categories button\[aria-pressed="true"\].*box-shadow/);
+  assert.match(styles,/\.stitch-grocery-categories button:focus-visible/);
+  assert.match(styles,/\.stitch-grocery-categories \.service-icon \{ width: 48px/);
+});
 test('category and profile screens retain only supplied data rather than design-example vendors or identities',()=>{
   const categories=renderToStaticMarkup(createElement(GroceryCategories,{categories:['All','Local grains'],selected:'All',onSelect:noop}));
   assert.match(categories,/Local grains/);assert.doesNotMatch(categories,/Vegetables|BigBasket|Blinkit/);

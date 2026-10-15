@@ -7,6 +7,6 @@ const visuals = [
 export default function GroceryCategories({ categories, selected, onSelect }: {categories:string[];selected:string;onSelect:(category:string)=>void}) {
   return <nav className="stitch-grocery-categories" aria-label="Grocery categories">{categories.map(name=>{
     const visual=name==='All'?{Icon:LayoutGrid,tone:'lavender'}:visuals.find(value=>value.matches.test(name))||{Icon:ShoppingBag,tone:'mint'};
-    return <button type="button" key={name} className={visual.tone} aria-pressed={selected===name} onClick={()=>onSelect(name)}><span className="service-icon"><visual.Icon size={28} strokeWidth={1.6}/></span><strong>{name}</strong></button>;
+    return <button type="button" key={name} className={visual.tone} aria-pressed={selected===name} onClick={()=>onSelect(name)}><span className="service-icon"><visual.Icon size={25} strokeWidth={1.7} aria-hidden="true"/></span><strong>{name}</strong></button>;
   })}</nav>;
 }
