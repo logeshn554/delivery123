@@ -123,6 +123,9 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .allgo-home-active small { color: #d2cfdb; font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .allgo-home-active button { display: flex; align-items: center; gap: 4px; flex: none; font-size: 12px; font-weight: 700; }
 .activity-status-note { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 12px; background: #f3f1fb; color: var(--allgo-ink); font-size: 13px; }
+.activity-progress { overflow: hidden; height: 5px; border-radius: 99px; background: #ece9f4; }
+.activity-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--allgo-brand); transition: width .35s ease; }
+@media (prefers-reduced-motion: reduce) { .activity-progress > span { transition: none; } }
 .activity-status-note > div { display: grid; gap: 2px; }
 .activity-status-note small { color: var(--allgo-muted); font-size: 11px; }
 .activity-status-note.legacy { background: #fff6e7; color: var(--allgo-warning); }

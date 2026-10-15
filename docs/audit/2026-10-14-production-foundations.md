@@ -426,6 +426,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   are not presented. `npm run lint`, `npm test` (**188 passed, 0 failed**),
   `npm run build` and scoped `git diff --check` passed. Responsive visual QA
   remains pending.
+- TASK-69: order cards now include an accessible mini progress bar and a direct
+  “Track order” action. Progress derives from canonical status and is hidden for
+  cancelled or unverified legacy records. `npm run lint`, `npm test` (**190
+  passed, 0 failed**), `npm run build` and scoped `git diff --check` passed.
+  Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

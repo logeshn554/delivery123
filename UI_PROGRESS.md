@@ -177,7 +177,7 @@ remaining visual and functional checks are recorded.
 
 | ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
 |---|---|---|---|---|---|---|---|---|
-| **TASK-69** | Active orders | `src/components/CustomerApp.tsx` (`currentTab === 'orders'`) | Active booking cards across services | Service badge, live status chip, progress mini-bar, 1-tap track button | Pending | Pending | Pending | Polish active orders list |
+| **TASK-69** | Active orders | `src/components/CustomerApp.tsx`, `src/design-system/bookingProgress.ts` | Service/status cards | Verified status progress mini-bar and one-tap tracking; legacy records remain historical-only | In Progress | Pending | Cancelled/legacy records do not get false active progress | Responsive visual QA remains pending |
 | **TASK-70** | Order history | `src/components/CustomerPages.tsx` (`history`) | List of past completed/cancelled bookings | Filter by service, formatted date, total amount, reorder CTA, invoice CTA | Pending | Pending | Pending | Polish order history list |
 | **TASK-71** | Unified tracking | `src/components/OrderTrackingScreen.tsx`, `src/components/BundleTrackingScreen.tsx` | Multi-service tracker | Consistent status badge, driver avatar, contact buttons, live step timeline | Pending | Pending | Pending | Polish unified tracking view |
 | **TASK-72** | Cancellation | `src/components/CustomerApp.tsx` (`handleCancelBooking`) | Confirm dialog | Cancellation reason picker, fee policy disclosure, instant refund notice | Pending | Pending | Pending | Polish cancellation workflow |

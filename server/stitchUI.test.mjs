@@ -428,6 +428,15 @@ test('personal-driver booking collects a supported duration and transmission for
   assert.match(policy,/new Set\(\['manual', 'automatic'\]\)/);
   assert.match(policy,/new Set\(\['hourly', 'halfday', 'fullday'\]\)/);
 });
+test('active order cards show a verified progress bar and a direct tracking action',()=>{
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const progress=readFileSync(new URL('../src/design-system/bookingProgress.ts',import.meta.url),'utf8');
+  assert.match(app,/activity-status-note legacy/);
+  assert.match(app,/bk\.recordAuthority !== 'legacy_neon' && bk\.status !== 'cancelled'.*role="progressbar"/);
+  assert.match(app,/>Track order<\/button>/);
+  assert.match(app,/aria-label=\{`\$\{bk\.serviceType\} order progress`\}/);
+  assert.match(progress,/delivered: 100, completed: 100/);
+});
 test('ride booking uses the shared accessible Bike, Auto and Car option cards',()=>{
   const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
   const html=renderToStaticMarkup(createElement(RideOptions,{selected:'bike',onSelect:noop}));

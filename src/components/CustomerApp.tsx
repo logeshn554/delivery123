@@ -18,6 +18,7 @@ import OrderTrackingScreen from './OrderTrackingScreen';
 import ParcelOrderDetails from './ParcelOrderDetails';
 import TransportOrderDetails from './TransportOrderDetails';
 import PlannedMoversScreen from './PlannedMoversScreen';
+import { getBookingProgress } from '../design-system/bookingProgress';
 import PaymentRecoveryPanel from './PaymentRecoveryPanel';
 import WalletPanel from './WalletPanel';
 import SupportCasePanel from './SupportCasePanel';
@@ -1211,6 +1212,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
                   {bk.recordAuthority === 'legacy_neon' ? <p className="activity-status-note legacy">Historical record only. Current order progress is not verified.</p> : <div className="activity-status-note" role="status"><span className={`activity-status-dot ${['cancelled'].includes(bk.status) ? 'cancelled' : ['delivered', 'completed'].includes(bk.status) ? 'complete' : ''}`} aria-hidden="true" /><div><strong>{bk.status === 'pending' ? 'Awaiting partner acceptance' : bk.status === 'accepted' ? 'Accepted by partner' : bk.status === 'preparing' ? 'Preparing' : bk.status === 'ready' ? 'Ready for pickup' : bk.status === 'transit' ? 'In transit' : bk.status === 'delivered' ? 'Delivered' : bk.status === 'completed' ? 'Completed' : 'Cancelled'}</strong><small>Updated {new Date(bk.updatedAt || bk.createdAt).toLocaleString()}</small></div></div>}
 
+                  {bk.recordAuthority !== 'legacy_neon' && bk.status !== 'cancelled' && <div className="activity-progress" role="progressbar" aria-label={`${bk.serviceType} order progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={getBookingProgress(bk.status)}><span style={{ width: `${getBookingProgress(bk.status)}%` }}/></div>}
+
                   {/* Live Chat with Rider Button (Screen-9 trigger) */}
                   <div className="pt-3 border-t border-slate-50 flex justify-between items-center gap-2">
                     <div>
@@ -1231,7 +1234,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                         <MessageSquare className="w-3.5 h-3.5" /> Chat with Driver
                       </button>
                     )}
-                    <button onClick={() => setSelectedOrderId(bk.bookingId)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-700">Details</button>
+                    <button type="button" onClick={() => setSelectedOrderId(bk.bookingId)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-700">Track order</button>
                   </div>
                 </div>
               ))
