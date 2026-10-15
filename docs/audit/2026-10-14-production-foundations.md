@@ -414,6 +414,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   `npm test` (**184 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Movers remain unavailable pending a real backend;
   responsive visual QA remains pending.
+- TASK-67: ride tracking now distinguishes an unassigned request from a driver
+  accepted by the backend. It displays assigned identity only after the
+  booking’s driver assignment arrives; no live-match animation or invented
+  driver details are shown. `npm run lint`, `npm test` (**185 passed, 0
+  failed**), `npm run build` and scoped `git diff --check` passed. Responsive
+  visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

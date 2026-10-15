@@ -702,6 +702,9 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .tracking-partner button { margin-left: auto; padding: 10px; background: #f5f0ff; border-radius: 50%; color: #5130ef; }
 .tracking-otp { display: flex; align-items: center; gap: 12px; padding: 16px; background: #f6f1ff; border-radius: 16px; margin-bottom: 20px; }
 .tracking-otp b { margin-left: auto; font-size: 20px; color: #5130ef; letter-spacing: 2px; }
+.ride-match-status { margin: 12px 0; border: 1px solid #dce4f8; border-radius: 14px; padding: 12px 14px; background: #f3f6ff; color: #34477c; }
+.ride-match-status strong { font-size: 12px; }
+.ride-match-status p { margin: 4px 0 0; color: #616d8b; font-size: 11px; line-height: 1.5; }
 .wallet-balance { border-radius: 24px; background: linear-gradient(120deg, #6940fc, #351990); color: white; padding: 25px; margin: 25px 0; }
 .wallet-balance p { font-size: 12px; margin-top: 20px; opacity: .8; }
 .wallet-balance strong { display: block; font-size: 38px; font-weight: 800; margin-top: 5px; }

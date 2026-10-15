@@ -153,6 +153,12 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
         <p>Last order update: {new Date(booking.updatedAt || booking.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
       </div>
 
+      {isRide && !complete && !cancelled && (
+        <aside className="ride-match-status" role="status" aria-live="polite">
+          {booking.driverId ? <><strong>Driver assigned</strong><p>{booking.driverName || 'Your driver'} has accepted the trip. Driver contact and vehicle details appear only when provided by the booking service.</p></> : <><strong>Waiting for a driver assignment</strong><p>We’ll show driver details when an available driver accepts this booking.</p></>}
+        </aside>
+      )}
+
       {/* Ride details summary */}
       {isRide && (
         <article className="ride-trip-summary">

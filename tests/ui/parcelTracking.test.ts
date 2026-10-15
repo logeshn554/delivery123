@@ -48,3 +48,11 @@ test('vehicle transport tracking separates the moved vehicle from the carrier an
   assert.match(tracking, /listenToBookingTracking/);
   assert.match(tracking, /Chat with carrier/);
 });
+
+test('ride matching status reflects only the recorded booking assignment', () => {
+  const tracking = readFileSync(new URL('../../src/components/OrderTrackingScreen.tsx', import.meta.url), 'utf8');
+  assert.match(tracking, /isRide && !complete && !cancelled/);
+  assert.match(tracking, /booking\.driverId \? <><strong>Driver assigned/);
+  assert.match(tracking, /Waiting for a driver assignment/);
+  assert.match(tracking, /We’ll show driver details when an available driver accepts/);
+});
