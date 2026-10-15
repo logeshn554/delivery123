@@ -38,3 +38,13 @@ test('parcel handover codes stay concealed until explicitly revealed and evidenc
   assert.match(details, /<ParcelHandoverCode label="Sender pickup code"/);
   assert.match(details, /AllGo does not collect a handover signature or photo/);
 });
+
+test('vehicle transport tracking separates the moved vehicle from the carrier and uses real GPS/chat state', () => {
+  const tracking = readFileSync(new URL('../../src/components/OrderTrackingScreen.tsx', import.meta.url), 'utf8');
+  assert.match(tracking, /VEHICLE BEING TRANSPORTED/);
+  assert.match(tracking, /The carrier’s vehicle details and photo are not available/);
+  assert.match(tracking, /Carrier reported location/);
+  assert.match(tracking, /Carrier GPS will appear here when a fresh position is available/);
+  assert.match(tracking, /listenToBookingTracking/);
+  assert.match(tracking, /Chat with carrier/);
+});

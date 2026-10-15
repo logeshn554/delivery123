@@ -291,7 +291,7 @@ test('grocery tracking reflects packing and only shows a fresh route-based arriv
   assert.match(tracking,/Picker notes are not available for this order/);
   assert.match(tracking,/Estimated arrival in about \$\{groceryArrivalMinutes\} min/);
   assert.match(tracking,/isGrocery && freshRoute && route\?\.destination === 'drop'/);
-  assert.match(tracking,/booking\.driverName \|\| \(isRide \? 'Your driver' : 'Your delivery partner'\)/);
+  assert.match(tracking,/booking\.driverName \|\| \(isRide \? 'Your driver' : isTransport \? 'Your carrier' : 'Your delivery partner'\)/);
 });
 test('buy again adds only current grocery items and identifies quantities needing replacements',()=>{
   const screen=readFileSync(new URL('../src/components/ShopAgainScreen.tsx',import.meta.url),'utf8');

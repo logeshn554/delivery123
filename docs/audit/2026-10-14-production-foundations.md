@@ -390,6 +390,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   Existing ownership authorization and fresh server quote gates remain intact.
   `npm run lint`, `npm test` (**180 passed, 0 failed**), `npm run build` and
   scoped `git diff --check` passed. Responsive visual QA remains pending.
+- TASK-63: transport tracking now distinguishes the vehicle being moved from
+  the carrier, labels carrier GPS only when a fresh assigned-partner position is
+  available, and provides the existing chat route. Carrier vehicle photos and
+  phone contacts are not supplied by this tracking flow. `npm run lint`,
+  `npm test` (**181 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

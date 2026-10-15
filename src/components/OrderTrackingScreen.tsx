@@ -65,6 +65,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const isParcel = booking.serviceType === 'parcel';
   const isFood = booking.serviceType === 'food';
   const isGrocery = booking.serviceType === 'grocery';
+  const isTransport = booking.serviceType === 'transport';
   const stage = complete ? 3 : booking.status === 'transit' ? 2 : ['accepted', 'preparing', 'ready'].includes(booking.status) ? 1 : 0;
   const foodStage = complete ? 4 : booking.status === 'transit' ? 3 : ['preparing', 'ready'].includes(booking.status) ? 2 : booking.status === 'accepted' ? 1 : 0;
   const groceryStage = getGroceryTrackingStage(booking.status);
@@ -73,7 +74,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   
   const vehicleType = String(booking.details?.vehicleType || '');
   const vehicleLabel = vehicleType === 'bike' ? 'Bike' : vehicleType === 'auto' ? 'Auto' : vehicleType === 'car' ? 'Car' : '';
-  const PartnerVehicleIcon = vehicleType === 'bike' ? Bike : vehicleType === 'car' ? Car : vehicleType === 'auto' ? Truck : booking.serviceType === 'parcel' ? Package : Bike;
+  const PartnerVehicleIcon = isTransport || vehicleType === 'auto' ? Truck : vehicleType === 'bike' ? Bike : vehicleType === 'car' ? Car : booking.serviceType === 'parcel' ? Package : Bike;
   
   const parcelTracking = isParcel ? getParcelTrackingPresentation(booking.status) : null;
   const trackingStages = isRide ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] : isParcel ? parcelTracking!.steps : isFood ? ['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'] : isGrocery ? GROCERY_TRACKING_STAGES : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
@@ -198,6 +199,14 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
         </article>
       )}
 
+      {isTransport && (
+        <article className="parcel-tracking-summary transport-tracking-summary">
+          <div className="parcel-track-package"><span><Truck size={21}/></span><div><small>VEHICLE BEING TRANSPORTED</small><strong>{booking.details?.transportMakeModel || 'Make and model unavailable'} · {booking.details?.transportRegNo || 'Registration unavailable'}</strong><p>{booking.details?.transportVehicleType || 'Vehicle type unavailable'} · {Number.isFinite(booking.details?.vehicleWeightKg) ? `${booking.details?.vehicleWeightKg} kg` : 'Weight unavailable'}</p></div></div>
+          <div className="parcel-track-addresses"><div><small>COLLECTION</small><p>{booking.pickupAddress || 'Pickup address unavailable'}</p></div><span aria-hidden="true"/><div><small>DELIVERY</small><p>{booking.dropAddress || 'Delivery address unavailable'}</p></div></div>
+          <p className="transport-terms-note">The carrier’s vehicle details and photo are not available in this tracking view.</p>
+        </article>
+      )}
+
       {/* Step Tracker */}
       {!cancelled && (
         <ol className="tracking-steps">
@@ -215,7 +224,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
         {coordinates ? (
           <div className="relative w-full h-[280px]">
             <iframe 
-              title={isRide ? 'Ride driver reported location' : 'Delivery partner reported location'} 
+              title={isRide ? 'Ride driver reported location' : isTransport ? 'Carrier reported location' : 'Delivery partner reported location'}
               src={`https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${lat},${lng}`} 
               loading="lazy" 
               referrerPolicy="no-referrer" 
@@ -231,7 +240,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
                 </span>
                 <div>
                   <p className="text-[11px] font-bold text-white flex items-center gap-1">
-                    <span>{stage === 2 ? 'On the way' : isParcel ? 'Partner heading to pickup' : 'Driver heading to store'}</span>
+                    <span>{stage === 2 ? 'On the way' : isParcel ? 'Partner heading to pickup' : isTransport ? 'Carrier heading to pickup' : 'Driver heading to store'}</span>
                     {freshRoute && route && (
                       <span className="text-emerald-400 font-extrabold font-mono">
                         · ~{route.estimatedMinutes} mins
@@ -303,7 +312,7 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
             </div>
 
             <strong className="text-white text-xs font-bold">
-              {complete ? 'Journey complete' : cancelled ? 'Tracking has ended' : isRide ? 'Driver location will appear here' : 'Live GPS route will appear upon partner transit'}
+              {complete ? 'Journey complete' : cancelled ? 'Tracking has ended' : isRide ? 'Driver location will appear here' : isTransport ? 'Carrier GPS will appear here when a fresh position is available' : 'Live GPS route will appear upon partner transit'}
             </strong>
 
             <p className="text-[11px] text-slate-400 mt-1 max-w-xs leading-relaxed">
@@ -349,14 +358,14 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
       <div className="tracking-partner">
         <span className="partner-avatar"><PartnerVehicleIcon size={24} /></span>
         <div>
-          <strong>{booking.driverName || (isRide ? 'Your driver' : 'Your delivery partner')}</strong>
-          <small>{booking.driverId ? `${vehicleLabel ? `${vehicleLabel} · ` : ''}Assigned partner` : 'Finding your partner'}</small>
+          <strong>{booking.driverName || (isRide ? 'Your driver' : isTransport ? 'Your carrier' : 'Your delivery partner')}</strong>
+          <small>{booking.driverId ? isTransport ? 'Carrier assigned' : `${vehicleLabel ? `${vehicleLabel} · ` : ''}Assigned partner` : 'Finding your partner'}</small>
         </div>
 
         {booking.driverId && !complete && !cancelled && (
           <div className="flex items-center gap-1.5 ml-auto">
             <button 
-              aria-label={isRide ? 'Chat with driver' : 'Chat with partner'} 
+              aria-label={isRide ? 'Chat with driver' : isTransport ? 'Chat with carrier' : 'Chat with partner'}
               onClick={onChat}
               className="p-2.5 rounded-xl bg-blue-600/15 text-blue-400 hover:bg-blue-600/25 border border-blue-500/30 transition-colors"
               title="Chat with partner"
