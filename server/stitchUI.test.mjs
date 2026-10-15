@@ -457,6 +457,14 @@ test('vehicle transport review includes route specs and a before-handover inspec
   assert.match(screen,/Verify the assigned carrier before handing over the keys/);
   assert.match(screen,/I own this vehicle or have the owner’s authorisation/);
 });
+test('transport handover uses concealed pickup and recipient codes and discloses uncollected evidence',()=>{
+  const details=readFileSync(new URL('../src/components/TransportOrderDetails.tsx',import.meta.url),'utf8');
+  assert.match(details,/label="Sender pickup code" code=\{booking\.pickupOtp\}/);
+  assert.match(details,/label="Recipient delivery code" code=\{booking\.otp\}/);
+  assert.match(details,/Share only after the vehicle is unloaded and its condition is checked/);
+  assert.match(details,/does not collect a condition photo or signature/);
+  assert.match(details,/BookingTimeline id=\{booking\.bookingId\}/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));

@@ -396,6 +396,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   phone contacts are not supplied by this tracking flow. `npm run lint`,
   `npm test` (**181 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Responsive visual QA remains pending.
+- TASK-64: transport order details now show pickup and recipient codes through
+  accessible reveal controls and give safe handover guidance. Recorded code
+  proofs appear in the event history; the UI states that receiver photos and
+  signatures are not collected. `npm run lint`, `npm test` (**182 passed, 0
+  failed**), `npm run build` and scoped `git diff --check` passed. Responsive
+  visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

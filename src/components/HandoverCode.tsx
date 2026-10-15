@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 
-export default function ParcelHandoverCode({ label, code, guidance }: { label: string; code: string; guidance: string }) {
+export default function HandoverCode({ label, code, guidance }: { label: string; code: string; guidance: string }) {
   const [visible, setVisible] = useState(false);
   return <div className="parcel-secure-code">
     <ShieldCheck size={19} aria-hidden="true" />

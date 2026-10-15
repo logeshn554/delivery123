@@ -31,11 +31,11 @@ test('parcel tracking exposes sender pickup proof, custody events and recipient 
 });
 
 test('parcel handover codes stay concealed until explicitly revealed and evidence limits are clear', () => {
-  const secureCode = readFileSync(new URL('../../src/components/ParcelHandoverCode.tsx', import.meta.url), 'utf8');
+  const secureCode = readFileSync(new URL('../../src/components/HandoverCode.tsx', import.meta.url), 'utf8');
   const details = readFileSync(new URL('../../src/components/ParcelOrderDetails.tsx', import.meta.url), 'utf8');
   assert.match(secureCode, /visible \? code : '••••'/);
   assert.match(secureCode, /aria-label=\{`\$\{visible \? 'Hide' : 'Show'\}/);
-  assert.match(details, /<ParcelHandoverCode label="Sender pickup code"/);
+  assert.match(details, /<HandoverCode label="Sender pickup code"/);
   assert.match(details, /AllGo does not collect a handover signature or photo/);
 });
 

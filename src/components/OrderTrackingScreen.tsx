@@ -10,7 +10,7 @@ import { getParcelTrackingPresentation } from '../design-system/parcelTracking';
 import { isFreshTrackingRoute, isFreshTrackingTimestamp } from '../design-system/trackingFreshness';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 import { getGroceryPickingProgress, getGroceryTrackingStage, GROCERY_TRACKING_STAGES } from '../design-system/groceryTracking';
-import ParcelHandoverCode from './ParcelHandoverCode';
+import HandoverCode from './HandoverCode';
 
 export default function OrderTrackingScreen({ booking, onChat }: { booking: Booking; onChat: () => void }) {
   const authority = bookingAuthorityCapabilities(booking);
@@ -379,13 +379,13 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
       {/* OTP Delivery Confirmation Codes */}
       {booking.otp && !complete && !cancelled && (
         isParcel
-          ? <ParcelHandoverCode label="Recipient delivery code" code={booking.otp} guidance="Share only after the parcel is handed to the recipient." />
+          ? <HandoverCode label="Recipient delivery code" code={booking.otp} guidance="Share only after the parcel is handed to the recipient." />
           : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Delivery confirmation code</strong><small>Share only after receiving your order from the delivery partner.</small></div><b>{booking.otp}</b></div>
       )}
 
       {booking.pickupOtp && (isParcel || ['ride', 'takeover'].includes(booking.serviceType)) && !complete && !cancelled && (
         isParcel
-          ? <ParcelHandoverCode label="Sender pickup code" code={booking.pickupOtp} guidance="Share only after the assigned partner checks and takes custody of the parcel." />
+          ? <HandoverCode label="Sender pickup code" code={booking.pickupOtp} guidance="Share only after the assigned partner checks and takes custody of the parcel." />
           : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Trip start code</strong><small>Share at pickup after checking the assigned partner and vehicle.</small></div><b>{booking.pickupOtp}</b></div>
       )}
     </section>
