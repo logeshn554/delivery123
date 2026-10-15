@@ -277,6 +277,10 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .grocery-tracking-picking { display: grid; gap: 4px; border: 1px solid var(--allgo-border); border-radius: 14px; background: var(--allgo-surface); padding: 12px; color: var(--allgo-ink); }
 .grocery-tracking-picking strong { font-size: 13px; }
 .grocery-tracking-picking p, .grocery-tracking-picking small { margin: 0; color: var(--allgo-muted); font-size: 11px; line-height: 1.4; }
+.grocery-reorder-list { display: grid; gap: 7px; margin: 12px 0; padding: 0; list-style: none; }
+.grocery-reorder-list li { display: grid; gap: 2px; border-radius: 10px; background: var(--allgo-canvas); padding: 9px 10px; }
+.grocery-reorder-list li span { color: var(--allgo-ink); font-size: 12px; font-weight: 700; }
+.grocery-reorder-list li small { color: var(--allgo-muted); font-size: 10px; line-height: 1.4; }
 .checkout-cancellation-policy h2 { margin: 0 0 7px; font-size: 14px; }
 .checkout-cancellation-policy p { margin: 0; color: var(--allgo-muted); font-size: 12px; line-height: 1.5; }
 .checkout-cancellation-policy a { color: var(--allgo-brand); font-weight: 700; text-decoration: underline; }

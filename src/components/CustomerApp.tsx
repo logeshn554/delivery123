@@ -63,6 +63,7 @@ import { CatalogState } from '../design-system/CatalogState';
 import { CatalogImage } from '../design-system/CatalogImage';
 import { filterGroceryProducts, getGroceryCatalogView, hasGroceryCartConflicts } from '../design-system/groceryCatalog';
 import { buildCheckoutNotes, MAX_CONTACTLESS_INSTRUCTIONS_LENGTH, MAX_ORDER_NOTES_LENGTH } from '../design-system/checkoutNotes';
+import { getGroceryReorderLines } from '../design-system/groceryReorder';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 
 
@@ -727,6 +728,39 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     });
   };
 
+  const handleQuickGroceryReorder = (booking: Booking) => {
+    const storeId = booking.details?.storeId;
+    const store = groceryStoresList.find(item => item.id === storeId);
+    if (!storeId || !store) { alert('This grocery partner is not currently listed. Browse the available stores for replacements.'); return; }
+    if (store.acceptingOrders === false) { alert('This store is not currently accepting orders. Browse another store for replacements.'); return; }
+    if (cart.length && (cartService !== 'grocery' || cartSourceId !== storeId)) { alert('Empty your current cart or use items from the same grocery store before re-adding.'); return; }
+    if (selectedStoreId !== storeId || productsLoading) { setSelectedStoreId(storeId); setCurrentTab('home'); setActiveWorkflow('grocery'); setShopAgain(null); return; }
+    const lines = getGroceryReorderLines(booking, selectedStoreId, productsList);
+    const addable = lines.filter(({ item, product, state }) => {
+      const inCart = cart.find(line => line.item.id === item.id)?.quantity || 0;
+      return state === 'available' && product && inCart + item.quantity <= Math.min(30, product.stock);
+    });
+    if (!addable.length) { alert('None of the previous items are currently available in the requested quantities. Browse the store for replacements.'); return; }
+    setCart(current => {
+      const next = [...current];
+      for (const { item, product } of addable) {
+        if (!product) continue;
+        const existing = next.find(line => line.item.id === product.id);
+        if (existing) {
+          const existingIndex = next.indexOf(existing);
+          next[existingIndex] = { ...existing, quantity: existing.quantity + item.quantity };
+        }
+        else next.push({ item: product, quantity: item.quantity, partnerName: store.name });
+      }
+      return next;
+    });
+    setCartService('grocery');
+    setShopAgain(null);
+    setCurrentTab('cart');
+    setActiveWorkflow('none');
+    if (addable.length < lines.length) alert('Available items were added. Review the cart and browse the store for replacements for the unavailable items.');
+  };
+
   // Submit support ticket
   const handleSubmitTicket = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1256,7 +1290,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || ''} address={deliveryAddress} notes={orderNotes} contactlessDelivery={contactlessDelivery} onContactlessChange={setContactlessDelivery} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} paymentMethod={paymentMethodChoice} walletBalance={userProfile?.walletBalance ?? 0} onSelectPaymentMethod={setPaymentMethodChoice} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
       {successBookingId && <OrderConfirmationScreen bookingId={successBookingId} cashOnDelivery={successCashOnDelivery} onTrack={() => setSuccessBookingId(null)} onContinue={() => { setSuccessBookingId(null); setSelectedOrderId(null); setCurrentTab('home'); setActiveWorkflow('none'); }} />}
 
-      {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}
+      {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} products={productsList} selectedStoreId={selectedStoreId} canAdd={!cart.length || (cartService === 'grocery' && cartSourceId === selectedStoreId)} onQuickAdd={handleQuickGroceryReorder} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}
 
       {activeWorkflow === 'none' && !showCheckoutReview && !catalogPage && !shopAgain && !selectedOrderId && <BottomNavigation<CustomerTab>
         active={customerDestination(currentTab)}

@@ -291,6 +291,15 @@ test('grocery tracking reflects packing and only shows a fresh route-based arriv
   assert.match(tracking,/isGrocery && freshRoute && route\?\.destination === 'drop'/);
   assert.match(tracking,/booking\.driverName \|\| \(isRide \? 'Your driver' : 'Your delivery partner'\)/);
 });
+test('buy again adds only current grocery items and identifies quantities needing replacements',()=>{
+  const screen=readFileSync(new URL('../src/components/ShopAgainScreen.tsx',import.meta.url),'utf8');
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  assert.match(screen,/Add \$\{availableCount\} available/);
+  assert.match(screen,/Out of stock — choose a replacement/);
+  assert.match(screen,/Only \$\{product\?\.stock\|\|0\} available — choose less/);
+  assert.match(customer,/getGroceryReorderLines\(booking, selectedStoreId, productsList\)/);
+  assert.match(customer,/setCart\(current =>/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));

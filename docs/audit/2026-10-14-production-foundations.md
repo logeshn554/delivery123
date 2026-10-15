@@ -272,6 +272,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   and display-condition checks pass. `npm run lint`, `npm test` (**157 passed,
   0 failed**), `npm run build` and `git diff --check` passed. Responsive visual
   and physical-device QA remain pending.
+- TASK-44: Buy Again now resolves previous grocery lines against the selected
+  store's current catalog and supports one-tap adding the available items to the
+  cart. It identifies limited stock, out-of-stock, expired/missing items and
+  requires the matching store catalog before claiming availability. Existing
+  cart store/service guards remain in force. `npm run lint`, `npm test`
+  (**159 passed, 0 failed**), `npm run build` and `git diff --check` passed.
+  Responsive visual and physical-device QA remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
