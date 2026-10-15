@@ -157,7 +157,7 @@ remaining visual and functional checks are recorded.
 
 | ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
 |---|---|---|---|---|---|---|---|---|
-| **TASK-56** | Bike transport entry | `src/components/ServiceBookingScreen.tsx` (`ride`) | Ride booking form | Uber-style vehicle selection sheet, quick route input | Pending | Pending | Pending | Polish transport entry |
+| **TASK-56** | Bike transport entry | `src/components/ServiceBookingScreen.tsx` (`ride`) | Pickup-first route form with recent rides | Places-backed pickup/drop selection; saved pickup prefill; completed ride shortcuts; quote blocked until both locations are selected | In Progress | Pending | Route entry and both-location guard covered by regression test | Responsive visual QA remains pending |
 | **TASK-57** | Vehicle selection | `src/design-system/RideOptions.tsx`, `src/components/ServiceBookingScreen.tsx` | Bike / Auto / Car vehicle options | Shared accessible cards with selection state and descriptive labels; fare and route estimate from selected server quote | In Progress | Pending | All three options render; estimates remain tied to the selected server quote | Responsive visual QA remains pending |
 | **TASK-58** | Pickup and drop | `src/components/ServiceBookingScreen.tsx` | LocationPicker route inputs | Dashed route connection line, swap locations button, recent trips | Pending | Pending | Pending | Polish route selection |
 | **TASK-59** | Vehicle information | `src/components/TransportBookingScreen.tsx` | Dedicated vehicle carrier specs | Vehicle category (bike, car, SUV), registration & carrier options | Pending | Pending | Pending | Polish transport vehicle inputs |

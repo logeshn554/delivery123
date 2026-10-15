@@ -357,6 +357,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   estimates remain sourced from the quote for the selected vehicle. `npm run
   lint`, `npm test` (**174 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Responsive visual QA remains pending.
+- TASK-56: verified the existing ride entry starts with a saved pickup address,
+  provides Places-backed pickup/drop selection and recent completed rides, and
+  refuses a quote until both locations are selected. `npm test` (**175 passed,
+  0 failed**) covers these entry requirements; responsive visual QA remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

@@ -406,6 +406,14 @@ test('ride booking uses the shared accessible Bike, Auto and Car option cards',(
   assert.match(html,/Travel in a car/);
   assert.match(html,/aria-pressed="true"/);
 });
+test('ride entry starts with pickup first and requires selected pickup and drop locations before quoting',()=>{
+  const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
+  assert.match(screen,/Recent rides/);
+  assert.match(screen,/className="ride-route-fields" aria-label="Ride route"/);
+  assert.match(screen,/label="Pickup" initialAddress=\{initialAddress\}/);
+  assert.match(screen,/label="Drop-off"/);
+  assert.match(screen,/if \(!pickupLocation \|\| !dropLocation\) \{ setError\('Find and select both addresses/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
