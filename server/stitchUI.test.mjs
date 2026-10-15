@@ -435,6 +435,12 @@ test('vehicle transport explains supported classes and requires physical vehicle
   assert.match(screen,/ownershipConfirmed: consent/);
   assert.match(policy,/supportedVehicleTypes\.includes\(details\.transportVehicleType\)/);
 });
+test('transport review explains automatic carrier assignment and unavailable optional coverage',()=>{
+  const screen=readFileSync(new URL('../src/components/TransportBookingScreen.tsx',import.meta.url),'utf8');
+  assert.match(screen,/AllGo matches an approved carrier and equipment/);
+  assert.match(screen,/You cannot choose a carrier or lift option/);
+  assert.match(screen,/A transit-insurance option is not shown here/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));

@@ -373,6 +373,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   authorization; the server remains authoritative for carrier matching. `npm
   run lint`, `npm test` (**177 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Responsive visual QA remains pending.
+- TASK-60: transport review now explains that AllGo assigns carriers based on
+  approved equipment fit. It states that carrier/lift choices are unavailable
+  in this flow and directs customers to the operator’s terms because no transit
+  insurance option is shown. `npm run lint`, `npm test` (**178 passed, 0
+  failed**), `npm run build` and scoped `git diff --check` passed. Responsive
+  visual QA and operator coverage terms remain unverified.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
