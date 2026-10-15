@@ -420,6 +420,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   driver details are shown. `npm run lint`, `npm test` (**185 passed, 0
   failed**), `npm run build` and scoped `git diff --check` passed. Responsive
   visual QA remains pending.
+- TASK-68: personal-driver bookings now collect manual/automatic transmission
+  and send it with the existing hourly/half-day/full-day duration. The backend
+  validates both values before quoting; unsupported fixed 2/4/8-hour options
+  are not presented. `npm run lint`, `npm test` (**188 passed, 0 failed**),
+  `npm run build` and scoped `git diff --check` passed. Responsive visual QA
+  remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

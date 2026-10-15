@@ -16,6 +16,7 @@ const { publicOffer, pickupEligibility } = require('./dispatchPolicy');
 const { cartCharges } = require('./cartPolicy');
 const { merchantOpen, validateHours } = require('./merchantPolicy');
 const { validateTransport, carrierSuitable } = require('./transportPolicy');
+const { validateTakeoverDetails } = require('./takeoverPolicy');
 const { operationsFunctions } = require('./operations');
 const { supportFunctions } = require('./support');
 const { bookingExceptionFunctions } = require('./bookingExceptions');
@@ -353,9 +354,8 @@ async function priceLeg(uid, input) {
       pickupAddress = cleanText(input.pickupAddress, 'Pickup address');
       dropAddress = cleanText(input.dropAddress, 'Drop address');
     } else if (serviceType === 'takeover') {
-      const takeoverOption = requested.takeoverOption;
-      if (!['hourly', 'halfday', 'fullday'].includes(takeoverOption)) throw new HttpsError('invalid-argument', 'Choose a driver duration.');
-      details = { takeoverOption };
+      try { details = validateTakeoverDetails(requested); }
+      catch (error) { throw new HttpsError('invalid-argument', error.message); }
       pickupAddress = cleanText(input.pickupAddress, 'Pickup address');
       dropAddress = cleanText(input.dropAddress, 'Destination');
     } else {

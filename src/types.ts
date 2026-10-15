@@ -183,6 +183,7 @@ export interface BookingDetails {
   dropZoneId?: string;
   routeProvider?: string;
   takeoverOption?: string;
+  takeoverTransmission?: 'manual' | 'automatic';
   preferredDate?: string;
   deliveryMode?: string;
   weightKg?: number;

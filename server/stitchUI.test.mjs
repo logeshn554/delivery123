@@ -417,6 +417,17 @@ test('planned movers discovery opens a clearly unavailable, non-bookable informa
   assert.match(html,/disabled="" aria-label="Planned moving requirements"/);
   assert.match(html,/Ask about availability/);
 });
+test('personal-driver booking collects a supported duration and transmission for server validation',()=>{
+  const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
+  const policy=readFileSync(new URL('../functions/takeoverPolicy.js',import.meta.url),'utf8');
+  assert.match(screen,/takeover: \[\{ id: 'hourly'/);
+  assert.match(screen,/\{ id: 'halfday'/);
+  assert.match(screen,/\{ id: 'fullday'/);
+  assert.match(screen,/Your vehicle’s transmission/);
+  assert.match(screen,/takeoverTransmission: transmission/);
+  assert.match(policy,/new Set\(\['manual', 'automatic'\]\)/);
+  assert.match(policy,/new Set\(\['hourly', 'halfday', 'fullday'\]\)/);
+});
 test('ride booking uses the shared accessible Bike, Auto and Car option cards',()=>{
   const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
   const html=renderToStaticMarkup(createElement(RideOptions,{selected:'bike',onSelect:noop}));

@@ -705,6 +705,10 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .ride-match-status { margin: 12px 0; border: 1px solid #dce4f8; border-radius: 14px; padding: 12px 14px; background: #f3f6ff; color: #34477c; }
 .ride-match-status strong { font-size: 12px; }
 .ride-match-status p { margin: 4px 0 0; color: #616d8b; font-size: 11px; line-height: 1.5; }
+.takeover-transmission-picker { display: flex; flex-wrap: wrap; gap: 10px; border: 0; padding: 0; }
+.takeover-transmission-picker legend { margin-bottom: 7px; font-size: 12px; font-weight: 800; }
+.takeover-transmission-picker label { display: flex; min-height: 44px; align-items: center; gap: 8px; border: 1px solid var(--allgo-border); border-radius: 12px; padding: 8px 12px; background: var(--allgo-surface); font-size: 12px; font-weight: 700; }
+.takeover-transmission-picker input { width: 18px; height: 18px; accent-color: var(--allgo-brand); }
 .wallet-balance { border-radius: 24px; background: linear-gradient(120deg, #6940fc, #351990); color: white; padding: 25px; margin: 25px 0; }
 .wallet-balance p { font-size: 12px; margin-top: 20px; opacity: .8; }
 .wallet-balance strong { display: block; font-size: 38px; font-weight: 800; margin-top: 5px; }
