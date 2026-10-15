@@ -305,6 +305,14 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   weight, declared-value and dimension safeguards remain. `npm run lint`,
   `npm test` (**165 passed, 0 failed**), `npm run build` and `git diff --check`
   passed. Responsive visual QA remains pending.
+- TASK-49: sender and recipient information now appears in separate contact
+  cards with an explicit privacy note. The copy matches the rules: contact
+  records are separate from public booking details and readable only by the
+  customer, assigned driver or an admin. Since this booking flow has no recipient
+  SMS subscription, it says SMS updates are unavailable instead of showing a
+  nonfunctional toggle. `npm run lint`, `npm test` (**166 passed, 0 failed**),
+  `npm run build` and `git diff --check` passed. Responsive visual QA remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

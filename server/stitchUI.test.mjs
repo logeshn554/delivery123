@@ -336,6 +336,17 @@ test('parcel package choices are accessible and use only quote-service categorie
   assert.match(rules,/\['Documents', 'Box', 'Electronics', 'Others'\]/);
   assert.match(functions,/\['Documents', 'Box', 'Electronics', 'Others'\]/);
 });
+test('parcel contact cards and privacy message match private contact storage rules',()=>{
+  const screen=readFileSync(new URL('../src/components/ParcelBookingScreen.tsx',import.meta.url),'utf8');
+  const rules=readFileSync(new URL('../firestore.rules',import.meta.url),'utf8');
+  const policy=readFileSync(new URL('../functions/parcelPolicy.js',import.meta.url),'utf8');
+  assert.match(screen,/fieldset className="parcel-contact-card"><legend>Sender contact/);
+  assert.match(screen,/fieldset className="parcel-contact-card"><legend>Recipient contact/);
+  assert.match(screen,/stored separately from the public order/);
+  assert.match(screen,/SMS updates to the recipient are not available/);
+  assert.match(rules,/match \/booking_contacts\/\{bookingId\}[\s\S]*allow get: if isSignedIn\(\) && \(get\([\s\S]*allow list, write: if false/);
+  assert.match(policy,/const \{ parcelContacts, \.\.\.publicDetails \} = details/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
