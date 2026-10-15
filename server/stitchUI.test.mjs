@@ -235,6 +235,15 @@ test('grocery redesign keeps zero and invalid stock unavailable and caps quantit
   for(const stock of [0,NaN,-1]) assert.match(render(stock,0),/disabled="">Unavailable/);
   assert.match(render(2,2),/aria-label="Add one Product" disabled=""/);
 });
+test('completed-order reviews include accessible quick feedback tags in the saved comment',()=>{
+  const pages=readFileSync(new URL('../src/components/CustomerPages.tsx',import.meta.url),'utf8');
+  assert.match(pages,/Quick feedback \(optional\)/);
+  assert.match(pages,/Tasty food.*On-time delivery.*Well packed.*Good value/);
+  assert.match(pages,/aria-pressed=\{selectedReviewTags\.includes\(tag\)\}/);
+  assert.match(pages,/submitOrderReview\(selected,rating,reviewComment\)/);
+  assert.match(pages,/comment: reviewComment/);
+  assert.match(pages,/reviewComment = \[\.\.\.selectedReviewTags, review\.trim\(\)\].*slice\(0, 1000\)/);
+});
 test('category and profile screens retain only supplied data rather than design-example vendors or identities',()=>{
   const categories=renderToStaticMarkup(createElement(GroceryCategories,{categories:['All','Local grains'],selected:'All',onSelect:noop}));
   assert.match(categories,/Local grains/);assert.doesNotMatch(categories,/Vegetables|BigBasket|Blinkit/);

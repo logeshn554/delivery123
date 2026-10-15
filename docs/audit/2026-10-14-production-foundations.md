@@ -208,6 +208,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   explicitly an order receipt, not a tax invoice. `npm run lint`, `npm test`
   (**143 passed, 0 failed**), `npm run build` and `git diff --check` passed. No
   physical-device verification was performed.
+- TASK-33: completed-order reviews now offer selectable quick feedback tags that
+  are included with written feedback and bounded to the server's 1,000-character
+  limit. The existing reorder flow still opens the current catalog to recheck
+  prices and availability. `npm run lint`, `npm test` (**144 passed, 0 failed**),
+  and `npm run build` passed. Physical-device QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
