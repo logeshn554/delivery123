@@ -546,6 +546,12 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .parcel-contact-card legend { padding: 0 5px; color: #393549; font-size: 12px; font-weight: 800; }
 .parcel-contact-privacy { display: flex; align-items: flex-start; gap: 9px; margin: 0; border: 1px solid #e4def7; border-radius: 14px; padding: 12px; background: #f7f5ff; color: #55498a; font-size: 11px; line-height: 1.5; }
 .parcel-contact-privacy svg { flex: 0 0 18px; }
+.parcel-time-picker { display: grid; gap: 9px; min-width: 0; margin: 0; border: 0; padding: 0; }
+.parcel-time-picker legend { margin-bottom: 1px; color: #393549; font-size: 12px; font-weight: 800; }
+.parcel-time-picker > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.parcel-time-picker > div button { min-height: 48px; border: 1px solid #e3dfec; border-radius: 14px; background: var(--allgo-surface); color: #615d6e; font-size: 11px; font-weight: 750; }
+.parcel-time-picker > div button[aria-pressed="true"] { border-color: #8b74d6; background: #f3f0ff; color: #5943a2; box-shadow: 0 0 0 2px #7659c91b; }
+.parcel-time-picker > small { color: var(--allgo-muted); font-size: 11px; line-height: 1.4; }
 .parcel-route-fields { position: relative; display: grid; gap: 10px; }
 .parcel-location-picker { position: relative; z-index: 1; margin: 0; padding: 13px; border-color: #e3dfec; border-radius: 17px; box-shadow: 0 4px 16px #291d4f08; }
 .parcel-location-picker:focus-within { border-color: #8b74d6; box-shadow: 0 0 0 3px #7659c91d; }

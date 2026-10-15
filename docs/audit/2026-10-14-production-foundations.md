@@ -313,6 +313,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   nonfunctional toggle. `npm run lint`, `npm test` (**166 passed, 0 failed**),
   `npm run build` and `git diff --check` passed. Responsive visual QA remains
   pending.
+- TASK-50: parcel timing now separates ASAP from a future requested pickup
+  time, validates that request before continuing, and repeats that the time is
+  subject to operator confirmation. The service has no reservable slots or
+  earliest-pickup estimate, so neither is claimed. `npm run lint`, `npm test`
+  (**168 passed, 0 failed**), `npm run build` and `git diff --check` passed.
+  Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
