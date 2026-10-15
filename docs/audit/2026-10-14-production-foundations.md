@@ -379,6 +379,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   insurance option is shown. `npm run lint`, `npm test` (**178 passed, 0
   failed**), `npm run build` and scoped `git diff --check` passed. Responsive
   visual QA and operator coverage terms remain unverified.
+- TASK-61: ride and vehicle-transport quote cards now show an accessible
+  remaining-time bar driven by the server expiry and display the transport
+  route distance/time estimate. They disclose that separate toll/tax amounts
+  are not returned by this quote API. `npm run lint`, `npm test` (**179 passed,
+  0 failed**), `npm run build` and scoped `git diff --check` passed. Responsive
+  visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

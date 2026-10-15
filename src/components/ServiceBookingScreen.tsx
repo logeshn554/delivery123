@@ -35,7 +35,7 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
   const [date, setDate] = useState('');
   const [notes, setNotes] = useState('');
   const [couponCode, setCouponCode] = useState('');
-  const [quote, setQuote] = useState<{ draft: Draft; price: number; expiresAt: string; estimatedKm: number; estimatedMinutes: number } | null>(null);
+  const [quote, setQuote] = useState<{ draft: Draft; price: number; expiresAt: string; issuedAt: number; estimatedKm: number; estimatedMinutes: number } | null>(null);
   const [clock, setClock] = useState(Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -46,6 +46,7 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
     return () => window.clearInterval(timer);
   }, [quote]);
   const quoteExpired = Boolean(quote && isServiceQuoteExpired(quote.expiresAt, clock));
+  const quoteRemainingPercent = quote ? Math.max(0, Math.min(100, ((Date.parse(quote.expiresAt) - clock) / (Date.parse(quote.expiresAt) - quote.issuedAt)) * 100)) : 0;
   const invalidate = () => { revision.current++; setQuote(null); setError(''); setLoading(false); };
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -62,7 +63,7 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
     try {
       const result = await getServiceQuote({ ...draft, ...(couponCode.trim() ? { couponCode: couponCode.trim().toUpperCase() } : {}) });
       if (!isValidServiceQuote(result)) throw new Error('The booking service needs an update. Please contact support.');
-      if (version === revision.current) { setClock(Date.now()); setQuote({ draft: { ...draft, details: { ...draft.details, quoteId: result.quoteId } }, price: result.price, expiresAt: result.expiresAt, estimatedKm: result.estimatedKm, estimatedMinutes: result.estimatedMinutes }); }
+      if (version === revision.current) { const issuedAt = Date.now(); setClock(issuedAt); setQuote({ draft: { ...draft, details: { ...draft.details, quoteId: result.quoteId } }, price: result.price, expiresAt: result.expiresAt, issuedAt, estimatedKm: result.estimatedKm, estimatedMinutes: result.estimatedMinutes }); }
     } catch (error) {
       if (version === revision.current) setError((error as Error)?.message || 'A quote is unavailable. Please try again.');
     } finally { if (version === revision.current) setLoading(false); }
@@ -84,7 +85,8 @@ export default function ServiceBookingScreen({ service, customerName, initialAdd
       <label className="booking-label">Offer code (optional)<input maxLength={40} value={couponCode} onChange={event => setCouponCode(event.target.value.toUpperCase())} /></label>
       {error && <p role="alert" className="auth-error">{error}</p>}
       {quote && !quoteExpired && (isRide ? <article className="ride-quote-summary"><div className="ride-quote-route"><span><MapPin size={16} aria-hidden="true" />{quote.draft.pickupAddress}</span><span><MapPin size={16} aria-hidden="true" />{quote.draft.dropAddress}</span></div><p>{quote.draft.details?.vehicleType ? String(quote.draft.details.vehicleType) : option} · {quote.estimatedKm.toFixed(1)} km · {quote.estimatedMinutes} min estimated route travel</p></article> : <p className="page-caption">Route estimate: {quote.estimatedKm.toFixed(1)} km · {quote.estimatedMinutes} min travel. Partner assignment and arrival time are confirmed separately.</p>)}
-      {quote && !quoteExpired ? <div className={`quote-review${isRide ? ' ride-quote-review' : ''}`}><ShieldCheck size={22} /><div><span>Your server quote · expires in {Math.max(0, Math.ceil((Date.parse(quote.expiresAt) - clock) / 1000))} sec</span><strong>₹{quote.price.toLocaleString('en-IN')}</strong><small>Payment is verified before your booking is confirmed. Updating details requires a new quote.</small></div></div> : quoteExpired ? <p role="status" className="page-caption">This fare expired. Request a fresh quote before checkout.</p> : <p className="page-caption">Request the latest fare before you pay. Partner assignment follows booking confirmation.</p>}
+      {quote && !quoteExpired ? <div className={`quote-review${isRide ? ' ride-quote-review' : ''}`}><ShieldCheck size={22} /><div><span>Your server quote · expires in {Math.max(0, Math.ceil((Date.parse(quote.expiresAt) - clock) / 1000))} sec</span><strong>₹{quote.price.toLocaleString('en-IN')}</strong><small>Payment is verified before your booking is confirmed. Updating details requires a new quote.</small><div className="quote-expiry-meter" role="progressbar" aria-label="Quote time remaining" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(quoteRemainingPercent)}><span style={{ width: `${quoteRemainingPercent}%` }}/></div></div></div> : quoteExpired ? <p role="status" className="page-caption">This fare expired. Request a fresh quote before checkout.</p> : <p className="page-caption">Request the latest fare before you pay. Partner assignment follows booking confirmation.</p>}
+      {quote && !quoteExpired && isRide && <p className="page-caption">This quote has no separate toll or tax breakdown. Check applicable route charges before confirming.</p>}
       {(!quote || quoteExpired) && <button className="auth-primary" type="submit" disabled={loading || busy}>{loading ? <><LoaderCircle size={18} className="animate-spin" /> Getting your quote…</> : quoteExpired ? 'Get a fresh quote' : 'Get quote'}</button>}
       {quote && !quoteExpired && <button className="auth-primary" type="button" disabled={busy || loading} onClick={() => { if (!isServiceQuoteExpired(quote.expiresAt, Date.now())) void onPay(quote.draft, quote.price); else setClock(Date.now()); }}>{busy ? 'Opening secure checkout…' : `Pay ₹${quote.price.toLocaleString('en-IN')} · Confirm booking`}</button>}
     </form>

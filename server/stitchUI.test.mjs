@@ -441,6 +441,15 @@ test('transport review explains automatic carrier assignment and unavailable opt
   assert.match(screen,/You cannot choose a carrier or lift option/);
   assert.match(screen,/A transit-insurance option is not shown here/);
 });
+test('ride and vehicle transport quote cards show server route estimates and accessible expiry progress',()=>{
+  const ride=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
+  const transport=readFileSync(new URL('../src/components/TransportBookingScreen.tsx',import.meta.url),'utf8');
+  assert.match(ride,/role="progressbar" aria-label="Quote time remaining"/);
+  assert.match(ride,/This quote has no separate toll or tax breakdown/);
+  assert.match(transport,/estimatedKm: result\.estimatedKm, estimatedMinutes: result\.estimatedMinutes/);
+  assert.match(transport,/\{quote\.estimatedKm\.toFixed\(1\)\} km · \{quote\.estimatedMinutes\} min estimated route travel/);
+  assert.match(transport,/This quote does not show separate toll or tax amounts/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
