@@ -170,6 +170,21 @@ test('dish details render dietary evidence, missing-photo fallback and the selec
   const noAllergenData=renderToStaticMarkup(createElement(CatalogDetails,{kind:'dish',item:{...dish,allergens:[]},saved:false,onSave:noop,onBack:noop,onAdd:()=>true,onBrowse:noop,quantityInCart:()=>0}));
   assert.match(noAllergenData,/The partner has not supplied allergen information/);
 });
+test('grocery product details distinguish partner-listed expiry, missing nutrition data and expired stock',()=>{
+  const base={id:'p',storeId:'s',name:'Oats',brand:'Farm',unit:'500 g',price:84,stock:4,category:'Breakfast',image:'https://example.test/oats.png',ingredients:'Whole grain oats',allergens:[],storageInstructions:'Store in a cool dry place',countryOfOrigin:'India'};
+  const props={kind:'product',saved:false,onSave:noop,onBack:noop,onAdd:()=>true,onBrowse:noop,quantityInCart:()=>0};
+  const fresh=renderToStaticMarkup(createElement(CatalogDetails,{...props,item:{...base,expiresAt:'2099-12-31T00:00:00.000Z'}}));
+  assert.match(fresh,/src="https:\/\/example\.test\/oats\.png" alt="Oats" width="640" height="480"/);
+  assert.match(fresh,/Partner-listed expiry ·/);
+  assert.match(fresh,/Nutrition information is not provided by this catalog/);
+  assert.match(fresh,/Storage: Store in a cool dry place/);
+  assert.match(fresh,/aria-label="Increase quantity"/);
+  const expired=renderToStaticMarkup(createElement(CatalogDetails,{...props,item:{...base,expiresAt:'2000-01-01T00:00:00.000Z'}}));
+  assert.match(expired,/Partner-listed expiry date has passed/);
+  assert.match(expired,/This item is currently unavailable/);
+  const missing=renderToStaticMarkup(createElement(CatalogDetails,{...props,item:base}));
+  assert.match(missing,/Expiry information not provided by partner/);
+});
 test('food cart uses announced quantities, touch-sized steppers and server-quoted checkout totals',()=>{
   const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
   const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

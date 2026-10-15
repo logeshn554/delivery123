@@ -685,6 +685,9 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .service-eyebrow { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #9b739d; }
 .service-price { display: flex; align-items: center; gap: 14px; font-size: 25px; font-weight: 800; margin: 20px 0; }
 .service-price span { font-weight: 500; font-size: 11px; color: #8d7d9f; }
+.product-expiry-badge { width: fit-content; max-width: 100%; margin: 12px 0; border: 1px solid #cde8d2; border-radius: 12px; padding: 9px 12px; background: #eff9f0; color: #285e39; font-size: 12px; line-height: 1.45; font-weight: 700; }
+.product-expiry-badge.is-unknown { border-color: #e5ddc4; background: #fff9e8; color: #725b21; }
+.product-expiry-badge.is-expired { border-color: #f1caca; background: #fff0ef; color: #8c3232; }
 .service-option { display: flex; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid #eee6f6; font-size: 13px; }
 .service-option input { accent-color: #6336dd; width: 18px; height: 18px; }
 .service-option strong { margin-left: auto; }
