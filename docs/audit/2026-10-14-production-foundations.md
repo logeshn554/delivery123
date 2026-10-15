@@ -292,6 +292,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   combined value within 500 characters. `npm run lint`, `npm test`
   (**162 passed, 0 failed**), `npm run build` and `git diff --check` passed.
   Responsive visual QA remains pending.
+- TASK-47: parcel drop-off now has its own optional floor, gate and landmark
+  field, while the verified recipient address and required phone remain intact.
+  Pickup access, drop-off access and delivery instructions are separately
+  labeled in the existing bounded quote note. `npm run lint`, `npm test`
+  (**163 passed, 0 failed**), `npm run build` and `git diff --check` passed.
+  Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

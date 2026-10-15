@@ -1,21 +1,44 @@
 export const PARCEL_INSTRUCTIONS_LIMIT = 500;
 const PICKUP_LABEL = 'Pickup access: ';
+const DROPOFF_LABEL = 'Drop-off access: ';
 const DELIVERY_LABEL = 'Delivery instructions: ';
 
-export function getPickupInstructionsLimit(deliveryInstructions: string): number {
-  const delivery = deliveryInstructions.trim();
-  return Math.max(0, PARCEL_INSTRUCTIONS_LIMIT - PICKUP_LABEL.length - (delivery ? DELIVERY_LABEL.length + delivery.length + 1 : 0));
+function fieldLimit(label: string, otherFields: { label: string; value: string }[]): number {
+  const present = otherFields.map(field => ({ ...field, value: field.value.trim() })).filter(field => field.value);
+  const usedByOtherFields = present.reduce((sum, field) => sum + field.label.length + field.value.length, 0);
+  return Math.max(0, PARCEL_INSTRUCTIONS_LIMIT - label.length - usedByOtherFields - present.length);
 }
 
-export function getDeliveryInstructionsLimit(pickupInstructions: string): number {
-  const pickup = pickupInstructions.trim();
-  return Math.max(0, PARCEL_INSTRUCTIONS_LIMIT - DELIVERY_LABEL.length - (pickup ? PICKUP_LABEL.length + pickup.length + 1 : 0));
+export function getPickupInstructionsLimit(dropoffInstructions = '', deliveryInstructions = ''): number {
+  return fieldLimit(PICKUP_LABEL, [
+    { label: DROPOFF_LABEL, value: dropoffInstructions },
+    { label: DELIVERY_LABEL, value: deliveryInstructions },
+  ]);
 }
 
-export function buildParcelInstructions(pickupInstructions: string, deliveryInstructions: string): string {
+export function getDropoffInstructionsLimit(pickupInstructions = '', deliveryInstructions = ''): number {
+  return fieldLimit(DROPOFF_LABEL, [
+    { label: PICKUP_LABEL, value: pickupInstructions },
+    { label: DELIVERY_LABEL, value: deliveryInstructions },
+  ]);
+}
+
+export function getDeliveryInstructionsLimit(pickupInstructions = '', dropoffInstructions = ''): number {
+  return fieldLimit(DELIVERY_LABEL, [
+    { label: PICKUP_LABEL, value: pickupInstructions },
+    { label: DROPOFF_LABEL, value: dropoffInstructions },
+  ]);
+}
+
+export function buildParcelInstructions(pickupInstructions: string, deliveryInstructions: string, handoverInstructions = ''): string {
   const pickup = pickupInstructions.trim();
-  const delivery = deliveryInstructions.trim();
-  return [pickup ? `${PICKUP_LABEL}${pickup}` : '', delivery ? `${DELIVERY_LABEL}${delivery}` : '']
+  const dropoff = deliveryInstructions.trim();
+  const handover = handoverInstructions.trim();
+  return [
+    pickup ? `${PICKUP_LABEL}${pickup}` : '',
+    dropoff ? `${DROPOFF_LABEL}${dropoff}` : '',
+    handover ? `${DELIVERY_LABEL}${handover}` : '',
+  ]
     .filter(Boolean)
     .join('\n');
 }
