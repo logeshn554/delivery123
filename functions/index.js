@@ -1318,11 +1318,51 @@ exports.listPaymentActivity = onCall({ operation: 'listPaymentActivity', region:
   const uid = requireUser(request);
   const snapshots = await db.collection('payment_attempts').where('uid', '==', uid).orderBy('createdAt', 'desc').limit(30).get();
   const intents = await db.collection('payment_intents').where('uid', '==', uid).orderBy('createdAt', 'desc').limit(30).get();
-  const unresolved = intents.docs.filter(doc => ['creating', 'provider_created', 'reconciliation_required', 'manual_review'].includes(doc.data().status)).map(doc => { const data = doc.data(); return { orderId: doc.id, amount: data.amount || data.quote?.amount || 0, currency: CURRENCY, serviceType: data.kind === 'wallet_topup' ? 'wallet top-up' : data.quote?.booking?.serviceType || 'checkout', status: data.status, createdAt: data.createdAt.toDate().toISOString(), bookingId: null, paymentId: null, refundStatus: null }; });
-  return { attempts: [...unresolved, ...snapshots.docs.map(snapshot => {
+  const timestamp = value => value?.toDate?.().toISOString() || null;
+  const cents = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  const unresolved = intents.docs
+    .filter(doc => ['creating', 'provider_created', 'reconciliation_required', 'manual_review'].includes(doc.data().status))
+    .map(doc => {
+      const data = doc.data();
+      return {
+        orderId: doc.id,
+        amount: cents(data.amount || data.quote?.amount),
+        currency: CURRENCY,
+        serviceType: data.kind === 'wallet_topup' ? 'wallet top-up' : data.quote?.booking?.serviceType || 'checkout',
+        status: data.status,
+        createdAt: timestamp(data.createdAt),
+        paidAt: null,
+        updatedAt: timestamp(data.updatedAt),
+        bookingId: null,
+        paymentId: null,
+        paymentMethod: null,
+        refundStatus: null,
+        refundedAmountCents: 0,
+        refundRequestedAmountCents: 0,
+        refundId: null,
+      };
+    });
+  const attempts = snapshots.docs.map(snapshot => {
     const data = snapshot.data();
-    return { orderId: snapshot.id, amount: data.amount, currency: data.currency || CURRENCY, serviceType: data.booking?.serviceType || 'wallet top-up', status: data.status, createdAt: data.createdAt.toDate().toISOString(), bookingId: data.status === 'paid' ? data.bookingId || null : null, paymentId: data.paymentId || null, refundStatus: data.refundStatus || null };
-  })] };
+    return {
+      orderId: snapshot.id,
+      amount: cents(data.amount),
+      currency: data.currency || CURRENCY,
+      serviceType: data.booking?.serviceType || 'wallet top-up',
+      status: data.status,
+      createdAt: timestamp(data.createdAt),
+      paidAt: timestamp(data.paidAt),
+      updatedAt: timestamp(data.updatedAt),
+      bookingId: data.bookingId || null,
+      paymentId: typeof data.paymentId === 'string' ? data.paymentId : null,
+      paymentMethod: typeof data.paymentMethod === 'string' ? data.paymentMethod : null,
+      refundStatus: typeof data.refundStatus === 'string' ? data.refundStatus : null,
+      refundedAmountCents: cents(data.refundedAmountCents || (data.status === 'refunded' ? data.amount : 0)),
+      refundRequestedAmountCents: cents(data.refundRequestedAmountCents),
+      refundId: typeof data.refundId === 'string' ? data.refundId : null,
+    };
+  });
+  return { attempts: [...unresolved, ...attempts] };
 });
 
 async function reconcilePaymentIntent(ref) {

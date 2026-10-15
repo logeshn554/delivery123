@@ -449,6 +449,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   provider settlement is not instant. `npm run lint`, `npm test` (**196 passed,
   0 failed**), `npm run build` and scoped `git diff --check` passed. Payment
   provider integration and responsive visual QA remain pending.
+- TASK-73: receipts now load the signed-in customer’s payment attempts and show
+  requested/confirmed refund amounts, known destination, provider/payment
+  references and recorded timestamps. Missing activity leaves the order summary
+  intact and explains that refund data could not be verified. `npm run lint`,
+  `npm test` (**198 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Payment provider/emulator integration and responsive
+  visual QA remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

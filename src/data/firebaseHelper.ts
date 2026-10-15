@@ -270,7 +270,7 @@ export async function rejectMerchantBooking(bookingId: string, reason: string) {
   return (await httpsCallable(functions, 'rejectMerchantBooking')({ bookingId, reason })).data;
 }
 
-export type PaymentActivity = { orderId: string; amount: number; currency: string; serviceType: string; status: string; createdAt: string; bookingId: string | null; paymentId: string | null; refundStatus: string | null };
+export type PaymentActivity = { orderId: string; amount: number; currency: string; serviceType: string; status: string; createdAt: string | null; paidAt: string | null; updatedAt: string | null; bookingId: string | null; paymentId: string | null; paymentMethod: string | null; refundStatus: string | null; refundedAmountCents: number; refundRequestedAmountCents: number; refundId: string | null };
 export async function listPaymentActivity(): Promise<PaymentActivity[]> {
   return (await httpsCallable<void, { attempts: PaymentActivity[] }>(functions, 'listPaymentActivity')()).data.attempts;
 }
