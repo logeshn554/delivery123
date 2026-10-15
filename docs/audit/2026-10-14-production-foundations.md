@@ -402,6 +402,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   signatures are not collected. `npm run lint`, `npm test` (**182 passed, 0
   failed**), `npm run build` and scoped `git diff --check` passed. Responsive
   visual QA remains pending.
+- TASK-65: transport details now open an order-linked support case prefilled
+  for route deviation and damage concerns. The server accepts a dedicated
+  `route_deviation` category; the UI uses case replies and makes no promise of
+  an instant priority call. `npm run lint`, `npm test` (**183 passed, 0
+  failed**), `npm run build` and scoped `git diff --check` passed. Operator
+  response timing and responsive visual QA remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

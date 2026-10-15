@@ -392,9 +392,19 @@ test('parcel support opens an order-linked case with backend-supported issue cat
   assert.match(details,/Get help with this parcel/);
   assert.match(app,/setTicketCategory\('delay'\); setTicketSubject\(`Parcel delivery help · \$\{bk\.bookingId\}`\)/);
   assert.match(app,/\['wrong_location','Wrong location'\]/);
-  assert.match(app,/\['damage','Damaged parcel'\]/);
+  assert.match(app,/\['route_deviation','Route deviation'\]/);
+  assert.match(app,/\['damage','Damage or condition'\]/);
   assert.match(support,/wrong_location/);
+  assert.match(support,/route_deviation/);
   assert.match(panel,/CaseHistory id=\{ticketId\} kind="messages" revision=\{String\(ticket\.messageRevision \|\| 0\)\}/);
+});
+test('transport order details open an order-linked route or damage dispute case without promising a call',()=>{
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const details=readFileSync(new URL('../src/components/TransportOrderDetails.tsx',import.meta.url),'utf8');
+  assert.match(details,/Report a transport issue/);
+  assert.match(details,/A priority call is not available/);
+  assert.match(app,/setTicketCategory\('route_deviation'\); setTicketSubject\(`Vehicle transport issue/);
+  assert.match(app,/Include any damage or route concerns/);
 });
 test('ride booking uses the shared accessible Bike, Auto and Car option cards',()=>{
   const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');

@@ -1,5 +1,5 @@
 function supportFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }) {
-  const categories = ['general', 'payment', 'cancellation', 'missing_item', 'wrong_item', 'wrong_location', 'quality', 'damage', 'lost', 'safety', 'delay'];
+  const categories = ['general', 'payment', 'cancellation', 'missing_item', 'wrong_item', 'wrong_location', 'route_deviation', 'quality', 'damage', 'lost', 'safety', 'delay'];
   async function actor(request) {
     if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to use support.');
     const profile = (await db.doc(`users/${request.auth.uid}`).get()).data();
