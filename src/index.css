@@ -643,6 +643,7 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .parcel-secure-code b { font-size: 18px; letter-spacing: 3px; white-space: nowrap; }
 .parcel-secure-code button { display: inline-flex; min-height: 40px; align-items: center; gap: 5px; padding: 5px; font-size: 11px; }
 .parcel-evidence-note { color: #716b7e; font-size: 11px; line-height: 1.5; }
+.parcel-support-action { width: 100%; min-height: 44px; margin-top: 4px; }
 .parcel-contact-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 15px; padding-top: 14px; border-top: 1px solid #efedf3; }
 .parcel-contact-grid section { min-width: 0; }
 .parcel-contact-grid h3 { color: #393449; font-size: 11px; font-weight: 800; }

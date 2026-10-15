@@ -345,6 +345,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   does not collect signatures or photos. `npm run lint`, `npm test`
   (**172 passed, 0 failed**), `npm run build` and scoped `git diff --check`
   passed. Responsive visual QA remains pending.
+- TASK-55: shipment details now open an order-linked support request, and the
+  category selector offers clear damaged-parcel, delayed-delivery and wrong-
+  location options. The server accepts `wrong_location`; existing support case
+  replies and event history refresh from case revisions. `npm run lint`,
+  `npm test` (**173 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Support replies depend on operator response;
+  responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

@@ -382,6 +382,18 @@ test('parcel payment selection exposes only available methods and routes into ex
   assert.match(customer,/paymentMethod=\{paymentMethodChoice\} walletBalance=\{userProfile\?\.walletBalance \?\? 0\}/);
   assert.match(customer,/onPaymentMethodChange=\{setPaymentMethodChoice\}/);
 });
+test('parcel support opens an order-linked case with backend-supported issue categories',()=>{
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const details=readFileSync(new URL('../src/components/ParcelOrderDetails.tsx',import.meta.url),'utf8');
+  const panel=readFileSync(new URL('../src/components/SupportCasePanel.tsx',import.meta.url),'utf8');
+  const support=readFileSync(new URL('../functions/support.js',import.meta.url),'utf8');
+  assert.match(details,/Get help with this parcel/);
+  assert.match(app,/setTicketCategory\('delay'\); setTicketSubject\(`Parcel delivery help · \$\{bk\.bookingId\}`\)/);
+  assert.match(app,/\['wrong_location','Wrong location'\]/);
+  assert.match(app,/\['damage','Damaged parcel'\]/);
+  assert.match(support,/wrong_location/);
+  assert.match(panel,/CaseHistory id=\{ticketId\} kind="messages" revision=\{String\(ticket\.messageRevision \|\| 0\)\}/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
