@@ -95,9 +95,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 - TASK-10: fixed shells, cart docks, booking pages, checkout and address surfaces
   now use the shared safe-area tokens; native environment values resolve to `0px`
   when no inset is supplied. `npm run lint`, `npm test` (**122 passed, 0 failed**),
-  `npm run build` and `git diff --check` passed. Existing Android address-screen
-  evidence shows content within the system bars. Current screenshots at 360/390/430px
-  remain pending: the preview browser returned `ERR_NETWORK_CHANGED` for localhost.
+  `npm run build` and `git diff --check` passed. A pre-existing Android address-screen
+  screenshot is present in the repository, but its capture provenance is unknown and
+  it does not establish a connected-device test in this session. Current screenshots
+  at 360/390/430px remain pending: the preview browser returned `ERR_NETWORK_CHANGED`
+  for localhost. No phone was connected for this work.
 - TASK-11: refreshed the welcome screen with a layered indigo background, compact
   logo mark, service icon orbit, high-contrast account actions and a short-height
   layout. Existing signup/onboarding and sign-in destinations remain intact.
@@ -199,6 +201,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   milestones, including ready-for-pickup and arrived. Stale-location guards remain
   unchanged. `npm run lint`, `npm test` (**142 passed, 0 failed**) and `npm run build`
   passed; mobile visual QA remains pending.
+- TASK-32: food order details now show a downloadable itemized receipt and the
+  recorded server price breakdown, including tax when supplied. Older bookings
+  without a breakdown disclose that limitation; restaurant questions route to
+  AllGo support because direct merchant contact data is absent. The download is
+  explicitly an order receipt, not a tax invoice. `npm run lint`, `npm test`
+  (**143 passed, 0 failed**), `npm run build` and `git diff --check` passed. No
+  physical-device verification was performed.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

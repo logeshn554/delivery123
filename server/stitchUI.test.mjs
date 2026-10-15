@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import RestaurantMenu from '../src/components/RestaurantMenu.tsx';
 import CatalogDetails from '../src/components/CatalogDetails.tsx';
 import OrderConfirmationScreen from '../src/components/OrderConfirmationScreen.tsx';
+import FoodOrderReceipt from '../src/components/FoodOrderReceipt.tsx';
 import GroceryProductCard from '../src/design-system/GroceryProductCard.tsx';
 import GroceryCategories from '../src/design-system/GroceryCategories.tsx';
 import OffersScreen from '../src/components/OffersScreen.tsx';
@@ -206,6 +207,18 @@ test('order confirmation separates verified payment from COD and routes to track
   assert.match(cod,/Pay the delivery partner/);
   assert.match(styles,/\.order-confirmation-mark/);
   assert.match(styles,/@media \(prefers-reduced-motion: reduce\) \{ \.order-confirmation-card/);
+});
+test('food order receipt uses the recorded server breakdown and avoids claiming tax-invoice status',()=>{
+  const booking={bookingId:'food-123',customerId:'customer-1',customerName:'Customer',serviceType:'food',status:'delivered',createdAt:'2026-10-14T12:00:00.000Z',updatedAt:'2026-10-14T12:30:00.000Z',price:144,details:{items:[{id:'dish-1',name:'Masala dosa',price:100,quantity:1,variantName:'Large'}]},priceBreakdown:{itemCents:10000,deliveryCents:2000,packagingCents:500,platformCents:1000,taxCents:900,discountCents:0,totalCents:14400}};
+  const html=renderToStaticMarkup(createElement(FoodOrderReceipt,{booking,onContactSupport:noop}));
+  assert.match(html,/Download receipt/);
+  assert.match(html,/Recorded price breakdown/);
+  assert.match(html,/>Tax</);
+  assert.match(html,/₹9\.00/);
+  assert.match(html,/restaurant contact details are not available/i);
+  assert.match(html,/not a tax invoice/i);
+  const withoutBreakdown=renderToStaticMarkup(createElement(FoodOrderReceipt,{booking:{...booking,priceBreakdown:undefined},onContactSupport:noop}));
+  assert.match(withoutBreakdown,/detailed tax and fee breakdown was not recorded/i);
 });
 test('food tracking maps canonical booking states to restaurant-specific milestones',()=>{
   const tracking=readFileSync(new URL('../src/components/OrderTrackingScreen.tsx',import.meta.url),'utf8');

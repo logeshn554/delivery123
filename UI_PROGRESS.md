@@ -2,7 +2,7 @@
 
 Repository: `https://github.com/logeshn554/delivery123.git`  
 Design Standard: AllGo Unified Design System (Electric Indigo primary `#5130EF`, Service Palette: Food `#EE7D43`, Grocery `#1B8B5A`, Ride `#3B66D4`, Parcel `#7659C9`, Movers `#C47B25`).  
-Target Platforms: Responsive Mobile Web (tested at 360px, 390px, 430px), Android (Capacitor), iOS (Capacitor).
+Target Platforms: Responsive Mobile Web at 360px, 390px, and 430px; Android (Capacitor); iOS (Capacitor). Physical-device and screenshot provenance is tracked separately from source-level checks.
 
 ---
 
@@ -110,7 +110,7 @@ remaining visual and functional checks are recorded.
 | **TASK-29** | Checkout review | `src/components/CheckoutReviewScreen.tsx` | Address, items, server price summary, payment methods | Collapsible server bill with visible total, existing cart coupon flow, payment selector, configured cancellation policy link | In Progress | Pending | Passed (bill total, payment options and cancellation-policy states regression) | Verify checkout states and policy link on mobile |
 | **TASK-30** | Order confirmation | `src/components/OrderConfirmationScreen.tsx`, `src/components/CustomerApp.tsx` | Inline order/payment notice | Animated checkmark, order reference, COD/paid distinction, tracking CTA; ETA stays pending until quote API supplies one | In Progress | Pending | Passed (paid/COD copy, booking reference and tracking action regression) | Verify paid/COD confirmation and tracking path on mobile |
 | **TASK-31** | Food tracking | `src/components/OrderTrackingScreen.tsx` | Live map, partner location and generic order timeline | Food milestones mapped to placed, restaurant confirmed, preparing, out for delivery and arrived | In Progress | Pending | Passed (booking-state to milestone mapping and stale-location guard regression) | Verify food status transitions and live location at mobile widths |
-| **TASK-32** | Food order details | `src/components/CustomerApp.tsx`, `src/components/BookingTimeline.tsx` | Order summary list | Itemized receipt, taxes breakdown, merchant contact, invoice download | Pending | Pending | Pending | Polish order details view |
+| **TASK-32** | Food order details | `src/components/CustomerApp.tsx`, `src/components/FoodOrderReceipt.tsx` | Order summary list | Downloadable itemized receipt with recorded tax/fee breakdown and support handoff | In Progress | Pending | Receipt render and recorded/missing-breakdown regression | Direct restaurant contact and tax invoice require verified merchant/operator data; physical-device QA pending |
 | **TASK-33** | Reviews and reorder | `src/components/CustomerPages.tsx` (`reviews`), `src/components/ShopAgainScreen.tsx` | Form for rating completed order | Star rating input, quick feedback tags, review text, instant 1-tap reorder | Pending | Pending | Pending | Polish review & reorder screens |
 
 ---
