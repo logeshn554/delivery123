@@ -339,6 +339,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   The location map continues to rely on fresh assigned-partner GPS. `npm run
   lint`, `npm test` (**171 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Responsive visual QA remains pending.
+- TASK-54: parcel pickup and recipient codes are now concealed until the
+  customer explicitly reveals them, with accessible show/hide controls. The
+  handover card states that code checks are recorded and that this service
+  does not collect signatures or photos. `npm run lint`, `npm test`
+  (**172 passed, 0 failed**), `npm run build` and scoped `git diff --check`
+  passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

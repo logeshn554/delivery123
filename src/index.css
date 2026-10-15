@@ -636,6 +636,13 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .parcel-track-declared { margin: -3px 0 0; color: #6f6a7a; font-size: 9px; line-height: 1.4; }
 .parcel-handover-card .allgo-row > svg { color: var(--allgo-delivery); }
 .parcel-handover-card > p { overflow-wrap: anywhere; }
+.parcel-secure-code { display: flex; min-width: 0; align-items: center; gap: 10px; margin: 12px 0; border: 1px solid #ded7f1; border-radius: 14px; padding: 12px; background: #f8f6ff; color: #483887; }
+.parcel-secure-code-copy { display: grid; flex: 1; min-width: 0; gap: 3px; }
+.parcel-secure-code-copy strong { font-size: 12px; }
+.parcel-secure-code-copy small { color: #716b7e; font-size: 10px; line-height: 1.4; }
+.parcel-secure-code b { font-size: 18px; letter-spacing: 3px; white-space: nowrap; }
+.parcel-secure-code button { display: inline-flex; min-height: 40px; align-items: center; gap: 5px; padding: 5px; font-size: 11px; }
+.parcel-evidence-note { color: #716b7e; font-size: 11px; line-height: 1.5; }
 .parcel-contact-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 15px; padding-top: 14px; border-top: 1px solid #efedf3; }
 .parcel-contact-grid section { min-width: 0; }
 .parcel-contact-grid h3 { color: #393449; font-size: 11px; font-weight: 800; }

@@ -24,9 +24,17 @@ test('parcel tracking exposes sender pickup proof, custody events and recipient 
   assert.match(tracking, /isParcel \|\| \['ride', 'takeover'\]\.includes\(booking\.serviceType\)/);
   assert.match(tracking, /Sender pickup code/);
   assert.match(tracking, /assigned partner checks and takes custody/);
-  assert.match(tracking, /Recipient handover code/);
   assert.match(tracking, /Partner heading to pickup/);
   assert.match(timeline, /Sender pickup code verified/);
   assert.match(timeline, /Recipient delivery code verified/);
   assert.match(timeline, /Parcel picked up/);
+});
+
+test('parcel handover codes stay concealed until explicitly revealed and evidence limits are clear', () => {
+  const secureCode = readFileSync(new URL('../../src/components/ParcelHandoverCode.tsx', import.meta.url), 'utf8');
+  const details = readFileSync(new URL('../../src/components/ParcelOrderDetails.tsx', import.meta.url), 'utf8');
+  assert.match(secureCode, /visible \? code : '••••'/);
+  assert.match(secureCode, /aria-label=\{`\$\{visible \? 'Hide' : 'Show'\}/);
+  assert.match(details, /<ParcelHandoverCode label="Sender pickup code"/);
+  assert.match(details, /AllGo does not collect a handover signature or photo/);
 });
