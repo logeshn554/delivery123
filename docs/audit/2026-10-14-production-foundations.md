@@ -230,6 +230,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   styling and accessible pressed state. `npm run lint`, `npm test` (**147 passed,
   0 failed**), `npm run build` and `git diff --check` passed. Physical-device QA
   remains pending.
+- TASK-37: grocery product cards now give optional catalog brand and unit size
+  clear visual hierarchy beside the current price and stock state. No crossed-out
+  MRP is shown because the catalog has no MRP field. `npm run lint`, `npm test`
+  (**148 passed, 0 failed**), `npm run build` and `git diff --check` passed.
+  Physical-device grid QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

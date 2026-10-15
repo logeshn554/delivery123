@@ -230,10 +230,15 @@ test('food tracking maps canonical booking states to restaurant-specific milesto
   assert.match(tracking,/isFreshTrackingTimestamp/);
 });
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
-  const product={id:'p',storeId:'s',name:'Product',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
+  const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
   for(const stock of [0,NaN,-1]) assert.match(render(stock,0),/disabled="">Unavailable/);
   assert.match(render(2,2),/aria-label="Add one Product" disabled=""/);
+  const available=render(5,0);
+  assert.match(available,/grocery-product-brand">Fresh Farm/);
+  assert.match(available,/grocery-unit-pill">1 kg/);
+  assert.match(available,/grocery-product-price">₹30/);
+  assert.doesNotMatch(available,/<del|MRP/i);
 });
 test('completed-order reviews include accessible quick feedback tags in the saved comment',()=>{
   const pages=readFileSync(new URL('../src/components/CustomerPages.tsx',import.meta.url),'utf8');
