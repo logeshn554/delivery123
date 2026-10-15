@@ -319,6 +319,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   earliest-pickup estimate, so neither is claimed. `npm run lint`, `npm test`
   (**168 passed, 0 failed**), `npm run build` and `git diff --check` passed.
   Responsive visual QA remains pending.
+- TASK-51: the quote endpoint now returns a paise-accurate parcel breakdown
+  derived from the configured server base, distance, time and billable-weight
+  rates, including minimum/rounding adjustment and discounts. Review requires
+  the breakdown to reconcile to the payable total and states insurance is not
+  included. `npm run lint`, `npm test` (**169 passed, 0 failed**),
+  `npm run build` and `git diff --check` passed. Responsive visual QA remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

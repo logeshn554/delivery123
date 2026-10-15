@@ -39,4 +39,14 @@ function calculateFare(option, route, weightKg = 0) {
   return Math.round(total * 100) / 100;
 }
 
-module.exports = { validPoint, containsPoint, checkCoverage, calculateFare };
+function calculateFareBreakdown(option, route, weightKg = 0) {
+  const totalCents = Math.round(calculateFare(option, route, weightKg) * 100);
+  const baseCents = Math.round(option.price * 100);
+  const distanceCents = Math.round(route.distanceMeters / 1000 * (option.perKm || 0) * 100);
+  const timeCents = Math.round(route.durationSeconds / 60 * (option.perMinute || 0) * 100);
+  const weightCents = Math.round(weightKg * (option.perKg || 0) * 100);
+  const minimumAdjustmentCents = totalCents - baseCents - distanceCents - timeCents - weightCents;
+  return { baseCents, distanceCents, timeCents, weightCents, minimumAdjustmentCents, insuranceCents: 0, subtotalCents: totalCents, totalCents };
+}
+
+module.exports = { validPoint, containsPoint, checkCoverage, calculateFare, calculateFareBreakdown };

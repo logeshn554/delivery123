@@ -9,7 +9,7 @@ const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestor
 const { onCall: firebaseOnCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { geocode, routeBetween } = require('./maps');
-const { validPoint, checkCoverage, calculateFare, containsPoint } = require('./bookingPolicy');
+const { validPoint, checkCoverage, calculateFare, calculateFareBreakdown, containsPoint } = require('./bookingPolicy');
 const { validateParcelContents, separateParcelContacts, parcelWeight } = require('./parcelPolicy');
 const { reverseWalletCredit, refundProgress } = require('./refundPolicy');
 const { publicOffer, pickupEligibility } = require('./dispatchPolicy');
@@ -267,6 +267,7 @@ async function priceLeg(uid, input) {
   let pickupAddress = '';
   let dropAddress = '';
   let priceBreakdown;
+  let fareBreakdown;
   let pricingRecord;
 
   if (serviceType === 'food' || serviceType === 'grocery') {
@@ -405,6 +406,7 @@ async function priceLeg(uid, input) {
     }
     const route = await routeBetween(MAPS_API_KEY.value(), origin, destination, optionConfig.travelMode || 'DRIVE');
     price = calculateFare(optionConfig, route, serviceType === 'parcel' ? details.billableWeightKg : 0);
+    if (serviceType === 'parcel') fareBreakdown = calculateFareBreakdown(optionConfig, route, details.billableWeightKg);
     pickupAddress = origin.address;
     dropAddress = destination.address;
     details = { ...details, pickupPlaceId, dropPlaceId, pickupLocation: origin.location, dropLocation: destination.location, ...coverage, estimatedKm: route.distanceMeters / 1000, estimatedMinutes: Math.ceil(route.durationSeconds / 60), routeProvider: 'google' };
@@ -452,6 +454,7 @@ async function priceLeg(uid, input) {
     storeId: details.storeId || null,
     restaurantId: details.restaurantId || null,
     customerName,
+    fareBreakdown,
   };
 }
 
@@ -479,7 +482,7 @@ async function priceAndPrepareBooking(uid, input) {
     details: priced.leg.details
   };
   if (priced.leg.priceBreakdown) booking.priceBreakdown = priced.leg.priceBreakdown;
-  return { amount: priced.amount, booking, items: priced.items, storeId: priced.storeId, restaurantId: priced.restaurantId };
+  return { amount: priced.amount, booking, items: priced.items, storeId: priced.storeId, restaurantId: priced.restaurantId, fareBreakdown: priced.fareBreakdown };
 }
 
 async function razorpayRequest(path, method, body, extraHeaders = {}) {
@@ -803,7 +806,8 @@ exports.getServiceQuote = onCall({ operation: 'getServiceQuote', region: REGION,
   const expiresAt = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000);
   // SEC-01: coupon applied exactly once here; couponLocked=true prevents re-application downstream.
   await quoteRef.create({ ...quote, uid, expiresAt, createdAt: Timestamp.now(), claimed: false, couponLocked: true, originalAmount: baseQuote.amount });
-  return { quoteId: quoteRef.id, amount: quote.amount, currency: CURRENCY, price: quote.amount / 100, expiresAt: expiresAt.toDate().toISOString(), estimatedKm: quote.booking.details.estimatedKm, estimatedMinutes: quote.booking.details.estimatedMinutes };
+  const discountCents = quote.booking.couponDiscountCents || 0;
+  return { quoteId: quoteRef.id, amount: quote.amount, currency: CURRENCY, price: quote.amount / 100, expiresAt: expiresAt.toDate().toISOString(), estimatedKm: quote.booking.details.estimatedKm, estimatedMinutes: quote.booking.details.estimatedMinutes, ...(quote.fareBreakdown ? { fareBreakdown: { ...quote.fareBreakdown, discountCents, totalCents: quote.amount } } : {}) };
 });
 
 exports.getDriverEarningEstimate = onCall({ operation: 'getDriverEarningEstimate', region: REGION }, async request => {

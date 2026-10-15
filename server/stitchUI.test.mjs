@@ -358,6 +358,18 @@ test('parcel timing distinguishes ASAP from an unconfirmed future time request',
   assert.match(functions,/if \(requested\.preferredDate\)[\s\S]*Choose a future pickup date/);
   assert.doesNotMatch(screen,/Earliest pickup in|Available slot:/i);
 });
+test('parcel review requires a server fare breakdown and disclaims uninsured value',()=>{
+  const screen=readFileSync(new URL('../src/components/ParcelBookingScreen.tsx',import.meta.url),'utf8');
+  const functions=readFileSync(new URL('../functions/index.js',import.meta.url),'utf8');
+  const pricing=readFileSync(new URL('../functions/bookingPolicy.js',import.meta.url),'utf8');
+  assert.match(screen,/!result\.fareBreakdown/);
+  assert.match(screen,/Base fare/);
+  assert.match(screen,/Distance rate/);
+  assert.match(screen,/Billable weight/);
+  assert.match(screen,/Insurance<\/dt><dd>Not included/);
+  assert.match(functions,/fareBreakdown: \{ \.\.\.quote\.fareBreakdown, discountCents, totalCents: quote\.amount \}/);
+  assert.match(pricing,/function calculateFareBreakdown/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));

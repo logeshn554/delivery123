@@ -4,6 +4,27 @@ export interface ServiceQuoteSnapshot {
   price: number;
   estimatedKm: number;
   estimatedMinutes: number;
+  fareBreakdown?: ParcelFareBreakdown;
+}
+
+export interface ParcelFareBreakdown {
+  baseCents: number;
+  distanceCents: number;
+  timeCents: number;
+  weightCents: number;
+  minimumAdjustmentCents: number;
+  insuranceCents: number;
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+}
+
+function isValidParcelFareBreakdown(value: ParcelFareBreakdown): boolean {
+  const nonNegative = [value.baseCents, value.distanceCents, value.timeCents, value.weightCents, value.insuranceCents, value.subtotalCents, value.discountCents, value.totalCents];
+  return nonNegative.every(amount => Number.isSafeInteger(amount) && amount >= 0)
+    && Number.isSafeInteger(value.minimumAdjustmentCents)
+    && value.baseCents + value.distanceCents + value.timeCents + value.weightCents + value.minimumAdjustmentCents + value.insuranceCents === value.subtotalCents
+    && value.subtotalCents - value.discountCents === value.totalCents;
 }
 
 export function isValidServiceQuote(quote: ServiceQuoteSnapshot): boolean {
@@ -15,7 +36,8 @@ export function isValidServiceQuote(quote: ServiceQuoteSnapshot): boolean {
     && Number.isFinite(quote.estimatedKm)
     && quote.estimatedKm >= 0
     && Number.isSafeInteger(quote.estimatedMinutes)
-    && quote.estimatedMinutes >= 0;
+    && quote.estimatedMinutes >= 0
+    && (quote.fareBreakdown === undefined || isValidParcelFareBreakdown(quote.fareBreakdown));
 }
 
 export function isServiceQuoteExpired(expiresAt: string, now: number): boolean {
