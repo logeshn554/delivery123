@@ -537,6 +537,11 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .parcel-mode-picker > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
 .parcel-mode-picker button { min-height: 48px; border: 1px solid #e3dfec; border-radius: 14px; background: var(--allgo-surface); color: #615d6e; font-size: 12px; font-weight: 750; }
 .parcel-mode-picker button[aria-pressed="true"] { border-color: #8b74d6; background: #f3f0ff; color: #5943a2; box-shadow: 0 0 0 2px #7659c91b; }
+.parcel-type-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
+.parcel-type-picker legend { margin-bottom: 8px; color: #393549; font-size: 12px; font-weight: 800; }
+.parcel-type-picker > div { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.parcel-type-picker button { min-height: 48px; border: 1px solid #e3dfec; border-radius: 14px; background: var(--allgo-surface); color: #615d6e; font-size: 12px; font-weight: 750; }
+.parcel-type-picker button[aria-pressed="true"] { border-color: #8b74d6; background: #f3f0ff; color: #5943a2; box-shadow: 0 0 0 2px #7659c91b; }
 .parcel-route-fields { position: relative; display: grid; gap: 10px; }
 .parcel-location-picker { position: relative; z-index: 1; margin: 0; padding: 13px; border-color: #e3dfec; border-radius: 17px; box-shadow: 0 4px 16px #291d4f08; }
 .parcel-location-picker:focus-within { border-color: #8b74d6; box-shadow: 0 0 0 3px #7659c91d; }

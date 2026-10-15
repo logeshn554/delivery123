@@ -298,6 +298,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   labeled in the existing bounded quote note. `npm run lint`, `npm test`
   (**163 passed, 0 failed**), `npm run build` and `git diff --check` passed.
   Responsive visual QA remains pending.
+- TASK-48: the parcel package selector now uses accessible selectable tiles and
+  derives dimension requirements from the package type. Choices match the
+  quote service's Documents, Box, Electronics and Others allowlist. Food and
+  Clothes are not offered because the service rejects them. Existing fragile,
+  weight, declared-value and dimension safeguards remain. `npm run lint`,
+  `npm test` (**165 passed, 0 failed**), `npm run build` and `git diff --check`
+  passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

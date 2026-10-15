@@ -325,6 +325,17 @@ test('parcel destination captures recipient access details and required recipien
   assert.match(screen,/getDropoffInstructionsLimit\(pickupAccess,notes\)/);
   assert.match(screen,/buildParcelInstructions\(pickupAccess,dropoffAccess,notes\)/);
 });
+test('parcel package choices are accessible and use only quote-service categories',()=>{
+  const screen=readFileSync(new URL('../src/components/ParcelBookingScreen.tsx',import.meta.url),'utf8');
+  const rules=readFileSync(new URL('../src/design-system/parcelPackage.ts',import.meta.url),'utf8');
+  const functions=readFileSync(new URL('../functions/index.js',import.meta.url),'utf8');
+  assert.match(screen,/role="group" aria-label="Supported parcel types"/);
+  assert.match(screen,/SUPPORTED_PARCEL_TYPES\.map/);
+  assert.match(screen,/aria-pressed=\{type===option\}/);
+  assert.match(screen,/parcelTypeRequiresDimensions\(type\)/);
+  assert.match(rules,/\['Documents', 'Box', 'Electronics', 'Others'\]/);
+  assert.match(functions,/\['Documents', 'Box', 'Electronics', 'Others'\]/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
