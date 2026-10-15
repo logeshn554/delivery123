@@ -213,6 +213,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   limit. The existing reorder flow still opens the current catalog to recheck
   prices and availability. `npm run lint`, `npm test` (**144 passed, 0 failed**),
   and `npm run build` passed. Physical-device QA remains pending.
+- TASK-34: grocery discovery now shows a compact partner-timing badge only when a
+  store has published an estimate, and includes a quick store switcher that
+  respects the single-store cart lock and resets catalog filters. No generic
+  delivery-time guarantee was added. `npm run lint`, `npm test` (**145 passed,
+  0 failed**), `npm run build` and `git diff --check` passed. Physical-device QA
+  remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

@@ -1019,8 +1019,8 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
             </header>
 
             <section className="grocery-hero" aria-label="Grocery delivery">
-              <div><span className="grocery-hero-eyebrow">A simpler way to shop</span><h2>Good food, better choices.</h2><p>Browse products and stock published by grocery partners.</p></div>
-              <span className="grocery-hero-mark" aria-hidden="true"><ShoppingBag size={32} /></span>
+              <div><span className="grocery-hero-eyebrow">FRESH PICKS · LOCAL PARTNERS</span><h2>Everyday essentials, close by.</h2><p>Browse current products, stock and partner-listed delivery timing from local grocery stores.</p></div>
+              <div className="grocery-hero-aside"><span className="grocery-hero-mark" aria-hidden="true"><ShoppingBag size={32} /></span><span className="grocery-timing-badge"><Clock size={14} aria-hidden="true" />{groceryStoresList.find(store => store.id === selectedStoreId)?.deliveryTime ? `Partner estimate · ${groceryStoresList.find(store => store.id === selectedStoreId)?.deliveryTime}` : 'Timing shown by each partner'}</span></div>
             </section>
             {cartService === 'grocery' && !productsLoading && !groceryProductsError && cart.some(line => {
               const product = productsList.find(item => item.id === line.item.id);
@@ -1034,6 +1034,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                     <section className="grocery-store-section" aria-labelledby="grocery-stores-title">
                       <div className="grocery-section-heading"><div><h2 id="grocery-stores-title">Stores</h2><p>Choose a partner to browse its current catalog.</p></div><span>{groceryStoresList.length}</span></div>
                       {cart.length > 0 && cartService === 'grocery' && <p className="grocery-store-lock">Your cart is linked to one store. Empty it to shop from another store.</p>}
+                      <label className="grocery-store-switcher">Switch store<select aria-label="Switch grocery store" value={selectedStoreId} onChange={event => { setSelectedStoreId(event.target.value); setSelectedGroceryCategory('All'); setGrocerySearch(''); }}><option value="">Choose a store</option>{groceryStoresList.map(store => { const cartStoreId = cart[0] ? (cart[0].item as GroceryProduct).storeId : null; const locked = Boolean(cart.length && cartService === 'grocery' && cartStoreId !== store.id); return <option key={store.id} value={store.id} disabled={locked}>{store.name}{store.acceptingOrders === false ? ' · Not accepting orders' : ''}</option>; })}</select></label>
                       <div className="grocery-store-list">
                         {groceryStoresList.map((store) => {
                           const selected = selectedStoreId === store.id;

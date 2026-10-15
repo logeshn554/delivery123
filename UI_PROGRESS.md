@@ -119,7 +119,7 @@ remaining visual and functional checks are recorded.
 
 | ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
 |---|---|---|---|---|---|---|---|---|
-| **TASK-34** | Grocery discovery | `src/components/CustomerApp.tsx` (`activeWorkflow === 'grocery'`) | Store banner, category strip, product grid | Zepto/Instamart-style 10-minute delivery vibe: fast delivery badge, store switcher | Pending | Pending | Pending | Polish grocery home view |
+| **TASK-34** | Grocery discovery | `src/components/CustomerApp.tsx` (`activeWorkflow === 'grocery'`), `src/index.css` | Store banner, category strip, product grid | Local grocery hero, partner-listed timing badge, compact store switcher with cart lock | In Progress | Pending | Partner timing display and cart-aware switch regression | Delivery timing is partner-provided and must not imply an unverified 10-minute guarantee; physical-device QA pending |
 | **TASK-35** | Grocery store selection | `src/components/CustomerApp.tsx` | Horizontal store cards | Store status (open/closed), distance badge, delivery fee, store change warning | Pending | Pending | Pending | Polish store picker cards |
 | **TASK-36** | Grocery categories | `src/design-system/GroceryCategories.tsx` | Circular category icon buttons | Rounded cards with pastel icon backgrounds, active state glow, category labels | Pending | Pending | Pending | Polish grocery category strip |
 | **TASK-37** | Product grid | `src/design-system/GroceryProductCard.tsx` | 2-column product card layout | Crisp product image, unit badge, weight/size pill, price vs MRP strike-through | Pending | Pending | Pending | Polish product grid cards |

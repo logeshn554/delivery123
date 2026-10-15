@@ -244,6 +244,17 @@ test('completed-order reviews include accessible quick feedback tags in the save
   assert.match(pages,/comment: reviewComment/);
   assert.match(pages,/reviewComment = \[\.\.\.selectedReviewTags, review\.trim\(\)\].*slice\(0, 1000\)/);
 });
+test('grocery discovery exposes partner timing and a cart-aware store switcher',()=>{
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(app,/Partner estimate · \$\{groceryStoresList\.find\(store => store\.id === selectedStoreId\)\?\.deliveryTime\}/);
+  assert.match(app,/Timing shown by each partner/);
+  assert.match(app,/aria-label="Switch grocery store"/);
+  assert.match(app,/const locked = Boolean\(cart\.length && cartService === 'grocery' && cartStoreId !== store\.id\)/);
+  assert.match(app,/setSelectedGroceryCategory\('All'\); setGrocerySearch\(''\)/);
+  assert.match(styles,/\.grocery-store-switcher/);
+  assert.match(styles,/@media \(max-width: 430px\) \{ \.grocery-hero/);
+});
 test('category and profile screens retain only supplied data rather than design-example vendors or identities',()=>{
   const categories=renderToStaticMarkup(createElement(GroceryCategories,{categories:['All','Local grains'],selected:'All',onSelect:noop}));
   assert.match(categories,/Local grains/);assert.doesNotMatch(categories,/Vegetables|BigBasket|Blinkit/);
