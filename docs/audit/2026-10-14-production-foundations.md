@@ -240,6 +240,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   Available specs are shown, while absent nutrition data is stated plainly.
   `npm run lint`, `npm test` (**149 passed, 0 failed**), `npm run build` and
   `git diff --check` passed. Physical-device QA remains pending.
+- TASK-39: grocery search now includes published brand, ingredient and allergen
+  text with native catalog suggestions, and sorting uses direct name/price chips.
+  Allergen toggles exclude only products declaring the selected allergen and warn
+  that missing data is not an allergen-free claim. `npm run lint`, `npm test`
+  (**150 passed, 0 failed**), `npm run build` and `git diff --check` passed.
+  Physical-device QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

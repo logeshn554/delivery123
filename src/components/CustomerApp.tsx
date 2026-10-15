@@ -180,6 +180,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [selectedFoodVariants, setSelectedFoodVariants] = useState<Record<string, string>>({});
   const [grocerySearch, setGrocerySearch] = useState('');
   const [selectedGroceryCategory, setSelectedGroceryCategory] = useState('All');
+  const [excludedGroceryAllergens, setExcludedGroceryAllergens] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [vegetarianOnly, setVegetarianOnly] = useState(false);
   const [favoriteCatalogIds, setFavoriteCatalogIds] = useState<string[]>(() => {
@@ -768,9 +769,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     (selectedFoodCategory === 'All' || item.category === selectedFoodCategory) &&
     (!foodSearch.trim() || `${item.name} ${item.description} ${item.category}`.toLowerCase().includes(foodSearch.trim().toLowerCase())) &&
     (!vegetarianOnly || item.isVeg) && (!showFavoritesOnly || favoriteCatalogIds.includes(`dish:${item.id}`)));
-  const groceryFilterOptions = { category: selectedGroceryCategory, query: grocerySearch, favoriteIds: favoriteCatalogIds, favoritesOnly: showFavoritesOnly, inStockOnly, sort: grocerySort as 'name' | 'low' | 'high' };
+  const groceryFilterOptions = { category: selectedGroceryCategory, query: grocerySearch, favoriteIds: favoriteCatalogIds, favoritesOnly: showFavoritesOnly, inStockOnly, sort: grocerySort as 'name' | 'low' | 'high', excludedAllergens: excludedGroceryAllergens };
   const groceryMatchingProducts = filterGroceryProducts(productsList, { ...groceryFilterOptions, inStockOnly: false });
   const visibleGroceryProducts = filterGroceryProducts(productsList, groceryFilterOptions);
+  const declaredGroceryAllergens = [...new Set(productsList.flatMap(product => product.allergens || []))].sort((a,b) => a.localeCompare(b));
   const groceryStoresView = getGroceryCatalogView({ loading: groceryStoresLoading, error: groceryStoresError, selectedStoreId: '', storeCount: groceryStoresList.length, products: [], matchingProducts: [], filteredProducts: [], inStockOnly: true });
   const groceryCatalogView = getGroceryCatalogView({ loading: productsLoading, error: groceryProductsError, selectedStoreId, storeCount: groceryStoresList.length, products: productsList, matchingProducts: groceryMatchingProducts, filteredProducts: visibleGroceryProducts, inStockOnly });
 
@@ -1053,14 +1055,15 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                       return <section className="grocery-catalog-section" aria-labelledby="grocery-catalog-title">
                         <div className="grocery-section-heading"><div><h2 id="grocery-catalog-title">{selectedStore?.name || 'Store catalog'}</h2><p>{selectedStore?.acceptingOrders === false ? 'This store is currently not accepting orders.' : 'Prices and stock reflect the partner’s published catalog.'}</p></div>{selectedStore && <button aria-label={`View ${selectedStore.name} details`} className="grocery-store-details" onClick={() => setCatalogPage({ kind: 'store', id: selectedStore.id })}>Details</button>}</div>
                         {productsList.length > 0 && <>
-                          <label className="grocery-search"><Search size={18} aria-hidden="true" /><input aria-label="Search grocery products" value={grocerySearch} onChange={event => setGrocerySearch(event.target.value)} placeholder="Search this store’s catalog" /></label>
+                          <label className="grocery-search"><Search size={18} aria-hidden="true" /><input aria-label="Search grocery products" list="grocery-product-suggestions" value={grocerySearch} onChange={event => setGrocerySearch(event.target.value)} placeholder="Search name, brand or ingredient" /><datalist id="grocery-product-suggestions">{productsList.map(product => <option key={product.id} value={product.name} label={[product.brand,product.category].filter(Boolean).join(' · ')}/>)}</datalist></label>
                           <GroceryCategories categories={['All',...new Set(productsList.map(product=>product.category).filter(Boolean))]} selected={selectedGroceryCategory} onSelect={setSelectedGroceryCategory}/>
                           <div className="grocery-filter-toolbar">
 
                             <label className="grocery-stock-toggle"><input type="checkbox" checked={inStockOnly} onChange={event => setInStockOnly(event.target.checked)} />In stock</label>
-                            <label className="grocery-sort">Sort<select aria-label="Sort grocery products" value={grocerySort} onChange={event => setGrocerySort(event.target.value)}><option value="name">Name</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option></select></label>
+                            <div className="grocery-sort-chips" role="group" aria-label="Sort grocery products">{([{id:'name',label:'Name A–Z'},{id:'low',label:'Price ↑'},{id:'high',label:'Price ↓'}] as const).map(option => <button key={option.id} type="button" aria-pressed={grocerySort === option.id} onClick={() => setGrocerySort(option.id)}>{option.label}</button>)}</div>
                             <button type="button" aria-pressed={showFavoritesOnly} className="grocery-favorites" onClick={() => setShowFavoritesOnly(value => !value)}><Heart size={16} aria-hidden="true" />{showFavoritesOnly ? 'Saved only' : 'Saved'}</button>
                           </div>
+                          {declaredGroceryAllergens.length > 0 && <section className="grocery-allergen-filters" aria-label="Declared allergen filters"><p>Exclude declared allergens</p><div>{declaredGroceryAllergens.map(allergen => <button key={allergen} type="button" aria-pressed={excludedGroceryAllergens.includes(allergen)} onClick={() => setExcludedGroceryAllergens(current => current.includes(allergen) ? current.filter(value => value !== allergen) : [...current,allergen])}>{allergen}</button>)}</div><small role="note">Uses partner-declared information only. Missing allergen details do not mean a product is allergen-free.</small></section>}
                         </>}
 
                         {groceryCatalogView === 'loading' ? <CatalogState kind="loading" title="Loading products" description={`Refreshing ${selectedStore?.name || 'this store'}’s current catalog.`} />

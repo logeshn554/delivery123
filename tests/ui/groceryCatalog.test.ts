@@ -26,6 +26,18 @@ test('grocery catalog filters use live names, category, search, favorites and so
   assert.deepEqual(filterGroceryProducts([product('sold-out', 0), product('available', 1)], { category: 'All', query: '', favoriteIds: [], favoritesOnly: false, inStockOnly: true, sort: 'name' }).map(item => item.id), ['available']);
 });
 
+test('grocery search includes published brand and allergen text and excludes only declared allergens', () => {
+  const products = [
+    { ...product('apple', 3), brand: 'Orchard House', ingredients: 'Apple', allergens: ['Walnut'] },
+    { ...product('bread', 2), brand: 'Daily Bake', ingredients: 'Wheat flour', allergens: [] },
+    { ...product('unknown', 1), brand: 'Local', ingredients: 'Mixed ingredients' },
+  ];
+  const filters = { category: 'All', favoriteIds: [], favoritesOnly: false, inStockOnly: true, sort: 'name' as const };
+  assert.deepEqual(filterGroceryProducts(products, { ...filters, query: 'orchard' }).map(item => item.id), ['apple']);
+  assert.deepEqual(filterGroceryProducts(products, { ...filters, query: 'walnut' }).map(item => item.id), ['apple']);
+  assert.deepEqual(filterGroceryProducts(products, { ...filters, query: '', excludedAllergens: ['Walnut'] }).map(item => item.id), ['bread', 'unknown']);
+});
+
 test('grocery view distinguishes errors, loading, no stores, store selection and published product emptiness', () => {
   assert.equal(getGroceryCatalogView({ ...baseView, error: 'offline', loading: true }), 'error');
   assert.equal(getGroceryCatalogView({ ...baseView, loading: true }), 'loading');

@@ -9,14 +9,16 @@ export interface GroceryProductFilters {
   favoritesOnly: boolean;
   inStockOnly: boolean;
   sort: 'name' | 'low' | 'high';
+  excludedAllergens?: string[];
 }
 
 export function filterGroceryProducts(products: GroceryProduct[], filters: GroceryProductFilters): GroceryProduct[] {
   const query = filters.query.trim().toLocaleLowerCase();
   return products
     .filter((product) => (filters.category === 'All' || product.category === filters.category)
-      && (!query || `${product.name} ${product.category} ${product.unit}`.toLocaleLowerCase().includes(query))
+      && (!query || `${product.name} ${product.brand || ''} ${product.category} ${product.unit} ${(product.ingredients || '')} ${(product.allergens || []).join(' ')}`.toLocaleLowerCase().includes(query))
       && (!filters.favoritesOnly || filters.favoriteIds.includes(`product:${product.id}`))
+      && !(filters.excludedAllergens || []).some(allergen => product.allergens?.includes(allergen))
       && (!filters.inStockOnly || product.stock > 0))
     .sort((a, b) => filters.sort === 'low' ? a.price - b.price : filters.sort === 'high' ? b.price - a.price : a.name.localeCompare(b.name));
 }

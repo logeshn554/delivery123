@@ -342,6 +342,13 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .grocery-sort { display: flex; align-items: center; gap: 6px; }
 .grocery-sort select { max-width: 132px; border: 0; background: transparent; color: #3b493f; font-size: 12px; font-weight: 700; }
 .grocery-favorites { display: inline-flex; align-items: center; gap: 7px; }
+.grocery-sort-chips { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; }
+.grocery-sort-chips button, .grocery-allergen-filters button { min-height: var(--allgo-touch-target); border: 1px solid var(--allgo-border); border-radius: 999px; padding: 0 11px; background: var(--allgo-surface); color: #4f5d53; font-size: 11px; font-weight: 700; }
+.grocery-sort-chips button[aria-pressed="true"], .grocery-allergen-filters button[aria-pressed="true"] { border-color: #2f8453; background: #eaf5ec; color: #216d43; }
+.grocery-allergen-filters { display: grid; gap: 8px; border-radius: 14px; padding: 12px; background: #fff9e8; }
+.grocery-allergen-filters p { margin: 0; color: #5f4e27; font-size: 12px; font-weight: 800; }
+.grocery-allergen-filters > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.grocery-allergen-filters small { color: #725b21; font-size: 11px; line-height: 1.4; }
 .grocery-favorites[aria-pressed="true"], .grocery-product-save[aria-pressed="true"] { color: #b8405c; }
 .grocery-product-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,155px),1fr)); gap: 12px; }
 .grocery-product-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--allgo-border); border-radius: var(--allgo-radius-card); background: var(--allgo-surface); box-shadow: var(--allgo-shadow-card); }

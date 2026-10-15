@@ -185,6 +185,22 @@ test('grocery product details distinguish partner-listed expiry, missing nutriti
   const missing=renderToStaticMarkup(createElement(CatalogDetails,{...props,item:base}));
   assert.match(missing,/Expiry information not provided by partner/);
 });
+test('grocery catalog exposes native suggestions, price sort chips and cautious declared-allergen filters',()=>{
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  const catalog=readFileSync(new URL('../src/design-system/groceryCatalog.ts',import.meta.url),'utf8');
+  assert.match(app,/list="grocery-product-suggestions"/);
+  assert.match(app,/<datalist id="grocery-product-suggestions">/);
+  assert.match(app,/role="group" aria-label="Sort grocery products"/);
+  assert.match(app,/Price ↑/);
+  assert.match(app,/Price ↓/);
+  assert.match(app,/Missing allergen details do not mean a product is allergen-free/);
+  assert.match(app,/aria-pressed=\{excludedGroceryAllergens\.includes\(allergen\)\}/);
+  assert.match(catalog,/product\.brand \|\| ''/);
+  assert.match(catalog,/filters\.excludedAllergens \|\| \[\]/);
+  assert.match(styles,/\.grocery-sort-chips button\[aria-pressed="true"\]/);
+  assert.match(styles,/\.grocery-allergen-filters small/);
+});
 test('food cart uses announced quantities, touch-sized steppers and server-quoted checkout totals',()=>{
   const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
   const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
