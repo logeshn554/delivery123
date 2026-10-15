@@ -13,6 +13,7 @@ import OffersScreen from '../src/components/OffersScreen.tsx';
 import ProfileScreen from '../src/components/ProfileScreen.tsx';
 import RideOptions from '../src/design-system/RideOptions.tsx';
 import VehicleClassPicker from '../src/design-system/VehicleClassPicker.tsx';
+import PlannedMoversScreen from '../src/components/PlannedMoversScreen.tsx';
 import { customerDestination } from '../src/app/customerNavigation.ts';
 const noop=()=>{};
 test('customer, sign-in and partner screens share semantic surfaces and brand tokens',()=>{
@@ -405,6 +406,16 @@ test('transport order details open an order-linked route or damage dispute case 
   assert.match(details,/A priority call is not available/);
   assert.match(app,/setTicketCategory\('route_deviation'\); setTicketSubject\(`Vehicle transport issue/);
   assert.match(app,/Include any damage or route concerns/);
+});
+test('planned movers discovery opens a clearly unavailable, non-bookable information screen',()=>{
+  const directory=readFileSync(new URL('../src/features/discovery/ServiceDirectory.tsx',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const html=renderToStaticMarkup(createElement(PlannedMoversScreen,{onBack:noop,onSupport:noop}));
+  assert.match(directory,/onMoversInfo\?:/);
+  assert.match(app,/onMoversInfo=\{\(\) => setShowMoversInfo\(true\)\}/);
+  assert.match(html,/This service is planned\. Booking and quotes are not available yet/);
+  assert.match(html,/disabled="" aria-label="Planned moving requirements"/);
+  assert.match(html,/Ask about availability/);
 });
 test('ride booking uses the shared accessible Bike, Auto and Car option cards',()=>{
   const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');

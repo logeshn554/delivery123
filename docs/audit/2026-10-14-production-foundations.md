@@ -408,6 +408,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   an instant priority call. `npm run lint`, `npm test` (**183 passed, 0
   failed**), `npm run build` and scoped `git diff --check` passed. Operator
   response timing and responsive visual QA remain pending.
+- TASK-66: the Movers tile now opens its existing planned-service screen,
+  which keeps requirement fields disabled, states that booking/quotes are
+  unavailable and offers an availability support request. `npm run lint`,
+  `npm test` (**184 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Movers remain unavailable pending a real backend;
+  responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

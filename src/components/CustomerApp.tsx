@@ -17,6 +17,7 @@ import OrderConfirmationScreen from './OrderConfirmationScreen';
 import OrderTrackingScreen from './OrderTrackingScreen';
 import ParcelOrderDetails from './ParcelOrderDetails';
 import TransportOrderDetails from './TransportOrderDetails';
+import PlannedMoversScreen from './PlannedMoversScreen';
 import PaymentRecoveryPanel from './PaymentRecoveryPanel';
 import WalletPanel from './WalletPanel';
 import SupportCasePanel from './SupportCasePanel';
@@ -263,6 +264,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [supportHistoryError, setSupportHistoryError] = useState('');
   const [supportRetry, setSupportRetry] = useState(0);
   const [supportCaseId, setSupportCaseId] = useState('');
+  const [showMoversInfo, setShowMoversInfo] = useState(false);
   const [ticketBooking, setTicketBooking] = useState('');
   const [ticketCategory, setTicketCategory] = useState('general');
   const [ticketBusy, setTicketBusy] = useState(false);
@@ -956,10 +958,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,var(--allgo-safe-bottom))]">
 
         {/* SCREEN 2 (AFTER LOGIN): 6-BENTO-GRID SERVICE CARDS */}
-        {currentTab === 'services' && activeWorkflow === 'none' && <div className="space-y-4">
-          <ServiceDirectory onChoose={service => setActiveWorkflow(service)} />
-          <section className="allgo-unavailable"><h2 className="font-bold">Combined journeys</h2><p>Currently unavailable while partner fulfillment and tracking are completed.</p></section>
-        </div>}
+        {currentTab === 'services' && activeWorkflow === 'none' && (showMoversInfo
+          ? <PlannedMoversScreen onBack={() => setShowMoversInfo(false)} onSupport={() => { setTicketSubject('Packers and movers availability'); setTicketMessage('Please let me know when AllGo packers and movers becomes available.'); setCurrentTab('support'); setShowMoversInfo(false); }} />
+          : <div className="space-y-4"><ServiceDirectory onChoose={service => setActiveWorkflow(service)} onMoversInfo={() => setShowMoversInfo(true)} /><section className="allgo-unavailable"><h2 className="font-bold">Combined journeys</h2><p>Currently unavailable while partner fulfillment and tracking are completed.</p></section></div>)}
 
         {currentTab === 'home' && activeWorkflow === 'none' && (
           <div className="allgo-home animate-fadeIn">
