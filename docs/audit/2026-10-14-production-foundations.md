@@ -362,6 +362,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   refuses a quote until both locations are selected. `npm test` (**175 passed,
   0 failed**) covers these entry requirements; responsive visual QA remains
   pending.
+- TASK-58: ride customers can now swap pickup and drop-off after both locations
+  are selected. The control preserves the selected location objects/place IDs,
+  remounts the inputs with the reversed values and stays disabled for incomplete
+  routes. `npm run lint`, `npm test` (**176 passed, 0 failed**), `npm run build`
+  and scoped `git diff --check` passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

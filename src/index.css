@@ -442,6 +442,8 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .ride-recent-empty { margin: 0; padding: 14px; border: 1px dashed #d9dfeb; border-radius: 15px; color: #68738b; background: #f7f9fd; font-size: 12px; line-height: 1.5; }
 .ride-booking-screen form { display: grid; gap: 12px; }
 .ride-route-fields { position: relative; display: grid; gap: 10px; }
+.ride-route-swap { position: absolute; z-index: 1; top: 50%; left: 11px; display: grid; width: 34px; height: 34px; place-items: center; transform: translateY(-50%); border: 1px solid #dce2f1; border-radius: 50%; background: #fff; color: #4f42a8; box-shadow: 0 2px 7px #2222; }
+.ride-route-swap:disabled { opacity: .5; }
 .ride-location-picker { position: relative; z-index: 1; margin: 0; padding: 13px; border-color: #e0e5ef; border-radius: 17px; box-shadow: 0 4px 16px #20355b08; }
 .ride-location-picker:focus-within { border-color: #6481d0; box-shadow: 0 0 0 3px #4164c81f; }
 .ride-location-picker label { color: #353d50; font-size: 13px; }
