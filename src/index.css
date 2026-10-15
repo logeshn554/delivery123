@@ -274,6 +274,9 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .checkout-grocery-delivery-options span { display: grid; gap: 3px; }
 .checkout-grocery-delivery-options strong { font-size: 12px; }
 .checkout-grocery-delivery-options small, .checkout-grocery-delivery-options > p { margin: 0; color: var(--allgo-muted); font-size: 11px; line-height: 1.4; }
+.grocery-tracking-picking { display: grid; gap: 4px; border: 1px solid var(--allgo-border); border-radius: 14px; background: var(--allgo-surface); padding: 12px; color: var(--allgo-ink); }
+.grocery-tracking-picking strong { font-size: 13px; }
+.grocery-tracking-picking p, .grocery-tracking-picking small { margin: 0; color: var(--allgo-muted); font-size: 11px; line-height: 1.4; }
 .checkout-cancellation-policy h2 { margin: 0 0 7px; font-size: 14px; }
 .checkout-cancellation-policy p { margin: 0; color: var(--allgo-muted); font-size: 12px; line-height: 1.5; }
 .checkout-cancellation-policy a { color: var(--allgo-brand); font-weight: 700; text-decoration: underline; }

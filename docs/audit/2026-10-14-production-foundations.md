@@ -264,6 +264,14 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   the current API has no slot reservation contract. `npm run lint`, `npm test`
   (**154 passed, 0 failed**), `npm run build` and `git diff --check` passed.
   Responsive visual and physical-device QA remain pending.
+- TASK-43: grocery tracking now uses grocery-specific milestones and a confirmed
+  packed-line count. It surfaces the assigned delivery partner using existing
+  booking data and shows a decreasing arrival estimate only while a fresh route
+  to drop-off is available. Picker notes are explicitly unavailable because
+  the backend has no customer-facing note field. Automated status, packed-line,
+  and display-condition checks pass. `npm run lint`, `npm test` (**157 passed,
+  0 failed**), `npm run build` and `git diff --check` passed. Responsive visual
+  and physical-device QA remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

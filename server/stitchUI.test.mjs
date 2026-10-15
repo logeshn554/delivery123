@@ -280,6 +280,17 @@ test('food tracking maps canonical booking states to restaurant-specific milesto
   assert.match(tracking,/isFood \? foodStage : stage/);
   assert.match(tracking,/isFreshTrackingTimestamp/);
 });
+test('grocery tracking reflects packing and only shows a fresh route-based arrival estimate',()=>{
+  const tracking=readFileSync(new URL('../src/components/OrderTrackingScreen.tsx',import.meta.url),'utf8');
+  const helper=readFileSync(new URL('../src/design-system/groceryTracking.ts',import.meta.url),'utf8');
+  assert.match(helper,/GROCERY_TRACKING_STAGES = \[/);
+  assert.match(helper,/'Picking items'/);
+  assert.match(tracking,/Store packing update/);
+  assert.match(tracking,/Picker notes are not available for this order/);
+  assert.match(tracking,/Estimated arrival in about \$\{groceryArrivalMinutes\} min/);
+  assert.match(tracking,/isGrocery && freshRoute && route\?\.destination === 'drop'/);
+  assert.match(tracking,/booking\.driverName \|\| \(isRide \? 'Your driver' : 'Your delivery partner'\)/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));

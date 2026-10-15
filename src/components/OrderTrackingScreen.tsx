@@ -9,6 +9,7 @@ import { listenToBookingTracking, getTrackingRoute, type BookingTracking } from 
 import { getParcelTrackingPresentation } from '../design-system/parcelTracking';
 import { isFreshTrackingRoute, isFreshTrackingTimestamp } from '../design-system/trackingFreshness';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
+import { getGroceryPickingProgress, getGroceryTrackingStage, GROCERY_TRACKING_STAGES } from '../design-system/groceryTracking';
 
 export default function OrderTrackingScreen({ booking, onChat }: { booking: Booking; onChat: () => void }) {
   const authority = bookingAuthorityCapabilities(booking);
@@ -62,8 +63,10 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const isRide = booking.serviceType === 'ride';
   const isParcel = booking.serviceType === 'parcel';
   const isFood = booking.serviceType === 'food';
+  const isGrocery = booking.serviceType === 'grocery';
   const stage = complete ? 3 : booking.status === 'transit' ? 2 : ['accepted', 'preparing', 'ready'].includes(booking.status) ? 1 : 0;
   const foodStage = complete ? 4 : booking.status === 'transit' ? 3 : ['preparing', 'ready'].includes(booking.status) ? 2 : booking.status === 'accepted' ? 1 : 0;
+  const groceryStage = getGroceryTrackingStage(booking.status);
   const cancelled = booking.status === 'cancelled';
   const isCod = booking.paymentMethod === 'cash' || booking.paymentStatus === 'pending_cod';
   
@@ -72,12 +75,14 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const PartnerVehicleIcon = vehicleType === 'bike' ? Bike : vehicleType === 'car' ? Car : vehicleType === 'auto' ? Truck : booking.serviceType === 'parcel' ? Package : Bike;
   
   const parcelTracking = isParcel ? getParcelTrackingPresentation(booking.status) : null;
-  const trackingStages = isRide ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] : isParcel ? parcelTracking!.steps : isFood ? ['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'] : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
+  const trackingStages = isRide ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] : isParcel ? parcelTracking!.steps : isFood ? ['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'] : isGrocery ? GROCERY_TRACKING_STAGES : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
   const foodStatusTitle = cancelled ? 'Food order cancelled' : complete ? 'Your order has arrived' : booking.status === 'transit' ? 'Your order is out for delivery' : booking.status === 'ready' ? 'Your order is ready for pickup' : booking.status === 'preparing' ? 'The restaurant is preparing your order' : booking.status === 'accepted' ? 'The restaurant confirmed your order' : 'Your order was placed';
+  const groceryStatusTitle = cancelled ? 'Grocery order cancelled' : complete ? 'Your groceries have arrived' : booking.status === 'transit' ? 'Your groceries are on the way' : booking.status === 'ready' ? 'Your groceries are ready for pickup' : booking.status === 'preparing' ? 'The store is picking your items' : booking.status === 'accepted' ? 'The store confirmed your order' : 'Your grocery order was placed';
   const serviceStatusTitle = isRide 
     ? (cancelled ? 'Ride cancelled' : complete ? 'Ride complete' : stage === 2 ? 'Your ride is in progress' : stage === 1 ? 'Your driver has accepted' : 'Finding a driver') 
     : isParcel ? parcelTracking!.title 
     : isFood ? foodStatusTitle
+    : isGrocery ? groceryStatusTitle
     : cancelled ? 'Booking cancelled' 
     : complete ? 'Delivered! Enjoy your order.' 
     : stage === 2 ? 'Your partner is on the way' 
@@ -87,6 +92,9 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   const lat = driver?.currentLat, lng = driver?.currentLng;
   const fresh = !!driver && driver.driverId === booking.driverId && isFreshTrackingTimestamp(driver.locationUpdatedAt, now);
   const freshRoute = !!route && isFreshTrackingRoute(route, now);
+  const groceryArrivalMinutes = isGrocery && freshRoute && route?.destination === 'drop'
+    ? Math.max(0, route.estimatedMinutes - Math.floor((now - Date.parse(route.calculatedAt)) / 60000))
+    : null;
   const lastPositionTimestamp = driver ? Date.parse(driver.locationUpdatedAt) : Number.NaN;
   const coordinates = fresh && typeof lat === 'number' && Number.isFinite(lat) && Math.abs(lat) <= 90 && typeof lng === 'number' && Number.isFinite(lng) && Math.abs(lng) <= 180;
   const bbox = coordinates ? [lng! - .01, lat! - .01, lng! + .01, lat! + .01].join(',') : '';
@@ -94,10 +102,15 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
   return (
     <section className={`tracking-screen${isRide ? ' ride-tracking-screen' : ''}`}>
       {/* Store picking status for groceries */}
-      {booking.serviceType === 'grocery' && booking.picking && (
-        <p role="status" className="rounded-xl border bg-white p-3 text-sm">
-          Store picking: {booking.details?.items?.filter((item, index) => booking.picking?.lines[String(index)]?.itemId === item.id && booking.picking.lines[String(index)].quantity === item.quantity).length || 0} of {booking.details?.items?.length || 0} order lines fully packed.
-        </p>
+      {isGrocery && (
+        <aside role="status" className="grocery-tracking-picking">
+          <strong>Store packing update</strong>
+          {(() => {
+            const progress = getGroceryPickingProgress(booking);
+            return <p>{progress.total ? `${progress.packed} of ${progress.total} order lines fully packed.` : 'Packing details have not been shared yet.'}</p>;
+          })()}
+          <small>Picker notes are not available for this order.</small>
+        </aside>
       )}
 
       {/* Booking exception resolution banner */}
@@ -188,8 +201,8 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
       {!cancelled && (
         <ol className="tracking-steps">
           {trackingStages.map((label, index) => (
-            <li key={label} className={index <= (isFood ? foodStage : stage) ? 'done' : ''}>
-              <span>{index <= (isFood ? foodStage : stage) ? <Check size={13} /> : index + 1}</span>
+            <li key={label} className={index <= (isGrocery ? groceryStage : isFood ? foodStage : stage) ? 'done' : ''}>
+              <span>{index <= (isGrocery ? groceryStage : isFood ? foodStage : stage) ? <Check size={13} /> : index + 1}</span>
               <small>{label}</small>
             </li>
           ))}
@@ -311,7 +324,9 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
 
       {fresh && freshRoute && route && (
         <p className="page-caption text-[11px] text-slate-400">
-          Estimated travel to {route.destination === 'pickup' ? 'pickup' : 'drop-off'}: {route.estimatedMinutes} minutes · {(route.distanceMeters / 1000).toFixed(1)} km.
+          {isGrocery && route.destination === 'drop'
+            ? `Estimated arrival in about ${groceryArrivalMinutes} min. This live route estimate can change.`
+            : `Estimated travel to ${route.destination === 'pickup' ? 'pickup' : 'drop-off'}: ${route.estimatedMinutes} minutes · ${(route.distanceMeters / 1000).toFixed(1)} km.`}
         </p>
       )}
 
