@@ -326,6 +326,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   included. `npm run lint`, `npm test` (**169 passed, 0 failed**),
   `npm run build` and `git diff --check` passed. Responsive visual QA remains
   pending.
+- TASK-52: parcel review now offers online, wallet and COD payment choices,
+  disables wallet when the current balance is below the quoted fare, and
+  disables COD above ₹2,000. The selected method flows into existing checkout
+  handlers; confirmation continues to use the recorded payment result and
+  tracking action. `npm run lint`, `npm test` (**170 passed, 0 failed**),
+  `npm run build` and scoped `git diff --check` passed. Responsive visual QA
+  remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

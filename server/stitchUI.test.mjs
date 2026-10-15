@@ -370,6 +370,18 @@ test('parcel review requires a server fare breakdown and disclaims uninsured val
   assert.match(functions,/fareBreakdown: \{ \.\.\.quote\.fareBreakdown, discountCents, totalCents: quote\.amount \}/);
   assert.match(pricing,/function calculateFareBreakdown/);
 });
+test('parcel payment selection exposes only available methods and routes into existing checkout handlers',()=>{
+  const screen=readFileSync(new URL('../src/components/ParcelBookingScreen.tsx',import.meta.url),'utf8');
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  assert.match(screen,/name="parcelPaymentMethod"/);
+  assert.match(screen,/checked=\{paymentMethod==='online'\}/);
+  assert.match(screen,/walletBalance<quote\.price/);
+  assert.match(screen,/quote\.price>2000/);
+  assert.match(screen,/Place COD order/);
+  assert.match(screen,/Pay with wallet/);
+  assert.match(customer,/paymentMethod=\{paymentMethodChoice\} walletBalance=\{userProfile\?\.walletBalance \?\? 0\}/);
+  assert.match(customer,/onPaymentMethodChange=\{setPaymentMethodChoice\}/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
