@@ -279,6 +279,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   cart store/service guards remain in force. `npm run lint`, `npm test`
   (**159 passed, 0 failed**), `npm run build` and `git diff --check` passed.
   Responsive visual and physical-device QA remain pending.
+- TASK-45: parcel entry now introduces local and intercity delivery clearly and
+  lists the three latest AllGo parcel records, including completed orders. The
+  backend quote contract supports local/intercity route classes but no separate
+  same-day or express service tier, so those options are not presented as
+  available. `npm run lint`, `npm test` (**160 passed, 0 failed**),
+  `npm run build` and `git diff --check` passed. Responsive visual QA remains
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

@@ -137,7 +137,7 @@ remaining visual and functional checks are recorded.
 
 | ID | Task Name | Existing File(s) | Current State | Required Design Changes | Implementation | Visual QA | Functional QA | Next Action |
 |---|---|---|---|---|---|---|---|---|
-| **TASK-45** | Parcel entry | `src/components/ParcelBookingScreen.tsx` | Stepper screen with mode options | Express courier hero banner, mode selector (same-day / express), recent parcels | Pending | Pending | Pending | Polish parcel booking entrance |
+| **TASK-45** | Parcel entry | `src/components/ParcelBookingScreen.tsx`, `src/components/CustomerApp.tsx` | Stepper with local/intercity route modes | Clear courier hero, route coverage selector, recent AllGo parcel history including completed records | In Progress | Pending | Route-mode and recent-history regression | Backend supports local/intercity, not same-day/express service levels; visual QA remains pending |
 | **TASK-46** | Pickup address | `src/components/ParcelBookingScreen.tsx`, `src/components/LocationPicker.tsx` | Address form & search | Connected route visual, sender contact details, floor/landmark input | Pending | Pending | Pending | Polish pickup address step |
 | **TASK-47** | Drop address | `src/components/ParcelBookingScreen.tsx`, `src/components/LocationPicker.tsx` | Drop address form | Recipient address, contact phone input, delivery instructions | Pending | Pending | Pending | Polish drop address step |
 | **TASK-48** | Parcel information | `src/components/ParcelBookingScreen.tsx` | Weight, category, dimensions, fragile | Parcel type selector (documents, food, clothes, electronics), fragile toggle | Pending | Pending | Pending | Polish parcel specs step |

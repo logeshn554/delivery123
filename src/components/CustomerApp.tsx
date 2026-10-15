@@ -781,7 +781,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const latestOpenBooking = activeBookings.find((booking) => booking.recordAuthority !== 'legacy_neon' && !['completed', 'delivered', 'cancelled'].includes(booking.status));
   const recentRides = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'ride' && ['completed', 'delivered'].includes(booking.status))
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 3);
-  const currentParcels = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'parcel' && !['completed', 'delivered', 'cancelled'].includes(booking.status))
+  const currentParcels = activeBookings.filter(booking => booking.recordAuthority !== 'legacy_neon' && booking.serviceType === 'parcel')
     .sort((a, b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt)).slice(0, 3);
   const rememberGlobalSearch = (term: string) => {
     const value = term.trim();

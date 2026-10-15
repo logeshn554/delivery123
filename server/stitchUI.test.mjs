@@ -300,6 +300,15 @@ test('buy again adds only current grocery items and identifies quantities needin
   assert.match(customer,/getGroceryReorderLines\(booking, selectedStoreId, productsList\)/);
   assert.match(customer,/setCart\(current =>/);
 });
+test('parcel entry shows recent AllGo shipments and only backend-supported route modes',()=>{
+  const screen=readFileSync(new URL('../src/components/ParcelBookingScreen.tsx',import.meta.url),'utf8');
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  assert.match(screen,/Send across town or between cities/);
+  assert.match(screen,/Recent parcels/);
+  assert.match(screen,/\['local','Local delivery'\],\['intercity','Intercity delivery'\]/);
+  assert.match(customer,/booking\.serviceType === 'parcel'\)\s*\.sort/);
+  assert.match(screen,/Coverage and available rates|confirms coverage and the fare before you pay/);
+});
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
