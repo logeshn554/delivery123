@@ -268,6 +268,12 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .checkout-bill-details > summary span { display: inline-flex; align-items: center; gap: 8px; font-weight: 750; }
 .checkout-bill-details > summary strong { color: var(--allgo-brand); font-size: 13px; }
 .checkout-bill-details[open] > summary { margin-bottom: 8px; }
+.checkout-grocery-delivery-options { display: grid; gap: 8px; margin-top: 16px; border-top: 1px solid var(--allgo-border); padding-top: 12px; }
+.checkout-grocery-delivery-options label { display: flex; min-height: 48px; align-items: center; gap: 10px; color: var(--allgo-ink); }
+.checkout-grocery-delivery-options input { width: 20px; height: 20px; flex: 0 0 20px; accent-color: var(--allgo-grocery); }
+.checkout-grocery-delivery-options span { display: grid; gap: 3px; }
+.checkout-grocery-delivery-options strong { font-size: 12px; }
+.checkout-grocery-delivery-options small, .checkout-grocery-delivery-options > p { margin: 0; color: var(--allgo-muted); font-size: 11px; line-height: 1.4; }
 .checkout-cancellation-policy h2 { margin: 0 0 7px; font-size: 14px; }
 .checkout-cancellation-policy p { margin: 0; color: var(--allgo-muted); font-size: 12px; line-height: 1.5; }
 .checkout-cancellation-policy a { color: var(--allgo-brand); font-weight: 700; text-decoration: underline; }

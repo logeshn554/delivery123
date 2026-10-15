@@ -19,10 +19,12 @@ export default function CheckoutReviewScreen({
   quoteError,
   paymentMethod = wallet ? 'wallet' : 'online',
   walletBalance = 0,
+  contactlessDelivery = false,
   onBack,
   onAddress,
   onConfirm,
   onSelectPaymentMethod,
+  onContactlessChange,
 }: {
   service: 'food' | 'grocery';
   partner: string;
@@ -40,10 +42,12 @@ export default function CheckoutReviewScreen({
   quoteError?: string;
   paymentMethod?: PaymentMethodOption;
   walletBalance?: number;
+  contactlessDelivery?: boolean;
   onBack: () => void;
   onAddress: () => void;
   onConfirm: () => void;
   onSelectPaymentMethod?: (method: PaymentMethodOption) => void;
+  onContactlessChange?: (requested: boolean) => void;
 }) {
   const currency = (cents: number) =>
     `₹${(cents / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -141,10 +145,11 @@ export default function CheckoutReviewScreen({
         <p>{address || 'Choose a delivery address'}</p>
         {notes && (
           <>
-            <h2 className="mt-4">Your instructions</h2>
+            <h2 className="mt-4">{service === 'grocery' ? 'Grocery delivery instructions' : 'Your instructions'}</h2>
             <p className="whitespace-pre-wrap">{notes}</p>
           </>
         )}
+        {service === 'grocery' && <div className="checkout-grocery-delivery-options"><label><input type="checkbox" checked={contactlessDelivery} disabled={busy} onChange={event => onContactlessChange?.(event.target.checked)}/><span><strong>Request contactless handoff</strong><small>This is a delivery preference, not a guarantee. The partner may need to contact you.</small></span></label><p>Scheduled delivery slots are not provided by this store in checkout.</p></div>}
       </article>
 
       {/* Price Breakdown */}

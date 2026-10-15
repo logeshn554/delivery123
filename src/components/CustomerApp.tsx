@@ -62,6 +62,7 @@ import { BundleTrackingScreen } from './BundleTrackingScreen';
 import { CatalogState } from '../design-system/CatalogState';
 import { CatalogImage } from '../design-system/CatalogImage';
 import { filterGroceryProducts, getGroceryCatalogView, hasGroceryCartConflicts } from '../design-system/groceryCatalog';
+import { buildCheckoutNotes, MAX_CONTACTLESS_INSTRUCTIONS_LENGTH, MAX_ORDER_NOTES_LENGTH } from '../design-system/checkoutNotes';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 
 
@@ -286,6 +287,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     return cartService === 'food' ? listenToMenuItems(cartSourceId, loaded, failed) : listenToGroceryProducts(cartSourceId, loaded, failed);
   }, [cartSourceId, cartService, catalogRetry]);
   const [orderNotes, setOrderNotes] = useState(() => { try { return localStorage.getItem(`allgo-order-notes-${userId}`) || ''; } catch { return ''; } });
+  const [contactlessDelivery, setContactlessDelivery] = useState(false);
   useEffect(() => { try { localStorage.setItem(`allgo-order-notes-${userId}`, orderNotes); } catch {} }, [orderNotes,userId]);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -307,14 +309,16 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [couponError, setCouponError] = useState('');
   const [couponBusy, setCouponBusy] = useState(false);
   const couponRevision = useRef(0);
+  const contactlessNotesTooLong = contactlessDelivery && orderNotes.trim().length > MAX_CONTACTLESS_INSTRUCTIONS_LENGTH;
   useEffect(() => {
     setCartQuote(null); setCartQuoteError('');
     if (!showCheckoutReview || !cartService || !cart.length || !deliveryAddress.trim()) return;
+    if (contactlessDelivery && orderNotes.trim().length > MAX_CONTACTLESS_INSTRUCTIONS_LENGTH) { setCartQuoteBusy(false); setCartQuoteError('Shorten delivery instructions to leave room for the contactless request.'); return; }
     let active = true; setCartQuoteBusy(true);
-    const details = { restaurantId: cartService === 'food' ? cartSourceId : undefined, storeId: cartService === 'grocery' ? cartSourceId : undefined, notes: orderNotes.trim(), items: cart.map(line => ({ id: line.item.id, quantity: line.quantity, ...(line.variant ? { variantId: line.variant.id } : {}) })) };
+    const details = { restaurantId: cartService === 'food' ? cartSourceId : undefined, storeId: cartService === 'grocery' ? cartSourceId : undefined, notes: buildCheckoutNotes(orderNotes, cartService === 'grocery' && contactlessDelivery), items: cart.map(line => ({ id: line.item.id, quantity: line.quantity, ...(line.variant ? { variantId: line.variant.id } : {}) })) };
     void getCartQuote({ serviceType: cartService, pickupAddress: deliveryAddress, details }, coupon?.code).then(quote => { if (active) setCartQuote(quote); }).catch(error => { if (active) setCartQuoteError(error instanceof Error ? error.message : 'Could not confirm delivery coverage and charges.'); }).finally(() => { if (active) setCartQuoteBusy(false); });
     return () => { active = false; };
-  }, [showCheckoutReview, cartService, cart, cartSourceId, deliveryAddress, coupon?.code, orderNotes]);
+  }, [showCheckoutReview, cartService, cart, cartSourceId, deliveryAddress, coupon?.code, orderNotes, contactlessDelivery]);
   const walletRequest = useRef({ fingerprint: '', id: '' });
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [preferences, setPreferences] = useState(userProfile?.preferences || { orderUpdates: true, promotions: false, language: 'en' as const });
@@ -673,6 +677,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
   const handleCartCheckout = () => {
     if (!cartService || !cart.length || cartCatalogLoading || cartCatalogError) return;
+    if (cartService === 'grocery' && contactlessNotesTooLong) { alert('Shorten delivery instructions to leave room for the contactless request.'); return; }
     if (cartService === 'food') {
       const restaurantId = (cart[0].item as MenuItem).restaurantId;
       const restaurant = restaurantsList.find((entry) => entry.id === restaurantId);
@@ -698,7 +703,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         restaurantId,
         restaurantName: restaurant.name,
         items,
-        notes: orderNotes.trim()
+        notes: buildCheckoutNotes(orderNotes, false)
       });
       return;
     }
@@ -718,7 +723,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     void handleCheckout('grocery', quotePrice, {
       storeId,
       items,
-      notes: orderNotes.trim()
+      notes: buildCheckoutNotes(orderNotes, cartService === 'grocery' && contactlessDelivery)
     });
   };
 
@@ -1122,7 +1127,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                   })}</div>
                 </div>
                 <button onClick={() => setShowAddressModal(true)} className="w-full rounded-2xl border border-slate-100 bg-white p-4 text-left"><span className="flex items-center justify-between"><span className="flex items-center gap-2 text-xs font-extrabold text-slate-800"><MapPin size={16} className="text-indigo-600" /> Deliver to</span><span className="text-[11px] font-bold text-indigo-600">Change</span></span><p className="mt-2 pl-6 text-xs text-slate-600">{deliveryAddress || detectedAddress || 'Add a delivery address'}</p></button>
-                <label className="block rounded-2xl border border-slate-100 bg-white p-4"><span className="text-xs font-extrabold text-slate-800">Delivery instructions <span className="font-normal text-slate-400">(optional)</span></span><textarea name="deliveryInstructions" autoComplete="off" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value.slice(0, 500))} maxLength={500} rows={3} placeholder="Door, floor, gate code, or preparation notes…" className="mt-2 w-full resize-none rounded-xl border border-slate-200 p-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/><span className="mt-1 block text-right text-[10px] text-slate-500">{orderNotes.length}/500</span></label>
+                <label className="block rounded-2xl border border-slate-100 bg-white p-4"><span className="text-xs font-extrabold text-slate-800">{cartService === 'grocery' ? 'Grocery delivery instructions' : 'Delivery instructions'} <span className="font-normal text-slate-400">(optional)</span></span><textarea name="deliveryInstructions" autoComplete="off" value={orderNotes} onChange={(event) => setOrderNotes(event.target.value.slice(0, contactlessDelivery ? MAX_CONTACTLESS_INSTRUCTIONS_LENGTH : MAX_ORDER_NOTES_LENGTH))} maxLength={contactlessDelivery ? MAX_CONTACTLESS_INSTRUCTIONS_LENGTH : MAX_ORDER_NOTES_LENGTH} rows={3} placeholder={cartService === 'grocery' ? 'Gate, floor or handoff instructions' : 'Door, floor, gate code, or preparation notes'} className="mt-2 w-full resize-none rounded-xl border border-slate-200 p-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"/><span className="mt-1 block text-right text-[10px] text-slate-500">{orderNotes.length}/{contactlessDelivery ? MAX_CONTACTLESS_INSTRUCTIONS_LENGTH : MAX_ORDER_NOTES_LENGTH}</span></label>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4"><div className="flex items-center gap-2 text-xs font-extrabold text-slate-800"><CreditCard size={16} className="text-indigo-600" /> Secure online payment</div><div className="mt-3 flex items-center justify-between rounded-xl bg-indigo-50 p-3"><span className="text-xs font-bold text-indigo-800">UPI · cards · net banking · wallets</span><Shield size={17} className="text-indigo-600" /></div><p className="mt-2 text-[10px] text-slate-500">Choose an available payment method in Razorpay Checkout. AllGo confirms your order only after payment verification.</p></div>
                 <div className="rounded-2xl border bg-white p-4"><label className="text-xs font-bold">Offer code<input value={couponCode} maxLength={40} disabled={couponBusy || paymentBusy} onChange={event => { setCouponCode(event.target.value.toUpperCase()); setCoupon(null); }} className="mt-2 w-full rounded-lg border p-3" /></label><button disabled={couponBusy || paymentBusy || !couponCode.trim()} onClick={() => void applyCartOffer()} className="min-h-11 text-xs font-bold text-indigo-700">{couponBusy ? 'Checking offer…' : 'Apply offer'}</button>{coupon && <p className="text-xs text-emerald-700">{coupon.code} · ₹{coupon.discountCents / 100} discount</p>}{couponError && <p role="alert" className="auth-error">{couponError}</p>}</div>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Price summary</h4><div className="mt-3 flex justify-between text-xs text-slate-600"><span>Items ({cart.reduce((sum, line) => sum + line.quantity, 0)})</span><span>₹{getCartTotal()}</span></div><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-sm font-black text-slate-900"><span>Item subtotal after discount</span><span>₹{getCartTotal() - (coupon?.discountCents || 0) / 100}</span></div><p className="mt-2 text-[10px] text-slate-500">Delivery, packaging, platform fees and tax are excluded from this subtotal. Review the complete server quote on the next screen before authorizing payment.</p></div>
@@ -1248,7 +1253,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       </div>
 
       {catalogPage && <CatalogDetails key={catalogPage.kind+catalogPage.id} kind={catalogPage.kind} partner={catalogPage.kind === 'restaurant' || catalogPage.kind === 'dish' ? selectedRestaurant || restaurantsList.find(item => item.id === catalogPage.id) : groceryStoresList.find(item => item.id === selectedStoreId)} item={catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : catalogPage.kind === 'product' ? productsList.find(item => item.id === catalogPage.id) : undefined} saved={favoriteCatalogIds.includes((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onSave={() => toggleFavorite((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onBack={() => setCatalogPage(null)} quantityInCart={variantId => cart.find(line => line.item.id === catalogPage.id && line.variant?.id === variantId)?.quantity || 0} onBrowse={() => setCatalogPage(null)} onAdd={(quantity,variant) => { const item = catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : productsList.find(item => item.id === catalogPage.id); if (!item) return false; return handleAddToCart(item,catalogPage.kind === 'dish' ? 'food' : 'grocery',variant,quantity); }} />}
-      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || ''} address={deliveryAddress} notes={orderNotes} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} paymentMethod={paymentMethodChoice} walletBalance={userProfile?.walletBalance ?? 0} onSelectPaymentMethod={setPaymentMethodChoice} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
+      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || ''} address={deliveryAddress} notes={orderNotes} contactlessDelivery={contactlessDelivery} onContactlessChange={setContactlessDelivery} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} paymentMethod={paymentMethodChoice} walletBalance={userProfile?.walletBalance ?? 0} onSelectPaymentMethod={setPaymentMethodChoice} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
       {successBookingId && <OrderConfirmationScreen bookingId={successBookingId} cashOnDelivery={successCashOnDelivery} onTrack={() => setSuccessBookingId(null)} onContinue={() => { setSuccessBookingId(null); setSelectedOrderId(null); setCurrentTab('home'); setActiveWorkflow('none'); }} />}
 
       {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}

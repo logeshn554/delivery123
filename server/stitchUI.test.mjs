@@ -236,6 +236,15 @@ test('checkout review keeps total payable visible, makes bill details collapsibl
   assert.match(review,/Payment method/);
   assert.match(styles,/\.checkout-bill-details > summary/);
 });
+test('grocery checkout exposes a clearly non-guaranteed contactless request without fake time slots',()=>{
+  const review=readFileSync(new URL('../src/components/CheckoutReviewScreen.tsx',import.meta.url),'utf8');
+  const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  assert.match(review, /service === 'grocery' && <div className="checkout-grocery-delivery-options">/);
+  assert.match(review,/Request contactless handoff/);
+  assert.match(review,/delivery preference, not a guarantee/);
+  assert.match(review,/Scheduled delivery slots are not provided by this store in checkout/);
+  assert.match(customer,/buildCheckoutNotes\(orderNotes, cartService === 'grocery' && contactlessDelivery\)/);
+});
 test('order confirmation separates verified payment from COD and routes to tracking',()=>{
   const paid=renderToStaticMarkup(createElement(OrderConfirmationScreen,{bookingId:'order-123',cashOnDelivery:false,onTrack:noop,onContinue:noop}));
   const cod=renderToStaticMarkup(createElement(OrderConfirmationScreen,{bookingId:'order-456',cashOnDelivery:true,onTrack:noop,onContinue:noop}));

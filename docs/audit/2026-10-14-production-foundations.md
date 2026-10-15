@@ -257,6 +257,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   No free-delivery bar was added because no such threshold is supplied by the
   pricing contract. `npm run lint`, `npm test` (**153 passed, 0 failed**),
   `npm run build` and `git diff --check` passed. Physical-device QA remains pending.
+- TASK-42: grocery checkout now accepts store-specific handoff instructions and
+  an optional contactless preference, recorded through the existing order notes
+  field within its 500-character limit. The preference is explicitly not
+  guaranteed. Checkout says scheduled delivery slots are unavailable because
+  the current API has no slot reservation contract. `npm run lint`, `npm test`
+  (**154 passed, 0 failed**), `npm run build` and `git diff --check` passed.
+  Responsive visual and physical-device QA remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
