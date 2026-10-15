@@ -45,7 +45,7 @@ function bundleChatFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       const now = Date.now(), bucket = Math.floor(now / 60000), previous = quota.data() || {};
       const count = previous.bucket === bucket ? previous.count : 0;
       if (count >= 10 || now - (previous.lastSentAt || 0) < 1500) throw new HttpsError('resource-exhausted', 'Please wait before sending another message.');
-      tx.create(ref, { senderId: uid, senderName: typeof account.data().name === 'string' ? account.data().name.slice(0, 80) : 'Journey participant', text, timestamp: new Date(now).toISOString() });
+      tx.create(ref, { senderId: uid, senderName: typeof account.data().name === 'string' ? account.data().name.slice(0, 80) : 'Journey participant', senderRole: account.data().role, text, timestamp: new Date(now).toISOString() });
       tx.set(rate, { bucket, count: count + 1, lastSentAt: now, expiresAt: Timestamp.fromMillis(now + 120000) });
       return { messageId, status: 'sent' };
     });

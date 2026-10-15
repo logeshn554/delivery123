@@ -29,7 +29,15 @@ function CaseHistory({ id, kind, revision }: { id: string; kind: 'messages' | 'e
     finally { if (generation.current === version) setBusy(false); }
   };
   return <section className="space-y-2"><h4 className="font-bold">{kind === 'messages' ? 'Replies' : 'Case history'}</h4>
-    {records.map(record => <article className="rounded border p-2" key={record.id}><strong>{record.actorRole === 'staff' ? 'AllGo support' : 'Customer'}{kind === 'events' ? ` · ${String(record.action || '')}` : ''}</strong><p className="whitespace-pre-wrap">{String(record.text || record.reason || '')}</p><small>{new Date(String(record.createdAt)).toLocaleString()}</small></article>)}
+    {records.map(record => {
+      const createdAt = typeof record.createdAt === 'string' ? new Date(record.createdAt) : null;
+      const timestamp = createdAt && Number.isFinite(createdAt.getTime()) ? createdAt.toLocaleString() : 'Time unavailable';
+      const staffReply = record.actorRole === 'staff';
+      return <article className={`max-w-[92%] rounded-2xl border p-3 ${staffReply ? 'bg-indigo-50' : 'ml-auto bg-white'}`} key={record.id}>
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><strong>{staffReply ? 'AllGo support · Staff' : 'You · Customer'}{kind === 'events' ? ` · ${String(record.action || '')}` : ''}</strong><time className="text-[10px] text-slate-500" dateTime={typeof record.createdAt === 'string' ? record.createdAt : undefined}>{timestamp}</time></div>
+        <p className="whitespace-pre-wrap break-words">{String(record.text || record.reason || '')}</p>
+      </article>;
+    })}
     {busy && <p role="status">Loading…</p>}{error && <p role="alert">{error}</p>}{more && <button type="button" disabled={busy} className="rounded border p-2" onClick={() => void older()}>Load older {kind}</button>}
   </section>;
 }
@@ -58,6 +66,7 @@ export default function SupportCasePanel({ ticketId, staff = false }: { ticketId
       {ticket.resolution && <p className="rounded bg-emerald-50 p-2">Resolution: {ticket.resolution}</p>}
       <CaseHistory id={ticketId} kind="messages" revision={String(ticket.messageRevision || 0)}/>
       <CaseHistory id={ticketId} kind="events" revision={String(ticket.revision || 0)}/>
+      <p className="text-slate-600">Case replies are text-only. Attachments are not supported for this case.</p>
       {ticket.status !== 'resolved' && <><label className="block">Reply<textarea maxLength={2000} disabled={busy} value={text} onChange={event => setText(event.target.value)} className="mt-1 w-full rounded border p-2"/></label><button type="button" disabled={busy || !text.trim()} className="rounded bg-indigo-600 p-3 text-white" onClick={() => void perform('postSupportMessage', { text: text.trim() })}>Send reply</button></>}
       <label className="block">Case update reason<textarea maxLength={1000} disabled={busy} value={reason} onChange={event => setReason(event.target.value)} className="mt-1 w-full rounded border p-2"/></label>
       <div className="flex flex-wrap gap-2">{(ticket.status === 'resolved' ? ['reopen'] : staff ? ['claim', 'release', 'escalate', 'resolve'] : ['escalate']).map(action => <button type="button" key={action} disabled={busy || !reason.trim()} className="rounded border p-3 capitalize" onClick={() => void perform('reviewSupportCase', { action, reason: reason.trim(), expectedRevision: ticket.revision || 0 })}>{action}</button>)}</div>

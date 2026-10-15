@@ -463,6 +463,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   `npm run lint`, `npm test` (**201 passed, 0 failed**), `npm run build` and
   scoped `git diff --check` passed. Responsive visual and native-share QA remain
   pending.
+- TASK-75: journey chat now renders participant role, sender name, message
+  bubbles and timestamps; support case history separates customer and staff
+  replies and handles malformed dates. The current backend has no private case
+  attachment flow, so the UI explicitly says replies are text-only. `npm run
+  lint`, `npm test` (**203 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Secure attachment storage and responsive visual QA
+  remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
