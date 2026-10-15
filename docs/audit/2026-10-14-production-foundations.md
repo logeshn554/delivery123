@@ -219,6 +219,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   delivery-time guarantee was added. `npm run lint`, `npm test` (**145 passed,
   0 failed**), `npm run build` and `git diff --check` passed. Physical-device QA
   remains pending.
+- TASK-35: grocery store cards now distinguish accepting, closed and unknown
+  order status, show the partner's published estimate, and explain the single-store
+  cart restriction. Store records expose no distance or delivery-fee fields, so
+  neither is presented as verified. `npm run lint`, `npm test` (**146 passed,
+  0 failed**), `npm run build` and `git diff --check` passed. Physical-device QA
+  remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

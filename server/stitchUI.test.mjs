@@ -255,6 +255,18 @@ test('grocery discovery exposes partner timing and a cart-aware store switcher',
   assert.match(styles,/\.grocery-store-switcher/);
   assert.match(styles,/@media \(max-width: 430px\) \{ \.grocery-hero/);
 });
+test('grocery store cards show only published status and timing, with a clear cart-switch warning',()=>{
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const types=readFileSync(new URL('../src/types.ts',import.meta.url),'utf8');
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+  assert.match(app,/grocery-store-status.*store\.acceptingOrders === false/);
+  assert.match(app,/aria-label=\{`Partner delivery estimate: \$\{store\.deliveryTime\}`\}/);
+  assert.match(app,/Clear it before switching partners so items are not silently moved/);
+  const storeType=types.match(/export interface GroceryStore \{([^}]+)\}/)?.[1] || '';
+  assert.doesNotMatch(storeType,/deliveryFee|distanceKm|distanceMeters/);
+  assert.match(styles,/\.grocery-store-status\.is-open/);
+  assert.match(styles,/\.grocery-store-status\.is-closed/);
+});
 test('category and profile screens retain only supplied data rather than design-example vendors or identities',()=>{
   const categories=renderToStaticMarkup(createElement(GroceryCategories,{categories:['All','Local grains'],selected:'All',onSelect:noop}));
   assert.match(categories,/Local grains/);assert.doesNotMatch(categories,/Vegetables|BigBasket|Blinkit/);

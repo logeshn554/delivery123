@@ -325,6 +325,10 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .grocery-store-address { overflow: hidden; max-width: 200px; text-overflow: ellipsis; white-space: nowrap; }
 .grocery-store-available { color: #216d43; font-weight: 700; }
 .grocery-store-closed { color: #a43e3e; font-weight: 700; }
+.grocery-store-status { width: fit-content; border-radius: 999px; padding: 3px 8px; background: #f0f2ef; color: #59645c; font-size: 10px; font-weight: 750; }
+.grocery-store-status.is-open { background: #e9f6ec; color: #216d43; }
+.grocery-store-status.is-closed { background: #fff0ef; color: #a43e3e; }
+.grocery-store-estimate { display: inline-flex; width: fit-content; align-items: center; gap: 4px; color: #536d5b; font-size: 10px; font-weight: 700; }
 .grocery-search { display: flex; min-height: 50px; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--allgo-border); border-radius: 16px; background: var(--allgo-surface); color: #6c756e; }
 .grocery-search:focus-within { border-color: var(--allgo-grocery); box-shadow: 0 0 0 3px #20835a22; }
 .grocery-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--allgo-ink); font-size: 16px; }
