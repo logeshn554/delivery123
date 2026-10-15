@@ -367,6 +367,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   remounts the inputs with the reversed values and stays disabled for incomplete
   routes. `npm run lint`, `npm test` (**176 passed, 0 failed**), `npm run build`
   and scoped `git diff --check` passed. Responsive visual QA remains pending.
+- TASK-59: the vehicle selector now states that only motorbikes and cars are
+  supported and explains that assignment depends on approved carrier fit. The
+  flow still requires registration, make/model, weight, dimensions and owner
+  authorization; the server remains authoritative for carrier matching. `npm
+  run lint`, `npm test` (**177 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

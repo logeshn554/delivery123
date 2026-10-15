@@ -12,6 +12,7 @@ import GroceryCategories from '../src/design-system/GroceryCategories.tsx';
 import OffersScreen from '../src/components/OffersScreen.tsx';
 import ProfileScreen from '../src/components/ProfileScreen.tsx';
 import RideOptions from '../src/design-system/RideOptions.tsx';
+import VehicleClassPicker from '../src/design-system/VehicleClassPicker.tsx';
 import { customerDestination } from '../src/app/customerNavigation.ts';
 const noop=()=>{};
 test('customer, sign-in and partner screens share semantic surfaces and brand tokens',()=>{
@@ -420,6 +421,19 @@ test('ride route swap keeps selected location objects paired with their address 
   assert.match(screen,/const nextPickup = dropLocation, nextDrop = pickupLocation/);
   assert.match(screen,/setPickupLocation\(nextPickup\); setDropLocation\(nextDrop\)/);
   assert.match(screen,/setRouteRevision\(value => value \+ 1\)/);
+});
+test('vehicle transport explains supported classes and requires physical vehicle details',()=>{
+  const html=renderToStaticMarkup(createElement(VehicleClassPicker,{value:'car',onChange:noop}));
+  const screen=readFileSync(new URL('../src/components/TransportBookingScreen.tsx',import.meta.url),'utf8');
+  const policy=readFileSync(new URL('../functions/transportPolicy.js',import.meta.url),'utf8');
+  assert.match(html,/supports motorbikes and cars/);
+  assert.match(html,/value="bike"/);
+  assert.match(html,/value="car"/);
+  assert.doesNotMatch(html,/SUV/);
+  assert.match(screen,/Vehicle weight in kg/);
+  assert.match(screen,/Registration number/);
+  assert.match(screen,/ownershipConfirmed: consent/);
+  assert.match(policy,/supportedVehicleTypes\.includes\(details\.transportVehicleType\)/);
 });
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};

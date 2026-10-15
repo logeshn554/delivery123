@@ -21,6 +21,7 @@
 .allgo-customer :is(.bg-indigo-600,.bg-purple-600) { background: var(--allgo-brand); color: white; }
 .allgo-customer :is(.bg-indigo-50,.bg-purple-50) { background: var(--stitch-soft); }
 .transport-class-picker { display: grid; gap: 12px; }
+.transport-class-help { margin: 0; color: var(--allgo-muted); font-size: 11px; line-height: 1.5; }
 .transport-class-picker legend { margin-bottom: 12px; font-size: 16px; font-weight: 750; }
 .transport-type-card { display: flex !important; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--allgo-border); border-radius: 18px; background: var(--allgo-surface); cursor: pointer; }
 .transport-type-card:has(input:checked) { border-color: var(--allgo-brand); background: var(--stitch-soft); }
