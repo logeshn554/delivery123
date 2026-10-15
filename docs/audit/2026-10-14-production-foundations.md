@@ -456,6 +456,13 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   `npm test` (**198 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Payment provider/emulator integration and responsive
   visual QA remain pending.
+- TASK-74: cross-service receipt summaries now use recorded item and pricing
+  data, identify recorded tax versus missing detail, print only the selected
+  receipt and share through the device or copy the text when available. Legacy
+  records remain marked unverified; receipts do not claim tax-invoice status.
+  `npm run lint`, `npm test` (**201 passed, 0 failed**), `npm run build` and
+  scoped `git diff --check` passed. Responsive visual and native-share QA remain
+  pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
