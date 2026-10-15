@@ -263,6 +263,7 @@ test('food tracking maps canonical booking states to restaurant-specific milesto
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};
   const render=(stock,quantity)=>renderToStaticMarkup(createElement(GroceryProductCard,{product:{...product,stock},quantity,closed:false,saved:false,onSave:noop,onDetails:noop,onAdd:noop,onRemove:noop}));
+  const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
   for(const stock of [0,NaN,-1]) assert.match(render(stock,0),/disabled="">Unavailable/);
   assert.match(render(2,2),/aria-label="Add one Product" disabled=""/);
   const available=render(5,0);
@@ -270,6 +271,11 @@ test('grocery redesign keeps zero and invalid stock unavailable and caps quantit
   assert.match(available,/grocery-unit-pill">1 kg/);
   assert.match(available,/grocery-product-price">₹30/);
   assert.doesNotMatch(available,/<del|MRP/i);
+  assert.match(render(1,1),/Maximum available quantity reached \(1\)/);
+  assert.match(render(40,30),/Maximum 30 per item reached/);
+  assert.match(styles,/\.grocery-quantity button \{ width: 44px; height: 44px/);
+  assert.match(styles,/\.grocery-quantity button:active:not\(:disabled\)/);
+  assert.match(styles,/@media \(prefers-reduced-motion: reduce\) \{ \.grocery-quantity button/);
 });
 test('completed-order reviews include accessible quick feedback tags in the saved comment',()=>{
   const pages=readFileSync(new URL('../src/components/CustomerPages.tsx',import.meta.url),'utf8');

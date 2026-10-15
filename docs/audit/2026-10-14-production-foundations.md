@@ -246,6 +246,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   that missing data is not an allergen-free claim. `npm run lint`, `npm test`
   (**150 passed, 0 failed**), `npm run build` and `git diff --check` passed.
   Physical-device QA remains pending.
+- TASK-40: grocery quantity controls now keep 44px touch targets, provide a brief
+  pressed response with reduced-motion support, and explain stock/30-item limits
+  including carts exceeding current stock. `npm run lint`, `npm test` (**151
+  passed, 0 failed**), `npm run build` and `git diff --check` passed. Physical-device
+  touch QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

@@ -387,9 +387,12 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .global-search-price { flex: none; color: var(--allgo-ink); font-size: 12px; }
 .global-search-more { min-height: 40px; margin-top: 8px; padding-inline: 12px; border: 1px solid var(--allgo-border); border-radius: 10px; color: var(--allgo-primary-strong); font-weight: 700; }
 .grocery-quantity { justify-content: space-between; overflow: hidden; background: #eef7ef; }
-.grocery-quantity button { width: 44px; height: 44px; color: #286443; font-size: 20px; }
+.grocery-quantity button { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 10px; color: #286443; font-size: 20px; transition: transform .12s ease, background-color .12s ease; touch-action: manipulation; }
+.grocery-quantity button:active:not(:disabled) { transform: scale(.9); background: #d7ead9; }
 .grocery-quantity button:disabled { color: #929992; }
-.grocery-quantity span { font-size: 14px; font-weight: 800; }
+.grocery-quantity output { display: grid; min-width: 44px; min-height: 44px; place-items: center; color: #203b29; font-size: 14px; font-weight: 850; }
+.grocery-quantity-limit { margin: 5px 0 0; color: #725b21; font-size: 10px; line-height: 1.35; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .grocery-quantity button { transition: none; } .grocery-quantity button:active:not(:disabled) { transform: none; } }
 .grocery-cart-dock { position: sticky; bottom: max(8px,var(--allgo-safe-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #245e3e; border-radius: 18px; background: #203b2b; color: white; box-shadow: 0 8px 24px #14251a40; }
 .grocery-cart-dock p { margin: 2px 0 0; color: #d1e2d4; font-size: 12px; }
 .grocery-cart-dock button { min-height: var(--allgo-touch-target); padding: 0 15px; border-radius: 12px; background: #3f9460; color: white; font-size: 13px; font-weight: 750; }
