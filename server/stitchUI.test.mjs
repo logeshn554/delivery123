@@ -11,6 +11,7 @@ import GroceryProductCard from '../src/design-system/GroceryProductCard.tsx';
 import GroceryCategories from '../src/design-system/GroceryCategories.tsx';
 import OffersScreen from '../src/components/OffersScreen.tsx';
 import ProfileScreen from '../src/components/ProfileScreen.tsx';
+import RideOptions from '../src/design-system/RideOptions.tsx';
 import { customerDestination } from '../src/app/customerNavigation.ts';
 const noop=()=>{};
 test('customer, sign-in and partner screens share semantic surfaces and brand tokens',()=>{
@@ -393,6 +394,17 @@ test('parcel support opens an order-linked case with backend-supported issue cat
   assert.match(app,/\['damage','Damaged parcel'\]/);
   assert.match(support,/wrong_location/);
   assert.match(panel,/CaseHistory id=\{ticketId\} kind="messages" revision=\{String\(ticket\.messageRevision \|\| 0\)\}/);
+});
+test('ride booking uses the shared accessible Bike, Auto and Car option cards',()=>{
+  const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
+  const html=renderToStaticMarkup(createElement(RideOptions,{selected:'bike',onSelect:noop}));
+  assert.match(screen,/import RideOptions from '\.\.\/design-system\/RideOptions'/);
+  assert.match(screen,/<RideOptions selected=\{option\} disabled=\{busy\}/);
+  assert.match(html,/aria-label="Choose your ride"/);
+  assert.match(html,/A two-wheel journey/);
+  assert.match(html,/A three-wheel journey/);
+  assert.match(html,/Travel in a car/);
+  assert.match(html,/aria-pressed="true"/);
 });
 test('grocery redesign keeps zero and invalid stock unavailable and caps quantities at live stock',()=>{
   const product={id:'p',storeId:'s',name:'Product',brand:'Fresh Farm',unit:'1 kg',price:30,stock:0,category:'Fresh',image:''};

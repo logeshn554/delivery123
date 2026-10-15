@@ -352,6 +352,11 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   `npm test` (**173 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Support replies depend on operator response;
   responsive visual QA remains pending.
+- TASK-57: ride booking now uses the shared accessible Bike, Auto and Car
+  choice cards with descriptions and explicit selected state. Fare and route
+  estimates remain sourced from the quote for the selected vehicle. `npm run
+  lint`, `npm test` (**174 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
