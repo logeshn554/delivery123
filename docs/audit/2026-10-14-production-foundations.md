@@ -431,6 +431,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   cancelled or unverified legacy records. `npm run lint`, `npm test` (**190
   passed, 0 failed**), `npm run build` and scoped `git diff --check` passed.
   Responsive visual QA remains pending.
+- TASK-70: the profile now includes service-filtered order history limited to
+  completed, delivered and cancelled bookings, with dates, recorded totals,
+  order/receipt links and reorder only for food/grocery. Receipt text continues
+  to distinguish an order summary from a merchant-issued tax invoice. `npm run
+  lint`, `npm test` (**192 passed, 0 failed**), `npm run build` and scoped
+  `git diff --check` passed. Responsive visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

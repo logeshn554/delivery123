@@ -437,6 +437,18 @@ test('active order cards show a verified progress bar and a direct tracking acti
   assert.match(app,/aria-label=\{`\$\{bk\.serviceType\} order progress`\}/);
   assert.match(progress,/delivered: 100, completed: 100/);
 });
+test('order history exposes service filters, honest receipts and supported reorder actions',()=>{
+  const pages=readFileSync(new URL('../src/components/CustomerPages.tsx',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const history=readFileSync(new URL('../src/design-system/orderHistory.ts',import.meta.url),'utf8');
+  assert.match(pages,/id: 'history', title: 'Order history'/);
+  assert.match(pages,/Filter order history by service/);
+  assert.match(pages,/View receipt/);
+  assert.match(pages,/\['food','grocery'\]\.includes\(booking\.serviceType\)/);
+  assert.match(pages,/A tax invoice must be issued by the responsible merchant or operator/);
+  assert.match(app,/onReceipt=\{id => \{ setRequestedReceiptId\(id\); openPage\('receipts'\); \}\}/);
+  assert.match(history,/\['completed', 'delivered', 'cancelled'\]/);
+});
 test('ride booking uses the shared accessible Bike, Auto and Car option cards',()=>{
   const screen=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
   const html=renderToStaticMarkup(createElement(RideOptions,{selected:'bike',onSelect:noop}));

@@ -154,6 +154,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   // Navigation & Screen States
   const [currentTab, setCurrentTab] = useState<CustomerTab>('home');
   const [extraPage, setExtraPage] = useState<CustomerPage>('help');
+  const [requestedReceiptId, setRequestedReceiptId] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { contentRef.current?.scrollTo({ top: 0, behavior: 'auto' }); }, [currentTab, extraPage]);
   const openPage = (page: CustomerPage) => { setExtraPage(page); setActiveWorkflow('none'); setCurrentTab('more'); };
@@ -1274,7 +1275,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           </form>
         )}
 
-        {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} products={productsList} menuItems={menuItemsList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} />}
+        {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} products={productsList} menuItems={menuItemsList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} onReorder={(service) => setShopAgain(service)} onReceipt={id => { setRequestedReceiptId(id); openPage('receipts'); }} initialReceiptId={requestedReceiptId} />}
 
         {currentTab === 'offers' && activeWorkflow === 'none' && <OffersScreen hasCart={cart.length>0} onBack={()=>setCurrentTab('home')} onApply={code=>{setCouponCode(code);setCouponError('');setCurrentTab('cart');}} onBrowse={service=>{setCurrentTab('home');setActiveWorkflow(service);}}/>}
         {currentTab === 'profile' && activeWorkflow === 'none' && <ProfileScreen profile={userProfile} name={userName} onSignOut={onSignOut} actions={[

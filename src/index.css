@@ -129,6 +129,12 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .activity-status-note > div { display: grid; gap: 2px; }
 .activity-status-note small { color: var(--allgo-muted); font-size: 11px; }
 .activity-status-note.legacy { background: #fff6e7; color: var(--allgo-warning); }
+.allgo-history-filter { display: grid; gap: 8px; }
+.allgo-history-filter select { min-height: 44px; border: 1px solid var(--allgo-border); border-radius: 10px; padding: 8px 10px; background: #fff; color: var(--allgo-ink); }
+.allgo-history-card { display: grid; gap: 12px; }
+.allgo-history-actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--allgo-border); padding-top: 10px; }
+.allgo-history-actions button { min-height: 40px; border: 1px solid var(--allgo-border); border-radius: 10px; padding: 7px 10px; color: var(--allgo-brand); font-size: 11px; font-weight: 750; }
+.allgo-history-actions button:disabled { opacity: .55; }
 .activity-status-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--allgo-primary); }
 .activity-status-dot.complete { background: var(--allgo-success); }
 .activity-status-dot.cancelled { background: var(--allgo-error); }
