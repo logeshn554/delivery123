@@ -437,6 +437,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   to distinguish an order summary from a merchant-issued tax invoice. `npm run
   lint`, `npm test` (**192 passed, 0 failed**), `npm run build` and scoped
   `git diff --check` passed. Responsive visual QA remains pending.
+- TASK-71: combined journey status no longer animates a location record as if it
+  were a live map. It shows completed-leg progress and counts only recent
+  locations whose partner ID matches the leg assignment; chat appears only for
+  an assigned non-pickup partner. `npm run lint`, `npm test` (**193 passed, 0
+  failed**), `npm run build` and scoped `git diff --check` passed. Responsive
+  visual QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area
@@ -470,3 +476,4 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
 Next work must start with the current working tree and this log. Do not reset it,
 bulk-stage it or mark UI_PROGRESS tasks complete based on source presence alone.
 The initial commit is deliberately independent of pending account and role changes.
+

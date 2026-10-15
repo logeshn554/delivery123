@@ -5,6 +5,7 @@ import BundleLegChat from '../features/tracking/BundleLegChat';
 import { db, functions } from '../firebase';
 import { useFeedbackDialog } from './useFeedbackDialog';
 import type { TripBundle, BundleLeg } from '../types';
+import { isFreshTrackingTimestamp } from '../design-system/trackingFreshness';
 
 interface BundleTrackingScreenProps {
   bundleId: string;
@@ -36,6 +37,12 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
   const [expandedLegId, setExpandedLegId] = useState<string | null>(null);
   const [cancellingLegId, setCancellingLegId] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Chat state
   const [activeChatLegId, setActiveChatLegId] = useState<string | null>(null);
@@ -169,6 +176,16 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
     completed: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30',
     cancelled: 'bg-red-500/10 text-red-700 border-red-500/30',
   };
+  const hasFreshPosition = (leg: BundleLeg) => {
+    const position = tracking?.legs?.[leg.legId];
+    return Boolean(position && leg.driverId && position.driverId === leg.driverId
+      && Number.isFinite(position.currentLat) && Math.abs(position.currentLat) <= 90
+      && Number.isFinite(position.currentLng) && Math.abs(position.currentLng) <= 180
+      && typeof position.locationUpdatedAt === 'string'
+      && isFreshTrackingTimestamp(position.locationUpdatedAt, now));
+  };
+  const freshPositionCount = legs.filter(hasFreshPosition).length;
+  const completedLegCount = legs.filter(leg => ['completed', 'delivered'].includes(leg.status)).length;
 
   return (
     <div className="min-h-0 bg-white text-slate-900 flex flex-col font-sans">
@@ -198,7 +215,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
 
       {/* Main Tracking Content */}
       <main className="flex-1 max-w-2xl w-full mx-auto p-4 space-y-6">
-        {/* Map Visualizer Card */}
+        {/* Journey status card; no geographic map is available here. */}
         <section className="bg-slate-50/80 border border-slate-200/80 rounded-2xl overflow-hidden shadow-xl">
           <div className="h-44 bg-slate-50 p-4 relative flex flex-col justify-between">
             <div className="flex items-center justify-between z-10">
@@ -206,14 +223,13 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                 Journey progress
               </span>
               <span className="text-xs text-slate-600">
-                {Object.keys(tracking?.legs || {}).length} location record(s)
+                {freshPositionCount} recent assigned-partner location report(s)
               </span>
             </div>
 
-            {/* Simulated Live Route Canvas Pins */}
+            {/* Status diagram derived from bundle leg states; this is not a map. */}
             <div className="relative w-full h-24 flex items-center justify-around z-10">
               {legs.map((leg, i) => {
-                const trk = tracking?.legs?.[leg.legId];
                 return (
                   <div key={leg.legId} className="flex flex-col items-center">
                     <div
@@ -222,8 +238,8 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                           ? 'bg-emerald-600 border-emerald-400 text-white'
                           : leg.status === 'cancelled'
                           ? 'bg-red-600 border-red-400 text-white'
-                          : trk
-                          ? 'bg-indigo-600 border-indigo-400 text-white animate-pulse'
+                          : ['transit', 'accepted', 'preparing', 'ready'].includes(leg.status)
+                          ? 'bg-indigo-600 border-indigo-400 text-white'
                           : 'bg-slate-100 border-slate-500 text-slate-700'
                       }`}
                     >
@@ -239,7 +255,19 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
             </div>
 
             <div className="text-[10px] text-slate-500 flex justify-between z-10">
-              <span>Status diagram only. Geographic GPS tracking is not available here.</span>
+              <span>Status diagram only · {completedLegCount} of {legs.length} legs completed · not a map</span>
+            </div>
+          </div>
+          <div className="px-4 pb-4">
+            <div
+              className="activity-progress"
+              role="progressbar"
+              aria-label="Journey leg completion"
+              aria-valuemin={0}
+              aria-valuemax={Math.max(1, legs.length)}
+              aria-valuenow={completedLegCount}
+            >
+              <span style={{ width: `${legs.length ? completedLegCount / legs.length * 100 : 0}%` }} />
             </div>
           </div>
         </section>
@@ -330,13 +358,15 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
 
                     {/* Action buttons: Chat & Cancel */}
                     <div className="flex items-center justify-between pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setActiveChatLegId(activeChatLegId === leg.legId ? null : leg.legId)}
-                        className="min-h-11 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold transition-colors"
-                      >
-                        💬 Chat with Partner
-                      </button>
+                      {leg.driverId && leg.fulfillmentMethod !== 'self_pickup' && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveChatLegId(activeChatLegId === leg.legId ? null : leg.legId)}
+                          className="min-h-11 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold transition-colors"
+                        >
+                          💬 Chat with Partner
+                        </button>
+                      )}
 
                       {isCancellable && (
                         <button
