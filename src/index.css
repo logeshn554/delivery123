@@ -392,6 +392,9 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .grocery-quantity button:disabled { color: #929992; }
 .grocery-quantity output { display: grid; min-width: 44px; min-height: 44px; place-items: center; color: #203b29; font-size: 14px; font-weight: 850; }
 .grocery-quantity-limit { margin: 5px 0 0; color: #725b21; font-size: 10px; line-height: 1.35; text-align: center; }
+.grocery-cart-line-warning { display: grid; gap: 4px; margin-top: 6px; border-radius: 8px; padding: 7px; background: #fff8e5; color: #6c5521; }
+.grocery-cart-line-warning p { margin: 0; font-size: 10px; line-height: 1.35; }
+.grocery-cart-line-warning button { min-height: 36px; justify-self: start; color: #286443; font-size: 10px; font-weight: 800; text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) { .grocery-quantity button { transition: none; } .grocery-quantity button:active:not(:disabled) { transform: none; } }
 .grocery-cart-dock { position: sticky; bottom: max(8px,var(--allgo-safe-bottom)); z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #245e3e; border-radius: 18px; background: #203b2b; color: white; box-shadow: 0 8px 24px #14251a40; }
 .grocery-cart-dock p { margin: 2px 0 0; color: #d1e2d4; font-size: 12px; }

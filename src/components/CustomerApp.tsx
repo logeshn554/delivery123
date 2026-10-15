@@ -61,7 +61,7 @@ import { TripBundleScreen } from './TripBundleScreen';
 import { BundleTrackingScreen } from './BundleTrackingScreen';
 import { CatalogState } from '../design-system/CatalogState';
 import { CatalogImage } from '../design-system/CatalogImage';
-import { filterGroceryProducts, getGroceryCatalogView } from '../design-system/groceryCatalog';
+import { filterGroceryProducts, getGroceryCatalogView, hasGroceryCartConflicts } from '../design-system/groceryCatalog';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 
 
@@ -775,6 +775,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const declaredGroceryAllergens = [...new Set(productsList.flatMap(product => product.allergens || []))].sort((a,b) => a.localeCompare(b));
   const groceryStoresView = getGroceryCatalogView({ loading: groceryStoresLoading, error: groceryStoresError, selectedStoreId: '', storeCount: groceryStoresList.length, products: [], matchingProducts: [], filteredProducts: [], inStockOnly: true });
   const groceryCatalogView = getGroceryCatalogView({ loading: productsLoading, error: groceryProductsError, selectedStoreId, storeCount: groceryStoresList.length, products: productsList, matchingProducts: groceryMatchingProducts, filteredProducts: visibleGroceryProducts, inStockOnly });
+  const groceryCartHasConflicts = cartService === 'grocery' && hasGroceryCartConflicts(cart.map(({item,quantity}) => ({item:item as GroceryProduct,quantity})), cartCatalog as GroceryProduct[]);
 
   return (
       <div className="allgo-customer flex h-full flex-col bg-slate-50 font-sans text-slate-900 relative">
@@ -1111,9 +1112,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                   <div className="divide-y divide-slate-100">{cart.map(({ item, quantity, variant }) => {
                     const current = cartCatalog.find(entry => entry.id === item.id);
                     const livePrice = (variant && (current as MenuItem | undefined)?.variants?.find(option => option.id === variant.id)?.price) ?? current?.price ?? item.price;
+                    const staleGroceryLine = cartService === 'grocery' && hasGroceryCartConflicts([{ item: item as GroceryProduct, quantity }], cartCatalog as GroceryProduct[]);
                     return <div key={`${item.id}:${variant?.id || ''}`} className="flex items-center gap-3 py-3">
                       <CatalogImage src={item.image} alt="" className="cart-line-image" fallback={<ShoppingBag size={20} />} />
-                      <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{item.name}</p>{variant && <p className="text-[10px] text-slate-500">{variant.label}</p>}<p className="text-[10px] text-slate-500">₹{livePrice} each</p></div>
+                      <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{item.name}</p>{variant && <p className="text-[10px] text-slate-500">{variant.label}</p>}<p className="text-[10px] text-slate-500">₹{livePrice} each</p>{staleGroceryLine && <div className="grocery-cart-line-warning" role="status"><p>Current stock or expiry no longer supports this quantity.</p><button type="button" onClick={() => { setCurrentTab('home'); setActiveWorkflow('grocery'); setSelectedStoreId((item as GroceryProduct).storeId); setSelectedGroceryCategory('All'); setGrocerySearch(''); }}>Browse replacements</button></div>}</div>
                       <div className="food-cart-stepper"><button type="button" aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}><Minus size={16} /></button><output aria-label={`Quantity of ${item.name}`}>{quantity}</output><button type="button" aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleAddToCart(item, cartService!, variant)}><Plus size={16} /></button></div>
                       <span className="w-14 text-right text-xs font-black text-slate-900">₹{livePrice * quantity}</span>
                     </div>;
@@ -1126,7 +1128,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 <div className="rounded-2xl border border-slate-100 bg-white p-4"><h4 className="text-xs font-extrabold text-slate-800">Price summary</h4><div className="mt-3 flex justify-between text-xs text-slate-600"><span>Items ({cart.reduce((sum, line) => sum + line.quantity, 0)})</span><span>₹{getCartTotal()}</span></div><div className="mt-3 flex justify-between border-t border-slate-100 pt-3 text-sm font-black text-slate-900"><span>Item subtotal after discount</span><span>₹{getCartTotal() - (coupon?.discountCents || 0) / 100}</span></div><p className="mt-2 text-[10px] text-slate-500">Delivery, packaging, platform fees and tax are excluded from this subtotal. Review the complete server quote on the next screen before authorizing payment.</p></div>
                 {cartCatalogLoading && <p role="status" className="page-caption">Refreshing cart prices and stock…</p>}
                 {cartCatalogError && <div role="alert" className="auth-error">{cartCatalogError}<button className="block min-h-11 font-bold" onClick={() => setCatalogRetry(value => value + 1)}>Try again</button></div>}
-                <button onClick={() => setShowCheckoutReview(true)} disabled={!deliveryAddress.trim() || paymentBusy || couponBusy || cartCatalogLoading || Boolean(cartCatalogError)} className="w-full rounded-xl bg-indigo-600 py-3.5 text-sm font-extrabold text-white disabled:opacity-50">{paymentBusy ? 'Opening secure checkout…' : 'Review delivery & checkout'}</button>
+                <button onClick={() => setShowCheckoutReview(true)} disabled={!deliveryAddress.trim() || paymentBusy || couponBusy || cartCatalogLoading || Boolean(cartCatalogError) || groceryCartHasConflicts} className="w-full rounded-xl bg-indigo-600 py-3.5 text-sm font-extrabold text-white disabled:opacity-50">{paymentBusy ? 'Opening secure checkout…' : groceryCartHasConflicts ? 'Replace unavailable items before checkout' : 'Review delivery & checkout'}</button>
                 {!deliveryAddress.trim() && <p className="text-center text-[10px] text-rose-600">Add a delivery address to continue.</p>}
               </>
             )}

@@ -251,6 +251,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   including carts exceeding current stock. `npm run lint`, `npm test` (**151
   passed, 0 failed**), `npm run build` and `git diff --check` passed. Physical-device
   touch QA remains pending.
+- TASK-41: grocery carts now flag missing, expired and insufficient-stock items,
+  block checkout until each conflict is resolved, and offer a route back to the
+  same store to browse alternatives. Existing itemized prices remain visible.
+  No free-delivery bar was added because no such threshold is supplied by the
+  pricing contract. `npm run lint`, `npm test` (**153 passed, 0 failed**),
+  `npm run build` and `git diff --check` passed. Physical-device QA remains pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

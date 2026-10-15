@@ -201,6 +201,17 @@ test('grocery catalog exposes native suggestions, price sort chips and cautious 
   assert.match(styles,/\.grocery-sort-chips button\[aria-pressed="true"\]/);
   assert.match(styles,/\.grocery-allergen-filters small/);
 });
+test('grocery cart blocks stale items and offers same-store replacement browsing without inventing free delivery',()=>{
+  const app=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
+  const catalog=readFileSync(new URL('../src/design-system/groceryCatalog.ts',import.meta.url),'utf8');
+  assert.match(catalog,/export function hasGroceryCartConflicts/);
+  assert.match(app,/Current stock or expiry no longer supports this quantity/);
+  assert.match(app,/Browse replacements/);
+  assert.match(app,/groceryCartHasConflicts\} className=/);
+  assert.match(app,/Replace unavailable items before checkout/);
+  assert.match(app,/Delivery, packaging, platform fees and tax are excluded from this subtotal/);
+  assert.doesNotMatch(app,/free delivery threshold|free delivery progress/i);
+});
 test('food cart uses announced quantities, touch-sized steppers and server-quoted checkout totals',()=>{
   const customer=readFileSync(new URL('../src/components/CustomerApp.tsx',import.meta.url),'utf8');
   const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');

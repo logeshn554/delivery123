@@ -1,4 +1,5 @@
 import type { GroceryProduct } from '../types';
+import { productWithinExpiry } from '../data/productExpiry';
 
 export type GroceryCatalogView = 'loading' | 'error' | 'no-stores' | 'choose-store' | 'no-products' | 'no-in-stock' | 'no-results' | 'products';
 
@@ -21,6 +22,13 @@ export function filterGroceryProducts(products: GroceryProduct[], filters: Groce
       && !(filters.excludedAllergens || []).some(allergen => product.allergens?.includes(allergen))
       && (!filters.inStockOnly || product.stock > 0))
     .sort((a, b) => filters.sort === 'low' ? a.price - b.price : filters.sort === 'high' ? b.price - a.price : a.name.localeCompare(b.name));
+}
+
+export function hasGroceryCartConflicts(cart: { item: GroceryProduct; quantity: number }[], catalog: GroceryProduct[]): boolean {
+  return cart.some(({ item, quantity }) => {
+    const current = catalog.find(product => product.id === item.id && product.storeId === item.storeId);
+    return !current || !Number.isSafeInteger(current.stock) || current.stock < quantity || !productWithinExpiry(current);
+  });
 }
 
 export function getGroceryCatalogView(input: {

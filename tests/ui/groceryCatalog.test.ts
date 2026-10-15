@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterGroceryProducts, getGroceryCatalogView } from '../../src/design-system/groceryCatalog.ts';
+import { filterGroceryProducts, getGroceryCatalogView, hasGroceryCartConflicts } from '../../src/design-system/groceryCatalog.ts';
 import type { GroceryProduct } from '../../src/types';
 
 const product = (id: string, stock: number, category = 'Produce', price = 10): GroceryProduct => ({
@@ -36,6 +36,15 @@ test('grocery search includes published brand and allergen text and excludes onl
   assert.deepEqual(filterGroceryProducts(products, { ...filters, query: 'orchard' }).map(item => item.id), ['apple']);
   assert.deepEqual(filterGroceryProducts(products, { ...filters, query: 'walnut' }).map(item => item.id), ['apple']);
   assert.deepEqual(filterGroceryProducts(products, { ...filters, query: '', excludedAllergens: ['Walnut'] }).map(item => item.id), ['bread', 'unknown']);
+});
+
+test('grocery cart conflicts fail closed for missing, expired or insufficient-stock products', () => {
+  const item = product('pear', 2, 'Fruit');
+  const cart = [{ item, quantity: 2 }];
+  assert.equal(hasGroceryCartConflicts(cart, [{ ...item, stock: 3 }]), false);
+  assert.equal(hasGroceryCartConflicts(cart, []), true);
+  assert.equal(hasGroceryCartConflicts(cart, [{ ...item, stock: 1 }]), true);
+  assert.equal(hasGroceryCartConflicts(cart, [{ ...item, stock: 3, expiresAt: '2000-01-01T00:00:00.000Z' }]), true);
 });
 
 test('grocery view distinguishes errors, loading, no stores, store selection and published product emptiness', () => {
