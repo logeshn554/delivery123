@@ -12,6 +12,7 @@ const { geocode, routeBetween } = require('./maps');
 const { validPoint, checkCoverage, calculateFare, calculateFareBreakdown, containsPoint } = require('./bookingPolicy');
 const { validateParcelContents, separateParcelContacts, parcelWeight } = require('./parcelPolicy');
 const { reverseWalletCredit, refundProgress } = require('./refundPolicy');
+const { isCustomerCancellationReason } = require('./cancellationPolicy');
 const { publicOffer, pickupEligibility } = require('./dispatchPolicy');
 const { cartCharges } = require('./cartPolicy');
 const { merchantOpen, validateHours } = require('./merchantPolicy');
@@ -1491,6 +1492,8 @@ async function cancelPaidBooking(request, merchantRefusal = false) {
   const uid = requireUser(request);
   const admin = request.auth.token.admin === true;
   const refusalReason = merchantRefusal ? cleanText(request.data?.reason, 'Rejection reason', 500) : null;
+  const cancellationReason = !merchantRefusal && request.data?.reason !== undefined ? request.data.reason : null;
+  if (cancellationReason !== null && !isCustomerCancellationReason(cancellationReason)) throw new HttpsError('invalid-argument', 'Choose a supported cancellation reason.');
   const merchantOwns = (account, record) => account?.role === 'merchant' && !!account.merchantId && account.merchantId === record?.merchantId && (account.merchantType === 'restaurant' ? record.serviceType === 'food' : account.merchantType === 'grocery' && record.serviceType === 'grocery');
   const bookingId = documentId(request.data?.bookingId, 'Booking reference');
   const bookingRef = db.doc(`bookings/${bookingId}`);
@@ -1521,7 +1524,7 @@ async function cancelPaidBooking(request, merchantRefusal = false) {
       transaction.create(db.doc(`financial_journals/wallet_refund_${bookingId}`), journal('wallet_booking_refund', 'booking_funds_unallocated', 'wallet_liability', amount, { bookingId, customerId: booking.customerId, orderId: booking.paymentOrderId }));
       transaction.update(attemptRef, { status: 'refunded', updatedAt: Timestamp.now() });
       if (driver?.data()?.activeBookingId === bookingId) transaction.update(driverRef, { activeBookingId: null });
-      transaction.create(bookingRef.collection('events').doc('cancellation_requested'), { stage: merchantRefusal ? 'merchant_rejected' : 'cancellation_requested', actorId: uid, actorRole: merchantRefusal ? 'merchant' : admin ? 'admin' : 'customer', ...(refusalReason ? { reason: refusalReason } : {}), createdAt: new Date().toISOString() });
+      transaction.create(bookingRef.collection('events').doc('cancellation_requested'), { stage: merchantRefusal ? 'merchant_rejected' : 'cancellation_requested', actorId: uid, actorRole: merchantRefusal ? 'merchant' : admin ? 'admin' : 'customer', ...((refusalReason || cancellationReason) ? { reason: refusalReason || cancellationReason } : {}), createdAt: new Date().toISOString() });
       transaction.update(bookingRef, { status: 'cancelled', paymentStatus: 'refunded', updatedAt: new Date().toISOString() });
       booking = { ...booking, status: 'cancelled', paymentStatus: 'refunded' }; return;
     }
@@ -1531,7 +1534,7 @@ async function cancelPaidBooking(request, merchantRefusal = false) {
     if (!attempt || attempt.uid !== booking.customerId || attempt.bookingId !== bookingId || attempt.paymentId !== booking.paymentId || attempt.status !== 'paid' || attempt.amount !== Math.round(booking.price * 100)) throw new HttpsError('failed-precondition', 'The payment records need financial reconciliation.');
     // Persist both sides before the provider call; a process crash remains discoverable by the refund worker.
     transaction.update(attemptRef, { status: 'refund_processing', refundRequestedAmountCents: attempt.amount, updatedAt: Timestamp.now() });
-    transaction.create(bookingRef.collection('events').doc('cancellation_requested'), { stage: merchantRefusal ? 'merchant_rejected' : 'cancellation_requested', actorId: uid, actorRole: merchantRefusal ? 'merchant' : admin ? 'admin' : 'customer', ...(refusalReason ? { reason: refusalReason } : {}), createdAt: new Date().toISOString() });
+    transaction.create(bookingRef.collection('events').doc('cancellation_requested'), { stage: merchantRefusal ? 'merchant_rejected' : 'cancellation_requested', actorId: uid, actorRole: merchantRefusal ? 'merchant' : admin ? 'admin' : 'customer', ...((refusalReason || cancellationReason) ? { reason: refusalReason || cancellationReason } : {}), createdAt: new Date().toISOString() });
     transaction.update(bookingRef, { paymentStatus: 'refund_processing', updatedAt: new Date().toISOString() });
   });
   if (booking.status === 'cancelled') return { status: booking.paymentStatus };

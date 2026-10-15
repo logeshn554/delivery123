@@ -443,6 +443,12 @@ No claim of reverse engineering Swiggy, Instamart or another application is made
   an assigned non-pickup partner. `npm run lint`, `npm test` (**193 passed, 0
   failed**), `npm run build` and scoped `git diff --check` passed. Responsive
   visual QA remains pending.
+- TASK-72: customer cancellation now requires a supported reason and records it
+  in the existing cancellation event. The dialog limits eligibility to pending
+  paid orders, states the current full-refund/no-fee behavior, and explains that
+  provider settlement is not instant. `npm run lint`, `npm test` (**196 passed,
+  0 failed**), `npm run build` and scoped `git diff --check` passed. Payment
+  provider integration and responsive visual QA remain pending.
 - Production configuration check: **blocked**, as expected; no bypass added.
 - Browser preview: attempted, but localhost access timed out; shell HTTP access
   reported socket permission denial. Responsive visual and native keyboard/safe-area

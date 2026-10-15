@@ -261,9 +261,9 @@ export async function confirmOnlinePayment(payment: { razorpay_order_id: string;
   return result.data;
 }
 
-export async function requestBookingCancellation(bookingId: string) {
-  const cancelBooking = httpsCallable<{ bookingId: string }, { status: 'cancelled' | 'refund_processing' }>(functions, 'cancelPaidBooking');
-  const result = await cancelBooking({ bookingId });
+export async function requestBookingCancellation(bookingId: string, reason?: string) {
+  const cancelBooking = httpsCallable<{ bookingId: string; reason?: string }, { status: 'cancelled' | 'refund_processing' }>(functions, 'cancelPaidBooking');
+  const result = await cancelBooking({ bookingId, ...(reason ? { reason } : {}) });
   return result.data;
 }
 export async function rejectMerchantBooking(bookingId: string, reason: string) {
