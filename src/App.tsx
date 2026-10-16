@@ -1,4 +1,5 @@
 import { appAudience, appTitle } from './app/audience';
+import { subscribeWorkspaceBookings } from './app/bookingSubscription';
 import { lazy, Suspense, useEffect, useState, useRef } from 'react';
 import { LogOut } from 'lucide-react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -80,15 +81,9 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser || !userProfile) return;
-    const stopBookings = appAudience === 'customer'
-      ? listenToCustomerBookings(currentUser.uid, setBookings)
-      : userProfile.role === 'driver'
-        ? listenToDriverBookings(currentUser.uid, setBookings)
-        : userProfile.role === 'admin'
-          ? listenToBookings(setBookings)
-          : userProfile.role === 'merchant' && userProfile.merchantId && userProfile.merchantType
-            ? listenToMerchantBookings(userProfile.merchantId, userProfile.merchantType, setBookings)
-          : () => setBookings([]);
+    const stopBookings = subscribeWorkspaceBookings(appAudience, currentUser.uid, userProfile, {
+      listenToBookings, listenToCustomerBookings, listenToDriverBookings, listenToMerchantBookings,
+    }, setBookings);
     const stopDrivers = userProfile.role === 'admin' ? listenToDriverProfiles(setDrivers) : () => undefined;
     return () => { stopBookings(); stopDrivers(); };
   }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, hasServiceIdentity]);
