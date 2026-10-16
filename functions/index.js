@@ -455,7 +455,7 @@ async function priceLeg(uid, input) {
     storeId: details.storeId || null,
     restaurantId: details.restaurantId || null,
     customerName,
-    fareBreakdown,
+    ...(fareBreakdown ? { fareBreakdown } : {}),
   };
 }
 
@@ -483,7 +483,7 @@ async function priceAndPrepareBooking(uid, input) {
     details: priced.leg.details
   };
   if (priced.leg.priceBreakdown) booking.priceBreakdown = priced.leg.priceBreakdown;
-  return { amount: priced.amount, booking, items: priced.items, storeId: priced.storeId, restaurantId: priced.restaurantId, fareBreakdown: priced.fareBreakdown };
+  return { amount: priced.amount, booking, items: priced.items, storeId: priced.storeId, restaurantId: priced.restaurantId, ...(priced.fareBreakdown ? { fareBreakdown: priced.fareBreakdown } : {}) };
 }
 
 async function razorpayRequest(path, method, body, extraHeaders = {}) {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Module, { createRequire } from 'node:module';
 import { createHmac } from 'node:crypto';
+import { mockJourneyMaps } from './helpers/isolatedMaps.mjs';
 if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080') throw new Error('Payment integration tests require the isolated demo emulator.');
 process.env.FIRESTORE_DATABASE_ID = '(default)';
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
@@ -29,21 +30,9 @@ const callable = (name, uid, data, admin = false) => compiled.exports[name].run(
 
 for (const serviceType of ['food', 'grocery']) {
   test(`${serviceType} customer checkout reaches merchant preparation, private dispatch, delivery and review`, async () => {
-    const originalFetch = globalThis.fetch, previousMapsKey = process.env.MAPS_API_KEY;
-    process.env.MAPS_API_KEY = 'isolated-test-map-key';
+    const restoreMaps = mockJourneyMaps();
     // Only external Maps responses are simulated. Pricing, wallet, inventory,
     // merchant transitions, dispatch leases and fulfillment run against Firestore.
-    globalThis.fetch = async (input, options) => {
-      const url = new URL(String(input));
-      if (url.hostname === 'maps.googleapis.com') return Response.json({ status: 'OK', results: [{
-        place_id: url.searchParams.get('address')?.includes('Merchant') ? 'merchant-place' : 'customer-place',
-        formatted_address: url.searchParams.get('address') || 'Customer delivery street',
-        geometry: { location: { lat: 13.081, lng: 80.271 } },
-      }] });
-      if (url.hostname === 'routes.googleapis.com') return Response.json({ routes: [{ distanceMeters: 1000, duration: '300s' }] });
-      if (url.hostname === '127.0.0.1' && url.port === '8080') return originalFetch(input, options);
-      throw new Error(`Unexpected external call in isolated journey: ${url.origin}`);
-    };
     try {
       const parent = serviceType === 'food' ? 'restaurants/shop' : 'grocery_stores/shop';
       const itemPath = `${parent}/${serviceType === 'food' ? 'menu_items' : 'products'}/item`;
@@ -110,10 +99,80 @@ for (const serviceType of ['food', 'grocery']) {
       const events = (await ref.collection('events').get()).docs.map(event => event.data().stage);
       for (const stage of ['confirmed', serviceType === 'food' ? 'restaurant_preparing' : 'store_picking', serviceType === 'food' ? 'restaurant_ready' : 'store_packed', 'arrived_at_pickup', 'picked_up', 'delivery_confirmed']) assert.ok(events.includes(stage), `Missing ${stage}`);
     } finally {
-      globalThis.fetch = originalFetch;
-      if (previousMapsKey === undefined) delete process.env.MAPS_API_KEY;
-      else process.env.MAPS_API_KEY = previousMapsKey;
+      restoreMaps();
     }
+  });
+}
+
+const quotedJourneys = [
+  { serviceType: 'ride', option: 'car', details: { vehicleType: 'car' } },
+  { serviceType: 'parcel', option: 'Box', details: {
+    parcelType: 'Box', deliveryMode: 'local', weightKg: 2,
+    dimensions: { lengthCm: 20, widthCm: 20, heightCm: 20 },
+    parcelDescription: 'Packed test books', declaredValue: 200, fragile: false, restrictedItemsConfirmed: true,
+    parcelContacts: { senderName: 'Test sender', senderPhone: '+919876500001', recipientName: 'Test recipient', recipientPhone: '+919876500002' },
+  } },
+  { serviceType: 'takeover', option: 'hourly', details: { takeoverOption: 'hourly', takeoverTransmission: 'manual', takeoverVehicleModel: 'Test owner vehicle', takeoverVehicleNo: 'TEST-OWNER' } },
+  { serviceType: 'transport', option: 'bike', details: { transportVehicleType: 'bike', transportMakeModel: 'Test motorcycle', transportRegNo: 'TEST-BIKE', ownershipConfirmed: true, vehicleWeightKg: 150, vehicleDimensions: { lengthCm: 200, widthCm: 80, heightCm: 110 } } },
+];
+
+for (const { serviceType, option, details } of quotedJourneys) {
+  test(`${serviceType} quote, wallet checkout, assigned pickup proof and recipient completion form one journey`, async () => {
+    const restoreMaps = mockJourneyMaps();
+    try {
+      await db.doc('platform_config/wallet').set({ enabled: true, maxTopupCents: 100000 });
+      await db.doc(`service_pricing/${serviceType}`).set({
+        enabled: true, version: 1, zoneIds: ['city'],
+        options: { [option]: { price: 100, perKm: 0, perMinute: 0, maxKm: 30, volumetricDivisor: 5000 } },
+        settlement: { baseCents: 4000, maxPayoutCents: 4000 },
+      });
+      await db.doc('service_zones/city').set({ enabled: true, serviceTypes: [serviceType], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+      await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
+      await db.doc('driver_profiles/driver').set({
+        status: 'verified', online: true, locationConsent: true, supportedServices: [serviceType], vehicleType: 'car',
+        currentLat: 13.081, currentLng: 80.271, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10,
+        availableEarningsCents: 0, completedJobs: 0,
+        ...(serviceType === 'transport' ? { transportCapabilities: { approved: true, supportedVehicleTypes: ['bike'], vehicleCapacity: 1, equipmentType: 'flatbed', maxWeightKg: 500, maxDimensions: { lengthCm: 300, widthCm: 200, heightCm: 200 } } } : {}),
+      });
+      const quote = await callable('getServiceQuote', 'customer', { serviceType, pickupAddress: 'Merchant pickup street', dropAddress: 'Customer delivery street', details: { ...details, pickupPlaceId: 'pickup-place', dropPlaceId: 'drop-place' } });
+      assert.equal(quote.amount, 10000); assert.equal(quote.currency, 'INR');
+      const checkout = { requestId: `${serviceType}_journey`, expectedAmountCents: quote.amount, booking: { serviceType, details: { quoteId: quote.quoteId } } };
+      const result = await callable('payWithWallet', 'customer', checkout);
+      assert.deepEqual(await callable('payWithWallet', 'customer', checkout), result);
+      const ref = db.doc(`bookings/${result.bookingId}`), confirmed = (await ref.get()).data();
+      assert.equal(confirmed.status, 'pending'); assert.equal(confirmed.serviceType, serviceType);
+      assert.equal(confirmed.price, 100); assert.equal(confirmed.otp, undefined);
+      assert.equal((await db.doc('users/customer').get()).data().walletBalance, 900);
+      assert.equal((await db.doc(`service_quotes/${quote.quoteId}`).get()).data().claimed, true);
+      if (serviceType === 'parcel') {
+        assert.equal(confirmed.details.parcelContacts, undefined);
+        assert.equal((await db.doc(`booking_contacts/${ref.id}`).get()).data().recipientPhone, details.parcelContacts.recipientPhone);
+        assert.equal(confirmed.details.billableWeightKg, 2);
+      }
+      if (serviceType === 'takeover') assert.equal(confirmed.details.takeoverTransmission, 'manual');
+      if (serviceType === 'transport') assert.equal(confirmed.details.vehicleWeightKg, 150);
+      await db.doc('driver_profiles/driver').update({ locationUpdatedAt: new Date().toISOString() });
+      const offers = await callable('listDriverOffers', 'driver', {});
+      assert.equal(offers.length, 1); assert.equal(offers[0].bookingId, ref.id);
+      assert.equal(offers[0].otp, undefined); assert.equal(offers[0].details.parcelContacts, undefined);
+      await callable('acceptDriverBooking', 'driver', { bookingId: ref.id });
+      await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'preparing' });
+      await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'transit', otp: 'invalid' }), error => error.code === 'permission-denied');
+      const codes = (await db.doc(`booking_codes/${ref.id}`).get()).data();
+      assert.notEqual(codes.pickupCode, undefined);
+      await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'transit', otp: codes.pickupCode });
+      assert.equal((await db.doc(`booking_codes/${ref.id}`).get()).data().pickupCode, undefined);
+      const finish = { bookingId: ref.id, status: 'completed', otp: codes.code };
+      await callable('advanceDriverBooking', 'driver', finish);
+      await callable('advanceDriverBooking', 'driver', finish);
+      const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
+      assert.equal(completed.status, 'completed'); assert.equal(completed.driverPayout, 40);
+      assert.equal(driver.availableEarningsCents, 4000); assert.equal(driver.completedJobs, 1); assert.equal(driver.activeBookingId, null);
+      assert.equal((await db.doc(`booking_codes/${ref.id}`).get()).exists, false);
+      const events = (await ref.collection('events').get()).docs.map(event => event.data().stage);
+      assert.ok(events.includes(['ride', 'takeover'].includes(serviceType) ? 'trip_started' : 'picked_up'));
+      assert.ok(events.includes(['ride', 'takeover'].includes(serviceType) ? 'trip_completed' : 'delivery_confirmed'));
+    } finally { restoreMaps(); }
   });
 }
 

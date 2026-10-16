@@ -29,3 +29,5 @@
 | AUD-09 | docs/production | High process gap | Required resumable tracker missing | Create canonical tracker and link prior unresolved findings / P1 | Every unresolved domain retained with evidence and next action |
 
 Screen/feature matrix: ../reference-analysis/feature-gap-matrix.md. Source inventory: existing 2026-10-13/component-comparison.md. Design direction: existing 2026-10-13/design-system.md and stitch-2026-10-13/README.md. Full remediation priorities and production infrastructure: remediation-register.md. These links retain prior analysis rather than repeating it or treating checkboxes as runtime proof.
+
+FIX-04 (P0 functionality): functions/index.js pricing result builders included an undefined fareBreakdown for ride/takeover/transport, so getServiceQuote failed to persist valid quotes. Reproduced through real callable/emulator journeys and fixed by omitting the inapplicable field. Parcel breakdown remains intact. Six independent service inputs and custody/settlement journeys now pass in the 104-test emulator suite. Staging/native provider acceptance remains required.
