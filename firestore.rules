@@ -31,6 +31,12 @@ service cloud.firestore {
       return isSignedIn() && (driverId == request.auth.uid || driverId == request.auth.uid + '_drv');
     }
 
+    function isAssignedVerifiedDriver(data) {
+      return isDriverOwner(data.get('driverId', ''))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver'
+        && get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data.status == 'verified';
+    }
+
     function isVerifiedOnlineDriver() {
       return isSignedIn()
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver'
@@ -75,10 +81,16 @@ service cloud.firestore {
       let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
       return isSignedIn() && (
         booking.customerId == request.auth.uid ||
-        booking.driverId == request.auth.uid ||
-        booking.driverId == request.auth.uid + '_drv' ||
+        isAssignedVerifiedDriver(booking) ||
         isMerchantFor(booking) ||
         isAdmin()
+      );
+    }
+
+    function canAccessDeliveryDetails(bookingId) {
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      return isSignedIn() && (
+        booking.customerId == request.auth.uid || isAssignedVerifiedDriver(booking) || isAdmin()
       );
     }
 
@@ -94,8 +106,7 @@ service cloud.firestore {
       let bundle = get(/databases/$(database)/documents/bundles/$(bundleId)).data;
       return isSignedIn() && (
         bundle.customerId == request.auth.uid ||
-        legData.driverId == request.auth.uid ||
-        legData.driverId == request.auth.uid + '_drv' ||
+        isAssignedVerifiedDriver(legData) ||
         isMerchantForLeg(legData) ||
         isAdmin()
       );
@@ -313,8 +324,7 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
       // (name, address, notes) would be readable before assignment. Dispatch is server-side only.
       allow list: if isSignedIn() && (
         resource.data.customerId == request.auth.uid ||
-        resource.data.driverId == request.auth.uid ||
-        resource.data.driverId == request.auth.uid + '_drv' ||
+        isAssignedVerifiedDriver(resource.data) ||
         isMerchantFor(resource.data) ||
         isAdmin()
       );
@@ -328,7 +338,7 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
       match /chats/{chatId} {
         function canChat() {
           let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
-          return isSignedIn() && (booking.customerId == request.auth.uid || booking.driverId == request.auth.uid || isAdmin());
+          return isSignedIn() && (booking.customerId == request.auth.uid || isAssignedVerifiedDriver(booking) || isAdmin());
         }
         allow read: if canChat();
         allow create: if false;
@@ -337,13 +347,13 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
     }
 
     match /booking_tracking/{bookingId} {
-      allow get: if isSignedIn() && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customerId == request.auth.uid || get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid || isAdmin());
+      allow get: if canAccessDeliveryDetails(bookingId);
       allow list, write: if false;
     }
 
     match /booking_contacts/{bookingId} {
       // Sender/recipient phones are private, including while a job is offered to partners.
-      allow get: if isSignedIn() && (get(/databases/$(database)/documents/bookings/$(bookingId)).data.customerId == request.auth.uid || get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid || isAdmin());
+      allow get: if canAccessDeliveryDetails(bookingId);
       allow list, write: if false;
     }
 

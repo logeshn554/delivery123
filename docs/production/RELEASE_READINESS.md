@@ -6,6 +6,8 @@ React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No fra
 
 All master acceptance gates remain open: customer journeys, merchant/driver integration, deployed authorization, provider payments, consistent accessible UI, Android/iOS device journeys, external infrastructure, critical defect closure, and release documentation with operator-reviewed evidence.
 
-Current verified scope: baseline local TypeScript/tests and four booking-scope regression tests. See TEST_RESULTS.md for current evidence; docs/audit contains historical results that must not be presented as this run's acceptance.
+Current verified scope: TypeScript, 211 local application tests, subscription scope/lifecycle regressions, complete food/grocery backend wallet journeys and authorization/integration checks in isolated Firestore, plus Android debug assembly, installation and public startup/recovery navigation. Driver revocation hardening passed 100 emulator/integration tests and the application suite. See TEST_RESULTS.md for exact evidence; historical audit results are not current-run acceptance.
+
+The Android emulator cannot reach the configured development account endpoint. Native Firebase provider registrations and staging/production provider acceptance are absent. No iOS archive/device, live provider payment, signed release or deployed-rules acceptance is established. Functions and rules changes require coordinated staging deployment and verification before production rollout.
 
 Run `node scripts/check-release.mjs --environment=staging`, then production when appropriate. Do not invent acceptance records to pass these gates. Keep the original independent service workflows, default-deny rules, provider verification and explicit unavailable states.

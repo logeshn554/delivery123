@@ -20,6 +20,28 @@ beforeEach(async () => {
 });
 const dbFor = (uid, claims = {}) => env.authenticatedContext(uid, claims).firestore();
 
+test('revoked driver roles and verification cannot retain assigned customer data access', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'booking_tracking/assigned'), { driverId: 'driver', currentLat: 13, currentLng: 80 });
+    await setDoc(doc(db, 'bookings/assigned/events/confirmed'), { stage: 'confirmed' });
+    await setDoc(doc(db, 'bookings/assigned/chats/message'), { text: 'Private delivery instructions' });
+    await setDoc(doc(db, 'bundles/revocation'), { customerId: 'customer' });
+    await setDoc(doc(db, 'bundles/revocation/legs/own'), { driverId: 'driver', type: 'food', status: 'accepted', merchantId: 'shop' });
+  });
+  const paths = ['bookings/assigned', 'booking_contacts/assigned', 'booking_tracking/assigned', 'bookings/assigned/events/confirmed', 'bookings/assigned/chats/message', 'bundles/revocation/legs/own'];
+  for (const path of paths) await assertSucceeds(getDoc(doc(dbFor('driver'), path)));
+  for (const change of ['role', 'verification']) {
+    await env.withSecurityRulesDisabled(async context => {
+      await updateDoc(doc(context.firestore(), 'users/driver'), { role: change === 'role' ? 'customer' : 'driver' });
+      await updateDoc(doc(context.firestore(), 'driver_profiles/driver'), { status: change === 'verification' ? 'rejected' : 'verified' });
+    });
+    for (const path of paths) await assertFails(getDoc(doc(dbFor('driver'), path)));
+    await assertFails(getDocs(query(collection(dbFor('driver'), 'bookings'), where('driverId', '==', 'driver'))));
+  }
+  for (const path of paths) await assertSucceeds(getDoc(doc(dbFor('customer'), path)));
+});
+
 test('bundle chat is server-written and scoped to current active participants', async () => {
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
@@ -187,6 +209,7 @@ test('customers cannot change role or wallet balance and drivers cannot self-app
 });
 test('private contacts, OTPs and payment attempts have separate access controls', async () => {
   await assertSucceeds(getDoc(doc(dbFor('driver'), 'booking_contacts', 'assigned')));
+  await assertFails(getDoc(doc(dbFor('merchant'), 'booking_contacts', 'assigned')));
   await assertFails(getDoc(doc(dbFor('other'), 'booking_contacts', 'assigned')));
   await assertFails(getDoc(doc(dbFor('driver'), 'booking_codes', 'assigned')));
   await assertSucceeds(getDoc(doc(dbFor('customer'), 'booking_codes', 'assigned')));

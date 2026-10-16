@@ -347,7 +347,7 @@ test('parcel contact cards and privacy message match private contact storage rul
   assert.match(screen,/fieldset className="parcel-contact-card"><legend>Recipient contact/);
   assert.match(screen,/stored separately from the public order/);
   assert.match(screen,/SMS updates to the recipient are not available/);
-  assert.match(rules,/match \/booking_contacts\/\{bookingId\}[\s\S]*allow get: if isSignedIn\(\) && \(get\([\s\S]*allow list, write: if false/);
+  assert.match(rules,/match \/booking_contacts\/\{bookingId\}[\s\S]*allow get: if canAccessDeliveryDetails\(bookingId\);[\s\S]*allow list, write: if false/);
   assert.match(policy,/const \{ parcelContacts, \.\.\.publicDetails \} = details/);
 });
 test('parcel timing distinguishes ASAP from an unconfirmed future time request',()=>{

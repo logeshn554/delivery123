@@ -626,6 +626,30 @@ test('wallet price mismatch never claims a quote; insufficient funds releases th
   assert.equal(result.status, 'paid');
   assert.equal((await db.doc('users/customer').get()).data().walletBalance, 0);
 });
+test('driver role revocation blocks every fulfillment transition despite a retained verified profile', async () => {
+  await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'revoked', availableEarningsCents: 0, completedJobs: 0 });
+  await db.doc('bookings/revoked').set({ customerId: 'customer', driverId: 'driver', serviceType: 'food', status: 'accepted' });
+  await callable('sendBookingMessage', 'driver', { bookingId: 'revoked', text: 'Authorized delivery message' });
+  await db.doc('users/driver').update({ role: 'customer' });
+  await assert.rejects(callable('sendBookingMessage', 'driver', { bookingId: 'revoked', text: 'Revoked message' }), error => error.code === 'permission-denied');
+  await assert.rejects(callable('getTrackingRoute', 'driver', { bookingId: 'revoked' }), error => error.code === 'permission-denied');
+  assert.equal((await db.collection('bookings/revoked/chats').get()).size, 1);
+  for (const serviceType of ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport']) {
+    for (const [current, next] of [['accepted', 'preparing'], ['preparing', 'transit'], ['transit', 'completed']]) {
+      const booking = { customerId: 'customer', driverId: 'driver', serviceType, status: current, paymentStatus: 'paid', price: 100, settlementContract: { serviceType, version: 1, baseCents: 4000, maxPayoutCents: 10000 } };
+      await db.doc('bookings/revoked').set(booking);
+      await db.doc('booking_codes/revoked').set({ customerId: 'customer', code: '5678', pickupCode: '1234', attempts: 0, pickupAttempts: 0 });
+      await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: 'revoked', status: next, otp: next === 'completed' ? '5678' : '1234' }), error => error.code === 'permission-denied');
+      assert.deepEqual((await db.doc('bookings/revoked').get()).data(), booking);
+      assert.equal((await db.doc('booking_codes/revoked').get()).data().code, '5678');
+    }
+  }
+  assert.equal((await db.collection('driver_ledger/driver/entries').get()).size, 0);
+  assert.equal((await db.collection('financial_journals').get()).size, 0);
+  assert.equal((await db.doc('driver_profiles/driver').get()).data().completedJobs, 0);
+});
+
 test('pickup and recipient codes protect custody; concurrent completion settles earnings once',async()=>{
   await db.doc('users/driver').set({role:'driver'});
   await db.doc('driver_profiles/driver').set({status:'verified',activeBookingId:'handover',availableEarningsCents:0,completedJobs:0});

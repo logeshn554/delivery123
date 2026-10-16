@@ -776,9 +776,10 @@ exports.updateDriverLocation = onCall({ operation: 'updateDriverLocation', regio
 
 exports.getTrackingRoute = onCall({ operation: 'getTrackingRoute', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
   const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID');
-  const [bookingDoc, trackingDoc] = await Promise.all([db.doc(`bookings/${bookingId}`).get(), db.doc(`booking_tracking/${bookingId}`).get()]);
+  const [bookingDoc, trackingDoc, account, profile] = await Promise.all([db.doc(`bookings/${bookingId}`).get(), db.doc(`booking_tracking/${bookingId}`).get(), db.doc(`users/${uid}`).get(), db.doc(`driver_profiles/${uid}`).get()]);
   const booking = bookingDoc.data(), tracking = trackingDoc.data();
-  if (!booking || (booking.customerId !== uid && booking.driverId !== uid && request.auth.token.admin !== true)) throw new HttpsError('permission-denied', 'This journey is not assigned to your account.');
+  const assignedDriver = booking?.driverId === uid && account.data()?.role === 'driver' && profile.data()?.status === 'verified';
+  if (!booking || (booking.customerId !== uid && !assignedDriver && request.auth.token.admin !== true)) throw new HttpsError('permission-denied', 'This journey is not assigned to your account.');
   if (!tracking || !validPoint({ lat: tracking.currentLat, lng: tracking.currentLng }) || !Number.isFinite(Date.parse(tracking.locationUpdatedAt)) || tracking.driverId !== booking.driverId || Date.now() - Date.parse(tracking.locationUpdatedAt) > 60000 || ['completed', 'delivered', 'cancelled'].includes(booking.status)) throw new HttpsError('failed-precondition', 'A fresh partner location is required for a travel estimate.');
   const pickup = ['accepted', 'preparing', 'ready'].includes(booking.status);
   const placeId = pickup ? booking.details?.pickupPlaceId : booking.details?.dropPlaceId;
@@ -790,11 +791,14 @@ exports.getTrackingRoute = onCall({ operation: 'getTrackingRoute', region: REGIO
 
 exports.sendBookingMessage = onCall({ operation: 'sendBookingMessage', region: REGION }, async request => {
   const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID'), text = cleanText(request.data?.text, 'Message', 2000);
-  const [snapshot, account] = await Promise.all([db.doc(`bookings/${bookingId}`).get(), db.doc(`users/${uid}`).get()]);
-  const booking = snapshot.data();
-  if (!booking || !booking.driverId || (booking.customerId !== uid && booking.driverId !== uid)) throw new HttpsError('permission-denied', 'Only this customer and assigned partner can send messages.');
-  if (['completed', 'delivered', 'cancelled'].includes(booking.status)) throw new HttpsError('failed-precondition', 'This conversation is closed. Use support for further help.');
-  await db.collection(`bookings/${bookingId}/chats`).add({ senderId: uid, senderName: cleanText(account.data()?.name, 'Account name', 100), text, timestamp: new Date().toISOString() });
+  await db.runTransaction(async transaction => {
+    const [snapshot, account, profile] = await Promise.all([transaction.get(db.doc(`bookings/${bookingId}`)), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_profiles/${uid}`))]);
+    const booking = snapshot.data(), actor = account.data();
+    const assignedDriver = booking?.driverId === uid && actor?.role === 'driver' && profile.data()?.status === 'verified';
+    if (!booking || !booking.driverId || actor?.suspended === true || actor?.disabled === true || (booking.customerId !== uid && !assignedDriver)) throw new HttpsError('permission-denied', 'Only this customer and verified assigned partner can send messages.');
+    if (['completed', 'delivered', 'cancelled'].includes(booking.status)) throw new HttpsError('failed-precondition', 'This conversation is closed. Use support for further help.');
+    transaction.create(db.collection(`bookings/${bookingId}/chats`).doc(), { senderId: uid, senderName: cleanText(actor?.name, 'Account name', 100), text, timestamp: new Date().toISOString() });
+  });
   return { sent: true };
 });
 
@@ -881,9 +885,9 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
   const result = await db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
     const codeRef = db.doc(`booking_codes/${bookingId}`);
-    const [booking, driver, code] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef)]);
+    const [booking, driver, code, account] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`))]);
     const data = booking.data();
-    if (!data || data.driverId !== uid || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'This job is not assigned to you.');
+    if (!data || data.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.suspended === true || account.data()?.disabled === true || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'Verified driver access and assignment are required for this job.');
     if (!['paid', 'pending_cod'].includes(data.paymentStatus)) throw new HttpsError('failed-precondition', 'This job is in payment or cancellation review. Contact operations.');
     if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
