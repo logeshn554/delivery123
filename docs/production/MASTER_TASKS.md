@@ -13,16 +13,16 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | FIX-02 | P1 | Booking subscription failures clear cached rows/codes, stop joined listeners and offer retry/sign-out; 8 scope/lifecycle tests pass | Verified |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
-| FOOD-01 | P1 | Customer → merchant → driver → delivered food journey with isolated test data | Not started |
-| GROC-01 | P1 | Stock contention, picking/substitution, checkout and grocery fulfillment journey | Not started |
+| FOOD-01 | P1 | Isolated wallet checkout → merchant → private driver offer → recipient-code completion → review passes; native/provider acceptance remains | Verified |
+| GROC-01 | P1 | Isolated grocery checkout/picking/fulfillment passes; stock contention covered; substitution implementation and native acceptance remain | In progress |
 | PARCEL-01 | P1 | Parcel quote, assignment, custody proof, cancellation and delivery | Not started |
 | RIDE-01 | P1 | Ride and driver-hire quote, assignment, live trip, completion and feedback | Not started |
 | TRANS-01 | P1 | Vehicle custody documents, inspections, acknowledgments and claims | Not started |
 | PARTNER-01 | P1 | Reconcile sibling merchant/driver projects with repository distribution/build strategy | Not started |
-| MOBILE-01 | P1 | Android build and six-service emulator acceptance | Not started |
+| MOBILE-01 | P1 | Debug build/install/startup recovery verified; six-service native acceptance awaits reachable backend/providers | In progress |
 | MOBILE-02 | P1 | iOS archive and device journeys on supported macOS/Xcode host | Blocked |
 | UI-01 | P2 | Preserve existing Stitch tokens; verify responsive/accessibility/keyboard states | Not started |
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |
 | GIT-01 | P1 | Commit each validated increment and push without rewriting existing history | In progress |
 
-Next executable work: finish Android build verification and add complete isolated food/grocery fulfillment journeys. Reference inspection may continue independently without login bypass or purchases.
+Next executable work: enforce current driver role during fulfillment; then restore local backend connectivity for authenticated native journeys. Reference inspection may continue independently without login bypass or purchases.

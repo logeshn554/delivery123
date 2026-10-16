@@ -4,8 +4,7 @@ Updated 2026-10-16. Continue unblocked source and emulator work; blockers do not
 
 | Blocker | Evidence | Exact next requirement |
 |---|---|---|
-| REA MCP unavailable | No REA tools in current tool discovery | Expose configured REA server if artifact inspection is needed; direct ADB/source work continues |
-| Reference visible-screen inspection | Swiggy login activity launched; initial screenshot black and UI dump null | Check awake display and retry normal capture; stop at login/protected surfaces without bypass |
+| Remaining reference journeys | REA now captures out-of-coverage home and location selector; other journeys unobserved | Continue normal browsing in a supported location; stop at protected surfaces without bypass |
 | Staging/provider acceptance | Existing release/audit gates document absent accepted configuration | Run check-release staging; supply real isolated Firebase/Neon registrations, identity bridge, Maps, push, Razorpay test/webhook secrets and test catalogs/coverage |
 | Business operations | Existing eligibility and release policies unaccepted | Owner-published eligibility, retention, legal/refund policies, support ownership, real service zones and settlement contracts |
 | iOS execution | Windows host | macOS/Xcode, registered iOS Firebase app, signing and test device/simulator |

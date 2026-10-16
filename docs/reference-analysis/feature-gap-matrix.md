@@ -1,11 +1,11 @@
 # Reference to AllGo feature gap matrix
 
-2026-10-16. Reference behaviors below are requested inspection targets, **not observed Swiggy behavior**. Only launch/activity identity is currently confirmed. Existing AllGo sources provide implementation candidates, not proof of complete workflows.
+2026-10-16. Reference behavior is observed only where explicitly stated. Out-of-coverage home and location selector are captured; other behaviors remain requested inspection targets. Existing AllGo sources provide implementation candidates, not proof of complete workflows.
 
 | Reference behavior / requested target | AllGo source | Gap | Required change | Priority | Verification |
 |---|---|---|---|---|---|
 | Authentication (login activity reached; controls unobserved) | AuthScreen, PhoneAccountFlow, App | Provider/native identity acceptance missing | Test linked registration/sign-in/logout/recovery | P0 | Provider test identities and revocation |
-| Home, location, search, navigation (unobserved) | CustomerApp, AddressSheet, GlobalCatalogSearch, BottomNavigation | Device accessibility and error matrix unaccepted | Existing design system/device review | P2 | 360/390/430 widths, denied location, no network |
+| Coverage-empty home and location selector (observed); search/navigation (unobserved) | CustomerApp, AddressSheet, GlobalCatalogSearch, BottomNavigation | Explicit coverage feedback and location controls need connected-device acceptance | Existing design system/device review | P1 | 360/390/430 widths, unsupported address, denied location, no network |
 | Restaurant/menu/customization (unobserved) | RestaurantMenu, CatalogDetails | Real catalog and merchant journey acceptance | Fixture-backed backend integration then staging | P1 | Price/options/availability and cart validation |
 | Cart/coupon/checkout/payment (unobserved) | CheckoutReviewScreen, payments.ts, cartPolicy, index.js | Provider callbacks/recovery acceptance | Signed test provider flow, no duplicate booking | P0 | Failure/cancel/replay/out-of-stock cases |
 | Confirmation/tracking/cancellation/refund/review (unobserved) | OrderTrackingScreen, CancellationDialog, RefundStatusCard, CustomerPages | Live fulfillment/payment reconciliation acceptance | End-to-end participant flow | P1 | Merchant accept → assignment → delivery → review |

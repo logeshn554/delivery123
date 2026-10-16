@@ -27,6 +27,96 @@ beforeEach(async () => {
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
 
+for (const serviceType of ['food', 'grocery']) {
+  test(`${serviceType} customer checkout reaches merchant preparation, private dispatch, delivery and review`, async () => {
+    const originalFetch = globalThis.fetch, previousMapsKey = process.env.MAPS_API_KEY;
+    process.env.MAPS_API_KEY = 'isolated-test-map-key';
+    // Only external Maps responses are simulated. Pricing, wallet, inventory,
+    // merchant transitions, dispatch leases and fulfillment run against Firestore.
+    globalThis.fetch = async (input, options) => {
+      const url = new URL(String(input));
+      if (url.hostname === 'maps.googleapis.com') return Response.json({ status: 'OK', results: [{
+        place_id: url.searchParams.get('address')?.includes('Merchant') ? 'merchant-place' : 'customer-place',
+        formatted_address: url.searchParams.get('address') || 'Customer delivery street',
+        geometry: { location: { lat: 13.081, lng: 80.271 } },
+      }] });
+      if (url.hostname === 'routes.googleapis.com') return Response.json({ routes: [{ distanceMeters: 1000, duration: '300s' }] });
+      if (url.hostname === '127.0.0.1' && url.port === '8080') return originalFetch(input, options);
+      throw new Error(`Unexpected external call in isolated journey: ${url.origin}`);
+    };
+    try {
+      const parent = serviceType === 'food' ? 'restaurants/shop' : 'grocery_stores/shop';
+      const itemPath = `${parent}/${serviceType === 'food' ? 'menu_items' : 'products'}/item`;
+      await db.doc(parent).set({ name: 'Test partner', address: 'Merchant pickup street', acceptingOrders: true, onboardingStatus: 'approved' });
+      await db.doc(itemPath).set({ name: 'Test item', price: 100, available: true, stock: 10 });
+      await db.doc('platform_config/wallet').set({ enabled: true, maxTopupCents: 100000 });
+      await db.doc(`service_pricing/${serviceType}`).set({
+        enabled: true, version: 1, zoneIds: ['city'],
+        delivery: { enabled: true, baseDeliveryCents: 2000, perKmCents: 0 },
+        settlement: { baseCents: 4000, maxPayoutCents: 4000 },
+      });
+      await db.doc('service_zones/city').set({ enabled: true, serviceTypes: [serviceType], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+      await db.doc('users/merchant').set({ role: 'merchant', name: 'Test merchant', merchantId: 'shop', merchantType: serviceType === 'food' ? 'restaurant' : 'grocery' });
+      await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
+      await db.doc('users/other').set({ role: 'customer' });
+      await db.doc('driver_profiles/driver').set({ status: 'verified', online: true, locationConsent: true, supportedServices: [serviceType], vehicleType: 'bike', currentLat: 13.081, currentLng: 80.271, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10, availableEarningsCents: 0, completedJobs: 0 });
+      const checkout = {
+        requestId: `${serviceType}_journey`, expectedAmountCents: 12000,
+        booking: { serviceType, pickupAddress: 'Customer delivery street', price: 1, details: {
+          [serviceType === 'food' ? 'restaurantId' : 'storeId']: 'shop',
+          items: [{ id: 'item', quantity: 1, price: 1 }],
+        } },
+      };
+      const result = await callable('payWithWallet', 'customer', checkout);
+      assert.equal(result.status, 'paid');
+      assert.deepEqual(await callable('payWithWallet', 'customer', checkout), result);
+      const id = result.bookingId, ref = db.doc(`bookings/${id}`);
+      const confirmed = (await ref.get()).data();
+      assert.equal(confirmed.price, 120); assert.equal(confirmed.details.items[0].price, 100);
+      assert.equal(confirmed.status, 'pending'); assert.equal(confirmed.otp, undefined);
+      assert.equal((await db.doc('users/customer').get()).data().walletBalance, 880);
+      assert.equal((await db.collection('wallet_ledger/customer/entries').get()).size, 1);
+      assert.deepEqual(await callable('listDriverOffers', 'driver', {}), []);
+      await assert.rejects(callable('advanceMerchantBooking', 'other', { bookingId: id, status: 'preparing' }), error => error.code === 'permission-denied');
+      await callable('advanceMerchantBooking', 'merchant', { bookingId: id, status: 'preparing' });
+      if (serviceType === 'grocery') {
+        await assert.rejects(callable('advanceMerchantBooking', 'merchant', { bookingId: id, status: 'ready' }), error => error.code === 'failed-precondition');
+        await callable('confirmGroceryPicking', 'merchant', { bookingId: id, lineIndex: 0, quantity: 1, expectedRevision: 0, requestId: 'journey_pick' });
+      }
+      await callable('advanceMerchantBooking', 'merchant', { bookingId: id, status: 'ready' });
+      // Refresh location at the actual dispatch boundary rather than relying on test speed.
+      await db.doc('driver_profiles/driver').update({ locationUpdatedAt: new Date().toISOString() });
+      const offers = await callable('listDriverOffers', 'driver', {});
+      assert.equal(offers.length, 1); assert.equal(offers[0].bookingId, id);
+      assert.equal(offers[0].customerName, ''); assert.equal(offers[0].otp, undefined);
+      assert.notEqual(offers[0].dropAddress, confirmed.dropAddress);
+      await callable('acceptDriverBooking', 'driver', { bookingId: id });
+      assert.equal((await ref.get()).data().driverId, 'driver');
+      await callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'preparing' });
+      await callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'transit' });
+      await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'completed', otp: 'invalid' }), error => error.code === 'permission-denied');
+      const code = (await db.doc(`booking_codes/${id}`).get()).data().code;
+      const completion = { bookingId: id, status: 'completed', otp: code };
+      await callable('advanceDriverBooking', 'driver', completion);
+      await callable('advanceDriverBooking', 'driver', completion);
+      const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
+      assert.equal(completed.status, 'completed'); assert.equal(completed.driverPayout, 40);
+      assert.equal(driver.activeBookingId, null); assert.equal(driver.completedJobs, 1); assert.equal(driver.availableEarningsCents, 4000);
+      assert.equal((await db.collection('driver_ledger/driver/entries').get()).size, 1);
+      assert.equal((await db.doc(`booking_codes/${id}`).get()).exists, false);
+      assert.equal((await db.doc(itemPath).get()).data().stock, serviceType === 'grocery' ? 9 : 10);
+      await callable('submitOrderReview', 'customer', { bookingId: id, rating: 5, comment: 'Isolated completed journey' });
+      assert.equal((await db.doc(`order_reviews/${id}`).get()).data().rating, 5);
+      const events = (await ref.collection('events').get()).docs.map(event => event.data().stage);
+      for (const stage of ['confirmed', serviceType === 'food' ? 'restaurant_preparing' : 'store_picking', serviceType === 'food' ? 'restaurant_ready' : 'store_packed', 'arrived_at_pickup', 'picked_up', 'delivery_confirmed']) assert.ok(events.includes(stage), `Missing ${stage}`);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (previousMapsKey === undefined) delete process.env.MAPS_API_KEY;
+      else process.env.MAPS_API_KEY = previousMapsKey;
+    }
+  });
+}
+
 test('release callables require a live Neon bridge session while local Firebase mode remains available', async () => {
   const previousEnvironment = process.env.ALLGO_ENVIRONMENT;
   process.env.ALLGO_ENVIRONMENT = 'staging';
