@@ -40,7 +40,7 @@ test('welcome screen keeps a high-contrast brand hero and usable account actions
   assert.match(global,/\.auth-welcome \.auth-outline\s*\{[^}]*color:\s*white/);
   assert.match(global,/@media \(max-height:\s*720px\)[^\n]+\.auth-welcome/);
   assert.doesNotMatch(stitch,/^\.auth-welcome(?:\s|[.#:{])/m);
-  assert.match(auth,/navigate\(useNeonAccounts\?'signup':'onboarding'\)[^\n]+Get started/);
+  assert.match(auth,/navigate\(useNeonAccounts\?'signup':partnerAudience\?'signup':'onboarding'\)[^\n]+Get started/);
   assert.match(auth,/navigate\(useNeonAccounts\?'phone':'signin'\)[^\n]+I already have an account/);
   assert.match(auth,/className="service-orbit" aria-hidden="true"/);
 });

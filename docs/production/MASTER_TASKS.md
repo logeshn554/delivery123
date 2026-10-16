@@ -20,11 +20,11 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | PARCEL-01 | P1 | Parcel quote/wallet/pickup-code/delivery journey verified; photo proof, returns/claims and native acceptance remain | In progress |
 | RIDE-01 | P1 | Ride/driver-hire quote/wallet/assignment/codes/completion backend journeys verified; live tracking/native/payment acceptance remains | In progress |
 | TRANS-01 | P1 | Transport quote/wallet/carrier eligibility/pickup/delivery backend journey verified; custody documents/inspections/claims remain | In progress |
-| PARTNER-01 | P1 | Reconcile sibling merchant/driver projects with repository distribution/build strategy | Not started |
+| PARTNER-01 | P1 | Shared tracked role workspaces, distinct app IDs/schemes and reproducible Android debug builds; provider, iOS and authenticated partner acceptance remain | In progress |
 | MOBILE-01 | P1 | Debug build/install/startup recovery verified; six-service native acceptance awaits reachable backend/providers | In progress |
 | MOBILE-02 | P1 | iOS archive and device journeys on supported macOS/Xcode host | Blocked |
 | UI-01 | P2 | Preserve existing Stitch tokens; verify responsive/accessibility/keyboard states | Not started |
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |
 | GIT-01 | P1 | Commit each validated increment and push without rewriting existing history | In progress |
 
-Next executable work: integrate versioned merchant/driver build entry points using existing role components and distinct native identities. Native authenticated acceptance needs isolated backend/provider configuration. Reference inspection may continue independently without login bypass or purchases.
+Next executable work: verify partner startup and application/assignment transitions on an isolated backend; complete audience-specific release registration and acceptance gates. Native authenticated acceptance needs isolated backend/provider configuration. Reference inspection may continue independently without login bypass or purchases.

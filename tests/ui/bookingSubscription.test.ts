@@ -20,11 +20,14 @@ function harness() {
   return { calls, received, listeners, receive: (rows: Booking[]) => received.push(rows), emit: (rows: Booking[]) => emit(rows), stopped: () => stopped };
 }
 
-test('operations workspace receives the admin booking feed in every app audience', () => {
-  for (const audience of ['customer', 'merchant', 'driver'] as const) {
+test('operations workspace is available only in the customer app', () => {
+  const customer = harness();
+  subscribeWorkspaceBookings('customer', 'staff', { role: 'admin' }, customer.listeners, customer.receive);
+  assert.deepEqual(customer.calls, [['admin']]);
+  for (const audience of ['merchant', 'driver'] as const) {
     const h = harness();
     subscribeWorkspaceBookings(audience, 'staff', { role: 'admin' }, h.listeners, h.receive);
-    assert.deepEqual(h.calls, [['admin']]);
+    assert.deepEqual(h.calls, []);
   }
 });
 
@@ -38,7 +41,6 @@ test('non-admin accounts in the customer app retain only their personal orders',
 
 test('partner feeds use assigned identity and incomplete merchant profiles subscribe to nothing', () => {
   const cases: [Pick<UserProfile, 'role' | 'merchantId' | 'merchantType'>, unknown[][]][] = [
-    [{ role: 'driver' }, [['driver', 'partner']]],
     [{ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' }, [['merchant', 'shop', 'grocery']]],
     [{ role: 'merchant' }, []],
     [{ role: 'customer' }, []],
@@ -49,6 +51,12 @@ test('partner feeds use assigned identity and incomplete merchant profiles subsc
     assert.deepEqual(h.calls, expected);
     assert.deepEqual(h.received, [[]]);
   }
+  const driver = harness();
+  subscribeWorkspaceBookings('driver', 'partner', { role: 'driver' }, driver.listeners, driver.receive);
+  assert.deepEqual(driver.calls, [['driver', 'partner']]);
+  const mismatch = harness();
+  subscribeWorkspaceBookings('driver', 'partner', { role: 'merchant' }, mismatch.listeners, mismatch.receive);
+  assert.deepEqual(mismatch.calls, []);
 });
 
 test('switching scope clears previous records and ignores callbacks after teardown', () => {

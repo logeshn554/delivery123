@@ -1,5 +1,6 @@
 import type { Booking, UserProfile } from '../types';
 import { subscriptionGroup } from '../data/subscriptionGroup';
+import { workspaceFor } from './workspace';
 
 type Stop = () => void;
 type Receive = (bookings: Booking[]) => void;
@@ -24,13 +25,14 @@ export function subscribeWorkspaceBookings(
   const publish = group.publish;
   receive([]);
   try {
-    const stop = profile.role === 'admin'
+    const workspace = workspaceFor(audience, profile);
+    const stop = workspace === 'admin'
       ? listeners.listenToBookings(publish, group.fail)
-      : audience === 'customer'
+      : workspace === 'customer'
         ? listeners.listenToCustomerBookings(uid, publish, group.fail)
-        : profile.role === 'driver'
+        : workspace === 'driver'
           ? listeners.listenToDriverBookings(uid, publish, group.fail)
-          : profile.role === 'merchant' && profile.merchantId && profile.merchantType
+          : workspace === 'merchant' && profile.merchantId && profile.merchantType
             ? listeners.listenToMerchantBookings(profile.merchantId, profile.merchantType, publish, group.fail)
             : () => undefined;
     group.add(stop);

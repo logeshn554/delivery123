@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(Checkout.class);
         registerPlugin(SecureSession.class);
+        if ("driver".equals(BuildConfig.ALLGO_AUDIENCE)) registerPlugin(DriverLocation.class);
 
         super.onCreate(savedInstanceState);
         if ((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0) {

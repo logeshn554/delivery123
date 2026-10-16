@@ -10,6 +10,7 @@ import { passwordStrength, passwordStrengthLabel } from '../auth/passwordStrengt
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
 import { useNeonAccounts, signInAccount, forgotPasswordAccount, resetPasswordAccount } from '../accounts';
 import PhoneAccountFlow from './PhoneAccountFlow';
+import { appAudience, appTitle } from '../app/audience';
 
 export function authMessage(error: unknown): string {
   const code = (error as { code?: string })?.code;
@@ -56,6 +57,7 @@ export default function AuthScreen() {
   const strength = passwordStrength(password);
   const strengthLabel = password ? passwordStrengthLabel(strength) : 'Not set';
   const phoneResendWait = Math.max(0, Math.ceil((resendAt - clock) / 1000));
+  const partnerAudience = appAudience !== 'customer';
   useEffect(() => {
     if (useNeonAccounts) return;
     if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('FirebaseAuthentication')) return;
@@ -131,13 +133,13 @@ export default function AuthScreen() {
     <section className={`auth-panel ${screen === 'welcome' ? 'auth-welcome' : ''}`}>
       {screen === 'welcome' ? <>
         <div className="brand-mark" aria-hidden="true">A<span /></div>
-        <h1 className="auth-brand">AllGo</h1>
-        <p className="auth-eyebrow">YOUR EVERYDAY, DELIVERED</p>
-        <h2>Everything you need.<br />One app to get it.</h2>
-        <p className="auth-description">Food, groceries, parcels and rides.<br />A little less planning. A lot more living.</p>
-        <div className="service-orbit" aria-hidden="true"><ShoppingBag /><Bike /><Package /><Truck /></div>
+        <h1 className="auth-brand">{appTitle}</h1>
+        <p className="auth-eyebrow">{partnerAudience ? appAudience === 'driver' ? 'DELIVERY PARTNER' : 'BUSINESS PARTNER' : 'YOUR EVERYDAY, DELIVERED'}</p>
+        <h2>{partnerAudience ? appAudience === 'driver' ? <>Deliver with<br />AllGo.</> : <>Your business,<br />with AllGo.</> : <>Everything you need.<br />One app to get it.</>}</h2>
+        <p className="auth-description">{partnerAudience ? appAudience === 'driver' ? 'Sign in to see your delivery account and assigned work.' : 'Sign in to manage an approved restaurant or grocery business.' : <>Food, groceries, parcels and rides.<br />A little less planning. A lot more living.</>}</p>
+        {!partnerAudience && <div className="service-orbit" aria-hidden="true"><ShoppingBag /><Bike /><Package /><Truck /></div>}
         <div className="auth-welcome-actions">
-          <button className="auth-primary auth-white" onClick={() => navigate(useNeonAccounts?'signup':'onboarding')}>Get started <ArrowRight size={19} /></button>
+          <button className="auth-primary auth-white" onClick={() => navigate(useNeonAccounts?'signup':partnerAudience?'signup':'onboarding')}>{partnerAudience ? 'Create an account' : 'Get started'} <ArrowRight size={19} /></button>
           <button className="auth-outline" onClick={() => navigate(useNeonAccounts?'phone':'signin')}>I already have an account</button>
         </div>
       </> : screen === 'onboarding' ? <section className="onboarding-page" aria-label="AllGo introduction">

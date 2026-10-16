@@ -8,6 +8,7 @@ import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, functions } from './firebase';
 import { stopNativeDriverLocation } from './driverLocation';
+import { appScheme } from './app/audience';
 
 function openBooking(id: unknown) {
   if (typeof id !== 'string' || !/^ALLGO_[a-zA-Z0-9_-]+$/.test(id)) return;
@@ -15,7 +16,7 @@ function openBooking(id: unknown) {
   window.dispatchEvent(new CustomEvent('allgo:booking', { detail: id }));
 }
 function openUrl(raw: string) {
-  try { const url = new URL(raw); if (url.protocol === 'allgo:' && url.hostname === 'booking') openBooking(decodeURIComponent(url.pathname.slice(1))); } catch { /* Ignore unrelated URLs. */ }
+  try { const url = new URL(raw); if (url.protocol === `${appScheme}:` && url.hostname === 'booking') openBooking(decodeURIComponent(url.pathname.slice(1))); } catch { /* Ignore unrelated URLs. */ }
 }
 export async function enableOrderNotifications() {
   if (useNeonAccounts && !hasServiceIdentity) throw new Error('Verify and connect your account before enabling delivery notifications.');

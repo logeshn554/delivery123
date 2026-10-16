@@ -1,8 +1,20 @@
 apply plugin: 'com.android.application'
 
+def audienceConfig = new groovy.json.JsonSlurper().parse(file('../../scripts/app-audiences.json'))
+def buildMetadataFile = file('src/main/assets/public/allgo-build.json')
+def buildMetadata = buildMetadataFile.exists() ? new groovy.json.JsonSlurper().parse(buildMetadataFile) : [audience: 'customer', appId: 'in.allgo.app']
+def allgoAudience = buildMetadata.audience ?: 'customer'
+if (!audienceConfig.containsKey(allgoAudience) || audienceConfig[allgoAudience].appId != buildMetadata.appId) {
+    throw new GradleException('Web bundle audience and registered Android identity do not match.')
+}
+def allgoApplication = audienceConfig[allgoAudience]
+
 def allgoKeystore = System.getenv('ALLGO_KEYSTORE_PATH')
 def allgoSigningReady = allgoKeystore && System.getenv('ALLGO_KEYSTORE_PASSWORD') && System.getenv('ALLGO_KEY_ALIAS') && System.getenv('ALLGO_KEY_PASSWORD')
 def releaseRequested = gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }
+if (releaseRequested && allgoAudience != 'customer') {
+    throw new GradleException('Partner release packaging requires audience-specific provider registration and operator acceptance; only debug partner builds are enabled.')
+}
 if ((releaseRequested || project.hasProperty('allgoRequireSigning')) && !allgoSigningReady) {
     throw new GradleException('Release signing requires all four ALLGO_KEYSTORE_* / ALLGO_KEY_* environment values.')
 }
@@ -22,7 +34,9 @@ android {
     namespace "in.allgo.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "in.allgo.app"
+        applicationId allgoApplication.appId
+        manifestPlaceholders = [allgoAppTitle: allgoApplication.title, allgoBookingScheme: allgoApplication.scheme]
+        buildConfigField 'String', 'ALLGO_AUDIENCE', "\"${allgoAudience}\""
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = (System.getenv('ALLGO_VERSION_CODE') ?: '1').toInteger()
@@ -33,6 +47,11 @@ android {
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+    }
+    buildFeatures { buildConfig true }
+    flavorDimensions 'audience'
+    productFlavors {
+        create(allgoAudience) { dimension 'audience' }
     }
     signingConfigs {
         if (allgoSigningReady) {

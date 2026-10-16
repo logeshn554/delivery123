@@ -1,0 +1,5 @@
+{
+  "customer": { "title": "AllGo", "appId": "in.allgo.app", "scheme": "allgo" },
+  "merchant": { "title": "AllGo Merchant", "appId": "in.allgo.merchant", "scheme": "allgo-merchant" },
+  "driver": { "title": "AllGo Delivery", "appId": "in.allgo.delivery", "scheme": "allgo-delivery" }
+}

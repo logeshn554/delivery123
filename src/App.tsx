@@ -1,6 +1,7 @@
 import { appAudience, appTitle } from './app/audience';
 import { subscribeWorkspaceBookings } from './app/bookingSubscription';
 import { subscriptionGroup } from './data/subscriptionGroup';
+import { workspaceFor } from './app/workspace';
 import { lazy, Suspense, useEffect, useState, useRef } from 'react';
 import { LogOut } from 'lucide-react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -13,6 +14,9 @@ import { getOrCreateUserProfile, listenToAccountProfile, listenToBookings, liste
 import { Booking, DriverProfile, UserProfile } from './types';
 const CustomerApp = lazy(() => import('./components/CustomerApp'));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const MerchantPortal = lazy(() => import('./components/MerchantPortal'));
+const DriverApp = lazy(() => import('./components/DriverApp'));
+const PartnerApplicationPanel = lazy(() => import('./components/PartnerApplicationPanel'));
 
 
 export default function App() {
@@ -93,7 +97,7 @@ export default function App() {
       listenToBookings, listenToCustomerBookings, listenToDriverBookings, listenToMerchantBookings,
     }, group.publish, group.fail));
     let active = true;
-    if (userProfile.role === 'admin') group.add(listenToDriverProfiles(rows => { if (active) setDrivers(rows); }, group.fail));
+    if (workspaceFor(appAudience, userProfile) === 'admin') group.add(listenToDriverProfiles(rows => { if (active) setDrivers(rows); }, group.fail));
     group.add(() => { active = false; });
     return group.stop;
   }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, hasServiceIdentity, bookingRetry]);
@@ -103,7 +107,10 @@ export default function App() {
   if (!currentUser || !userProfile) return <AuthScreen />;
   if (useNeonAccounts && userProfile.serviceIdentityEnabled && !userProfile.emailVerified && !userProfile.phoneVerified) return <VerifyAccount email={userProfile.email} onSignOut={nativeSignOut} />;
   if (bookingError) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Order updates are unavailable</h1><p role="alert">{bookingError}</p><p>Reconnect to load your current orders. Previously loaded order details have been cleared.</p><button type="button" className="auth-primary" onClick={() => setBookingRetry(value => value + 1)}>Retry order updates</button><button type="button" className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button></section></div>;
-  if (userProfile.role === 'admin') {
+  const workspace = workspaceFor(appAudience, userProfile);
+  if (workspace === 'application' || workspace === 'denied' || workspace === 'unassigned') return <main className="partner-onboarding"><header><div className="auth-wordmark">All<span>Go</span></div><p className="auth-eyebrow">{appTitle}</p><h1>{workspace === 'application' ? 'Apply to become an AllGo partner' : 'Partner workspace unavailable'}</h1></header>{workspace === 'application' ? <><p>Submit your application for review. Approval and an assigned partner role are required before accepting work.</p><Suspense fallback={<p role="status">Opening application…</p>}><PartnerApplicationPanel userId={currentUser.uid} initialType={appAudience === 'driver' ? 'driver' : 'restaurant'} initialName={userProfile.name} initialPhone={userProfile.phone}/></Suspense></> : <p role="alert">{workspace === 'unassigned' ? 'Your merchant account has no assigned business. Contact AllGo operations to complete your setup.' : `Sign in with your approved ${appAudience} account to open this app.`}</p>}<button type="button" className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button></main>;
+  if (workspace === 'merchant' || workspace === 'driver') return <div className="allgo-workspace">{profileError && <aside role="alert" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Account updates are temporarily unavailable. {profileError}</aside>}<header className="allgo-workspace-header"><strong>{appTitle}</strong><button type="button" aria-label="Sign out" onClick={() => void nativeSignOut()} className="rounded-xl p-3 text-rose-600"><LogOut size={19}/></button></header><main className="allgo-workspace-main max-w-md overflow-hidden"><Suspense fallback={<p role="status">Opening your workspace…</p>}>{workspace === 'merchant' ? <MerchantPortal key={currentUser.uid} activeBookings={bookings} merchantId={userProfile.merchantId} merchantType={userProfile.merchantType}/> : <DriverApp key={currentUser.uid} userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings}/>}</Suspense></main></div>;
+  if (workspace === 'admin') {
     return (
       <div className="allgo-workspace">
         <header className="allgo-workspace-header">

@@ -1,5 +1,7 @@
 # Test results
 
+PARTNER-01 (2026-10-16): TypeScript passes; 214 application tests pass (67 Functions, 53 UI, 94 server), secret scan passes. Log: .cache/partner-variants-tests.log. A legacy welcome navigation source assertion was updated for partner signup/customer onboarding. Corrected Android flavor builds pass for merchant, driver and customer (.cache/{merchant,driver,customer}-flavor-build.log). Merged manifests verify distinct package IDs and preserved debug cleartext configuration; only driver declares DriverLocationService and allgo-delivery scheme. All three rebuilt APK installations report Success and package listing shows in.allgo.app, in.allgo.merchant and in.allgo.delivery. Merchant launch returned activity-not-found; subsequent resolver queries failed with broken pipe and missing package/activity services. Boot property remained 1, zygote running, but service check package reported not found. Startup acceptance remains unverified pending emulator recovery. Authenticated provider and native GPS acceptance remain unverified.
+
 ## 2026-10-16 current execution
 
 | Check | Result | Scope / limitation |

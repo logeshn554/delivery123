@@ -1,5 +1,7 @@
 # Implementation log
 
+PARTNER-01 (2026-10-16): integrated existing merchant/driver components into audience-specific workspaces in the tracked repository. Shared identity registry controls Android IDs, names, deep links and web metadata. Mismatched roles receive no partner feed; incomplete merchant assignments are blocked; customer accounts can apply for approval. Added sequential debug build commands and Android audience flavors preserving common debug configuration. Only driver declares/registers the existing foreground location service. Partner release packaging is explicitly gated pending audience-specific provider and operator acceptance. See ../architecture/mobile-app-variants.md. Sibling source folders remain outside this repository.
+
 ## 2026-10-16
 
 - Read the user's master request, local REA skill, existing production foundation log, remediation register, source/journey inventories, record authority and platform connections. Preserved original React/TypeScript/Capacitor architecture and dedicated branch. Initial working tree clean; branch reported 24 commits ahead of its remote tracking reference (not a fresh remote comparison).
