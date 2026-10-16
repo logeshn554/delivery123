@@ -1,5 +1,6 @@
 import { appAudience, appTitle } from './app/audience';
 import { subscribeWorkspaceBookings } from './app/bookingSubscription';
+import { subscriptionGroup } from './data/subscriptionGroup';
 import { lazy, Suspense, useEffect, useState, useRef } from 'react';
 import { LogOut } from 'lucide-react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -21,6 +22,8 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingError, setBookingError] = useState('');
+  const [bookingRetry, setBookingRetry] = useState(0);
   const [drivers, setDrivers] = useState<DriverProfile[]>([]);
   const [continueAsCustomer,setContinueAsCustomer]=useState(false);
   useEffect(()=>setContinueAsCustomer(false),[currentUser?.uid]);
@@ -81,17 +84,25 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser || !userProfile) return;
-    const stopBookings = subscribeWorkspaceBookings(appAudience, currentUser.uid, userProfile, {
+    setBookingError(''); setDrivers([]);
+    const group = subscriptionGroup<Booking[]>(setBookings, () => [], error => {
+      setDrivers([]);
+      setBookingError(authMessage(error));
+    });
+    group.add(subscribeWorkspaceBookings(appAudience, currentUser.uid, userProfile, {
       listenToBookings, listenToCustomerBookings, listenToDriverBookings, listenToMerchantBookings,
-    }, setBookings);
-    const stopDrivers = userProfile.role === 'admin' ? listenToDriverProfiles(setDrivers) : () => undefined;
-    return () => { stopBookings(); stopDrivers(); };
-  }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, hasServiceIdentity]);
+    }, group.publish, group.fail));
+    let active = true;
+    if (userProfile.role === 'admin') group.add(listenToDriverProfiles(rows => { if (active) setDrivers(rows); }, group.fail));
+    group.add(() => { active = false; });
+    return group.stop;
+  }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, hasServiceIdentity, bookingRetry]);
 
   if (authChecking) return <div className="auth-shell"><section className="auth-panel grid place-content-center text-center"><div className="auth-wordmark">All<span>Go</span></div><p role="status">Opening your account…</p></section></div>;
   if (profileError && (!currentUser || !userProfile)) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Let’s reconnect.</h1><p role="alert">{profileError}</p><button className="auth-primary" onClick={() => setRetry(value => value + 1)}>Try again</button>{currentUser ? <button className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button>:<button className="auth-switch" onClick={()=>setProfileError('')}>Open sign-in options</button>}</section></div>;
   if (!currentUser || !userProfile) return <AuthScreen />;
   if (useNeonAccounts && userProfile.serviceIdentityEnabled && !userProfile.emailVerified && !userProfile.phoneVerified) return <VerifyAccount email={userProfile.email} onSignOut={nativeSignOut} />;
+  if (bookingError) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Order updates are unavailable</h1><p role="alert">{bookingError}</p><p>Reconnect to load your current orders. Previously loaded order details have been cleared.</p><button type="button" className="auth-primary" onClick={() => setBookingRetry(value => value + 1)}>Retry order updates</button><button type="button" className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button></section></div>;
   if (userProfile.role === 'admin') {
     return (
       <div className="allgo-workspace">

@@ -1,12 +1,14 @@
 import type { Booking, UserProfile } from '../types';
+import { subscriptionGroup } from '../data/subscriptionGroup';
 
 type Stop = () => void;
 type Receive = (bookings: Booking[]) => void;
+type Failure = (error: unknown) => void;
 interface BookingListeners {
-  listenToBookings: (receive: Receive) => Stop;
-  listenToCustomerBookings: (uid: string, receive: Receive) => Stop;
-  listenToDriverBookings: (uid: string, receive: Receive) => Stop;
-  listenToMerchantBookings: (id: string, type: 'restaurant' | 'grocery', receive: Receive) => Stop;
+  listenToBookings: (receive: Receive, onError: Failure) => Stop;
+  listenToCustomerBookings: (uid: string, receive: Receive, onError: Failure) => Stop;
+  listenToDriverBookings: (uid: string, receive: Receive, onError: Failure) => Stop;
+  listenToMerchantBookings: (id: string, type: 'restaurant' | 'grocery', receive: Receive, onError: Failure) => Stop;
 }
 
 // Choose the data scope of the rendered workspace. Authorization remains server-side.
@@ -16,18 +18,22 @@ export function subscribeWorkspaceBookings(
   profile: Pick<UserProfile, 'role' | 'merchantId' | 'merchantType'>,
   listeners: BookingListeners,
   receive: Receive,
+  onError: Failure = console.error,
 ): Stop {
-  let active = true;
-  const publish: Receive = bookings => { if (active) receive(bookings); };
+  const group = subscriptionGroup<Booking[]>(receive, () => [], onError);
+  const publish = group.publish;
   receive([]);
-  const stop = profile.role === 'admin'
-    ? listeners.listenToBookings(publish)
-    : audience === 'customer'
-      ? listeners.listenToCustomerBookings(uid, publish)
-      : profile.role === 'driver'
-        ? listeners.listenToDriverBookings(uid, publish)
-        : profile.role === 'merchant' && profile.merchantId && profile.merchantType
-          ? listeners.listenToMerchantBookings(profile.merchantId, profile.merchantType, publish)
-          : () => undefined;
-  return () => { active = false; stop(); };
+  try {
+    const stop = profile.role === 'admin'
+      ? listeners.listenToBookings(publish, group.fail)
+      : audience === 'customer'
+        ? listeners.listenToCustomerBookings(uid, publish, group.fail)
+        : profile.role === 'driver'
+          ? listeners.listenToDriverBookings(uid, publish, group.fail)
+          : profile.role === 'merchant' && profile.merchantId && profile.merchantType
+            ? listeners.listenToMerchantBookings(profile.merchantId, profile.merchantType, publish, group.fail)
+            : () => undefined;
+    group.add(stop);
+  } catch (error) { group.fail(error); }
+  return group.stop;
 }

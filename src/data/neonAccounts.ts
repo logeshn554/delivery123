@@ -15,7 +15,7 @@ export const neonAccountHandlers: Record<string, (...args: any[]) => any> = {
   createSupportTicket: () => Promise.reject(serviceAccessError()),
   listenToSupportTickets: (_uid, _callback, error) => { error?.(serviceAccessError()); return () => {}; },
   requestAccountDeletion: () => accountRequest('/account/items/deletion', 'POST', {}),
-  listenToCustomerBookings: (_uid, callback) => pollAccount('/data/bookings', callback),
+  listenToCustomerBookings: (_uid, callback, error) => pollAccount('/data/bookings', callback, error),
   listenToBookingContacts: (id, callback, error) => pollAccount(`/data/bookings/${encodeURIComponent(id)}/contacts`, callback, error),
   listenToWalletLedger: (_uid, callback, error) => pollAccount('/account/items/ledger', callback, error),
   listPaymentActivity: () => accountRequest('/account/items/payments'),

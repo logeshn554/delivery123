@@ -9,3 +9,5 @@
 - Created required production tracker/audit/reference files. Remaining work is explicit; this increment does not establish release readiness.
 
 FIX-01 validation: 207 application tests, 96 isolated Firestore/integration tests, TypeScript and development build passed. No live provider or authenticated mobile acceptance claimed.
+
+FIX-02: joined order/code reads terminate together on errors; Neon errors and missing service identity propagate to the workspace. Admin/partner read errors clear cached records. Workspace unmounts stale order details and provides retry/sign-out. Eight subscription regression tests and full 211-test application suite pass; TypeScript and development build pass. Authenticated device failure injection remains pending. A first lint run found generic empty-array inference errors; explicit Booking[] types fixed them before validation.

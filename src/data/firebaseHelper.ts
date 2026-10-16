@@ -17,6 +17,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
 import { Booking, UserProfile, DriverProfile, SavedAddress, SupportTicket } from '../types';
 import type { ParcelFareBreakdown } from '../design-system/serviceQuote';
+import { subscriptionGroup } from './subscriptionGroup';
 
 export function listenToMerchantHours(id: string, type: 'restaurant' | 'grocery', callback: (value: { weeklyHours?: Record<string, { open: string; close: string }[]>; timeZone?: string; acceptingOrders?: boolean }) => void, onError: (error: unknown) => void) {
   return onSnapshot(doc(db, type === 'restaurant' ? 'restaurants' : 'grocery_stores', id), snapshot => { if (!snapshot.exists()) { onError(new Error('Business unavailable.')); return; } callback(snapshot.data()); }, onError);
@@ -304,7 +305,7 @@ export async function updateBookingStatus(bookingId: string, updates: Partial<Bo
 /**
  * Listens to active bookings real-time
  */
-export function listenToBookings(callback: (bookings: Booking[]) => void) {
+export function listenToBookings(callback: (bookings: Booking[]) => void, onError: (error: unknown) => void = console.error) {
   const path = 'bookings';
   const q = collection(db, 'bookings');
   return onSnapshot(q, (snapshot) => {
@@ -316,22 +317,23 @@ export function listenToBookings(callback: (bookings: Booking[]) => void) {
     bookingsList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(bookingsList);
   }, (err) => {
-    handleFirestoreError(err, OperationType.GET, path);
+    callback([]); onError(err);
   });
 }
 
-export function listenToCustomerBookings(userId: string, callback: (bookings: Booking[]) => void) {
+export function listenToCustomerBookings(userId: string, callback: (bookings: Booking[]) => void, onError: (error: unknown) => void = console.error) {
   const path = 'bookings';
   const q = query(collection(db, path), where('customerId', '==', userId));
   let bookings: Booking[] = [], codes = new Map<string, { code?: string; pickupCode?: string }>();
-  const publish = () => callback(bookings.map(booking => ({ ...booking, otp: codes.get(booking.bookingId)?.code, pickupOtp: codes.get(booking.bookingId)?.pickupCode })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
-  const stopBookings = onSnapshot(q, snapshot => { bookings = snapshot.docs.map(booking => booking.data() as Booking); publish(); }, console.error);
-  const stopCodes = onSnapshot(query(collection(db, 'booking_codes'), where('customerId', '==', userId)), snapshot => { codes = new Map(snapshot.docs.map(record => [record.id, record.data() as { code?: string; pickupCode?: string }])); publish(); }, console.error);
-  return () => { stopBookings(); stopCodes(); };
+  const group = subscriptionGroup<Booking[]>(callback, () => [], onError);
+  const publish = () => group.publish(bookings.map(booking => ({ ...booking, otp: codes.get(booking.bookingId)?.code, pickupOtp: codes.get(booking.bookingId)?.pickupCode })).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  group.add(onSnapshot(q, snapshot => { bookings = snapshot.docs.map(booking => booking.data() as Booking); publish(); }, group.fail));
+  group.add(onSnapshot(query(collection(db, 'booking_codes'), where('customerId', '==', userId)), snapshot => { codes = new Map(snapshot.docs.map(record => [record.id, record.data() as { code?: string; pickupCode?: string }])); publish(); }, group.fail));
+  return group.stop;
 }
 
-export function listenToMerchantBookings(merchantId: string, merchantType: 'restaurant' | 'grocery', callback: (bookings: Booking[]) => void) {
-  return onSnapshot(query(collection(db, 'bookings'), where('merchantId', '==', merchantId), where('serviceType', '==', merchantType === 'restaurant' ? 'food' : 'grocery')), snapshot => callback(snapshot.docs.map(record => record.data() as Booking).sort((a, b) => b.createdAt.localeCompare(a.createdAt))), console.error);
+export function listenToMerchantBookings(merchantId: string, merchantType: 'restaurant' | 'grocery', callback: (bookings: Booking[]) => void, onError: (error: unknown) => void = console.error) {
+  return onSnapshot(query(collection(db, 'bookings'), where('merchantId', '==', merchantId), where('serviceType', '==', merchantType === 'restaurant' ? 'food' : 'grocery')), snapshot => callback(snapshot.docs.map(record => record.data() as Booking).sort((a, b) => b.createdAt.localeCompare(a.createdAt))), error => { callback([]); onError(error); });
 }
 export function listenToBookingEvents(id: string, callback: (events: { id: string; stage: string; createdAt: string; proofMethod?: string }[]) => void, onError: (error: unknown) => void) {
   return onSnapshot(collection(db, 'bookings', id, 'events'), snapshot => callback(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as { id: string; stage: string; createdAt: string; proofMethod?: string })).sort((a,b) => a.createdAt.localeCompare(b.createdAt))), onError);
@@ -343,7 +345,8 @@ export async function updateMerchantCatalog(catalogId: string, merchantType: 're
   return (await httpsCallable(functions, 'updateMerchantCatalog')({ catalogId, merchantType, itemId, ...changes })).data;
 }
 
-export function listenToDriverBookings(driverId: string, callback: (bookings: Booking[]) => void) {
+export function listenToDriverBookings(driverId: string, callback: (bookings: Booking[]) => void, onError: (error: unknown) => void = console.error) {
+  const group = subscriptionGroup<Booking[]>(callback, () => [], onError);
   const path = 'bookings';
   let assigned: Booking[] = [];
   let available: Booking[] = [];
@@ -355,15 +358,17 @@ export function listenToDriverBookings(driverId: string, callback: (bookings: Bo
 
   const publish = () => {
     const byId = new Map([...available.filter(booking => !rejected.has(booking.bookingId) && supportedServices.has(booking.serviceType) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === vehicleType) && (!['food', 'grocery'].includes(booking.serviceType) || booking.status === 'ready')), ...assigned].map((booking) => [booking.bookingId, booking]));
-    callback([...byId.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    group.publish([...byId.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
   };
 
-  const stopAssigned = onSnapshot(query(collection(db, path), where('driverId', '==', driverId)), (snapshot) => {
+  group.add(onSnapshot(query(collection(db, path), where('driverId', '==', driverId)), (snapshot) => {
     assigned = snapshot.docs.map((booking) => booking.data() as Booking);
     publish();
-  }, (error) => handleFirestoreError(error, OperationType.GET, path));
+  }, group.fail));
 
-  const stopProfile = onSnapshot(doc(db, 'driver_profiles', driverId), (snapshot) => {
+  group.add(() => stopAvailable?.());
+  group.add(onSnapshot(doc(db, 'driver_profiles', driverId), (snapshot) => {
+    if (!group.active) return;
     const profile = snapshot.data() as DriverProfile | undefined;
     rejected = new Set(profile?.rejectedBookingIds || []);
     supportedServices = new Set(profile?.supportedServices || []);
@@ -388,19 +393,15 @@ export function listenToDriverBookings(driverId: string, callback: (bookings: Bo
         stopAvailable = () => { stopped = true; clearTimeout(timer); };
       }
     }
-  }, (error) => handleFirestoreError(error, OperationType.GET, `driver_profiles/${driverId}`));
+  }, group.fail));
 
-  return () => {
-    stopAssigned();
-    stopProfile();
-    stopAvailable?.();
-  };
+  return group.stop;
 }
 
 /**
  * Listens to active driver profiles real-time (useful for live tracking maps)
  */
-export function listenToDriverProfiles(callback: (drivers: DriverProfile[]) => void) {
+export function listenToDriverProfiles(callback: (drivers: DriverProfile[]) => void, onError: (error: unknown) => void = console.error) {
   const path = 'driver_profiles';
   return onSnapshot(collection(db, 'driver_profiles'), (snapshot) => {
     const list: DriverProfile[] = [];
@@ -409,7 +410,7 @@ export function listenToDriverProfiles(callback: (drivers: DriverProfile[]) => v
     });
     callback(list);
   }, (err) => {
-    handleFirestoreError(err, OperationType.GET, path);
+    callback([]); onError(err);
   });
 }
 

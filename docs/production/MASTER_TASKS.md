@@ -10,7 +10,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | REF-02 | P1 | Observe accessible screens and record screenshots; initial capture black, UI dump unavailable | In progress |
 | AUD-01 | P0 | Consolidate existing architecture audit and screen gap matrix; continue source review for unexamined paths | In progress |
 | FIX-01 | P1 | Operations Hub uses administrator booking scope, clears prior scope and ignores late callbacks; 4 scope tests and 96 emulator tests pass; authenticated device acceptance remains separate | Verified |
-| FIX-02 | P1 | Booking subscription failures must clear stale sensitive data and surface actionable errors | Not started |
+| FIX-02 | P1 | Booking subscription failures clear cached rows/codes, stop joined listeners and offer retry/sign-out; 8 scope/lifecycle tests pass | Verified |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
 | FOOD-01 | P1 | Customer → merchant → driver → delivered food journey with isolated test data | Not started |
@@ -25,5 +25,4 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |
 | GIT-01 | P1 | Commit each validated increment and push without rewriting existing history | In progress |
 
-Next executable work: finish FIX-01 integration validation and commit; then FIX-02. Reference inspection may continue independently without login bypass or purchases.
-
+Next executable work: finish Android build verification and add complete isolated food/grocery fulfillment journeys. Reference inspection may continue independently without login bypass or purchases.

@@ -17,3 +17,5 @@
 Store reference captures only in ignored `.cache/reference-analysis/`. Do not commit APKs or proprietary reference images.
 
 Post-change npm test: 207 passed (67 Functions, 46 UI, 94 server), secret scan passed. Development build passed with existing 603.73 kB accounts chunk warning. git diff --check passed. Staging preflight failed closed on missing configuration, native registrations and operator acceptance. Firestore first attempt failed on sandbox loopback permissions; elevated isolated rerun passed.
+
+FIX-02: 211 tests passed (67 Functions, 50 UI, 94 server), secret scan passed; TypeScript and development build passed. No rules were modified, so the earlier 96-test rules run remains applicable. Native sync succeeded; Android assembly pending.
