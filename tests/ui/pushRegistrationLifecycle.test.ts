@@ -68,6 +68,7 @@ test('logout drains an already-started token request before deleting its result'
     const logout = r.module.nativeSignOut();
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(r.calls.includes('delete-token'), false);
+    assert.equal(r.calls.includes('stop-location'), true);
     token.resolve({ token: 'device-token' });
     await Promise.all([rejected, logout]);
     assert.equal(r.calls.includes('registerPushDevice'), false);

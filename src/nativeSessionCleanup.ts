@@ -11,12 +11,14 @@ import { pushSession } from './auth/pushSession';
 export async function cleanupNativeSession() {
   const native = Capacitor.isNativePlatform();
   const messaging = native && Capacitor.isPluginAvailable('FirebaseMessaging');
+  const pendingPushWork = pushSession.invalidate();
   await signOutWithCleanup([
-    () => pushSession.invalidate(),
     () => localStorage.removeItem('allgo-push-enabled'),
     () => localStorage.removeItem('allgo-push-user'),
     () => sessionStorage.removeItem('allgo-open-booking'),
     stopNativeDriverLocation,
+    // Stop local location promptly even while an SDK registration is draining.
+    () => pendingPushWork,
     async () => {
       if (!auth.currentUser) return;
       const profile = await getDoc(doc(db, 'users', auth.currentUser.uid));
