@@ -4,7 +4,7 @@ Updated 2026-10-17. Continue unblocked source and emulator work; blockers do not
 
 | Blocker | Evidence | Exact next requirement |
 |---|---|---|
-| Android runtime acceptance | Previously missing package/activity services; current adb recheck reports no devices/emulators | Restore a healthy emulator/device, resolve installed launch activities, then verify partner startup and logout with isolated configured providers |
+| Authenticated Android acceptance | Pixel_8 recovered; all three apps install/launch and public recovery/welcome render, but configured account endpoint is unreachable and native provider registrations are absent | Supply an isolated reachable account/service backend and native registrations, then verify role workflows, logout, location and notification taps |
 | Remaining reference journeys | REA now captures out-of-coverage home and location selector; other journeys unobserved | Continue normal browsing in a supported location; stop at protected surfaces without bypass |
 | Staging/provider acceptance | Existing release/audit gates document absent accepted configuration | Run check-release staging; supply real isolated Firebase/Neon registrations, identity bridge, Maps, push, Razorpay test/webhook secrets and test catalogs/coverage |
 | Business operations | Existing eligibility and release policies unaccepted | Owner-published eligibility, retention, legal/refund policies, support ownership, real service zones and settlement contracts |

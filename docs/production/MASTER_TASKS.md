@@ -25,10 +25,11 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | PARTNER-01 | P1 | Shared tracked role workspaces, distinct app IDs/schemes and reproducible Android debug builds; provider, iOS and authenticated partner acceptance remain | In progress |
 | NOTIFY-01 | P1 | Audience-scoped push and current recipient routing; partner taps resolve only against assigned feeds, focus active order/job controls and show terminal/unavailable states; 233 application tests and partner web builds pass; real-device delivery/tap and unassigned-offer notifications remain | In progress |
 | MERCHFIN-01 | P0 | Removed fabricated merchant transfers/bank verification and assumed commission; assigned completed booking values render with explicit payout-unavailable state; real merchant allocation, ledger, bank verification and payout workflow remain unimplemented | In progress |
-| MOBILE-01 | P1 | Debug build/install/startup recovery verified; six-service native acceptance awaits reachable backend/providers | In progress |
+| MOBILE-01 | P1 | All three debug apps install/launch on recovered Pixel_8; customer recovery and partner recovery/welcome inspected; six-service authenticated native acceptance awaits backend/providers | In progress |
 | MOBILE-02 | P1 | iOS archive and device journeys on supported macOS/Xcode host | Blocked |
-| CI-01 | P1 | All three fresh local Android builds and packaged checks pass; hosted matrix exposed and reproduced cross-platform native-preparation dependency; fix and 239 application tests pass; hosted rerun pending | In progress |
-| UI-01 | P2 | Preserve existing Stitch tokens; verify responsive/accessibility/keyboard states | Not started |
+| CI-01 | P1 | Hosted run 38998276443 passes application checks and all three Android build/identity/artifact jobs for 1223ebe; seven-day debug artifacts verified; release acceptance remains separate | Verified (debug builds) |
+| CSP-01 | P1 | Reproduced Firebase bootstrap script denial; allow exact apis.google.com script origin, retain production inline/eval restrictions; 240 application tests and rebuilt customer runtime check pass; provider auth acceptance remains | Source/runtime verified |
+| UI-01 | P2 | Public partner recovery/welcome and customer recovery inspected at 1080×2400; broader responsive/accessibility/keyboard and authenticated states remain | In progress |
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |
 | GIT-01 | P1 | Commit each validated increment and push without rewriting existing history | In progress |
 
