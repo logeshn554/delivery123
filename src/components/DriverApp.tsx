@@ -1,4 +1,7 @@
 import ParcelOrderDetails from './ParcelOrderDetails';
+import BookingNotificationNotice from './BookingNotificationNotice';
+import { useBookingNotification } from '../app/useBookingNotification';
+import { finishedBooking } from '../app/bookingNotification';
 import TransportOrderDetails from './TransportOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -142,8 +145,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   // Find incoming jobs (pending bookings) that match our driver status
   const pendingJobs = activeBookings.filter(b => !b.driverId && b.paymentStatus === 'paid' && (['food', 'grocery'].includes(b.serviceType) ? b.status === 'ready' : b.status === 'pending'));
 
+  const notification = useBookingNotification(activeBookings, { audience: 'driver', userId });
+  useEffect(() => { if (notification.booking) setActiveSubView(null); }, [notification.booking?.bookingId]);
+
   // Find if we already have an assigned active job
-  const currentAssignedJob = activeBookings.find(b => b.driverId === userId && b.status !== 'completed' && b.status !== 'delivered' && b.status !== 'cancelled');
+  const currentAssignedJob = (notification.booking && !finishedBooking(notification.booking) ? notification.booking : undefined) || activeBookings.find(b => b.driverId === userId && b.status !== 'completed' && b.status !== 'delivered' && b.status !== 'cancelled');
   useEffect(() => { setPickupCode('');setOtpInput(''); },[currentAssignedJob?.bookingId]);
 
   // Real-time Chat synchronization
@@ -228,6 +234,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   return (
     <div className="allgo-driver bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
       {dialog}
+      <BookingNotificationNotice {...notification} onDismiss={notification.dismiss}/>
       {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{usesAndroidLocation ? locationMessage : 'Location sharing requires this app to stay open on this device.'}</p>{usesAndroidLocation && <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
       
       {/* 2.5 POPUP OVERLAY DRAWER FOR SUB-VIEWS */}

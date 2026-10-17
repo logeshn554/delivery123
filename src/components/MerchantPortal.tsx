@@ -28,6 +28,9 @@ function playOrderChime() {
 
 import MerchantHoursEditor from './MerchantHoursEditor';
 import MerchantSettlements from './MerchantSettlements';
+import BookingNotificationNotice from './BookingNotificationNotice';
+import { useBookingNotification } from '../app/useBookingNotification';
+import { finishedBooking } from '../app/bookingNotification';
 import MerchantClosuresEditor from './MerchantClosuresEditor';
 import MerchantCatalogEditor from './MerchantCatalogEditor';
 import StockMovementHistory from './StockMovementHistory';
@@ -67,9 +70,12 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   }, [merchantId, merchantType]);
 
   // Filter relevant orders
+  const notification = useBookingNotification(activeBookings, { audience: 'merchant', merchantId, merchantType });
+  useEffect(() => { if (notification.booking) setPanel('orders'); }, [notification.booking?.bookingId]);
   const merchantBookings = activeBookings.filter(b => b.merchantId === merchantId && (merchantType === 'restaurant' ? b.serviceType === 'food' : b.serviceType === 'grocery'));
   const foodOrders = merchantBookings.filter(b => b.serviceType === 'food' && !['completed', 'delivered', 'cancelled'].includes(b.status));
   const groceryOrders = merchantBookings.filter(b => b.serviceType === 'grocery' && !['completed', 'delivered', 'cancelled'].includes(b.status));
+  const displayedOrders = (merchantType === 'restaurant' ? foodOrders : groceryOrders).filter(booking => !notification.booking || finishedBooking(notification.booking) || booking.bookingId === notification.booking.bookingId);
 
   // Audio notification for incoming orders
   const prevPendingCount = useRef<number | null>(null);
@@ -163,6 +169,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
           </div>
         </header>
 
+        <BookingNotificationNotice {...notification} onDismiss={notification.dismiss}/>
         <div className="merchant-overview">
           <strong>{merchantType === 'restaurant' ? 'Restaurant operations' : 'Grocery operations'}</strong>
           <span>{(merchantType === 'restaurant' ? foodOrders : groceryOrders).length} active orders · {completedToday} completed today</span>
@@ -207,10 +214,10 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
         {(panel === 'overview' || panel === 'orders') && (
           <div className="space-y-3">
             <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">
-              Incoming Orders ({merchantType === 'restaurant' ? foodOrders.length : groceryOrders.length})
+              Incoming Orders ({displayedOrders.length})
             </h3>
 
-            {(merchantType === 'restaurant' ? foodOrders : groceryOrders).length === 0 ? (
+            {displayedOrders.length === 0 ? (
               <div className="text-center py-10 bg-slate-800/40 rounded-xl border border-slate-800">
                 <PackageCheck className="w-10 h-10 text-slate-600 mx-auto mb-2" />
                 <p className="text-xs text-slate-500 font-semibold">No active customer orders</p>
@@ -218,7 +225,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
               </div>
             ) : (
               <div className="space-y-3">
-                {(merchantType === 'restaurant' ? foodOrders : groceryOrders).map(ord => (
+                {displayedOrders.map(ord => (
                   <div key={ord.bookingId} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
                     <BookingExceptionPanel booking={ord}/>
                     {ord.status === 'pending' && !ord.driverId && ord.paymentStatus === 'paid' && <MerchantRejection bookingId={ord.bookingId}/>}

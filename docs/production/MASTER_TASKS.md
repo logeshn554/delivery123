@@ -23,7 +23,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | RIDE-01 | P1 | Ride/driver-hire quote/wallet/assignment/codes/completion backend journeys verified; live tracking/native/payment acceptance remains | In progress |
 | TRANS-01 | P1 | Transport quote/wallet/carrier eligibility/pickup/delivery backend journey verified; custody documents/inspections/claims remain | In progress |
 | PARTNER-01 | P1 | Shared tracked role workspaces, distinct app IDs/schemes and reproducible Android debug builds; provider, iOS and authenticated partner acceptance remain | In progress |
-| NOTIFY-01 | P1 | Audience-scoped order push registration and current customer/verified driver/assigned merchant routing; isolated integration and three web variants verified; real-device delivery/tap and unassigned-offer notifications remain | In progress |
+| NOTIFY-01 | P1 | Audience-scoped push and current recipient routing; partner taps resolve only against assigned feeds, focus active order/job controls and show terminal/unavailable states; 233 application tests and partner web builds pass; real-device delivery/tap and unassigned-offer notifications remain | In progress |
 | MERCHFIN-01 | P0 | Removed fabricated merchant transfers/bank verification and assumed commission; assigned completed booking values render with explicit payout-unavailable state; real merchant allocation, ledger, bank verification and payout workflow remain unimplemented | In progress |
 | MOBILE-01 | P1 | Debug build/install/startup recovery verified; six-service native acceptance awaits reachable backend/providers | In progress |
 | MOBILE-02 | P1 | iOS archive and device journeys on supported macOS/Xcode host | Blocked |
