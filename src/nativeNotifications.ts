@@ -8,7 +8,7 @@ import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, functions } from './firebase';
 import { stopNativeDriverLocation } from './driverLocation';
-import { appScheme } from './app/audience';
+import { appScheme, appAudience } from './app/audience';
 import { signOutWithCleanup } from './auth/signOutCleanup';
 
 function openBooking(id: unknown) {
@@ -26,7 +26,7 @@ export async function enableOrderNotifications() {
   const permission = await FirebaseMessaging.requestPermissions();
   if (permission.receive !== 'granted') throw new Error('Notifications are disabled. Enable them in device settings.');
   const { token } = await FirebaseMessaging.getToken();
-  await httpsCallable(functions, 'registerPushDevice')({ token, platform: Capacitor.getPlatform() });
+  await httpsCallable(functions, 'registerPushDevice')({ token, platform: Capacitor.getPlatform(), audience: appAudience });
   localStorage.setItem('allgo-push-enabled', 'true');
 }
 export async function nativeSignOut() {
@@ -58,10 +58,10 @@ export async function initializeNativeNotifications() {
     const launch = await App.getLaunchUrl(); if (launch) openUrl(launch.url);
     if (Capacitor.isPluginAvailable('FirebaseMessaging')) {
       handles.push(await FirebaseMessaging.addListener('notificationActionPerformed', event => openBooking((event.notification.data as { bookingId?: string } | undefined)?.bookingId)));
-      handles.push(await FirebaseMessaging.addListener('tokenReceived', event => { if (auth.currentUser && localStorage.getItem('allgo-push-enabled') === 'true') void httpsCallable(functions, 'registerPushDevice')({ token: event.token, platform: Capacitor.getPlatform() }).catch(() => undefined); }));
+      handles.push(await FirebaseMessaging.addListener('tokenReceived', event => { if (auth.currentUser && localStorage.getItem('allgo-push-enabled') === 'true') void httpsCallable(functions, 'registerPushDevice')({ token: event.token, platform: Capacitor.getPlatform(), audience: appAudience }).catch(() => undefined); }));
       if (auth.currentUser && localStorage.getItem('allgo-push-enabled') === 'true') {
         const permission = await FirebaseMessaging.checkPermissions();
-        if (permission.receive === 'granted') { const { token } = await FirebaseMessaging.getToken(); await httpsCallable(functions, 'registerPushDevice')({ token, platform: Capacitor.getPlatform() }); }
+        if (permission.receive === 'granted') { const { token } = await FirebaseMessaging.getToken(); await httpsCallable(functions, 'registerPushDevice')({ token, platform: Capacitor.getPlatform(), audience: appAudience }); }
       }
     }
   } catch (error) { await Promise.all(handles.map(handle => handle.remove())); throw error; }

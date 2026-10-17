@@ -144,36 +144,8 @@ exports.exchangeNativeAuthToken = onCall({ operation: 'exchangeNativeAuthToken',
   return { token: await getAuth(app).createCustomToken(identity.uid) };
 });
 
-exports.registerPushDevice = onCall({ operation: 'registerPushDevice', region: REGION }, async request => {
-  const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096);
-  if (!['android', 'ios'].includes(request.data?.platform)) throw new HttpsError('invalid-argument', 'Invalid device platform.');
-  const id = crypto.createHash('sha256').update(token).digest('hex');
-  await db.doc(`push_devices/${id}`).set({ uid, token, platform: request.data.platform, updatedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 90 * 86400000) });
-  return { registered: true };
-});
-exports.unregisterPushDevice = onCall({ operation: 'unregisterPushDevice', region: REGION }, async request => {
-  const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096);
-  const ref = db.doc(`push_devices/${crypto.createHash('sha256').update(token).digest('hex')}`);
-  await db.runTransaction(async transaction => { const record = await transaction.get(ref); if (record.data()?.uid === uid) transaction.delete(ref); });
-  return { removed: true };
-});
-exports.notifyBookingChange = onDocumentWritten({ region: REGION, database: databaseId, document: 'bookings/{bookingId}', retry: true }, async event => {
-  const booking = event.data?.after.data(), previous = event.data?.before.data();
-  if (!booking || (previous && previous.status === booking.status && previous.driverId === booking.driverId && previous.paymentStatus === booking.paymentStatus && previous.preparation?.revision === booking.preparation?.revision && previous.exception?.revision === booking.exception?.revision)) return;
-  const recipients = [...new Set([booking.customerId, booking.driverId].filter(Boolean))];
-  for (const uid of recipients) {
-    const account = await db.doc(`users/${uid}`).get();
-    if (!account.exists || account.data().preferences?.orderUpdates === false) continue;
-    const devices = await db.collection('push_devices').where('uid', '==', uid).get();
-    const active = devices.docs.filter(record => record.data().expiresAt?.toMillis() > Date.now());
-    for (let offset = 0; offset < active.length; offset += 500) {
-      const chunk = active.slice(offset, offset + 500);
-      const result = await getMessaging(app).sendEachForMulticast({ tokens: chunk.map(record => record.data().token), notification: { title: 'AllGo order update', body: `Booking status: ${booking.status}. Open AllGo for details.` }, data: { bookingId: booking.bookingId, eventId: event.id }, android: { collapseKey: booking.bookingId }, apns: { headers: { 'apns-collapse-id': booking.bookingId } } });
-      await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
-      if (result.responses.some(response => response.error && !['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error.code))) throw new Error('One or more booking notifications require retry.');
-    }
-  }
-});
+const { bookingNotificationFunctions } = require('./bookingNotifications');
+Object.assign(exports, bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging: () => getMessaging(app) }));
 
 exports.updateMerchantPreparation = onCall({ operation: 'updateMerchantPreparation', region: REGION }, async request => {
   const uid = requireUser(request), id = documentId(request.data?.bookingId, 'Booking ID'), command = documentId(request.data?.requestId, 'Request ID');

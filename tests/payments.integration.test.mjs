@@ -28,6 +28,91 @@ beforeEach(async () => {
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
 
+async function notificationHarness(run) {
+  const messaging = require('firebase-admin/messaging').getMessaging(getApp());
+  const original = messaging.sendEachForMulticast;
+  const sent = [];
+  messaging.sendEachForMulticast = async message => { sent.push(message); return { responses: message.tokens.map(() => ({ success: true })) }; };
+  try { await run(sent, messaging); } finally { messaging.sendEachForMulticast = original; }
+}
+const notify = (bookingId, changed, previous) => compiled.exports.notifyBookingChange.run({ id: 'event-test', params: { bookingId }, data: { after: { data: () => changed }, before: { data: () => previous } } });
+
+for (const serviceType of ['food', 'grocery']) test(`${serviceType} pushes reach only the matching customer, verified driver and assigned merchant app devices`, async () => {
+  await db.doc('users/driver').set({ role: 'driver' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified' });
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: serviceType === 'food' ? 'restaurant' : 'grocery' });
+  await db.doc('users/wrong').set({ role: 'merchant', merchantId: 'shop', merchantType: serviceType === 'food' ? 'grocery' : 'restaurant' });
+  for (const [uid, audience, token] of [['customer', 'customer', 'customer-phone'], ['driver', 'customer', 'driver-customer-app'], ['driver', 'driver', 'driver-app'], ['merchant', 'merchant', 'merchant-app'], ['wrong', 'merchant', 'wrong-business']]) {
+    await callable('registerPushDevice', uid, { audience, token, platform: 'android' });
+  }
+  await db.doc('push_devices/legacy').set({ uid: 'customer', token: 'legacy-customer', expiresAt: Timestamp.fromMillis(Date.now() + 60000) });
+  await db.doc('push_devices/expired').set({ uid: 'customer', token: 'expired-customer', audience: 'customer', expiresAt: Timestamp.fromMillis(1) });
+  await db.doc('push_devices/malformed').set({ uid: 'customer', token: 'malformed-customer', audience: 'customer', expiresAt: 'invalid' });
+  const booking = { bookingId: 'ALLGO_push', customerId: 'customer', driverId: 'driver', merchantId: 'shop', serviceType, status: 'ready', paymentStatus: 'paid', recipientPhone: 'private phone' };
+  await db.doc('bookings/ALLGO_push').set(booking);
+  await notificationHarness(async sent => {
+    await notify('ALLGO_push', booking);
+    assert.deepEqual(sent.flatMap(message => message.tokens).sort(), ['customer-phone', 'driver-app', 'legacy-customer', 'merchant-app']);
+    for (const message of sent) {
+      assert.deepEqual(message.data, { bookingId: 'ALLGO_push', eventId: 'event-test' });
+      assert.equal(JSON.stringify(message).includes('private phone'), false);
+    }
+  });
+});
+
+test('notification registration rejects invalid audiences and unapproved partner identities', async () => {
+  for (const data of [{ audience: 'admin', platform: 'android' }, { audience: 'customer', platform: 'web' }, { audience: 'driver', platform: 'android' }, { audience: 'merchant', platform: 'android' }]) {
+    await assert.rejects(callable('registerPushDevice', 'customer', { token: 'test-device', ...data }), error => ['invalid-argument', 'permission-denied'].includes(error.code));
+  }
+  await db.doc('users/driver').set({ role: 'driver' });
+  await db.doc('driver_profiles/driver').set({ status: 'pending' });
+  await assert.rejects(callable('registerPushDevice', 'driver', { audience: 'driver', platform: 'android', token: 'pending-driver' }), error => error.code === 'permission-denied');
+});
+
+test('delayed booking triggers use current assignment and suppress revoked or opted-out recipients', async () => {
+  const previous = { bookingId: 'ALLGO_delayed', customerId: 'customer', driverId: 'old-driver', merchantId: 'old-shop', serviceType: 'food', status: 'ready' };
+  await callable('registerPushDevice', 'customer', { audience: 'customer', token: 'opted-out-customer', platform: 'android' });
+  await db.doc('users/customer').update({ preferences: { orderUpdates: false } });
+  for (const uid of ['old-driver', 'new-driver']) {
+    await db.doc(`users/${uid}`).set({ role: 'driver' });
+    await db.doc(`driver_profiles/${uid}`).set({ status: 'verified' });
+    await callable('registerPushDevice', uid, { audience: 'driver', token: uid, platform: 'android' });
+  }
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'restaurant' });
+  await callable('registerPushDevice', 'merchant', { audience: 'merchant', token: 'revoked-merchant', platform: 'android' });
+  await db.doc('users/merchant').update({ role: 'customer' });
+  const current = { ...previous, driverId: 'new-driver', merchantId: 'shop', status: 'picked_up' };
+  await db.doc('bookings/ALLGO_delayed').set(current);
+  await notificationHarness(async sent => {
+    await notify('ALLGO_delayed', previous);
+    assert.deepEqual(sent.flatMap(message => message.tokens), ['new-driver']);
+    sent.length = 0;
+    await db.doc('driver_profiles/new-driver').update({ status: 'suspended' });
+    await notify('ALLGO_delayed', current);
+    assert.deepEqual(sent, []);
+  });
+});
+
+test('push device removal is ownership scoped and permanent provider failures remove invalid tokens', async () => {
+  await callable('registerPushDevice', 'customer', { token: 'invalid-device', platform: 'android' });
+  await db.doc('users/other').set({ role: 'customer' });
+  await callable('unregisterPushDevice', 'other', { token: 'invalid-device' });
+  assert.equal((await db.collection('push_devices').get()).size, 1);
+  const booking = { bookingId: 'ALLGO_invalid_push', customerId: 'customer', status: 'pending' };
+  await db.doc('bookings/ALLGO_invalid_push').set(booking);
+  await notificationHarness(async (_sent, messaging) => {
+    messaging.sendEachForMulticast = async () => ({ responses: [{ error: { code: 'messaging/registration-token-not-registered' } }] });
+    await notify('ALLGO_invalid_push', booking);
+    assert.equal((await db.collection('push_devices').get()).size, 0);
+    await callable('registerPushDevice', 'customer', { token: 'retry-device', platform: 'android' });
+    messaging.sendEachForMulticast = async () => ({ responses: [{ error: { code: 'messaging/server-unavailable' } }] });
+    await assert.rejects(notify('ALLGO_invalid_push', booking), /require retry/);
+    assert.equal((await db.collection('push_devices').get()).size, 1);
+    await callable('unregisterPushDevice', 'customer', { token: 'retry-device' });
+    assert.equal((await db.collection('push_devices').get()).size, 0);
+  });
+});
+
 for (const serviceType of ['food', 'grocery']) {
   test(`${serviceType} customer checkout reaches merchant preparation, private dispatch, delivery and review`, async () => {
     const restoreMaps = mockJourneyMaps();

@@ -1,0 +1,65 @@
+const crypto = require('node:crypto');
+
+const active = account => account && account.disabled !== true && account.suspended !== true;
+const merchantFor = (account, booking) => active(account) && account.role === 'merchant' && account.merchantId === booking.merchantId &&
+  (account.merchantType === 'restaurant' && booking.serviceType === 'food' || account.merchantType === 'grocery' && booking.serviceType === 'grocery');
+
+function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging }) {
+  const deviceRef = token => db.doc(`push_devices/${crypto.createHash('sha256').update(token).digest('hex')}`);
+  const registerPushDevice = onCall({ operation: 'registerPushDevice', region: REGION }, async request => {
+    const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096);
+    const audience = request.data?.audience ?? 'customer';
+    if (!['android', 'ios'].includes(request.data?.platform) || !['customer', 'merchant', 'driver'].includes(audience)) throw new HttpsError('invalid-argument', 'Invalid device platform or app audience.');
+    const account = (await db.doc(`users/${uid}`).get()).data();
+    if (!active(account)) throw new HttpsError('permission-denied', 'An active account is required.');
+    if (audience === 'driver' && (account.role !== 'driver' || (await db.doc(`driver_profiles/${uid}`).get()).data()?.status !== 'verified')) throw new HttpsError('permission-denied', 'Verified driver access is required.');
+    if (audience === 'merchant' && (account.role !== 'merchant' || !account.merchantId || !['restaurant', 'grocery'].includes(account.merchantType))) throw new HttpsError('permission-denied', 'An assigned merchant account is required.');
+    await deviceRef(token).set({ uid, token, platform: request.data.platform, audience, updatedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 90 * 86400000) });
+    return { registered: true };
+  });
+  const unregisterPushDevice = onCall({ operation: 'unregisterPushDevice', region: REGION }, async request => {
+    const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096), ref = deviceRef(token);
+    await db.runTransaction(async transaction => { const record = await transaction.get(ref); if (record.data()?.uid === uid) transaction.delete(ref); });
+    return { removed: true };
+  });
+  const notifyBookingChange = onDocumentWritten({ region: REGION, database: databaseId, document: 'bookings/{bookingId}', retry: true }, async event => {
+    const changed = event.data?.after.data(), previous = event.data?.before.data();
+    if (!changed || previous && previous.status === changed.status && previous.driverId === changed.driverId && previous.merchantId === changed.merchantId && previous.paymentStatus === changed.paymentStatus && previous.preparation?.revision === changed.preparation?.revision && previous.exception?.revision === changed.exception?.revision) return;
+    // A delayed trigger must not notify a former assignee from an old snapshot.
+    const bookingId = event.params.bookingId;
+    const booking = (await db.doc(`bookings/${bookingId}`).get()).data();
+    if (!booking) return;
+    const recipients = new Map();
+    const add = (uid, audience) => { if (!uid) return; if (!recipients.has(uid)) recipients.set(uid, new Set()); recipients.get(uid).add(audience); };
+    add(booking.customerId, 'customer');
+    if (booking.driverId) {
+      const [account, driver] = await Promise.all([db.doc(`users/${booking.driverId}`).get(), db.doc(`driver_profiles/${booking.driverId}`).get()]);
+      if (active(account.data()) && account.data()?.role === 'driver' && driver.data()?.status === 'verified') add(booking.driverId, 'driver');
+    }
+    if (booking.merchantId && ['food', 'grocery'].includes(booking.serviceType)) {
+      const merchants = await db.collection('users').where('merchantId', '==', booking.merchantId).get();
+      for (const merchant of merchants.docs) if (merchantFor(merchant.data(), booking)) add(merchant.id, 'merchant');
+    }
+    for (const [uid, audiences] of recipients) {
+      const account = (await db.doc(`users/${uid}`).get()).data();
+      if (!active(account) || account.preferences?.orderUpdates === false) continue;
+      // Recheck partner access when sending, including revocation after registration.
+      if (!merchantFor(account, booking)) audiences.delete('merchant');
+      if (account.role !== 'driver') audiences.delete('driver');
+      const devices = await db.collection('push_devices').where('uid', '==', uid).get();
+      const targets = devices.docs.filter(record => {
+        const device = record.data();
+        const expiresAt = typeof device.expiresAt?.toMillis === 'function' ? device.expiresAt.toMillis() : NaN;
+        return Number.isFinite(expiresAt) && expiresAt > Date.now() && typeof device.token === 'string' && device.token.length > 0 && audiences.has(device.audience ?? 'customer');
+      });
+      for (let offset = 0; offset < targets.length; offset += 500) {
+        const chunk = targets.slice(offset, offset + 500);
+        const result = await messaging().sendEachForMulticast({ tokens: chunk.map(record => record.data().token), notification: { title: 'AllGo order update', body: 'An order has an update. Open AllGo for details.' }, data: { bookingId, eventId: event.id }, android: { collapseKey: bookingId }, apns: { headers: { 'apns-collapse-id': bookingId } } });
+        await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
+        if (result.responses.some(response => response.error && !['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error.code))) throw new Error('One or more booking notifications require retry.');
+      }
+    }
+  });
+  return { registerPushDevice, unregisterPushDevice, notifyBookingChange };
+}
+module.exports = { bookingNotificationFunctions };
