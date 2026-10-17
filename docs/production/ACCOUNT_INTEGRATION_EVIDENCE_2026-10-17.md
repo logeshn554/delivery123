@@ -27,3 +27,5 @@ The expanded saved-address case verifies all three delivery-detail fields reach 
 
 Checkpoint resets simulate the persisted state after a cross-store partial failure; no SQL COMMIT fault was injected. These tests cover new imports. Previously completed imports remain unchanged and require reviewed reconciliation; invalid legacy metadata review, other migration formats and deployed/native/provider acceptance remain open. Android job results for this source are recorded separately after observation.
 All three Android debug build/identity/artifact jobs also completed successfully for source 4070e06 in run 39001327488. All five jobs are green. Artifact IDs/expiry are recorded in ANDROID_CI_EVIDENCE_2026-10-17.md.
+
+Source 79b72819dcf4d17432d74df83998aead62aaa5c3 passed checks job 117308199047 and accounts job 117308578738 in [run 39002500312](https://github.com/logeshn554/delivery123/actions/runs/39002500312). The account log reports 7 passed, 0 failed/cancelled/skipped and emulator script exit 0. Frontend expiry/native-cleanup coverage is separately controlled-runtime UI testing; this service suite does not run device plugins.
