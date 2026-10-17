@@ -17,7 +17,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | FIX-06 | P0 | Logout/expiry invalidate runtime identity despite storage/auth errors; stale storage reads/writes and pending requests cannot restore an invalidated session; 226 application tests pass; native expiry cleanup and persistence failure across restart remain | Source verified |
 | FIX-07 | P0 | Neon-linked accounts require a live allgoSession claim for Firestore and callables, including local mode; missing-claim bypass reproduced then repaired; 111 emulator tests pass; coordinated deployment/real-provider acceptance remain | Emulator verified |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |
-| AUTH-LOCAL-01 | P0 | Guarded real PostgreSQL + Auth/Firestore emulator suite and disposable CI service added; 243 application tests, static and endpoint-safety checks pass; six full lifecycle cases await hosted execution | In progress |
+| AUTH-LOCAL-01 | P0 | Hosted run 39000324482 account job passes all six real PostgreSQL/Auth/Firestore lifecycle cases with no skips; registration/bridge, logout/password revocation, duplicate-phone races, cookies, limited migration and expiry verified; real providers/native acceptance remain | Verified (isolated services) |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
 | FOOD-01 | P1 | Isolated wallet checkout → merchant → private driver offer → recipient-code completion → review passes; native/provider acceptance remains | Verified |
 | GROC-01 | P1 | Isolated grocery checkout/picking/fulfillment passes; stock contention covered; substitution implementation and native acceptance remain | In progress |
@@ -29,7 +29,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | MERCHFIN-01 | P0 | Removed fabricated merchant transfers/bank verification and assumed commission; assigned completed booking values render with explicit payout-unavailable state; real merchant allocation, ledger, bank verification and payout workflow remain unimplemented | In progress |
 | MOBILE-01 | P1 | All three debug apps install/launch on recovered Pixel_8; customer recovery and partner recovery/welcome inspected; six-service authenticated native acceptance awaits backend/providers | In progress |
 | MOBILE-02 | P1 | iOS archive and device journeys on supported macOS/Xcode host | Blocked |
-| CI-01 | P1 | Hosted run 38998276443 passes application checks and all three Android build/identity/artifact jobs for 1223ebe; seven-day debug artifacts verified; release acceptance remains separate | Verified (debug builds) |
+| CI-01 | P1 | Hosted run 39000324482 for 0850bd9 passes application checks, six real SQL/Auth lifecycle tests and all three Android build/identity/artifact jobs; seven-day debug artifacts observed; release acceptance remains separate | Verified (debug builds) |
 | CSP-01 | P1 | Reproduced Firebase bootstrap script denial; allow exact apis.google.com script origin, retain production inline/eval restrictions; 240 application tests and rebuilt customer runtime check pass; provider auth acceptance remains | Source/runtime verified |
 | UI-01 | P2 | Public partner recovery/welcome and customer recovery inspected at 1080×2400; broader responsive/accessibility/keyboard and authenticated states remain | In progress |
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |

@@ -1,5 +1,7 @@
 # Android build and startup evidence — 2026-10-17
 
+The later [run 39000324482](https://github.com/logeshn554/delivery123/actions/runs/39000324482), source `0850bd99ff59a7d6800491104c57e339dd019951`, passed application checks, the six-case real PostgreSQL/Auth/Firestore job, and all three Android build/identity/artifact jobs. Current debug artifacts (observed unexpired, expiring 2026-10-24): customer 12088523972, merchant 12088548893, delivery 12088966479. These include the linked-session authorization repair and earlier Firebase CSP fix. This is the latest hosted build evidence recorded here; runtime captures below remain the earlier public-screen observations and do not establish authenticated acceptance for the later build.
+
 Hosted [run 38998276443](https://github.com/logeshn554/delivery123/actions/runs/38998276443), source commit `1223ebe0f41f21cb55044e54654c2e9492574360`, completed the application checks and all three Android matrix jobs successfully. Each Android job built its debug APK, scanned the web bundle for demo fixtures, verified the packaged manifest and embedded audience metadata, and uploaded the APK plus its SHA-256/size verification JSON.
 
 | Audience | Job | Artifact ID | App ID |
