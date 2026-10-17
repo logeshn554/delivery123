@@ -7,7 +7,7 @@ import path from 'node:path';
 import pg from 'pg';
 import { initializeApp as initializeClientApp, deleteApp as deleteClientApp } from 'firebase/app';
 import { initializeAuth, inMemoryPersistence, connectAuthEmulator, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore as getClientFirestore, connectFirestoreEmulator, doc, getDocFromServer, setDoc, terminate } from 'firebase/firestore';
+import { getFirestore as getClientFirestore, connectFirestoreEmulator, doc, getDocFromServer, setDoc, updateDoc, deleteDoc, terminate } from 'firebase/firestore';
 import { accountTestConnection, accountTestServices as services, assertAccountTestEmulators } from '../scripts/account-test-policy.mjs';
 
 assertAccountTestEmulators(process.env);
@@ -144,17 +144,50 @@ test('browser cookies stay HttpOnly and require an allowed origin for writes', a
   assert.equal((await request('/account', { method: 'PATCH', native: false, headers: { Cookie: cookie, Origin: 'https://localhost' }, body: { name: 'Allowed Origin' } })).status, 200);
 });
 
-test('bridge migration imports saved addresses once without turning legacy JSON into paid orders', async () => {
+test('bridge migration preserves delivery details and owner edits/deletions across checkpoint retries without importing paid orders', async () => {
   const user = await account();
-  const address = await request('/account/items/addresses', { method: 'POST', token: user.token, body: { label: 'Home', address: 'Isolated integration test street' } });
+  const details = { building: 'Flat 2', landmark: 'Library', instructions: 'Ring bell' };
+  const address = await request('/account/items/addresses', { method: 'POST', token: user.token, body: { label: 'Home', address: 'Isolated integration test street', deliveryDetails: details } });
   assert.equal(address.status, 201);
   await pool.query('INSERT INTO allgo_bookings(id,account_id,data) VALUES($1,$2,$3::jsonb)', [randomUUID(), user.accountId, JSON.stringify({ status: 'completed', paymentStatus: 'paid', price: 99999 })]);
-  await bridge(user.token); await bridge(user.token);
+  const identity = await bridge(user.token); await bridge(user.token);
   const addresses = await db.collection(`users/${user.phone.localId}/addresses`).get();
   assert.equal(addresses.size, 1); assert.equal(addresses.docs[0].id, address.data.id);
+  assert.deepEqual(addresses.docs[0].data().deliveryDetails, details);
+  const receipt = await db.doc(`users/${user.phone.localId}/address_migration_receipts/${address.data.id}`).get();
+  assert.equal(receipt.data().schemaVersion, 2);
+  assert.equal(receipt.data().deliveryDetailsStatus, 'copied');
+  const client = await clientFor(identity.customToken);
+  const ref = doc(client.db, `users/${user.phone.localId}/addresses/${address.data.id}`);
+  await updateDoc(ref, { deliveryDetails: { ...details, instructions: 'Updated by owner' } });
+  const resetCheckpoint = () => pool.query("UPDATE allgo_accounts SET profile=profile-'addressMigrationComplete' WHERE id=$1", [user.accountId]);
+  await resetCheckpoint(); await bridge(user.token);
+  assert.equal((await getDocFromServer(ref)).data().deliveryDetails.instructions, 'Updated by owner');
+  await deleteDoc(ref);
+  await resetCheckpoint(); await bridge(user.token);
+  assert.equal((await getDocFromServer(ref)).exists(), false);
+  assert.equal((await db.collection(`users/${user.phone.localId}/addresses`).get()).size, 0);
   assert.equal((await db.collection('bookings').where('customerId', '==', user.phone.localId).get()).size, 0);
   const history = await request('/data/bookings', { token: user.token });
   assert.equal(history.data[0].recordAuthority, 'legacy_neon');
+});
+
+test('migration preserves preexisting canonical addresses and classifies invalid legacy metadata without blocking sign-in', async () => {
+  const user = await account();
+  const valid = { label: 'Home', address: 'Legacy integration street' };
+  assert.equal((await request('/account/items/addresses', { method: 'POST', token: user.token, body: { ...valid, deliveryDetails: { building: 'Incomplete' } } })).status, 400);
+  const existing = await request('/account/items/addresses', { method: 'POST', token: user.token, body: valid });
+  const malformed = await request('/account/items/addresses', { method: 'POST', token: user.token, body: valid });
+  assert.equal(existing.status, 201); assert.equal(malformed.status, 201);
+  const base = `users/${user.phone.localId}`;
+  const canonical = { label: 'Work', address: 'Current canonical street', createdAt: '2026-10-17T00:00:00.000Z' };
+  await db.doc(`${base}/addresses/${existing.data.id}`).set(canonical);
+  await pool.query("UPDATE allgo_account_items SET data=data || $2::jsonb WHERE id=$1 AND account_id=$3", [malformed.data.id, JSON.stringify({ deliveryDetails: { building: 'Incomplete' } }), user.accountId]);
+  await bridge(user.token);
+  assert.deepEqual((await db.doc(`${base}/addresses/${existing.data.id}`).get()).data(), canonical);
+  assert.equal((await db.doc(`${base}/address_migration_receipts/${existing.data.id}`).get()).data().outcome, 'existing_preserved');
+  assert.equal(Object.hasOwn((await db.doc(`${base}/addresses/${malformed.data.id}`).get()).data(), 'deliveryDetails'), false);
+  assert.equal((await db.doc(`${base}/address_migration_receipts/${malformed.data.id}`).get()).data().deliveryDetailsStatus, 'needs_review');
 });
 
 test('expired bridge records reject otherwise valid Firebase credentials', async () => {

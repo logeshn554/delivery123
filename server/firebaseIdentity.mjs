@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { phoneRegistrationIdentity } from './phoneRegistrationPolicy.mjs';
+import { projectSavedAddress } from './savedAddressPolicy.mjs';
 
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 let services;
@@ -69,7 +70,19 @@ if (!existing.exists) tx.create(profileRef, { uid, accountAuthority: 'neon', neo
       const addresses = await client.query("SELECT id,data,created_at FROM allgo_account_items WHERE account_id=$1 AND kind='addresses'", [current.id]);
       for (const address of addresses.rows) {
         const ref = db.doc(`users/${uid}/addresses/${address.id}`);
-        await db.runTransaction(async tx => { if (!(await tx.get(ref)).exists) tx.create(ref, { label: address.data.label, address: address.data.address, createdAt: address.created_at.toISOString() }); });
+        const receiptRef = db.doc(`users/${uid}/address_migration_receipts/${address.id}`);
+        const projected = projectSavedAddress(address);
+        await db.runTransaction(async tx => {
+          const [existing, receipt] = await Promise.all([tx.get(ref), tx.get(receiptRef)]);
+          // SQL can roll back after Firestore commits. A receipt also survives an owner deletion.
+          if (receipt.exists) return;
+          if (!existing.exists) tx.create(ref, projected.data);
+          tx.create(receiptRef, {
+            schemaVersion: 2, source: 'legacy_neon', createdAt: Timestamp.now(),
+            outcome: existing.exists ? 'existing_preserved' : 'imported',
+            deliveryDetailsStatus: existing.exists ? 'existing_preserved' : projected.deliveryDetailsStatus,
+          });
+        });
       }
       await client.query("UPDATE allgo_accounts SET profile=profile || '{\"addressMigrationComplete\":true}'::jsonb WHERE id=$1", [current.id]);
     }

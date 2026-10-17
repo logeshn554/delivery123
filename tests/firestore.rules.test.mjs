@@ -20,6 +20,16 @@ beforeEach(async () => {
 });
 const dbFor = (uid, claims = {}) => env.authenticatedContext(uid, claims).firestore();
 
+test('address migration receipts cannot be read, forged or deleted by clients', async () => {
+  const path = 'users/customer/address_migration_receipts/source';
+  await env.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), path), { schemaVersion: 2, outcome: 'imported' }));
+  for (const uid of ['customer', 'other', 'admin']) {
+    await assertFails(getDoc(doc(dbFor(uid), path)));
+    await assertFails(setDoc(doc(dbFor(uid), path), { schemaVersion: 2, outcome: 'existing_preserved' }));
+    await assertFails(deleteDoc(doc(dbFor(uid), path)));
+  }
+});
+
 test('Neon-linked identities require their live bridge claim even when another Firebase token remains valid', async () => {
   await env.withSecurityRulesDisabled(async context => {
     await updateDoc(doc(context.firestore(), 'users/customer'), { accountAuthority: 'neon', neonAccountId: 'sql-account' });

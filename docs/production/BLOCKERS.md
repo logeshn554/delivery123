@@ -12,3 +12,5 @@ Updated 2026-10-17. Continue unblocked source and emulator work; blockers do not
 | Store release | No current signed acceptance evidence | Valid signing plus tested gates A–G, rollout/rollback and operator review |
 
 Credentials belong in ignored local configuration or managed secrets, never source or reports. Configuration checks must remain fail-closed. No production purchases, onboarding approvals, deployments or customer data changes have been performed.
+
+Saved-address migration reconciliation remains open. Previously completed migrations have no receipts and may have lost delivery metadata; do not reset their SQL checkpoints automatically, because canonical edits/deletions cannot be inferred from stale SQL. New imports use server-only receipts to protect replay after partial cross-store failures. Malformed legacy metadata is classified needs_review, not silently accepted. An operator-reviewed inventory, retention treatment and reconciliation tool are still required before claiming full migration acceptance.

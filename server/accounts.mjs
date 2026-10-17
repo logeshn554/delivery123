@@ -10,6 +10,7 @@ import { projectLegacyBooking } from './legacyBookingReadModel.mjs';
 import { accountActionLink } from './accountActionPolicy.mjs';
 import { exportLegacyBookings } from './accountExport.mjs';
 import { accountOrigins } from './originPolicy.mjs';
+import { deliveryDetails } from './savedAddressPolicy.mjs';
 
 const environment = process.env.ALLGO_ENVIRONMENT;
 if (environment && !['staging', 'production'].includes(environment)) throw new Error('ALLGO_ENVIRONMENT must be staging or production.');
@@ -308,12 +309,8 @@ app.post('/api/account/items/:kind', route(async (req, res) => {
   if (kind === 'addresses') {
     data = { label: text(req.body.label, 1, 30, 'address label'), address: text(req.body.address, 3, 300, 'address') };
     if (req.body.deliveryDetails !== undefined) {
-      const details = req.body.deliveryDetails;
-      if (!details || typeof details !== 'object' || Array.isArray(details) || Object.keys(details).some(key => !['building', 'landmark', 'instructions'].includes(key))) throw fail('Invalid delivery details.');
-      data.deliveryDetails = Object.fromEntries([['building',80],['landmark',80],['instructions',120]].map(([key, limit]) => {
-        if (typeof details[key] !== 'string' || details[key].length > limit) throw fail('Invalid delivery details.');
-        return [key,details[key].trim()];
-      }));
+      try { data.deliveryDetails = deliveryDetails(req.body.deliveryDetails); }
+      catch { throw fail('Invalid delivery details.'); }
     }
   }
   else if (kind === 'support') throw fail('Support requires a connected service session. Sign in again to connect, then retry your request.', 503, 'unavailable');
