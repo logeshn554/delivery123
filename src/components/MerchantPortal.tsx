@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ShoppingBag, Check, CheckCircle2, Clock, Eye, AlertCircle, TrendingUp, 
-  Store, Utensils, ToggleLeft, ToggleRight, DollarSign, PackageCheck, Bike,
-  Wallet, ArrowDownRight, ArrowUpRight, Building2, ShieldCheck, ChevronRight
+  ShoppingBag, CheckCircle2, Clock, Store, Utensils, DollarSign,
+  PackageCheck, Bike, ChevronRight
 } from 'lucide-react';
 import { Booking, MenuItem, GroceryProduct } from '../types';
 
@@ -28,6 +27,7 @@ function playOrderChime() {
 }
 
 import MerchantHoursEditor from './MerchantHoursEditor';
+import MerchantSettlements from './MerchantSettlements';
 import MerchantClosuresEditor from './MerchantClosuresEditor';
 import MerchantCatalogEditor from './MerchantCatalogEditor';
 import StockMovementHistory from './StockMovementHistory';
@@ -48,14 +48,6 @@ interface MerchantPortalProps {
   merchantType?: 'restaurant' | 'grocery';
 }
 
-interface MerchantPayoutRecord {
-  id: string;
-  amount: number;
-  date: string;
-  status: 'processing' | 'settled';
-  bankRef: string;
-}
-
 export default function MerchantPortal({ activeBookings, merchantId, merchantType }: MerchantPortalProps) {
   const [panel, setPanel] = useState<'overview' | 'orders' | 'catalog' | 'settlements' | 'business'>('overview');
   const [activeMenu, setActiveMenu] = useState<MenuItem[]>([]);
@@ -63,19 +55,6 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-
-  // Payout request modal & state
-  const [payouts, setPayouts] = useState<MerchantPayoutRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem(`allgo_merchant_payouts_${merchantId}`);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // safe fallback
-    }
-    return [];
-  });
-  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
-  const [payoutSuccessMsg, setPayoutSuccessMsg] = useState('');
 
   // Sync catalog dynamically from Firestore in real-time
   useEffect(() => {
@@ -110,17 +89,6 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   const grossRevenueToday = todayOrders.reduce((sum, booking) => sum + (booking.price || 0), 0);
   const completedToday = todayOrders.length;
 
-  // Lifetime completed orders for settlements
-  const completedOrders = merchantBookings.filter(b => ['completed', 'delivered'].includes(b.status) && b.status !== 'cancelled');
-  const grossRevenueAll = completedOrders.reduce((sum, b) => sum + (b.price || 0), 0);
-  const commissionRate = 0.15; // 15% marketplace commission
-  const totalCommission = Math.round(grossRevenueAll * commissionRate);
-  const netEarningsLifetime = grossRevenueAll - totalCommission;
-
-  // Sum of already requested payouts
-  const totalWithdrawn = payouts.reduce((sum, p) => sum + p.amount, 0);
-  const availablePayoutBalance = Math.max(0, netEarningsLifetime - totalWithdrawn);
-
   const performAction = async (id: string, action: () => Promise<unknown>) => {
     if (busy) return;
     setBusy(id); setError('');
@@ -135,32 +103,6 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
 
   const handleMarkOrderReady = async (bookingId: string) => {
     await performAction(bookingId, () => advanceMerchantBooking(bookingId, 'ready'));
-  };
-
-  // Submit Payout Request
-  const handleRequestPayout = () => {
-    if (availablePayoutBalance < 100) {
-      alert('Minimum payout withdrawal amount is ₹100.');
-      return;
-    }
-    const newRecord: MerchantPayoutRecord = {
-      id: `PAY_${Date.now().toString().slice(-6)}`,
-      amount: availablePayoutBalance,
-      date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
-      status: 'processing',
-      bankRef: `ALLGO-NEFT-${Math.floor(100000 + Math.random() * 900000)}`
-    };
-
-    const updated = [newRecord, ...payouts];
-    setPayouts(updated);
-    try {
-      localStorage.setItem(`allgo_merchant_payouts_${merchantId}`, JSON.stringify(updated));
-    } catch {
-      // safe fallback
-    }
-    setIsPayoutModalOpen(false);
-    setPayoutSuccessMsg(`Payout request of ₹${availablePayoutBalance.toLocaleString('en-IN')} submitted successfully! Funds will credit within 24 hours.`);
-    setTimeout(() => setPayoutSuccessMsg(''), 6000);
   };
 
   if (!merchantId || !merchantType) return (
@@ -214,7 +156,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
             <p>
               {panel === 'orders' ? 'Prepare paid orders and keep customers updated.' :
                panel === 'catalog' ? 'Add, edit and manage availability for your dishes and products.' :
-               panel === 'settlements' ? 'Gross revenue breakdown, platform fees and instant bank payouts.' :
+               panel === 'settlements' ? 'View completed booking values and settlement availability.' :
                panel === 'business' ? 'Manage opening hours and planned closures.' :
                'Your live order activity at a glance.'}
             </p>
@@ -227,19 +169,12 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
         </div>
 
         {error && <p role="alert" className="rounded-xl bg-rose-950 p-3 text-sm text-rose-100">{error}</p>}
-        {payoutSuccessMsg && (
-          <div className="rounded-xl bg-emerald-950/80 border border-emerald-800 p-3 text-xs text-emerald-200 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{payoutSuccessMsg}</span>
-          </div>
-        )}
-
         {/* 1. OVERVIEW PANEL */}
         {panel === 'overview' && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
-                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gross Revenue (Today)</p>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Completed booking value today</p>
                 <h4 className="text-lg font-black text-emerald-400 mt-1">₹{grossRevenueToday.toLocaleString('en-IN')}</h4>
                 <span className="text-[9px] text-slate-400">From today’s completed orders</span>
               </div>
@@ -253,9 +188,9 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
 
             <div className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-700/50 rounded-2xl p-4 flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase font-bold text-blue-300 tracking-wider">Available for Payout</p>
-                <h3 className="text-xl font-black text-white mt-0.5">₹{availablePayoutBalance.toLocaleString('en-IN')}</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">Net earnings after 15% platform commission</p>
+                <p className="text-[10px] uppercase font-bold text-blue-300 tracking-wider">Settlement availability</p>
+                <h3 className="text-xl font-black text-white mt-0.5">Setup required</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Merchant settlement records are required before payouts.</p>
               </div>
               <button
                 onClick={() => setPanel('settlements')}
@@ -397,184 +332,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
           </section>
         )}
 
-        {/* 4. SETTLEMENTS & PAYOUTS PANEL */}
-        {panel === 'settlements' && (
-          <section data-panel="settlements" className="space-y-4">
-            {/* Top Balance Banner */}
-            <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950/40 border border-blue-600/40 rounded-2xl p-4 shadow-xl">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">Settlement Wallet</span>
-                  <h3 className="text-2xl font-black text-white mt-0.5">₹{availablePayoutBalance.toLocaleString('en-IN')}</h3>
-                  <p className="text-[11px] text-slate-400 mt-1">Available for withdrawal to linked bank account</p>
-                </div>
-                <button
-                  disabled={availablePayoutBalance < 100}
-                  onClick={() => setIsPayoutModalOpen(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 active:scale-95 transition-all"
-                >
-                  <ArrowUpRight className="w-4 h-4" />
-                  <span>Withdraw Funds</span>
-                </button>
-              </div>
-
-              {/* Accounting metric pills */}
-              <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800">
-                <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                  <p className="text-[9px] uppercase font-bold text-slate-400">Lifetime GMV</p>
-                  <p className="text-xs font-black text-white mt-0.5">₹{grossRevenueAll.toLocaleString('en-IN')}</p>
-                </div>
-                <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                  <p className="text-[9px] uppercase font-bold text-slate-400">Platform Fee (15%)</p>
-                  <p className="text-xs font-black text-rose-400 mt-0.5">-₹{totalCommission.toLocaleString('en-IN')}</p>
-                </div>
-                <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-800">
-                  <p className="text-[9px] uppercase font-bold text-slate-400">Paid Out</p>
-                  <p className="text-xs font-black text-emerald-400 mt-0.5">₹{totalWithdrawn.toLocaleString('en-IN')}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Linked Bank Card */}
-            <div className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">HDFC Bank Direct Deposit</h4>
-                  <p className="text-[11px] text-slate-400 font-mono mt-0.5">A/C: •••• 8492 · IFSC: HDFC0001234</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-1 rounded-lg">
-                Verified
-              </span>
-            </div>
-
-            {/* Payout History List */}
-            <div className="space-y-2">
-              <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">
-                Recent Withdrawal Requests
-              </h3>
-
-              {payouts.length === 0 ? (
-                <div className="text-center py-6 bg-slate-800/30 rounded-xl border border-slate-800 text-xs text-slate-400">
-                  No payout withdrawals recorded yet.
-                </div>
-              ) : (
-                payouts.map(p => (
-                  <div key={p.id} className="bg-slate-800/70 border border-slate-700/60 rounded-xl p-3 flex justify-between items-center">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-white">₹{p.amount.toLocaleString('en-IN')}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                          p.status === 'settled' 
-                            ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50' 
-                            : 'bg-amber-900/60 text-amber-300 border border-amber-700/50'
-                        }`}>
-                          {p.status === 'settled' ? 'Transferred' : 'Processing NEFT'}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-0.5 font-mono">{p.bankRef} · {p.date}</p>
-                    </div>
-                    <span className="text-xs font-mono text-slate-400">{p.id}</span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Order Settlement Ledger */}
-            <div className="space-y-2">
-              <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">
-                Delivered Orders Settlement Ledger ({completedOrders.length})
-              </h3>
-
-              {completedOrders.length === 0 ? (
-                <div className="text-center py-8 bg-slate-800/30 rounded-xl border border-slate-800 text-xs text-slate-400">
-                  No delivered orders to settle yet. Completed customer deliveries will be logged here with transparent commission deductions.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {completedOrders.slice(0, 20).map(ord => {
-                    const gross = ord.price || 0;
-                    const fee = Math.round(gross * 0.15);
-                    const net = gross - fee;
-
-                    return (
-                      <div key={ord.bookingId} className="bg-slate-800/80 border border-slate-700/70 rounded-xl p-3 flex justify-between items-center">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-white font-mono">{ord.bookingId}</span>
-                            <span className="text-[10px] text-slate-400">Client: {ord.customerName}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1">
-                            <span>Gross: ₹{gross}</span>
-                            <span>•</span>
-                            <span className="text-rose-400 font-semibold">Fee (15%): -₹{fee}</span>
-                            <span>•</span>
-                            <span className="text-slate-300 font-mono">{ord.paymentMethod === 'cash' ? 'COD' : 'Online'}</span>
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <span className="text-xs font-black text-emerald-400">+₹{net}</span>
-                          <p className="text-[9px] text-emerald-300/80 font-bold uppercase mt-0.5">Cleared</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Withdrawal Modal */}
-            {isPayoutModalOpen && (
-              <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
-                <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-sm shadow-2xl p-5 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Wallet className="w-4 h-4 text-emerald-400" />
-                      <span>Confirm Payout Withdrawal</span>
-                    </h3>
-                    <button onClick={() => setIsPayoutModalOpen(false)} className="text-slate-400 hover:text-white">
-                      ✕
-                    </button>
-                  </div>
-
-                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-400">Withdrawal Amount:</span>
-                      <span className="text-white font-black text-sm text-emerald-400">₹{availablePayoutBalance.toLocaleString('en-IN')}</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-400">Transfer Route:</span>
-                      <span className="text-white font-semibold">Immediate IMPS / NEFT</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-400">Destination:</span>
-                      <span className="text-slate-300 font-mono">HDFC Bank (•••• 8492)</span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setIsPayoutModalOpen(false)}
-                      className="flex-1 py-2 text-xs font-bold text-slate-400 hover:text-white rounded-xl bg-slate-800"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleRequestPayout}
-                      className="flex-1 py-2 text-xs font-bold text-white rounded-xl bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/30"
-                    >
-                      Confirm Transfer
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
+        {panel === 'settlements' && <MerchantSettlements bookings={activeBookings} merchantId={merchantId} merchantType={merchantType}/>}
 
         {/* 5. BUSINESS SETTINGS PANEL */}
         {panel === 'business' && (
