@@ -27,6 +27,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | MERCHFIN-01 | P0 | Removed fabricated merchant transfers/bank verification and assumed commission; assigned completed booking values render with explicit payout-unavailable state; real merchant allocation, ledger, bank verification and payout workflow remain unimplemented | In progress |
 | MOBILE-01 | P1 | Debug build/install/startup recovery verified; six-service native acceptance awaits reachable backend/providers | In progress |
 | MOBILE-02 | P1 | iOS archive and device journeys on supported macOS/Xcode host | Blocked |
+| CI-01 | P1 | Add all-audience Android debug matrix, packaged-manifest/web-metadata checks and reviewable hashed APK artifacts; local policy/tests verified, fresh native and hosted execution pending | In progress |
 | UI-01 | P2 | Preserve existing Stitch tokens; verify responsive/accessibility/keyboard states | Not started |
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |
 | GIT-01 | P1 | Commit each validated increment and push without rewriting existing history | In progress |

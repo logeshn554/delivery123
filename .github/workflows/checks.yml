@@ -23,3 +23,41 @@ jobs:
       - run: npm run build
       - run: node scripts/check-production-fixtures.mjs
       - run: npm audit --omit=dev --audit-level=high
+  android:
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        audience: [customer, merchant, driver]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+      - run: npm ci
+      - run: chmod +x android/gradlew
+      - name: Build audience debug APK
+        run: node scripts/build-app.mjs --audience=${{ matrix.audience }} --platform=android
+      - run: node scripts/check-production-fixtures.mjs
+      - name: Verify packaged identity and web metadata
+        run: node scripts/check-app-artifact.mjs ${{ matrix.audience }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: allgo-${{ matrix.audience }}-debug-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            .cache/apps/${{ matrix.audience }}/app-debug.apk
+            .cache/apps/${{ matrix.audience }}/verification.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
