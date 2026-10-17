@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight, 
   MapPin, Check, Eye, Clock, ShieldAlert, Award, FileText, Send, MessageSquare,
-  Phone, Camera, Banknote, X
+  Phone, Banknote
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
 import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages } from '../data/firestoreHelper';
@@ -58,7 +58,6 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   // Real-time Chat States inside Active Job panel
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [podImage, setPodImage] = useState<string | null>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Load or create driver profile in Firestore
@@ -210,7 +209,6 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const handleVerifyOTP = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'transit', pickupCode));
   const handleCompleteJob = (job: Booking) => performAction(async () => {
     await advanceDriverBooking(job.bookingId, 'completed', otpInput);
-    setPodImage(null);
     setOtpInput('');
   });
 
@@ -588,49 +586,6 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
               {currentAssignedJob.status === 'transit' && (
                 <div className="space-y-3">
-                  {/* Proof of Delivery Photo (Optional) */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                        <Camera className="w-4 h-4 text-purple-600" />
-                        <span>Proof of Delivery Photo (Optional)</span>
-                      </div>
-                      {podImage && <span className="text-[10px] font-bold text-emerald-600">Photo Attached ✓</span>}
-                    </div>
-                    {podImage ? (
-                      <div className="relative rounded-lg overflow-hidden border border-slate-200">
-                        <img src={podImage} alt="Delivery proof" className="w-full h-32 object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setPodImage(null)}
-                          className="absolute top-1.5 right-1.5 bg-slate-900/80 hover:bg-slate-900 text-white p-1 rounded-full text-xs shadow"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
-                        <Camera className="w-5 h-5 text-slate-400 mb-1" />
-                        <span className="text-[11px] font-semibold text-slate-600">Snap doorstep / parcel photo</span>
-                        <span className="text-[9px] text-slate-400">Helpful for contactless handover</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = () => setPodImage(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
-
                   <div>
                     <p className="text-[10px] text-slate-400 mb-2">Ask the recipient for the delivery code at the destination.</p>
                     <label className="sr-only" htmlFor="recipient-delivery-code">Recipient delivery code</label><input id="recipient-delivery-code" name="deliveryCode" autoComplete="one-time-code" spellCheck={false} value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Enter recipient delivery code…" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" />

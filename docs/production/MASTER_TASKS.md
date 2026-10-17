@@ -21,7 +21,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
 | FOOD-01 | P1 | Isolated wallet checkout → merchant → private driver offer → recipient-code completion → review passes; native/provider acceptance remains | Verified |
 | GROC-01 | P1 | Store proposes a live catalog replacement; customer accepts with disclosed wallet debit/refund or removes/refunds; 15-minute expiry blocks late choices and scheduled cleanup releases stock; 116 isolated Firestore tests; real partner/native acceptance remain | In progress |
-| PARCEL-01 | P1 | Parcel quote/wallet/pickup-code/delivery journey verified; photo proof, returns/claims and native acceptance remain | In progress |
+| PARCEL-01 | P1 | Parcel quote/wallet/pickup-code/delivery journey verified; recipient-code completion is audited; photo proof, returns/claims and native acceptance remain | In progress |
 | RIDE-01 | P1 | Ride/driver-hire quote/wallet/assignment/codes/completion backend journeys verified; live tracking/native/payment acceptance remains | In progress |
 | TRANS-01 | P1 | Transport quote/wallet/carrier eligibility/pickup/delivery backend journey verified; custody documents/inspections/claims remain | In progress |
 | PARTNER-01 | P1 | Shared tracked role workspaces, distinct app IDs/schemes and reproducible Android debug builds; provider, iOS and authenticated partner acceptance remain | In progress |
@@ -36,4 +36,6 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | MIGRATION-02 | P1 | New imports preserve validated delivery metadata and receipt-protected edits/deletions; seven real SQL/Auth cases and 112 Firestore/integration tests pass for 4070e06 in hosted run 39001327488; historical completed imports and other formats need reconciliation | In progress |
 | GIT-01 | P1 | Commit each validated increment and push without rewriting existing history | In progress |
 
-Next executable work: verify partner startup and application/assignment transitions on an isolated backend; complete audience-specific release registration and acceptance gates. Native authenticated acceptance needs isolated backend/provider configuration. Reference inspection may continue independently without login bypass or purchases.
+Latest hosted run 39007074131 passed checks, account lifecycle, and merchant/driver Android jobs; customer Android failed during Gradle dependency resolution because many artifacts were unavailable from both configured Maven repositories, before source compilation. Recheck on the next hosted run.
+
+Next executable work: verify partner startup and application/assignment transitions on an isolated backend; complete audience-specific release registration and acceptance gates. Native authenticated acceptance needs isolated backend/provider configuration. Delivery-photo evidence remains deferred until a delivery-specific privacy/consent/retention and private-storage lifecycle is accepted; the unused local-only photo picker has been removed. Reference inspection may continue independently without login bypass or purchases.
