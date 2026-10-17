@@ -6,6 +6,9 @@ import { sessionToken, saveSession, clearSession } from './sessionStorage';
 import { normalizeAccountProfile } from './app/accountProfile';
 import { serviceAccessError as accessError } from './app/serviceAccess';
 import { invalidateSession } from './auth/invalidateSession';
+import { signOutWithCleanup } from './auth/signOutCleanup';
+import { createSessionTeardown } from './auth/sessionTeardown';
+import { cleanupNativeSession } from './nativeSessionCleanup';
 
 export const useNeonAccounts = import.meta.env.VITE_AUTH_PROVIDER === 'neon';
 const base = ((Capacitor.isNativePlatform() ? import.meta.env.VITE_ACCOUNT_API_URL : '') || '').replace(/\/$/, '');
@@ -15,12 +18,18 @@ export function serviceAccessError() {
   return accessError(activeProfile);
 }
 let sessionGeneration = 0;
+const teardown = createSessionTeardown();
 const listeners = new Set<(profile: UserProfile | null) => void>();
 function publish(value: UserProfile | null) { activeProfile = value; listeners.forEach(listener => listener(value)); }
-async function clearAccountSession() {
-  const generation = sessionGeneration;
-  hasServiceIdentity = false;
-  await invalidateSession(clearSession, () => signOut(auth), () => publish(null), () => generation === sessionGeneration);
+function endAccountSession(logout: boolean) {
+  return teardown.run(async () => {
+    const generation = ++sessionGeneration;
+    hasServiceIdentity = false;
+    await signOutWithCleanup([cleanupNativeSession], async () => {
+      try { if (logout) await accountRequest('/auth/logout', 'POST'); }
+      finally { await invalidateSession(clearSession, () => signOut(auth), () => publish(null), () => generation === sessionGeneration); }
+    });
+  });
 }
 export async function accountRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   if (Capacitor.isNativePlatform() && !base) throw Object.assign(new Error('The account server address is missing from this app build.'), { code: 'unavailable' });
@@ -32,7 +41,8 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
     const response = await fetch(`${base}/api${path}`, { method, credentials: Capacitor.isNativePlatform() ? 'omit' : 'same-origin', signal: controller.signal, headers: { 'Content-Type': 'application/json', ...(Capacitor.isNativePlatform() ? { 'X-AllGo-Native': '1' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const result = await response.json();
     if (!response.ok) {
-      if (result.code === 'auth/session-expired' && generation === sessionGeneration) { sessionGeneration++; await clearAccountSession(); }
+      // A logout response is handled by its own finally; joining it here would deadlock.
+      if (result.code === 'auth/session-expired' && generation === sessionGeneration && !teardown.running) await endAccountSession(false);
       throw Object.assign(new Error(result.error || 'Account request failed.'), { code: result.code });
     }
     return result;
@@ -44,12 +54,15 @@ export async function accountRequest<T>(path: string, method = 'GET', body?: unk
 async function acceptAccountSession(result: { token?: string; profile: UserProfile }) {
   if (Capacitor.isNativePlatform() && !/^[a-f0-9]{64}$/.test(result?.token || '')) throw new Error('Sign-in did not return a valid session. Please try again.');
   const account=normalizeAccountProfile(result?.profile);
+  await teardown.wait();
   sessionGeneration++; await saveSession(result.token); const profile = await connectServiceIdentity(account); publish(profile); return profile;
 }
 export async function signInAccount(email: string, password: string, name?: string, registration?: {phoneIdToken:string;requestedRole:'customer'|'driver'|'merchant'}) {
+  await teardown.wait();
   return acceptAccountSession(await accountRequest<{token?:string;profile:UserProfile}>(name === undefined ? '/auth/login' : '/auth/signup','POST',{email,password,name,...registration}));
 }
 export async function signInPhoneAccount(phoneIdToken: string) {
+  await teardown.wait();
   return acceptAccountSession(await accountRequest<{token?:string;profile:UserProfile}>('/auth/phone-login','POST',{phoneIdToken}));
 }
 async function connectServiceIdentity(profile: UserProfile): Promise<UserProfile> {
@@ -64,9 +77,7 @@ async function connectServiceIdentity(profile: UserProfile): Promise<UserProfile
   hasServiceIdentity = true; return serviceProfile;
 }
 export async function signOutAccount() {
-  const generation = sessionGeneration;
-  try { await accountRequest('/auth/logout', 'POST'); }
-  finally { if (generation === sessionGeneration) { sessionGeneration++; await clearAccountSession(); } }
+  await endAccountSession(true);
 }
 export function watchAccount(listener: (value: UserProfile | null) => void, onError: (error: unknown) => void) {
   let cancelled = false; listeners.add(listener);

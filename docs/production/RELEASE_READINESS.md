@@ -14,3 +14,5 @@ Run `node scripts/check-release.mjs --environment=staging`, then production when
 
 Saved-address source repair preserves validated delivery metadata and protects new migrations from checkpoint replay after canonical edits/deletions. This does not establish historical reconciliation, full migration coverage or deployed acceptance; those gates remain open.
 Latest saved-address source 4070e06 passed hosted run 39001327488 checks (246 application tests, 112 Firestore/integration tests) and all seven real PostgreSQL/Auth lifecycle cases. Historical reconciliation and staging deployment remain unverified; these passes do not close release acceptance.
+
+Account API-detected expiry now shares native cleanup with manual logout, and replacement login waits for teardown; 252 application tests and web build pass. This is controlled-runtime source verification. Actual native plugin behavior, proactive expiry detection, in-flight push refresh/enable races, offline reconciliation and persisted secure-storage failure remain release acceptance items.

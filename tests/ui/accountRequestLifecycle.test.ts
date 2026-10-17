@@ -21,13 +21,14 @@ test('an account request waiting on secure storage cannot run after logout chang
       define: { 'import.meta.env': '{}' },
       banner: { js: `const fetch=globalThis[${JSON.stringify(key)}].fetch;` },
       plugins: [{ name: 'account-runtime', setup(builder) {
-        builder.onResolve({ filter: /^(?:@capacitor\/core|firebase\/auth|\.\/firebase|\.\/sessionStorage)$/ }, () => ({ path: 'bridge', namespace: 'account-test' }));
+        builder.onResolve({ filter: /^(?:@capacitor\/core|firebase\/auth|\.\/firebase|\.\/sessionStorage|\.\/nativeSessionCleanup)$/ }, () => ({ path: 'bridge', namespace: 'account-test' }));
         builder.onLoad({ filter: /.*/, namespace: 'account-test' }, () => ({ contents: `
           const bridge=globalThis[${JSON.stringify(key)}];
           export const Capacitor={isNativePlatform:()=>false};
           export const sessionToken=bridge.sessionToken,clearSession=bridge.clearSession;
           export const saveSession=async()=>{},signOut=async()=>{},setPersistence=async()=>{},signInWithCustomToken=async()=>{},inMemoryPersistence={};
           export const auth={};
+          export const cleanupNativeSession=async()=>{};
         ` }));
       } }],
     });
