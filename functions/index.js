@@ -24,6 +24,7 @@ const { bookingExceptionFunctions } = require('./bookingExceptions');
 const { dispatchRecoveryFunctions } = require('./dispatchRecovery');
 const { redactBookingHistory } = require('./bookingRedaction');
 const { fullyPicked, groceryPickingFunctions } = require('./groceryPicking');
+const { grocerySubstitutionExpiryFunctions } = require('./grocerySubstitutionExpiry');
 const { productWithinExpiry } = require('./productExpiry');
 const { assertStockBaseline } = require('./stockBaseline');
 const { recordStockMovement, combineStockLines } = require('./inventoryJournal');
@@ -60,7 +61,8 @@ Object.assign(exports, operationsFunctions({ onCall, db, REGION, HttpsError, Tim
 Object.assign(exports, supportFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, HttpsError, documentId, cleanText }));
-Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, journal, recordStockMovement, productWithinExpiry }));
+Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, Timestamp, journal, recordStockMovement, productWithinExpiry }));
+Object.assign(exports, grocerySubstitutionExpiryFunctions({ onSchedule, db, REGION, Timestamp }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 Object.assign(exports, merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));

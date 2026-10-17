@@ -16,6 +16,7 @@ compiled.filename = filename; compiled.paths = Module._nodeModulePaths(path.dirn
 // Expose internal services only inside this test process; production exports stay unchanged.
 compiled._compile(`${source}\nmodule.exports.testServices = { settleCapturedPayment, reconcileProviderRefund, applyCoupon, reconcilePaymentIntent, checkPendingRefund };`, filename);
 const { settleCapturedPayment, reconcileProviderRefund, applyCoupon, reconcilePaymentIntent, checkPendingRefund } = compiled.exports.testServices;
+const { expiryId } = require('../functions/grocerySubstitutionExpiry.js');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 const { getApp } = require('firebase-admin/app');
 const db = getFirestore(getApp(), '(default)');
@@ -479,6 +480,21 @@ test('declining a grocery replacement releases candidate stock and refunds the r
   await callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 0, accept: false, requestId: 'remove' });
   const removed = (await ref.get()).data();
   assert.equal(removed.price, 0); assert.equal(removed.details.items[0].removed, true); assert.equal(removed.picking.lines['0'].quantity, 0); assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 5); assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1020);
+});
+
+test('unanswered grocery replacement expires, releases reserved stock and makes stale customer decisions fail', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('grocery_stores/shop/products/original').set({ name: 'Original', price: 10, stock: 0 });
+  await db.doc('grocery_stores/shop/products/replacement').set({ name: 'Replacement', price: 12, stock: 5 });
+  const ref = db.doc('bookings/grocery-expiry');
+  await ref.set({ bookingId: ref.id, customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 20, priceBreakdown: { itemCents: 2000, deliveryCents: 0, packagingCents: 0, platformCents: 0, taxCents: 0, taxBps: 0, discountCents: 0, totalCents: 2000 }, details: { items: [{ id: 'original', name: 'Original', price: 10, quantity: 2 }] }, picking: { revision: 0, lines: {} } });
+  await callable('proposeGrocerySubstitution', 'merchant', { bookingId: ref.id, lineIndex: 0, replacementId: 'replacement', expectedRevision: 0, requestId: 'expiry-proposal' });
+  const expiryRef = db.doc(`grocery_substitution_expiries/${expiryId(ref.id, 0, 1)}`);
+  await expiryRef.update({ expiresAt: Timestamp.fromMillis(Date.now() - 1) });
+  await compiled.exports.expireGrocerySubstitutions.run();
+  const expired = (await ref.get()).data();
+  assert.equal(expired.picking.substitutions['0'].status, 'expired'); assert.equal(expired.picking.revision, 2); assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 5); assert.equal((await expiryRef.get()).exists, false);
+  await assert.rejects(callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 2400, accept: true, requestId: 'too-late' }), error => error.code === 'aborted');
 });
 
 test('booking deletion redacts free text while retaining finance and stage evidence', async () => {

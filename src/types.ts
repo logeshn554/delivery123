@@ -116,7 +116,7 @@ export interface GroceryProduct {
 
 export interface Booking {
   recordAuthority?: 'legacy_neon';
-  picking?: { revision: number; lines: Record<string, { itemId: string; quantity: number }>; substitutions?: Record<string, { status: 'pending' | 'accepted' | 'removed'; replacement: { id: string; name: string; price: number; quantity: number }; originalItemId: string; originalName: string; originalUnitPrice: number; acceptedTotalCents: number; removedTotalCents: number; proposedAt: string; revision: number }>; updatedAt: string };
+  picking?: { revision: number; lines: Record<string, { itemId: string; quantity: number }>; substitutions?: Record<string, { status: 'pending' | 'accepted' | 'removed' | 'expired'; replacement: { id: string; name: string; price: number; quantity: number }; originalItemId: string; originalName: string; originalUnitPrice: number; acceptedTotalCents: number; removedTotalCents: number; proposedAt: string; expiresAt?: string; revision: number }>; updatedAt: string };
   exception?: { kind: string; reason: string; status: 'open' | 'resolved'; revision: number; reportedBy: string; reportedAt: string; resolution?: string; resolvedBy?: string; resolvedAt?: string };
   preparation?: { expectedReadyAt: string; reason: string; revision: number; updatedAt: string };
   offerExpiresAt?: string;

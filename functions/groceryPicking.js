@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { expiryId } = require('./grocerySubstitutionExpiry');
 
 function replacementTotal(booking, itemDeltaCents, HttpsError) {
   const b = booking.priceBreakdown;
@@ -77,11 +78,12 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         const oldLine = Math.round(item.price * 100) * item.quantity, newLine = Math.round(product.price * 100) * item.quantity;
         if (!Number.isSafeInteger(oldLine) || !Number.isSafeInteger(newLine)) throw new HttpsError('failed-precondition', 'The grocery item price needs operations review.');
         const acceptedTotal = replacementTotal(booking, newLine - oldLine, HttpsError), removedTotal = replacementTotal(booking, -oldLine, HttpsError);
-        const revision = currentRevision + 1, now = new Date().toISOString(), key = String(lineIndex);
+        const revision = currentRevision + 1, now = new Date().toISOString(), expiresAt = new Date(Date.now() + 15 * 60 * 1000), key = String(lineIndex), expiryRef = db.doc(`grocery_substitution_expiries/${expiryId(bookingId, lineIndex, revision)}`);
         const replacement = { id: replacementId, name: product.name, price: product.price, quantity: item.quantity, ...(typeof product.image === 'string' ? { image: product.image } : {}) };
-        const substitutions = { ...(booking.picking?.substitutions || {}), [key]: { status: 'pending', replacement, originalItemId: item.id, originalName: item.name, originalUnitPrice: item.price, acceptedTotalCents: acceptedTotal.totalCents, removedTotalCents: removedTotal.totalCents, proposedBy: uid, proposedAt: now, revision } };
+        const substitutions = { ...(booking.picking?.substitutions || {}), [key]: { status: 'pending', replacement, originalItemId: item.id, originalName: item.name, originalUnitPrice: item.price, acceptedTotalCents: acceptedTotal.totalCents, removedTotalCents: removedTotal.totalCents, proposedBy: uid, proposedAt: now, expiresAt: expiresAt.toISOString(), revision } };
         tx.update(productRef, { stock: product.stock - item.quantity });
         recordStockMovement(tx, productRef, `substitute_reserve_${bookingId}_${requestId}`, 'reservation', product.stock, product.stock - item.quantity, { bookingId });
+        tx.create(expiryRef, { bookingId, lineIndex, revision, expiresAt: Timestamp.fromDate(expiresAt), createdAt: Timestamp.now() });
         tx.update(ref, { picking: { ...(booking.picking || {}), revision, substitutions, updatedAt: now }, updatedAt: now });
         tx.create(proposalEvent, { stage: 'grocery_substitution_proposed', actorId: uid, actorRole: 'merchant', lineIndex, itemId: item.id, replacementId, expectedRevision, revision, createdAt: now });
         return { revision, acceptedTotalCents: acceptedTotal.totalCents, removedTotalCents: removedTotal.totalCents };
@@ -132,6 +134,7 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         if (delta !== 0) tx.update(walletRef, { walletBalance: walletNext / 100 });
         const orderId = booking.paymentOrderId || booking.bookingId;
         if (delta) tx.create(db.doc(`financial_journals/grocery_sub_${crypto.createHash('sha256').update(`${bookingId}:${requestId}`).digest('hex')}`), journal('grocery_substitution_adjustment', delta > 0 ? 'wallet_liability' : 'booking_funds_unallocated', delta > 0 ? 'booking_funds_unallocated' : 'wallet_liability', Math.abs(delta), { bookingId, customerId: uid, orderId }));
+        tx.delete(db.doc(`grocery_substitution_expiries/${expiryId(bookingId, lineIndex, currentRevision)}`));
         tx.update(ref, { details: { ...booking.details, items: nextItems }, price: price.totalCents / 100, originalPrice: price.grossCents / 100, couponDiscountCents: price.discountCents, priceBreakdown, picking: { ...booking.picking, revision, lines, substitutions, updatedAt: now }, updatedAt: now });
         tx.create(eventRef, { stage: accept ? 'grocery_substitution_accepted' : 'grocery_item_removed', actorId: uid, actorRole: 'customer', lineIndex, replacementId: replacement.id, accept, expectedTotalCents, amountDeltaCents: delta, status, priceCents: price.totalCents, walletBalanceCents: walletNext, expectedRevision, revision, createdAt: now });
         return { revision, status, price: price.totalCents / 100, walletBalance: walletNext / 100 };
