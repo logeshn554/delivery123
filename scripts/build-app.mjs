@@ -25,7 +25,7 @@ run(node, ['node_modules/vite/bin/vite.js', 'build', '--mode', 'development'], b
 if (platform === 'web') process.exit(0);
 
 run(node, ['node_modules/@capacitor/cli/bin/capacitor', 'sync', 'android'], buildEnv);
-run(node, ['scripts/prepare-native.mjs'], buildEnv);
+run(node, ['scripts/prepare-native.mjs', 'android'], buildEnv);
 const cachedGradle = existsSync('.cache/gradle/gradle-8.14.3/bin');
 run(node, ['scripts/check-android.mjs', ...(cachedGradle ? ['--cached-gradle'] : [])], buildEnv);
 

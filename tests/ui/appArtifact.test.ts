@@ -5,7 +5,7 @@ import { assertAppMetadata, assertAndroidIdentity } from '../../scripts/app-arti
 
 const driver = resolveAudience('driver');
 const badging = "package: name='in.allgo.delivery'\napplication-label:'AllGo Delivery'\nlaunchable-activity: name='in.allgo.app.MainActivity'";
-const manifest = 'android:scheme="allgo-delivery"\nandroid:name="in.allgo.app.DriverLocationService"';
+const manifest = 'E: manifest\n  E: application\n    E: service\n      A: android:name(0x01010003)="in.allgo.app.DriverLocationService"\n    E: activity\n      E: intent-filter\n        E: data\n          A: android:scheme(0x01010027)="allgo-delivery"\n          A: android:host(0x01010028)="booking"';
 test('artifact policy rejects wrong native identity even when web metadata is correct', () => {
   assertAndroidIdentity(badging, manifest, driver);
   assert.throws(() => assertAndroidIdentity(badging.replace('in.allgo.delivery', 'in.allgo.app'), manifest, driver), /package identity/);
@@ -13,8 +13,9 @@ test('artifact policy rejects wrong native identity even when web metadata is co
 test('artifact policy rejects a driver service in the customer package and missing partner URL schemes', () => {
   const customer = resolveAudience('customer');
   const customerBadging = badging.replace('in.allgo.delivery', 'in.allgo.app').replace('AllGo Delivery', 'AllGo');
-  assert.throws(() => assertAndroidIdentity(customerBadging, 'android:scheme="allgo"\n' + manifest, customer), /driver location service/);
-  assert.throws(() => assertAndroidIdentity(badging, 'android:name="in.allgo.app.DriverLocationService"', driver), /URL scheme/);
+  assert.throws(() => assertAndroidIdentity(customerBadging, manifest.replace('allgo-delivery', 'allgo'), customer), /driver location service/);
+  assert.throws(() => assertAndroidIdentity(badging, manifest.replace('allgo-delivery', 'wrong-scheme'), driver), /URL scheme/);
+  assert.throws(() => assertAndroidIdentity(badging, manifest.replace('booking', 'unrelated'), driver), /URL scheme/);
 });
 test('artifact policy rejects demo, release and cross-audience metadata', () => {
   const metadata = { audience: 'driver', appId: 'in.allgo.delivery', mode: 'development', demo: false };
