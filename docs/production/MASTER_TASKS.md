@@ -1,6 +1,6 @@
 # AllGo master execution tracker
 
-Updated 2026-10-16 (Asia/Calcutta). Existing branch: `codex/allgo-production-foundations`.
+Updated 2026-10-17 (Asia/Calcutta). Existing branch: `codex/allgo-production-foundations`.
 Statuses describe the stated scope only. Unit verification is not mobile or release acceptance.
 The detailed unresolved backlog in `../audit/remediation-register.md` remains binding; no older unchecked item is closed by this tracker.
 
@@ -13,6 +13,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | FIX-02 | P1 | Booking subscription failures clear cached rows/codes, stop joined listeners and offer retry/sign-out; 8 scope/lifecycle tests pass | Verified |
 | FIX-03 | P0 | Revoke driver fulfillment, private data, tracking-route and chat access using current account role and verified profile; 100 emulator/integration tests and 211 application tests pass | Verified |
 | FIX-04 | P0 | Ride/hire/transport quote writes omit inapplicable undefined fare breakdown; all six backend journeys and 104 emulator tests pass | Verified |
+| FIX-05 | P1 | Manual Neon/Firebase logout runs push and native credential cleanup before primary sign-out; failure isolation covered by 217 application tests; native/provider acceptance remains | Source verified |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
 | FOOD-01 | P1 | Isolated wallet checkout → merchant → private driver offer → recipient-code completion → review passes; native/provider acceptance remains | Verified |

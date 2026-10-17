@@ -1,5 +1,7 @@
 # Implementation log
 
+FIX-05 (2026-10-17): source audit confirmed nativeSignOut returned through Neon logout before unregistering push devices, deleting the device token or signing out native Firebase auth. Both account providers now use the same ordered cleanup before primary sign-out. Cleanup errors do not skip subsequent token/native operations or primary logout. Push refresh opt-in and pending booking-link state are cleared first. Regression covers cleanup ordering, offline unregister/plugin failures, and primary logout error propagation. Automatic session-expiry cleanup and provider/device acceptance remain separate work; offline server unregister cannot be guaranteed by local tests.
+
 PARTNER-01 (2026-10-16): integrated existing merchant/driver components into audience-specific workspaces in the tracked repository. Shared identity registry controls Android IDs, names, deep links and web metadata. Mismatched roles receive no partner feed; incomplete merchant assignments are blocked; customer accounts can apply for approval. Added sequential debug build commands and Android audience flavors preserving common debug configuration. Only driver declares/registers the existing foreground location service. Partner release packaging is explicitly gated pending audience-specific provider and operator acceptance. See ../architecture/mobile-app-variants.md. Sibling source folders remain outside this repository.
 
 ## 2026-10-16

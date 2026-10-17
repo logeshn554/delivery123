@@ -1,9 +1,10 @@
 # Blockers and required setup
 
-Updated 2026-10-16. Continue unblocked source and emulator work; blockers do not justify marking features complete.
+Updated 2026-10-17. Continue unblocked source and emulator work; blockers do not justify marking features complete.
 
 | Blocker | Evidence | Exact next requirement |
 |---|---|---|
+| Android runtime acceptance | Previously missing package/activity services; current adb recheck reports no devices/emulators | Restore a healthy emulator/device, resolve installed launch activities, then verify partner startup and logout with isolated configured providers |
 | Remaining reference journeys | REA now captures out-of-coverage home and location selector; other journeys unobserved | Continue normal browsing in a supported location; stop at protected surfaces without bypass |
 | Staging/provider acceptance | Existing release/audit gates document absent accepted configuration | Run check-release staging; supply real isolated Firebase/Neon registrations, identity bridge, Maps, push, Razorpay test/webhook secrets and test catalogs/coverage |
 | Business operations | Existing eligibility and release policies unaccepted | Owner-published eligibility, retention, legal/refund policies, support ownership, real service zones and settlement contracts |

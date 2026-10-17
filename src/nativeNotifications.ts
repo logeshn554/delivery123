@@ -9,6 +9,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, functions } from './firebase';
 import { stopNativeDriverLocation } from './driverLocation';
 import { appScheme } from './app/audience';
+import { signOutWithCleanup } from './auth/signOutCleanup';
 
 function openBooking(id: unknown) {
   if (typeof id !== 'string' || !/^ALLGO_[a-zA-Z0-9_-]+$/.test(id)) return;
@@ -29,25 +30,26 @@ export async function enableOrderNotifications() {
   localStorage.setItem('allgo-push-enabled', 'true');
 }
 export async function nativeSignOut() {
-  await stopNativeDriverLocation().catch(() => undefined);
-  // Withdraw server consent while the account session still authorizes the request.
-  // A network failure must not prevent local sign-out; stale fixes expire at dispatch.
-  if (auth.currentUser) {
-    try {
+  // Stop token refresh callbacks from registering this device during sign-out.
+  const native = Capacitor.isNativePlatform();
+  const messaging = native && Capacitor.isPluginAvailable('FirebaseMessaging');
+  await signOutWithCleanup([
+    () => localStorage.removeItem('allgo-push-enabled'),
+    () => sessionStorage.removeItem('allgo-open-booking'),
+    stopNativeDriverLocation,
+    async () => {
+      if (!auth.currentUser) return;
       const profile = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (profile.data()?.role === 'driver') await httpsCallable(functions, 'setDriverLocationConsent')({ enabled: false });
-    } catch { /* Local tracking is already stopped. */ }
-  }
-  if (useNeonAccounts) return signOutAccount();
-  try {
-    if (Capacitor.isNativePlatform()) {
-      if (Capacitor.isPluginAvailable('FirebaseMessaging')) {
-        try { const { token } = await FirebaseMessaging.getToken(); await httpsCallable(functions, 'unregisterPushDevice')({ token }); }
-        finally { await FirebaseMessaging.deleteToken(); }
-      }
-      if (Capacitor.isPluginAvailable('FirebaseAuthentication')) await FirebaseAuthentication.signOut();
-    }
-  } finally { await signOut(auth); }
+    },
+    async () => {
+      if (!messaging || !auth.currentUser) return;
+      const { token } = await FirebaseMessaging.getToken();
+      await httpsCallable(functions, 'unregisterPushDevice')({ token });
+    },
+    async () => { if (messaging) await FirebaseMessaging.deleteToken(); },
+    async () => { if (native && Capacitor.isPluginAvailable('FirebaseAuthentication')) await FirebaseAuthentication.signOut(); },
+  ], () => useNeonAccounts ? signOutAccount() : signOut(auth));
 }
 export async function initializeNativeNotifications() {
   if (!Capacitor.isNativePlatform()) return () => undefined;
