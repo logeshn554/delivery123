@@ -20,6 +20,17 @@ beforeEach(async () => {
 });
 const dbFor = (uid, claims = {}) => env.authenticatedContext(uid, claims).firestore();
 
+test('Neon-linked identities require their live bridge claim even when another Firebase token remains valid', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), 'users/customer'), { accountAuthority: 'neon', neonAccountId: 'sql-account' });
+    await setDoc(doc(context.firestore(), 'bridge_sessions/live-bridge'), { uid: 'customer', expiresAt: Timestamp.fromMillis(Date.now() + 60000) });
+  });
+  await assertSucceeds(getDoc(doc(dbFor('customer', { allgoSession: 'live-bridge' }), 'bookings/assigned')));
+  await assertFails(getDoc(doc(dbFor('customer'), 'bookings/assigned')));
+  await env.withSecurityRulesDisabled(async context => { await deleteDoc(doc(context.firestore(), 'bridge_sessions/live-bridge')); });
+  await assertFails(getDoc(doc(dbFor('customer', { allgoSession: 'live-bridge' }), 'bookings/assigned')));
+});
+
 test('revoked driver roles and verification cannot retain assigned customer data access', async () => {
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
@@ -174,9 +185,13 @@ test('suspended customers and partners cannot read private records or reactivate
 });
 test('customers cannot forge or replace operator-owned Neon identity mapping', async () => {
   await assertFails(updateDoc(doc(dbFor('customer'), 'users', 'customer'), { accountAuthority: 'neon', neonAccountId: 'forged' }));
-  await env.withSecurityRulesDisabled(async context => { await updateDoc(doc(context.firestore(), 'users', 'customer'), { accountAuthority: 'neon', neonAccountId: 'server-owned' }); });
-  await assertSucceeds(updateDoc(doc(dbFor('customer'), 'users', 'customer'), { name: 'Updated name' }));
-  await assertFails(updateDoc(doc(dbFor('customer'), 'users', 'customer'), { neonAccountId: 'different' }));
+  await env.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), 'users', 'customer'), { accountAuthority: 'neon', neonAccountId: 'server-owned' });
+    await setDoc(doc(context.firestore(), 'bridge_sessions/mapping-bridge'), { uid: 'customer', expiresAt: Timestamp.fromMillis(Date.now() + 60000) });
+  });
+  const linked = dbFor('customer', { allgoSession: 'mapping-bridge' });
+  await assertSucceeds(updateDoc(doc(linked, 'users', 'customer'), { name: 'Updated name' }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { neonAccountId: 'different' }));
 });
 test('stale admin claims cannot retain access after role revocation or suspension', async () => {
   await assertFails(getDocs(collection(dbFor('customer', { admin: true }), 'bookings')));

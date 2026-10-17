@@ -28,6 +28,17 @@ beforeEach(async () => {
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
 
+test('Neon-linked callable users cannot fall back to an unbridged Firebase credential in local mode', async () => {
+  await db.doc('users/customer').update({ accountAuthority: 'neon', neonAccountId: 'sql-account' });
+  const data = { platform: 'android', audience: 'customer', token: 'bridge-test-device' };
+  await assert.rejects(callable('registerPushDevice', 'customer', data), error => error.code === 'unauthenticated');
+  await db.doc('bridge_sessions/live-bridge').set({ uid: 'customer', expiresAt: Timestamp.fromMillis(Date.now() + 60000) });
+  const request = { data, auth: { uid: 'customer', token: { allgoSession: 'live-bridge', auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip: '127.0.0.1' } };
+  assert.deepEqual(await compiled.exports.registerPushDevice.run(request), { registered: true });
+  await db.doc('bridge_sessions/live-bridge').delete();
+  await assert.rejects(compiled.exports.registerPushDevice.run(request), error => error.code === 'unauthenticated');
+});
+
 async function notificationHarness(run) {
   const messaging = require('firebase-admin/messaging').getMessaging(getApp());
   const original = messaging.sendEachForMulticast;

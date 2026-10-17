@@ -15,6 +15,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | FIX-04 | P0 | Ride/hire/transport quote writes omit inapplicable undefined fare breakdown; all six backend journeys and 104 emulator tests pass | Verified |
 | FIX-05 | P1 | Manual Neon/Firebase logout runs push and native credential cleanup before primary sign-out; failure isolation covered by 217 application tests; native/provider acceptance remains | Source verified |
 | FIX-06 | P0 | Logout/expiry invalidate runtime identity despite storage/auth errors; stale storage reads/writes and pending requests cannot restore an invalidated session; 226 application tests pass; native expiry cleanup and persistence failure across restart remain | Source verified |
+| FIX-07 | P0 | Neon-linked accounts require a live allgoSession claim for Firestore and callables, including local mode; missing-claim bypass reproduced then repaired; 111 emulator tests pass; coordinated deployment/real-provider acceptance remain | Emulator verified |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
 | FOOD-01 | P1 | Isolated wallet checkout → merchant → private driver offer → recipient-code completion → review passes; native/provider acceptance remains | Verified |

@@ -93,6 +93,7 @@ function onCall(options, handler) {
         throw new HttpsError('unauthenticated', 'Connect your AllGo account session before using services.');
       }
       const account = (await db.doc(`users/${request.auth.uid}`).get()).data();
+      if (account?.accountAuthority === 'neon' && !request.auth.token.allgoSession) throw new HttpsError('unauthenticated', 'Connect your AllGo account session before using services.');
       if (account?.disabled === true || account?.suspended === true) throw new HttpsError('permission-denied', 'This account is suspended. Contact support.');
       if (request.auth.token.admin === true) {
         const staff = (await db.doc(`users/${request.auth.uid}`).get()).data();
