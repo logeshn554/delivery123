@@ -13,7 +13,7 @@ import { accountOrigins } from './originPolicy.mjs';
 
 const environment = process.env.ALLGO_ENVIRONMENT;
 if (environment && !['staging', 'production'].includes(environment)) throw new Error('ALLGO_ENVIRONMENT must be staging or production.');
-config({ path: fileURLToPath(new URL(environment ? `../.env.${environment}.local` : '../.env.local', import.meta.url)), quiet: true });
+config({ path: process.env.ACCOUNT_ENV_FILE || fileURLToPath(new URL(environment ? `../.env.${environment}.local` : '../.env.local', import.meta.url)), quiet: true });
 if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL in .env.local before starting the account server.');
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 10000, max: 5 });
 pool.on('error', () => console.error('Account database connection failed.'));

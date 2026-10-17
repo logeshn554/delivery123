@@ -17,6 +17,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | FIX-06 | P0 | Logout/expiry invalidate runtime identity despite storage/auth errors; stale storage reads/writes and pending requests cannot restore an invalidated session; 226 application tests pass; native expiry cleanup and persistence failure across restart remain | Source verified |
 | FIX-07 | P0 | Neon-linked accounts require a live allgoSession claim for Firestore and callables, including local mode; missing-claim bypass reproduced then repaired; 111 emulator tests pass; coordinated deployment/real-provider acceptance remain | Emulator verified |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |
+| AUTH-LOCAL-01 | P0 | Guarded real PostgreSQL + Auth/Firestore emulator suite and disposable CI service added; 243 application tests, static and endpoint-safety checks pass; six full lifecycle cases await hosted execution | In progress |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
 | FOOD-01 | P1 | Isolated wallet checkout → merchant → private driver offer → recipient-code completion → review passes; native/provider acceptance remains | Verified |
 | GROC-01 | P1 | Isolated grocery checkout/picking/fulfillment passes; stock contention covered; substitution implementation and native acceptance remain | In progress |

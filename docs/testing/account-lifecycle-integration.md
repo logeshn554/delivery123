@@ -1,0 +1,15 @@
+# Isolated account lifecycle integration
+
+The `accounts` CI job runs the real Express account server against a disposable PostgreSQL 17 service, Firebase Authentication emulator and Firestore emulator with the repository's actual security rules. No SQL adapter, token verifier, identity bridge or rule decision is stubbed. Phone verification codes are supplied by the Auth emulator; this is not real SMS/provider acceptance.
+
+`npm run test:accounts` requires a fresh, empty database named `allgo_account_integration`, owned by `allgo_test`, at `127.0.0.1:54329`. Provide `ALLGO_ACCOUNT_TEST_PASSWORD` for that dedicated service or an explicit `ALLGO_ACCOUNT_TEST_DATABASE_URL` matching the same host/user/database/port. URL query overrides, live hosts, application database names, release environment settings and cloud credential files are rejected. The runner never falls back to `DATABASE_URL` or reads `.env.local`. Before starting server migrations, the suite checks the actual database/user and refuses any existing public tables. Recreate the disposable service for another run rather than clearing an unknown database.
+
+Install the pinned CLI using `npm install --prefix .cache/firebase-cli --no-save --package-lock=false firebase-tools@15.34.0` and provide Java 21. The runner starts only Auth at 127.0.0.1:9098 and Firestore at 127.0.0.1:8082, under `demo-allgo-accounts`. The account API listens at 127.0.0.1:3014. All generated config/logs are ignored. `ACCOUNT_ENV_FILE` selects the account server's dotenv source explicitly; the runner supplies an empty isolated file and passes every service address in the child environment. Existing environment variables retain precedence, as before.
+
+The old `scripts/check-accounts.mjs` entry point now delegates to these safeguards. It no longer creates accounts or runs cleanup against the configured application database.
+
+Coverage includes verified-phone registration, password hashing, native bearer sessions, canonical SQL/Firebase UID mapping, actual client Firestore reads and denied escalation, original unbridged-phone token denial, logout revocation, password-change revocation of other sessions, duplicate-phone races, HttpOnly/SameSite browser cookies, origin checks, one-time address label/address migration, legacy booking isolation and bridge expiration. The CI result must be inspected before claiming this full suite passes. Full legacy address metadata and other migration formats remain separate acceptance work.
+
+References: [Firebase Auth emulator behavior](https://firebase.google.com/docs/emulator-suite/connect_auth), [pinned Firebase CLI release](https://github.com/firebase/firebase-tools/releases/tag/v15.34.0), and [GitHub PostgreSQL service containers](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers).
+
+Remaining acceptance includes real Neon infrastructure and migrations, real phone/email delivery, native provider credentials, role provisioning, deletion scheduling/retention, real payments and authenticated Android/iOS journeys. The emulator suite does not close those release gates.
