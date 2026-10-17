@@ -33,8 +33,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | CSP-01 | P1 | Reproduced Firebase bootstrap script denial; allow exact apis.google.com script origin, retain production inline/eval restrictions; 240 application tests and rebuilt customer runtime check pass; provider auth acceptance remains | Source/runtime verified |
 | UI-01 | P2 | Public partner recovery/welcome and customer recovery inspected at 1080×2400; broader responsive/accessibility/keyboard and authenticated states remain | In progress |
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |
-| MIGRATION-02 | P1 | Preserve validated delivery metadata and receipt-protected retries for new saved-address migrations; historical completed imports and other migration formats need reconciliation | In progress |
+| MIGRATION-02 | P1 | New imports preserve validated delivery metadata and receipt-protected edits/deletions; seven real SQL/Auth cases and 112 Firestore/integration tests pass for 4070e06 in hosted run 39001327488; historical completed imports and other formats need reconciliation | In progress |
 | GIT-01 | P1 | Commit each validated increment and push without rewriting existing history | In progress |
 
 Next executable work: verify partner startup and application/assignment transitions on an isolated backend; complete audience-specific release registration and acceptance gates. Native authenticated acceptance needs isolated backend/provider configuration. Reference inspection may continue independently without login bypass or purchases.
-

@@ -18,3 +18,12 @@ All phone identities, verification codes, accounts and passwords belonged to the
 The missing-claim authorization repair also passed 111 isolated Firestore/integration tests locally. Pre-fix tests had reproduced both Firestore and local-callable fallback access; the repaired rules/callables require a live session for Neon-linked identities while retaining Firebase-only development accounts.
 
 This evidence does not close staging/production resource setup, complete legacy migrations, deletion/retention scheduling, real provider verification, approved merchant/driver role provisioning, authenticated Android/iOS journeys or release signing. Follow the isolated runner instructions in ../testing/account-lifecycle-integration.md and inspect the source commit and run when comparing later results.
+
+## Saved-address repair verification
+
+[Hosted run 39001327488](https://github.com/logeshn554/delivery123/actions/runs/39001327488), source `4070e06754831f1d19410104d1bebb9834a5d332`, passed account job 117305078570: **7 passed, 0 failed, 0 cancelled, 0 skipped**, emulator script exit 0. The main checks job 117304685300 also passed, including 246 application tests, 112 Firestore/integration tests, lint, build, fixtures and dependency audit.
+
+The expanded saved-address case verifies all three delivery-detail fields reach Firestore, a schema-v2 server receipt is created, a real authenticated client edit survives a reset SQL checkpoint, and a client deletion is not resurrected on another checkpoint retry. A separate case rejects incomplete delivery metadata at the API, preserves a preexisting canonical address, and imports the usable portion of an invalid legacy row while marking its receipt needs_review. Legacy paid-looking booking JSON still creates no live paid order.
+
+Checkpoint resets simulate the persisted state after a cross-store partial failure; no SQL COMMIT fault was injected. These tests cover new imports. Previously completed imports remain unchanged and require reviewed reconciliation; invalid legacy metadata review, other migration formats and deployed/native/provider acceptance remain open. Android job results for this source are recorded separately after observation.
+All three Android debug build/identity/artifact jobs also completed successfully for source 4070e06 in run 39001327488. All five jobs are green. Artifact IDs/expiry are recorded in ANDROID_CI_EVIDENCE_2026-10-17.md.
