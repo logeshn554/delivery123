@@ -5,6 +5,7 @@ import { auth } from './firebase';
 import { sessionToken, saveSession, clearSession } from './sessionStorage';
 import { normalizeAccountProfile } from './app/accountProfile';
 import { serviceAccessError as accessError } from './app/serviceAccess';
+import { invalidateSession } from './auth/invalidateSession';
 
 export const useNeonAccounts = import.meta.env.VITE_AUTH_PROVIDER === 'neon';
 const base = ((Capacitor.isNativePlatform() ? import.meta.env.VITE_ACCOUNT_API_URL : '') || '').replace(/\/$/, '');
@@ -16,16 +17,22 @@ export function serviceAccessError() {
 let sessionGeneration = 0;
 const listeners = new Set<(profile: UserProfile | null) => void>();
 function publish(value: UserProfile | null) { activeProfile = value; listeners.forEach(listener => listener(value)); }
+async function clearAccountSession() {
+  const generation = sessionGeneration;
+  hasServiceIdentity = false;
+  await invalidateSession(clearSession, () => signOut(auth), () => publish(null), () => generation === sessionGeneration);
+}
 export async function accountRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   if (Capacitor.isNativePlatform() && !base) throw Object.assign(new Error('The account server address is missing from this app build.'), { code: 'unavailable' });
   const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const generation = sessionGeneration;
     const token = await sessionToken();
+    if (generation !== sessionGeneration) throw Object.assign(new Error('Your account session changed. Please retry from your current account.'), { code: 'auth/session-changed' });
     const response = await fetch(`${base}/api${path}`, { method, credentials: Capacitor.isNativePlatform() ? 'omit' : 'same-origin', signal: controller.signal, headers: { 'Content-Type': 'application/json', ...(Capacitor.isNativePlatform() ? { 'X-AllGo-Native': '1' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     const result = await response.json();
     if (!response.ok) {
-      if (result.code === 'auth/session-expired' && generation === sessionGeneration) { sessionGeneration++; await clearSession(); hasServiceIdentity = false; await signOut(auth); publish(null); }
+      if (result.code === 'auth/session-expired' && generation === sessionGeneration) { sessionGeneration++; await clearAccountSession(); }
       throw Object.assign(new Error(result.error || 'Account request failed.'), { code: result.code });
     }
     return result;
@@ -59,7 +66,7 @@ async function connectServiceIdentity(profile: UserProfile): Promise<UserProfile
 export async function signOutAccount() {
   const generation = sessionGeneration;
   try { await accountRequest('/auth/logout', 'POST'); }
-  finally { if (generation === sessionGeneration) { sessionGeneration++; await clearSession(); hasServiceIdentity = false; await signOut(auth); publish(null); } }
+  finally { if (generation === sessionGeneration) { sessionGeneration++; await clearAccountSession(); } }
 }
 export function watchAccount(listener: (value: UserProfile | null) => void, onError: (error: unknown) => void) {
   let cancelled = false; listeners.add(listener);
