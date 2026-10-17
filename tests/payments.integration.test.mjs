@@ -491,6 +491,10 @@ test('unanswered grocery replacement expires, releases reserved stock and makes 
   await callable('proposeGrocerySubstitution', 'merchant', { bookingId: ref.id, lineIndex: 0, replacementId: 'replacement', expectedRevision: 0, requestId: 'expiry-proposal' });
   const expiryRef = db.doc(`grocery_substitution_expiries/${expiryId(ref.id, 0, 1)}`);
   await expiryRef.update({ expiresAt: Timestamp.fromMillis(Date.now() - 1) });
+  await ref.update({ 'picking.substitutions.0.expiresAt': new Date(Date.now() - 1).toISOString() });
+  await assert.rejects(callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 2400, accept: true, requestId: 'expired-before-worker' }), error => error.code === 'failed-precondition');
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1000);
+  assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 3);
   await compiled.exports.expireGrocerySubstitutions.run();
   const expired = (await ref.get()).data();
   assert.equal(expired.picking.substitutions['0'].status, 'expired'); assert.equal(expired.picking.revision, 2); assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 5); assert.equal((await expiryRef.get()).exists, false);
