@@ -252,7 +252,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                     </div>
 
                     {/* Actions depending on state */}
-                    <GroceryPickingEditor booking={ord}/>
+                    <GroceryPickingEditor booking={ord} products={activeStock}/>
                     <div className="pt-2 border-t border-slate-700/50 flex flex-col gap-2">
                       {ord.status === 'pending' && (
                         <button 

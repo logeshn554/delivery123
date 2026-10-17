@@ -20,7 +20,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | AUTH-LOCAL-01 | P0 | Hosted run 39000324482 account job passes all six real PostgreSQL/Auth/Firestore lifecycle cases with no skips; registration/bridge, logout/password revocation, duplicate-phone races, cookies, limited migration and expiry verified; real providers/native acceptance remain | Verified (isolated services) |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
 | FOOD-01 | P1 | Isolated wallet checkout → merchant → private driver offer → recipient-code completion → review passes; native/provider acceptance remains | Verified |
-| GROC-01 | P1 | Isolated grocery checkout/picking/fulfillment passes; stock contention covered; substitution implementation and native acceptance remain | In progress |
+| GROC-01 | P1 | Store can propose a live in-catalog replacement; customer accepts with disclosed wallet debit/refund or removes/refunds; candidate stock, integer price recalculation, balanced journal and customer/store push covered by 115 isolated Firestore tests; decision expiry/release policy, real partner/native acceptance remain | In progress |
 | PARCEL-01 | P1 | Parcel quote/wallet/pickup-code/delivery journey verified; photo proof, returns/claims and native acceptance remain | In progress |
 | RIDE-01 | P1 | Ride/driver-hire quote/wallet/assignment/codes/completion backend journeys verified; live tracking/native/payment acceptance remains | In progress |
 | TRANS-01 | P1 | Transport quote/wallet/carrier eligibility/pickup/delivery backend journey verified; custody documents/inspections/claims remain | In progress |

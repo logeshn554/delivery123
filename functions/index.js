@@ -60,7 +60,7 @@ Object.assign(exports, operationsFunctions({ onCall, db, REGION, HttpsError, Tim
 Object.assign(exports, supportFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, HttpsError, documentId, cleanText }));
-Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId }));
+Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, journal, recordStockMovement, productWithinExpiry }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 Object.assign(exports, merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
@@ -302,7 +302,7 @@ async function priceLeg(uid, input) {
     if (!origin || !destination || origin.partialMatch || destination.partialMatch) throw new HttpsError('invalid-argument', 'Choose a complete delivery address with a resolved location.');
     const coverage = checkCoverage(zones.filter(zone => zone.exists).map(zone => ({ ...zone.data(), id: zone.id })), serviceType, origin.location, destination.location, true);
     const route = await routeBetween(MAPS_API_KEY.value(), origin, destination, 'DRIVE');
-    try { priceBreakdown = cartCharges(Math.round(price * 100), route.distanceMeters, pricing.delivery); }
+    try { priceBreakdown = { ...cartCharges(Math.round(price * 100), route.distanceMeters, pricing.delivery), taxBps: pricing.delivery.taxBps ?? 0 }; }
     catch (error) { throw new HttpsError('failed-precondition', error.message); }
     price = priceBreakdown.totalCents / 100;
     details = { ...details, deliveryPlaceId: destination.placeId, pickupLocation: origin.location, dropLocation: destination.location, ...coverage, estimatedKm: route.distanceMeters / 1000, estimatedMinutes: Math.ceil(route.durationSeconds / 60), routeProvider: 'google' };
@@ -501,7 +501,8 @@ async function applyCoupon(uid, quote, rawCode) {
   if (!coupon || coupon.enabled !== true || !(coupon.expiresAt?.toMillis() > Date.now()) || redeemed.exists || !Array.isArray(coupon.serviceTypes) || !coupon.serviceTypes.includes(quote.booking.serviceType) || (Array.isArray(coupon.eligibleUserIds) && !coupon.eligibleUserIds.includes(uid)) || !Number.isSafeInteger(coupon.minAmountCents) || quote.amount < coupon.minAmountCents || !Number.isSafeInteger(coupon.maxRedemptions) || (coupon.redeemedCount || 0) >= coupon.maxRedemptions) throw new HttpsError('failed-precondition', 'This offer is expired, already used or unavailable for this order.');
   const discount = coupon.type === 'fixed' ? coupon.discountCents : coupon.type === 'percent' && Number.isInteger(coupon.percentBps) && coupon.percentBps > 0 && coupon.percentBps <= 10000 ? Math.min(Math.floor(quote.amount * coupon.percentBps / 10000), coupon.maxDiscountCents) : NaN;
   if (!Number.isSafeInteger(discount) || discount <= 0 || discount >= quote.amount || quote.amount - discount < 100) throw new HttpsError('failed-precondition', 'This offer has an invalid discount configuration.');
-  return { ...quote, amount: quote.amount - discount, booking: { ...quote.booking, price: (quote.amount - discount) / 100, originalPrice: quote.amount / 100, couponCode: code, couponDiscountCents: discount, ...(quote.booking.priceBreakdown ? { priceBreakdown: { ...quote.booking.priceBreakdown, discountCents: discount, totalCents: quote.amount - discount } } : {}) } };
+  const couponTerms = coupon.type === 'fixed' ? { type: 'fixed', discountCents: coupon.discountCents, minAmountCents: coupon.minAmountCents } : { type: 'percent', percentBps: coupon.percentBps, maxDiscountCents: coupon.maxDiscountCents, minAmountCents: coupon.minAmountCents };
+  return { ...quote, amount: quote.amount - discount, booking: { ...quote.booking, price: (quote.amount - discount) / 100, originalPrice: quote.amount / 100, couponCode: code, couponDiscountCents: discount, couponTerms, ...(quote.booking.priceBreakdown ? { priceBreakdown: { ...quote.booking.priceBreakdown, discountCents: discount, totalCents: quote.amount - discount } } : {}) } };
 }
 
 Object.assign(exports, tripBundleFunctions({

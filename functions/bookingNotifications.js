@@ -24,7 +24,7 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
   });
   const notifyBookingChange = onDocumentWritten({ region: REGION, database: databaseId, document: 'bookings/{bookingId}', retry: true }, async event => {
     const changed = event.data?.after.data(), previous = event.data?.before.data();
-    if (!changed || previous && previous.status === changed.status && previous.driverId === changed.driverId && previous.merchantId === changed.merchantId && previous.paymentStatus === changed.paymentStatus && previous.preparation?.revision === changed.preparation?.revision && previous.exception?.revision === changed.exception?.revision) return;
+    if (!changed || previous && previous.status === changed.status && previous.driverId === changed.driverId && previous.merchantId === changed.merchantId && previous.paymentStatus === changed.paymentStatus && previous.preparation?.revision === changed.preparation?.revision && previous.picking?.revision === changed.picking?.revision && previous.exception?.revision === changed.exception?.revision) return;
     // A delayed trigger must not notify a former assignee from an old snapshot.
     const bookingId = event.params.bookingId;
     const booking = (await db.doc(`bookings/${bookingId}`).get()).data();

@@ -124,6 +124,15 @@ test('push device removal is ownership scoped and permanent provider failures re
   });
 });
 
+test('grocery picking changes notify customer and assigned store for substitution decisions', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await callable('registerPushDevice', 'customer', { audience: 'customer', token: 'grocery-customer', platform: 'android' });
+  await callable('registerPushDevice', 'merchant', { audience: 'merchant', token: 'grocery-store', platform: 'android' });
+  const before = { bookingId: 'ALLGO_sub_push', customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', picking: { revision: 0 } }, after = { ...before, picking: { revision: 1, substitutions: { '0': { status: 'pending' } } } };
+  await db.doc('bookings/ALLGO_sub_push').set(after);
+  await notificationHarness(async sent => { await notify('ALLGO_sub_push', after, before); assert.deepEqual(sent.flatMap(message => message.tokens).sort(), ['grocery-customer', 'grocery-store']); });
+});
+
 for (const serviceType of ['food', 'grocery']) {
   test(`${serviceType} customer checkout reaches merchant preparation, private dispatch, delivery and review`, async () => {
     const restoreMaps = mockJourneyMaps();
@@ -441,6 +450,35 @@ test('grocery readiness requires scoped full picking with revision checks and re
   assert.equal(booking.status, 'ready'); assert.equal(booking.price, 60); assert.equal(booking.picking.revision, 2);
   assert.ok(booking.dispatchStartedAt);
   assert.equal((await db.collection('bookings/picking/events').get()).size, 3);
+});
+
+test('grocery substitutions reserve stock, require a customer price decision and reconcile wallet ledger', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('grocery_stores/shop/products/original').set({ name: 'Original', price: 10, stock: 0 });
+  await db.doc('grocery_stores/shop/products/replacement').set({ name: 'Replacement', price: 12, stock: 5 });
+  const ref = db.doc('bookings/grocery-substitution'), item = { id: 'original', name: 'Original', price: 10, quantity: 2 };
+  await ref.set({ bookingId: ref.id, customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 20, originalPrice: 20, priceBreakdown: { itemCents: 2000, deliveryCents: 0, packagingCents: 0, platformCents: 0, taxCents: 0, taxBps: 0, discountCents: 0, totalCents: 2000 }, details: { items: [item] }, picking: { revision: 0, lines: {} } });
+  const proposed = await callable('proposeGrocerySubstitution', 'merchant', { bookingId: ref.id, lineIndex: 0, replacementId: 'replacement', expectedRevision: 0, requestId: 'proposal' });
+  assert.deepEqual(proposed, { revision: 1, acceptedTotalCents: 2400, removedTotalCents: 0 });
+  assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 3);
+  assert.equal((await ref.get()).data().price, 20);
+  await assert.rejects(callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 2399, accept: true, requestId: 'wrong-price' }), error => error.code === 'aborted');
+  await callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 2400, accept: true, requestId: 'accept' });
+  const accepted = (await ref.get()).data();
+  assert.equal(accepted.price, 24); assert.equal(accepted.details.items[0].id, 'replacement'); assert.equal(accepted.picking.lines['0'].quantity, 2); assert.equal((await db.doc('users/customer').get()).data().walletBalance, 996);
+  const journal = await db.collection('financial_journals').get(); assert.equal(journal.size, 1); assert.equal(journal.docs[0].data().amountCents, 400);
+});
+
+test('declining a grocery replacement releases candidate stock and refunds the removed line', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('grocery_stores/shop/products/original').set({ name: 'Original', price: 10, stock: 0 });
+  await db.doc('grocery_stores/shop/products/replacement').set({ name: 'Replacement', price: 8, stock: 5 });
+  const ref = db.doc('bookings/grocery-remove');
+  await ref.set({ bookingId: ref.id, customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 20, priceBreakdown: { itemCents: 2000, deliveryCents: 0, packagingCents: 0, platformCents: 0, taxCents: 0, taxBps: 0, discountCents: 0, totalCents: 2000 }, details: { items: [{ id: 'original', name: 'Original', price: 10, quantity: 2 }] }, picking: { revision: 0, lines: {} } });
+  await callable('proposeGrocerySubstitution', 'merchant', { bookingId: ref.id, lineIndex: 0, replacementId: 'replacement', expectedRevision: 0, requestId: 'remove-proposal' });
+  await callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 0, accept: false, requestId: 'remove' });
+  const removed = (await ref.get()).data();
+  assert.equal(removed.price, 0); assert.equal(removed.details.items[0].removed, true); assert.equal(removed.picking.lines['0'].quantity, 0); assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 5); assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1020);
 });
 
 test('booking deletion redacts free text while retaining finance and stage evidence', async () => {
