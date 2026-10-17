@@ -34,9 +34,9 @@ async function cleanup(failRemote: boolean) {
 }
 
 test('shared native teardown stops device services and revokes registration before native auth', async () => {
-  assert.deepEqual(await cleanup(false), ['disable-push', 'clear-booking', 'stop-location', 'profile', 'setDriverLocationConsent', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
+  assert.deepEqual(await cleanup(false), ['disable-push', 'disable-push', 'clear-booking', 'stop-location', 'profile', 'setDriverLocationConsent', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
 });
 
 test('expired server authorization cannot prevent local location, push-token and native-auth cleanup', async () => {
-  assert.deepEqual(await cleanup(true), ['disable-push', 'clear-booking', 'stop-location', 'profile', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
+  assert.deepEqual(await cleanup(true), ['disable-push', 'disable-push', 'clear-booking', 'stop-location', 'profile', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
 });

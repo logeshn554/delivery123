@@ -6,12 +6,15 @@ import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, functions } from './firebase';
 import { stopNativeDriverLocation } from './driverLocation';
 import { signOutWithCleanup } from './auth/signOutCleanup';
+import { pushSession } from './auth/pushSession';
 
 export async function cleanupNativeSession() {
   const native = Capacitor.isNativePlatform();
   const messaging = native && Capacitor.isPluginAvailable('FirebaseMessaging');
   await signOutWithCleanup([
+    () => pushSession.invalidate(),
     () => localStorage.removeItem('allgo-push-enabled'),
+    () => localStorage.removeItem('allgo-push-user'),
     () => sessionStorage.removeItem('allgo-open-booking'),
     stopNativeDriverLocation,
     async () => {

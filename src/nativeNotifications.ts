@@ -8,6 +8,30 @@ import { auth, functions } from './firebase';
 import { appScheme, appAudience } from './app/audience';
 import { signOutWithCleanup } from './auth/signOutCleanup';
 import { cleanupNativeSession } from './nativeSessionCleanup';
+import { pushSession } from './auth/pushSession';
+
+const pushEnabled = () => !!auth.currentUser && localStorage.getItem('allgo-push-enabled') === 'true'
+  && localStorage.getItem('allgo-push-user') === auth.currentUser.uid;
+function pushSnapshot(enable = false) {
+  if (!auth.currentUser) throw new Error('Sign in before enabling notifications.');
+  return enable ? pushSession.begin(auth.currentUser) : pushSession.capture(auth.currentUser);
+}
+function requireCurrent(snapshot: ReturnType<typeof pushSnapshot>) {
+  if (!pushSession.current(snapshot, auth.currentUser)) throw new Error('Your account session changed. Enable notifications again from your current account.');
+}
+async function registerToken(snapshot: ReturnType<typeof pushSnapshot>, token?: string, enable = false) {
+  return pushSession.track(async () => {
+    requireCurrent(snapshot);
+    const value = token ?? (await FirebaseMessaging.getToken()).token;
+    requireCurrent(snapshot);
+    await httpsCallable(functions, 'registerPushDevice')({ token: value, platform: Capacitor.getPlatform(), audience: appAudience });
+    requireCurrent(snapshot);
+    if (enable) {
+      localStorage.setItem('allgo-push-user', auth.currentUser!.uid);
+      localStorage.setItem('allgo-push-enabled', 'true');
+    }
+  });
+}
 
 function openBooking(id: unknown) {
   if (typeof id !== 'string' || !/^ALLGO_[a-zA-Z0-9_-]+$/.test(id)) return;
@@ -21,11 +45,11 @@ export async function enableOrderNotifications() {
   if (useNeonAccounts && !hasServiceIdentity) throw new Error('Verify and connect your account before enabling delivery notifications.');
   if (!Capacitor.isNativePlatform()) throw new Error('Device notifications are available in the Android and iOS apps.');
   if (!Capacitor.isPluginAvailable('FirebaseMessaging')) throw new Error('Native Firebase configuration is missing from this build.');
+  const snapshot = pushSnapshot(true);
   const permission = await FirebaseMessaging.requestPermissions();
+  requireCurrent(snapshot);
   if (permission.receive !== 'granted') throw new Error('Notifications are disabled. Enable them in device settings.');
-  const { token } = await FirebaseMessaging.getToken();
-  await httpsCallable(functions, 'registerPushDevice')({ token, platform: Capacitor.getPlatform(), audience: appAudience });
-  localStorage.setItem('allgo-push-enabled', 'true');
+  await registerToken(snapshot, undefined, true);
 }
 export async function nativeSignOut() {
   if (useNeonAccounts) await signOutAccount();
@@ -38,10 +62,11 @@ export async function initializeNativeNotifications() {
     const launch = await App.getLaunchUrl(); if (launch) openUrl(launch.url);
     if (Capacitor.isPluginAvailable('FirebaseMessaging')) {
       handles.push(await FirebaseMessaging.addListener('notificationActionPerformed', event => openBooking((event.notification.data as { bookingId?: string } | undefined)?.bookingId)));
-      handles.push(await FirebaseMessaging.addListener('tokenReceived', event => { if (auth.currentUser && localStorage.getItem('allgo-push-enabled') === 'true') void httpsCallable(functions, 'registerPushDevice')({ token: event.token, platform: Capacitor.getPlatform(), audience: appAudience }).catch(() => undefined); }));
-      if (auth.currentUser && localStorage.getItem('allgo-push-enabled') === 'true') {
+      handles.push(await FirebaseMessaging.addListener('tokenReceived', event => { if (pushEnabled()) void registerToken(pushSnapshot(), event.token).catch(() => undefined); }));
+      if (pushEnabled()) {
+        const snapshot = pushSnapshot();
         const permission = await FirebaseMessaging.checkPermissions();
-        if (permission.receive === 'granted') { const { token } = await FirebaseMessaging.getToken(); await httpsCallable(functions, 'registerPushDevice')({ token, platform: Capacitor.getPlatform(), audience: appAudience }); }
+        if (permission.receive === 'granted' && pushSession.current(snapshot, auth.currentUser) && pushEnabled()) await registerToken(snapshot);
       }
     }
   } catch (error) { await Promise.all(handles.map(handle => handle.remove())); throw error; }

@@ -17,3 +17,5 @@ Latest saved-address source 4070e06 passed hosted run 39001327488 checks (246 ap
 
 Account API-detected expiry now shares native cleanup with manual logout, and replacement login waits for teardown; 252 application tests and web build pass. This is controlled-runtime source verification. Actual native plugin behavior, proactive expiry detection, in-flight push refresh/enable races, offline reconciliation and persisted secure-storage failure remain release acceptance items.
 All five hosted jobs passed for expiry-cleanup source 79b7281 in run 39002500312, including all three Android debug build/identity checks. Real-device expiry, broader authenticated journeys, historical migration reconciliation and provider/signing release acceptance remain open.
+
+Push registration now checks session generation and Firebase identity across awaits, stores opt-in ownership by UID, and drains started token/registration work before cleanup. All 258 application tests and web build pass; controlled SDK bridges do not establish actual device/provider acceptance, restart behavior or bounded provider timing.
