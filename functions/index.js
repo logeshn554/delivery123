@@ -811,11 +811,34 @@ exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGIO
   const services = [...new Set(driver.supportedServices || [])].filter(service => ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'].includes(service));
   const zones = await db.collection('service_zones').where('enabled', '==', true).get();
   const nearZones = zones.docs.filter(zone => containsPoint(zone.data().polygon, { lat: driver.currentLat, lng: driver.currentLng }));
-  const snapshots = await Promise.all(services.flatMap(service => nearZones.filter(zone => zone.data().serviceTypes?.includes(service)).map(zone => db.collection('bookings').where('serviceType', '==', service).where('status', '==', ['food', 'grocery'].includes(service) ? 'ready' : 'pending').where('driverId', '==', null).where('details.pickupZoneId', '==', zone.id).limit(100).get())));
-  const candidates = [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(doc => [doc.id, doc])).values()].filter(document => {
+  const pageGroups = services.flatMap(service => nearZones.filter(zone => zone.data().serviceTypes?.includes(service)).map(zone => ({ service, zoneId: zone.id })));
+  const pages = await Promise.all(pageGroups.map(async ({ service, zoneId }) => {
+    const cursorId = crypto.createHash('sha256').update(`${uid}:${service}:${zoneId}`).digest('hex').slice(0, 40), cursorRef = db.doc(`driver_dispatch_cursors/${uid}_${cursorId}`);
+    const cursor = (await cursorRef.get()).data()?.lastBookingId;
+    const baseQuery = db.collection('bookings').where('serviceType', '==', service).where('status', '==', ['food', 'grocery'].includes(service) ? 'ready' : 'pending').where('driverId', '==', null).where('details.pickupZoneId', '==', zoneId).orderBy('__name__').limit(100);
+    const query = cursor ? baseQuery.startAfter(cursor) : baseQuery;
+    let page = await query.get();
+    // A short final page wraps the per-driver cursor so new bookings and earlier
+    // IDs continue to be considered on subsequent ten-second refreshes.
+    if (page.empty && cursor) page = await baseQuery.get();
+    await cursorRef.set({ driverId: uid, serviceType: service, zoneId, lastBookingId: page.size === 100 ? page.docs.at(-1).id : null, updatedAt: Timestamp.now() });
+    return page.docs;
+  }));
+  const fresh = [...new Map(pages.flat().map(doc => [doc.id, doc])).values()];
+  const freshIds = new Set(fresh.map(document => document.id));
+  const previous = await db.collection(`driver_offers/${uid}/offers`).where('expiresAt', '>', Timestamp.now()).orderBy('expiresAt').limit(30).get();
+  const priorOffers = new Map(previous.docs.map(offer => [offer.id, offer.data()]));
+  const priorIds = previous.docs.filter(offer => !freshIds.has(offer.id)).map(offer => offer.id);
+  const priorBookings = await Promise.all(priorIds.map(id => db.doc(`bookings/${id}`).get()));
+  const candidates = [...new Map([...fresh, ...priorBookings.filter(snapshot => snapshot.exists)].map(doc => [doc.id, doc])).values()].filter(document => {
     const booking = document.data();
-    return booking.exception?.status !== 'open' && pickupEligibility(driver, booking) !== null && ['paid', 'pending_cod'].includes(booking.paymentStatus) && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities,booking.details));
-  }).sort((a, b) => pickupEligibility(driver, a.data()) - pickupEligibility(driver, b.data())).slice(0, 30);
+    const offer = priorOffers.get(document.id);
+    const dispatchable = ['food', 'grocery'].includes(booking.serviceType) ? booking.status === 'ready' : booking.status === 'pending';
+    return dispatchable && !booking.driverId && booking.exception?.status !== 'open' && ['paid', 'pending_cod'].includes(booking.paymentStatus) && pickupEligibility(driver, booking) !== null && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities, booking.details)) && (!offer || offer.bookingVersion === (booking.updatedAt || booking.createdAt));
+  }).sort((a, b) => {
+    const aFresh = freshIds.has(a.id), bFresh = freshIds.has(b.id);
+    return Number(bFresh) - Number(aFresh) || pickupEligibility(driver, a.data()) - pickupEligibility(driver, b.data());
+  }).slice(0, 30);
   const expiresAt = Timestamp.fromMillis(Date.now() + 30000);
   const batch = db.batch();
   for (const document of candidates) batch.set(db.doc(`driver_offers/${uid}/offers/${document.id}`), { bookingVersion: document.data().updatedAt || document.data().createdAt, expiresAt });

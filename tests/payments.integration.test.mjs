@@ -783,6 +783,23 @@ test('dispatch creates expiring eligible offers and rejects an expired lease', a
   await assert.rejects(callable('acceptDriverBooking', 'driver', { bookingId: 'pickup' }), error => error.code === 'failed-precondition');
   assert.equal((await db.doc('bookings/pickup').get()).data().driverId, null);
 });
+test('driver offer listing rotates through paginated zone results without hiding bookings after the first 100', async () => {
+  const now = new Date().toISOString();
+  await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', online: true, locationConsent: true, supportedServices: ['parcel'], currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 });
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  const batch = db.batch();
+  for (let i = 0; i < 101; i += 1) batch.set(db.doc(`bookings/parcel_${String(i).padStart(3, '0')}`), { serviceType: 'parcel', status: 'pending', driverId: null, paymentStatus: 'paid', price: 100, createdAt: now, updatedAt: now, details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
+  await batch.commit();
+  const firstPage = await callable('listDriverOffers', 'driver');
+  assert.equal(firstPage.length, 30);
+  assert.ok(firstPage.every(offer => Number(offer.bookingId.slice(-3)) < 100));
+  const secondPage = await callable('listDriverOffers', 'driver');
+  assert.ok(secondPage.some(offer => offer.bookingId === 'parcel_100'));
+  assert.ok(secondPage.length <= 30);
+  const lease = (await db.doc('driver_offers/driver/offers/parcel_100').get()).data();
+  assert.ok(lease.expiresAt.toMillis() > Date.now());
+});
 test('location requires explicit consent and withdrawing it clears live tracking', async () => {
   await db.doc('users/driver').set({ role: 'driver' });
   await db.doc('driver_profiles/driver').set({ status: 'verified', online: true, activeBookingId: 'active' });
