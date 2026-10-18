@@ -22,11 +22,13 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CFBundleURLTypes</key>
 	<array><dict><key>CFBundleURLSchemes</key><array><string>allgo</string></array></dict></array>
-	<key>UIBackgroundModes</key><array><string>remote-notification</string></array>
+	<key>UIBackgroundModes</key><array><string>remote-notification</string><string>location</string></array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>AllGo uses your location to show nearby services and to update a delivery partner’s location while they are online.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>AllGo shares a delivery partner’s precise location with customers on an assigned job and operations while the partner is online, including when the app is in the background. Sharing stops when the partner goes offline.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>AllGo uses the camera when you choose to photograph a document for your partner application.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

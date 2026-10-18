@@ -2,7 +2,9 @@ import UIKit
 import Capacitor
 import FirebaseCore
 import FirebaseAuth
+import FirebaseFunctions
 import FirebaseMessaging
+import CoreLocation
 import Security
 
 @UIApplicationMain
@@ -105,5 +107,180 @@ public class SecureSessionPlugin: CAPPlugin, CAPBridgedPlugin {
 }
 @objc(AllGoBridgeViewController)
 class AllGoBridgeViewController: CAPBridgeViewController {
-    override func capacitorDidLoad() { bridge?.registerPluginInstance(SecureSessionPlugin()) }
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(SecureSessionPlugin())
+        bridge?.registerPluginInstance(DriverLocationPlugin())
+    }
+}
+
+@objc(DriverLocationPlugin)
+public class DriverLocationPlugin: CAPPlugin, CAPBridgedPlugin, CLLocationManagerDelegate {
+    public let identifier = "DriverLocationPlugin"
+    public let jsName = "DriverLocation"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise)
+    ]
+
+    private let manager = CLLocationManager()
+    private var startCall: CAPPluginCall?
+    private var userId: String?
+    private var running = false
+    private var sending = false
+    private var failures = 0
+    private var lastAttemptAt: Date = .distantPast
+    private var lastReportedAt: Double = 0
+    private var message = "Location sharing stopped"
+
+    override public func load() {
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = kCLDistanceFilterNone
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
+    }
+
+    @objc func start(_ call: CAPPluginCall) {
+        guard let token = call.getString("customToken"), let requestedUserId = call.getString("userId"), !requestedUserId.isEmpty else {
+            call.reject("Partner session missing.")
+            return
+        }
+        guard CLLocationManager.locationServicesEnabled() else {
+            call.reject("Turn on phone location services.")
+            return
+        }
+        startCall?.reject("Location sharing was restarted.")
+        startCall = call
+        userId = requestedUserId
+        message = "Checking partner session"
+        Auth.auth().signIn(withCustomToken: token) { [weak self] result, error in
+            guard let self else { return }
+            guard error == nil, result?.user.uid == requestedUserId else {
+                self.rejectStart("Partner session could not be verified.")
+                return
+            }
+            self.requestLocationPermission()
+        }
+    }
+
+    private func requestLocationPermission() {
+        switch manager.authorizationStatus {
+        case .authorizedAlways:
+            beginUpdates()
+        case .authorizedWhenInUse:
+            manager.requestAlwaysAuthorization()
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            rejectStart("Allow Always location access in Settings to share while online.")
+        @unknown default:
+            rejectStart("Location permission is unavailable. Check phone settings.")
+        }
+    }
+
+    public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if running && manager.authorizationStatus != .authorizedAlways {
+            stopUpdates(message: "Always location access was disabled; reopen AllGo")
+            return
+        }
+        guard startCall != nil else { return }
+        switch manager.authorizationStatus {
+        case .authorizedAlways:
+            beginUpdates()
+        case .authorizedWhenInUse:
+            message = "Allow Always access to share location in the background"
+            manager.requestAlwaysAuthorization()
+        case .denied, .restricted:
+            rejectStart("Allow Always location access in Settings to share while online.")
+        case .notDetermined:
+            break
+        @unknown default:
+            rejectStart("Location permission is unavailable. Check phone settings.")
+        }
+    }
+
+    private func beginUpdates() {
+        guard startCall != nil, let userId, Auth.auth().currentUser?.uid == userId else { return }
+        guard manager.authorizationStatus == .authorizedAlways else {
+            rejectStart("Allow Always location access in Settings to share while online.")
+            return
+        }
+        manager.startMonitoringSignificantLocationChanges()
+        manager.startUpdatingLocation()
+        running = true
+        message = "Waiting for a fresh, accurate location"
+        startCall?.resolve()
+        startCall = nil
+    }
+
+    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard running, let location = locations.last else { return }
+        let age = Date().timeIntervalSince(location.timestamp)
+        guard age >= -5, age <= 30, location.horizontalAccuracy >= 0, location.horizontalAccuracy <= 100 else {
+            message = "Waiting for a fresh, accurate location"
+            return
+        }
+        guard !sending, Date().timeIntervalSince(lastAttemptAt) >= 15 else { return }
+        guard let userId, Auth.auth().currentUser?.uid == userId else {
+            stopUpdates(message: "Partner session ended; reopen AllGo")
+            return
+        }
+        sending = true
+        lastAttemptAt = Date()
+        message = "Sharing your location while online"
+        Functions.functions(region: "asia-south1").httpsCallable("updateDriverLocation").call([
+            "location": ["lat": location.coordinate.latitude, "lng": location.coordinate.longitude],
+            "accuracy": location.horizontalAccuracy
+        ]) { [weak self] _, error in
+            guard let self else { return }
+            self.sending = false
+            guard self.running else { return }
+            if error == nil {
+                self.failures = 0
+                self.lastReportedAt = Date().timeIntervalSince1970 * 1000
+                self.message = "Sharing your location while online"
+            } else {
+                self.failures += 1
+                if self.failures >= 20 {
+                    self.stopUpdates(message: "Sharing stopped after repeated connection failures; reopen AllGo")
+                } else {
+                    self.message = "Location upload failed; check connection"
+                }
+            }
+        }
+    }
+
+    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        message = "Location unavailable; check phone settings"
+    }
+
+    @objc func stop(_ call: CAPPluginCall) {
+        startCall?.reject("Location sharing stopped.")
+        startCall = nil
+        stopUpdates(message: "Location sharing stopped")
+        call.resolve()
+    }
+
+    @objc func status(_ call: CAPPluginCall) {
+        call.resolve(["running": running, "message": message, "lastReportedAt": lastReportedAt])
+    }
+
+    private func rejectStart(_ reason: String) {
+        message = reason
+        startCall?.reject(reason)
+        startCall = nil
+        stopUpdates(message: reason)
+    }
+
+    private func stopUpdates(message: String) {
+        manager.stopUpdatingLocation()
+        manager.stopMonitoringSignificantLocationChanges()
+        running = false
+        sending = false
+        failures = 0
+        userId = nil
+        self.message = message
+    }
 }

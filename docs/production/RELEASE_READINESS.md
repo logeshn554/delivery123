@@ -2,7 +2,7 @@
 
 **Not ready for release.** Updated 2026-10-18. The staging preflight was run and failed closed because operator gate-A evidence, staging/provider configuration, private evidence storage/scanner settings, project Functions configuration, and matching Android/iOS registrations are missing.
 
-React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. Android source/build presence does not establish native provider functionality; iOS has not been tested on this Windows host.
+React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. iOS native background driver-location source is now present, but the current Windows host has no Xcode toolchain and no iOS build/device acceptance has been performed. Android source/build presence also does not establish native provider functionality.
 
 All master acceptance gates remain open: customer journeys, merchant/driver integration, deployed authorization, provider payments, consistent accessible UI, Android/iOS device journeys, external infrastructure, critical defect closure, and release documentation with operator-reviewed evidence.
 

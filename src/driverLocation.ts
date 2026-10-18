@@ -7,14 +7,15 @@ interface NativeLocation {
   status(): Promise<{ running: boolean; message: string; lastReportedAt: number }>;
 }
 export const usesAndroidLocation = Capacitor.getPlatform() === 'android';
+export const usesNativeLocation = Capacitor.isNativePlatform();
 const native = registerPlugin<NativeLocation>('DriverLocation');
 export async function locationConsent(enabled: boolean) {
   return httpsCallable(functions, 'setDriverLocationConsent')({ enabled });
 }
 export async function startNativeDriverLocation(userId: string) {
-  if (!usesAndroidLocation) return;
+  if (!usesNativeLocation) return;
   const result = await httpsCallable<Record<string, never>, { customToken: string }>(functions, 'createDriverNativeSession')({});
   await native.start({ userId, customToken: result.data.customToken });
 }
-export async function stopNativeDriverLocation() { if (usesAndroidLocation) await native.stop(); }
-export async function nativeDriverLocationStatus() { return usesAndroidLocation ? native.status() : null; }
+export async function stopNativeDriverLocation() { if (usesNativeLocation) await native.stop(); }
+export async function nativeDriverLocationStatus() { return usesNativeLocation ? native.status() : null; }

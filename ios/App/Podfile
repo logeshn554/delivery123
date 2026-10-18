@@ -18,6 +18,7 @@ def capacitor_pods
   pod 'CapacitorFilesystem', :path => '../../node_modules/@capacitor/filesystem'
   pod 'CapacitorShare', :path => '../../node_modules/@capacitor/share'
   pod 'CapacitorRazorpay', :path => '../../node_modules/capacitor-razorpay'
+  pod 'FirebaseFunctions'
 end
 
 target 'App' do

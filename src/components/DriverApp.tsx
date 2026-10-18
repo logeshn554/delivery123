@@ -17,7 +17,7 @@ import DriverEarningEstimate from './DriverEarningEstimate';
 import BookingExceptionPanel from './BookingExceptionPanel';
 import AccountDataExport from './AccountDataExport';
 import { useFeedbackDialog } from './useFeedbackDialog';
-import { usesAndroidLocation, locationConsent, startNativeDriverLocation, stopNativeDriverLocation, nativeDriverLocationStatus } from '../driverLocation';
+import { usesAndroidLocation, usesNativeLocation, locationConsent, startNativeDriverLocation, stopNativeDriverLocation, nativeDriverLocationStatus } from '../driverLocation';
 
 interface DriverAppProps {
   userId: string;
@@ -95,7 +95,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
       return;
     }
     const nextState = !profile.online;
-    if (nextState && !await confirm(usesAndroidLocation ? 'Allow AllGo to share your precise location while you are online, including when the app is in the background? Customers on your assigned job and operations can see it. A phone notification lets you stop sharing. No position history is stored on your phone.' : 'Allow AllGo to share your precise location while you are online? Customers on your assigned job and operations can see it. This device shares only while the app is open.')) return;
+    if (nextState && !await confirm(usesAndroidLocation ? 'Allow AllGo to share your precise location while you are online, including when the app is in the background? Customers on your assigned job and operations can see it. A phone notification lets you stop sharing. No position history is stored on your phone.' : usesNativeLocation ? 'Allow AllGo to share your precise location while you are online, including when the app is in the background? Customers on your assigned job and operations can see it. iOS will show its location indicator. No position history is stored on your phone.' : 'Allow AllGo to share your precise location while you are online? Customers on your assigned job and operations can see it. This device shares only while the app is open.')) return;
     setActionBusy(true);
     try {
       if (!nextState) await stopNativeDriverLocation();
@@ -120,9 +120,9 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     setProfile((current) => current ? { ...current, ...changes } : current);
   };
 
-  // Android uploads through a native foreground service; web/iOS currently require an open app.
+  // Native apps upload through the platform location service; web requires an open app.
   useEffect(() => {
-    if (usesAndroidLocation || !profile?.online || !profile.locationConsent || profile.status !== 'verified' || !navigator.geolocation) return;
+    if (usesNativeLocation || !profile?.online || !profile.locationConsent || profile.status !== 'verified' || !navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       ({ coords }) => {
         void updateDriverLocation(coords.latitude, coords.longitude, coords.accuracy)
@@ -134,7 +134,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     return () => navigator.geolocation.clearWatch(watchId);
   }, [profile?.online, profile?.status, profile?.locationConsent, userId]);
   useEffect(() => {
-    if (!usesAndroidLocation) return;
+    if (!usesNativeLocation) return;
     const refresh = () => { void nativeDriverLocationStatus().then(status => setLocationMessage(status ? `${status.running ? 'Sharing active' : 'Sharing stopped'} · ${status.message}` : '')).catch(() => setLocationMessage('Location service unavailable. Update the app.')); };
     refresh(); const timer = setInterval(refresh, 5000);
     return () => clearInterval(timer);
@@ -239,7 +239,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     <div className="allgo-driver bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
       {dialog}
       <BookingNotificationNotice {...notification} onDismiss={notification.dismiss}/>
-      {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{usesAndroidLocation ? locationMessage : 'Location sharing requires this app to stay open on this device.'}</p>{usesAndroidLocation && <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
+      {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{usesNativeLocation ? locationMessage : 'Location sharing requires this app to stay open on this device.'}</p>{usesNativeLocation && <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
       
       {/* 2.5 POPUP OVERLAY DRAWER FOR SUB-VIEWS */}
       {activeSubView && (
