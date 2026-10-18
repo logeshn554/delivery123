@@ -120,3 +120,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. `npm run test:rules`: **130 passed, 0 failed, 0 skipped**, including repeated-poll expiry preservation, active offers retained when a nearer job appears, pagination after expiry and second-driver acceptance. `npm test`: **71 Functions, 93 UI and 98 server tests passed**; secret scan inspected 744 snapshots. TypeScript lint, development build, syntax checks and `git diff --check` passed; the build retains its existing large-chunk advisory.
 - Provider/device timing and production load/fairness are not established by these emulator tests.
 
+## 2026-10-18 COD dispatch timeout recovery
+
+- Overdue dispatch escalation now recognizes `pending_cod` alongside `paid`; pre-capture and refund-review payment states remain ineligible. Added unit and Firestore emulator coverage for COD escalation and the resulting `no_partner` exception.
+- `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. `npm run test:rules`: **130 passed, 0 failed, 0 skipped**. TypeScript lint, development build, changed-file syntax checks and `git diff --check` passed. The build retains the existing large-chunk advisory.
+- Emulator tests do not establish production scheduler delivery or live driver/operations response.
+

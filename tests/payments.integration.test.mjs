@@ -638,6 +638,11 @@ test('dispatch timeout is idempotent, rechecks assignment and restarts search on
   assert.equal(await escalateDispatch(db, ref, policy, Date.now()), false);
   await ref.update({ driverId: 'driver', dispatchStartedAt: new Date(now - 600001).toISOString() });
   assert.equal(await escalateDispatch(db, ref, policy, Date.now()), false);
+
+  const codRef = db.doc('bookings/timeout_cod');
+  await codRef.set({ customerId: 'customer', driverId: null, serviceType: 'parcel', paymentStatus: 'pending_cod', status: 'pending', createdAt: new Date(now - 600001).toISOString() });
+  assert.equal(await escalateDispatch(db, codRef, policy, now), true);
+  assert.equal((await codRef.get()).data().exception.kind, 'no_partner');
 });
 
 test('dispatch policy requires current staff, revision checks and immutable replay-safe history', async () => {

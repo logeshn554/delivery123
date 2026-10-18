@@ -1,5 +1,5 @@
 function overdueDispatch(booking, policy, now = Date.now()) {
-  if (!booking || booking.paymentStatus !== 'paid' || booking.exception?.status === 'open' || booking.driverId || !(['food', 'grocery'].includes(booking.serviceType) ? booking.status === 'ready' : booking.status === 'pending')) return false;
+  if (!booking || !['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.exception?.status === 'open' || booking.driverId || !(['food', 'grocery'].includes(booking.serviceType) ? booking.status === 'ready' : booking.status === 'pending')) return false;
   const minutes = policy?.services?.[booking.serviceType]?.maxWaitMinutes;
   if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) return false;
   // Legacy merchant orders have no known readiness time and need explicit migration.
