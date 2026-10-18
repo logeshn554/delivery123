@@ -133,6 +133,28 @@ test('drivers who become available receive a private background alert for existi
   });
 });
 
+test('later-driver alert search paginates past ineligible bookings in the same zone', async () => {
+  const now = new Date().toISOString();
+  const before = { status: 'verified', online: false, locationConsent: true, supportedServices: ['parcel'] };
+  const after = { ...before, online: true, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 };
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  await db.doc('users/paged_later_driver').set({ role: 'driver' });
+  await db.doc('driver_profiles/paged_later_driver').set(after);
+  const batch = db.batch();
+  for (let index = 0; index < 100; index += 1) {
+    const id = `ALLGO_later_${String(index).padStart(3, '0')}`;
+    batch.set(db.doc(`bookings/${id}`), { customerId: 'customer', status: 'pending', driverId: null, paymentStatus: 'paid', serviceType: 'parcel', details: { pickupZoneId: 'city', pickupLocation: { lat: 13.5, lng: 80.5 } } });
+  }
+  batch.set(db.doc('bookings/ALLGO_later_target'), { customerId: 'customer', status: 'pending', driverId: null, paymentStatus: 'paid', serviceType: 'parcel', details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
+  await batch.commit();
+  await callable('registerPushDevice', 'paged_later_driver', { audience: 'driver', token: 'paged-later-driver-app', platform: 'android' });
+  await notificationHarness(async sent => {
+    await compiled.exports.notifyDriverAvailability.run({ id: 'paged-driver-online-event', params: { uid: 'paged_later_driver' }, data: { before: { data: () => before }, after: { data: () => after } } });
+    assert.deepEqual(sent.flatMap(message => message.tokens), ['paged-later-driver-app']);
+    assert.deepEqual(sent[0].data, { type: 'dispatch_offer', eventId: 'paged-driver-online-event' });
+  });
+});
+
 test('later-driver alerts exclude expired eligibility even when an open pickup matches', async () => {
   const now = new Date().toISOString();
   const before = { status: 'verified', online: false, locationConsent: true, supportedServices: ['parcel'] };

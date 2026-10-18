@@ -108,14 +108,20 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
       const zone = zoneDocument.data();
       for (const service of services.filter(value => zone.serviceTypes?.includes(value))) {
         const status = ['food', 'grocery'].includes(service) ? 'ready' : 'pending';
-        const page = await db.collection('bookings').where('serviceType', '==', service).where('status', '==', status)
-          .where('driverId', '==', null).where('details.pickupZoneId', '==', zoneDocument.id).orderBy('__name__').limit(100).get();
-        for (const candidate of page.docs) {
-          const booking = candidate.data();
-          if (booking.exception?.status === 'open' || !['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.customerId === uid ||
-              profile.rejectedBookingIds?.includes(candidate.id) || !isOfferEligible?.(profile, booking, zone)) continue;
-          hasOffer = true;
-          break;
+        const baseQuery = db.collection('bookings').where('serviceType', '==', service).where('status', '==', status)
+          .where('driverId', '==', null).where('details.pickupZoneId', '==', zoneDocument.id)
+          .where('paymentStatus', 'in', ['paid', 'pending_cod']).orderBy('__name__').limit(100);
+        let cursor;
+        while (!hasOffer) {
+          const page = await (cursor ? baseQuery.startAfter(cursor) : baseQuery).get();
+          for (const candidate of page.docs) {
+            const booking = candidate.data();
+            if (booking.exception?.status === 'open' || booking.customerId === uid || profile.rejectedBookingIds?.includes(candidate.id) || !isOfferEligible?.(profile, booking, zone)) continue;
+            hasOffer = true;
+            break;
+          }
+          if (hasOffer || page.size < 100) break;
+          cursor = page.docs.at(-1);
         }
         if (hasOffer) break;
       }
