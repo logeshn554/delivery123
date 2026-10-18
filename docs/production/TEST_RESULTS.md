@@ -207,3 +207,11 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - After resolving conflicts between the AllGo delivery work and the Stitch/fix branches, `npm run lint`, `npm run build`, and `npm test` passed. `npm run test:rules` passed **138 tests, 0 failed, 0 skipped**.
 - The build reports the existing large-chunk advisory. Tests use local/emulated providers; they do not establish native device, hosted CI, staging, or provider acceptance.
 
+# 2026-10-18 fresh verification on published main
+
+- Confirmed published `main` at `d6d5feb68fb2b2615c062ac80a5000eb420cdb36`; the active AllGo branch tip `4230bc11c04eb3cc42d47b5cb038a5eae48db505` is included in its first-parent history. No branch commits were outstanding for integration.
+- `npm run lint` and `npm run build` passed. Existing build advisory: the accounts bundle is 607 kB after minification.
+- `npm test` passed: **71 Functions, 95 UI, 98 server tests**; secret scan inspected 697 snapshots and found no recognized secrets.
+- `npm run test:rules` passed **138/138**, 0 failures and 0 skips after granting the local Firestore emulator loopback access. Tests use mocked/local providers; warning logs about absent Maps and Razorpay test secrets are expected and no live provider was called.
+- `node scripts/check-release.mjs --environment=staging` failed closed. Gate-A acceptance, staging data/backend/email/App Check/support/legal settings, private evidence bucket/scanner, project Functions config, and matching native registrations remain missing. See `BLOCKERS.md`; no values were printed or changed.
+
