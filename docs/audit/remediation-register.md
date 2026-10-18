@@ -74,7 +74,7 @@ All checklist items below preserve the report requirements. A checked box requir
 - [ ] P1-CHECK-01 Implement distance/zone/capability/freshness-ranked dispatch with offer leases, expiry, reassign and fallback.
 - [ ] P1-CHECK-02 Implement compliant consent-based native location collection, staleness handling and map permission recovery.
 - [ ] P1-CHECK-03 Enforce service-specific state machines and order events, no invalid jumps or duplicate completion.
-- [ ] P1-CHECK-04 Add robust payment/outbox/event jobs: timeout, retry, exactly-once financial effects, dead-letter review.
+- [ ] P1-CHECK-04 Add robust payment/outbox/event jobs: timeout, retry, exactly-once financial effects, dead-letter review. Standard no-partner escalation now persists transient per-booking failures, retries due records with bounded backoff independently of its scan cursor, and skips queued records until retry time; emulator regression passes. Payment/outbox coverage and dead-letter ownership remain open.
 - [ ] P1-CHECK-05 Protect document/photo PII; implement media access control, object validation, malware scanning and retention.
 - [ ] P1-CHECK-06 Verify customer/driver/merchant/admin scoping across Firestore reads, queries, callables and Neon API.
 - [ ] P1-CHECK-07 Add incident/failure, out-of-stock, failed pickup, no-partner, return, dispute and reschedule flows.

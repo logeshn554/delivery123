@@ -170,3 +170,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm run test:rules`: **133 passed, 0 failed, 0 skipped** (130.2s). `node --check tests/payments.integration.test.mjs` and `git diff --check` passed. Optional Maps/Razorpay secret warnings are expected in this isolated emulator run; no live provider was called.
 - The test verifies atomic first-committed acceptance only. It does not validate dispatch priority, provider delivery, load capacity or production fairness.
 
+# 2026-10-18 dispatch timeout retry recovery
+
+- The scheduled no-partner worker now persists transient booking failures in `dispatch_recovery_failures`, retries due work independently of the pagination cursor with bounded exponential backoff, and excludes queued IDs from the regular scan until retry time.
+- The emulator regression injects a transient transaction failure, confirms the queued booking is not retried early, advances the cursor beyond it, then confirms retry escalates the booking and removes the queue record. `npm run test:rules`: **134 passed, 0 failed, 0 skipped**. `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 746 snapshots. TypeScript lint, development build, syntax and diff checks pass. Existing large-chunk build advisory remains.
+- This is source/emulator evidence only. Live scheduled execution, operations ownership for prolonged retries/dead letters and broader payment/outbox reconciliation remain open.
+

@@ -18,6 +18,11 @@ async function escalateDispatch(db, bookingRef, policy, now = Date.now()) {
     return true;
   });
 }
+async function retryDispatch(db, bookingId, Timestamp) {
+  const ref = db.doc(`dispatch_recovery_failures/${bookingId}`), current = (await ref.get()).data() || {};
+  const attempts = (current.attempts || 0) + 1, delayMinutes = Math.min(60, 2 ** Math.min(attempts - 1, 6));
+  await ref.set({ bookingId, status: 'pending', attempts, firstFailedAt: current.firstFailedAt || Timestamp.now(), lastFailedAt: Timestamp.now(), retryAt: Timestamp.fromMillis(Date.now() + delayMinutes * 60000) }, { merge: true });
+}
 function dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, HttpsError, documentId, cleanText }) {
   const staff = async request => { if (!request.auth?.uid || request.auth.token.admin !== true || (await db.doc(`users/${request.auth.uid}`).get()).data()?.role !== 'admin') throw new HttpsError('permission-denied', 'Active operations authorization is required.'); };
   return {
@@ -40,13 +45,30 @@ function dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, 
     escalateUnassignedBookings: onSchedule({ schedule: 'every 1 minutes', region: REGION, maxInstances: 1, timeoutSeconds: 540 }, async () => {
       const policy = (await db.doc('platform_config/dispatch').get()).data();
       if (!policy?.services) return;
+      const dueFailures = await db.collection('dispatch_recovery_failures').where('retryAt', '<=', Timestamp.now()).orderBy('retryAt').limit(50).get();
+      for (const failure of dueFailures.docs) {
+        try {
+          const bookingRef = db.doc(`bookings/${failure.id}`);
+          await escalateDispatch(db, bookingRef, policy);
+          await failure.ref.delete();
+        } catch {
+          console.error('Dispatch timeout needs retry', { bookingId: failure.id });
+          await retryDispatch(db, failure.id, Timestamp);
+        }
+      }
       const checkpoint = db.doc('reconciliation_cursors/dispatch'), cursor = (await checkpoint.get()).data()?.lastId;
       let query = db.collection('bookings').where('driverId', '==', null).where('status', 'in', ['pending', 'ready']).orderBy('__name__').limit(100);
       if (cursor) query = query.startAfter(cursor);
       const page = await query.get();
-      for (const booking of page.docs) { try { await escalateDispatch(db, booking.ref, policy); } catch { console.error('Dispatch timeout needs retry', { bookingId: booking.id }); } }
+      const queuedRetries = page.size ? await db.getAll(...page.docs.map(booking => db.doc(`dispatch_recovery_failures/${booking.id}`))) : [];
+      const queuedIds = new Set(queuedRetries.filter(failure => failure.exists && failure.data()?.status === 'pending').map(failure => failure.id));
+      for (const booking of page.docs) {
+        if (queuedIds.has(booking.id)) continue;
+        try { await escalateDispatch(db, booking.ref, policy); }
+        catch { console.error('Dispatch timeout needs retry', { bookingId: booking.id }); await retryDispatch(db, booking.id, Timestamp); }
+      }
       await checkpoint.set({ lastId: page.size === 100 ? page.docs.at(-1).id : null, checkedAt: Timestamp.now() });
     })
   };
 }
-module.exports = { overdueDispatch, escalateDispatch, dispatchRecoveryFunctions };
+module.exports = { overdueDispatch, escalateDispatch, retryDispatch, dispatchRecoveryFunctions };

@@ -652,6 +652,35 @@ test('dispatch timeout is idempotent, rechecks assignment and restarts search on
   assert.equal(await escalateDispatch(db, codRef, policy, Date.now()), false);
 });
 
+test('dispatch timeout worker retries transient failures after its scan cursor advances', async () => {
+  const ref = db.doc('bookings/retry_timeout'), policyRef = db.doc('platform_config/dispatch');
+  const now = Date.now();
+  await policyRef.set({ services: { parcel: { maxWaitMinutes: 1 } } });
+  await ref.set({ customerId: 'customer', driverId: null, serviceType: 'parcel', paymentStatus: 'paid', status: 'pending', createdAt: new Date(now - 120000).toISOString() });
+
+  const originalRunTransaction = db.runTransaction.bind(db);
+  let failedOnce = false;
+  db.runTransaction = (...args) => {
+    if (!failedOnce) { failedOnce = true; return Promise.reject(new Error('transient Firestore failure')); }
+    return originalRunTransaction(...args);
+  };
+  try { await compiled.exports.escalateUnassignedBookings.run(); }
+  finally { db.runTransaction = originalRunTransaction; }
+
+  const failureRef = db.doc('dispatch_recovery_failures/retry_timeout');
+  assert.equal((await failureRef.get()).data().status, 'pending');
+  assert.equal((await ref.get()).data().exception, undefined);
+  await compiled.exports.escalateUnassignedBookings.run();
+  assert.equal((await failureRef.get()).data().attempts, 1);
+  assert.equal((await ref.get()).data().exception, undefined);
+  await db.doc('reconciliation_cursors/dispatch').set({ lastId: 'zzzz', checkedAt: Timestamp.now() });
+  await failureRef.update({ retryAt: Timestamp.fromMillis(Date.now() - 1) });
+  await compiled.exports.escalateUnassignedBookings.run();
+
+  assert.equal((await ref.get()).data().exception.kind, 'no_partner');
+  assert.equal((await failureRef.get()).exists, false);
+});
+
 test('dispatch policy requires current staff, revision checks and immutable replay-safe history', async () => {
   await db.doc('users/admin').set({ role: 'admin' });
   const data = { service: 'parcel', maxWaitMinutes: 15, expectedVersion: 0, requestId: 'policy1', reason: 'Approved operating target' };
