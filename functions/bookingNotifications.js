@@ -4,7 +4,7 @@ const active = account => account && account.disabled !== true && account.suspen
 const merchantFor = (account, booking) => active(account) && account.role === 'merchant' && account.merchantId === booking.merchantId &&
   (account.merchantType === 'restaurant' && booking.serviceType === 'food' || account.merchantType === 'grocery' && booking.serviceType === 'grocery');
 
-function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging }) {
+function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging, isOfferEligible }) {
   const deviceRef = token => db.doc(`push_devices/${crypto.createHash('sha256').update(token).digest('hex')}`);
   const registerPushDevice = onCall({ operation: 'registerPushDevice', region: REGION }, async request => {
     const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096);
@@ -22,7 +22,7 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
     await db.runTransaction(async transaction => { const record = await transaction.get(ref); if (record.data()?.uid === uid) transaction.delete(ref); });
     return { removed: true };
   });
-  const notifyBookingChange = onDocumentWritten({ region: REGION, database: databaseId, document: 'bookings/{bookingId}', retry: true }, async event => {
+  const notifyBookingChange = onDocumentWritten({ region: REGION, database: databaseId, document: 'bookings/{bookingId}', retry: true, timeoutSeconds: 120 }, async event => {
     const changed = event.data?.after.data(), previous = event.data?.before.data();
     if (!changed || previous && previous.status === changed.status && previous.driverId === changed.driverId && previous.merchantId === changed.merchantId && previous.paymentStatus === changed.paymentStatus && previous.preparation?.revision === changed.preparation?.revision && previous.picking?.revision === changed.picking?.revision && previous.exception?.revision === changed.exception?.revision) return;
     // A delayed trigger must not notify a former assignee from an old snapshot.
@@ -36,6 +36,26 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
       const [account, driver] = await Promise.all([db.doc(`users/${booking.driverId}`).get(), db.doc(`driver_profiles/${booking.driverId}`).get()]);
       if (active(account.data()) && account.data()?.role === 'driver' && driver.data()?.status === 'verified') add(booking.driverId, 'driver');
     }
+    const dispatchable = !booking.driverId && booking.exception?.status !== 'open' && ['paid', 'pending_cod'].includes(booking.paymentStatus) && (['food', 'grocery'].includes(booking.serviceType) ? booking.status === 'ready' : booking.status === 'pending');
+    if (dispatchable && typeof booking.details?.pickupZoneId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(booking.details.pickupZoneId)) {
+      const zone = (await db.doc(`service_zones/${booking.details.pickupZoneId}`).get()).data();
+      if (zone?.enabled === true && zone.serviceTypes?.includes(booking.serviceType)) {
+        let query = db.collection('driver_profiles').where('status', '==', 'verified').where('online', '==', true).where('locationConsent', '==', true).where('supportedServices', 'array-contains', booking.serviceType).orderBy('__name__').limit(100);
+        let cursor;
+        while (true) {
+          const page = await (cursor ? query.startAfter(cursor) : query).get();
+          if (page.empty) break;
+          const profiles = page.docs.map(profile => ({ uid: profile.id, profile: profile.data() }));
+          const accounts = await Promise.all(profiles.map(({ uid }) => db.doc(`users/${uid}`).get()));
+          for (let index = 0; index < profiles.length; index += 1) {
+            const { uid, profile } = profiles[index], account = accounts[index].data();
+            if (uid !== booking.customerId && active(account) && account.role === 'driver' && account.preferences?.orderUpdates !== false && profile.activeBookingId == null && !profile.rejectedBookingIds?.includes(bookingId) && isOfferEligible?.(profile, booking, zone)) add(uid, 'dispatch');
+          }
+          if (page.size < 100) break;
+          cursor = page.docs.at(-1);
+        }
+      }
+    }
     if (booking.merchantId && ['food', 'grocery'].includes(booking.serviceType)) {
       const merchants = await db.collection('users').where('merchantId', '==', booking.merchantId).get();
       for (const merchant of merchants.docs) if (merchantFor(merchant.data(), booking)) add(merchant.id, 'merchant');
@@ -45,16 +65,17 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
       if (!active(account) || account.preferences?.orderUpdates === false) continue;
       // Recheck partner access when sending, including revocation after registration.
       if (!merchantFor(account, booking)) audiences.delete('merchant');
-      if (account.role !== 'driver') audiences.delete('driver');
+      if (account.role !== 'driver') { audiences.delete('driver'); audiences.delete('dispatch'); }
       const devices = await db.collection('push_devices').where('uid', '==', uid).get();
       const targets = devices.docs.filter(record => {
         const device = record.data();
         const expiresAt = typeof device.expiresAt?.toMillis === 'function' ? device.expiresAt.toMillis() : NaN;
-        return Number.isFinite(expiresAt) && expiresAt > Date.now() && typeof device.token === 'string' && device.token.length > 0 && audiences.has(device.audience ?? 'customer');
+        return Number.isFinite(expiresAt) && expiresAt > Date.now() && typeof device.token === 'string' && device.token.length > 0 && (audiences.has(device.audience ?? 'customer') || audiences.has('dispatch') && device.audience === 'driver');
       });
       for (let offset = 0; offset < targets.length; offset += 500) {
         const chunk = targets.slice(offset, offset + 500);
-        const result = await messaging().sendEachForMulticast({ tokens: chunk.map(record => record.data().token), notification: { title: 'AllGo order update', body: 'An order has an update. Open AllGo for details.' }, data: { bookingId, eventId: event.id }, android: { collapseKey: bookingId }, apns: { headers: { 'apns-collapse-id': bookingId } } });
+        const dispatchOffer = audiences.has('dispatch') && !booking.driverId;
+        const result = await messaging().sendEachForMulticast({ tokens: chunk.map(record => record.data().token), notification: { title: dispatchOffer ? 'Delivery request available' : 'AllGo order update', body: dispatchOffer ? 'A nearby delivery request is available. Open AllGo to review it.' : 'An order has an update. Open AllGo for details.' }, data: { bookingId, eventId: event.id, ...(dispatchOffer ? { type: 'dispatch_offer' } : {}) }, android: { collapseKey: bookingId }, apns: { headers: { 'apns-collapse-id': bookingId } } });
         await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
         if (result.responses.some(response => response.error && !['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error.code))) throw new Error('One or more booking notifications require retry.');
       }

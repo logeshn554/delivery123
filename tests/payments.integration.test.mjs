@@ -72,6 +72,37 @@ for (const serviceType of ['food', 'grocery']) test(`${serviceType} pushes reach
   });
 });
 
+test('dispatch offer pushes wake only fresh, consented, in-zone eligible drivers without exposing customer details', async () => {
+  const now = new Date().toISOString();
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  const eligible = { status: 'verified', online: true, locationConsent: true, supportedServices: ['parcel'], currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 };
+  const candidates = [
+    ['nearby', eligible, 'driver-nearby'],
+    ['outside', { ...eligible, currentLat: 15 }, 'driver-outside'],
+    ['stale', { ...eligible, locationUpdatedAt: new Date(Date.now() - 120000).toISOString() }, 'driver-stale'],
+    ['busy', { ...eligible, activeBookingId: 'another_job' }, 'driver-busy'],
+    ['no_consent', { ...eligible, locationConsent: false }, 'driver-no-consent'],
+  ];
+  for (const [uid, profile, token] of candidates) {
+    await db.doc(`users/${uid}`).set({ role: 'driver' });
+    await db.doc(`driver_profiles/${uid}`).set(profile);
+    await callable('registerPushDevice', uid, { audience: 'driver', token, platform: 'android' });
+  }
+  await db.doc('users/customer').update({ role: 'driver' });
+  await db.doc('driver_profiles/customer').set(eligible);
+  await callable('registerPushDevice', 'customer', { audience: 'driver', token: 'customer-driver', platform: 'android' });
+  const booking = { bookingId: 'ALLGO_dispatch_alert', customerId: 'customer', status: 'pending', driverId: null, paymentStatus: 'paid', serviceType: 'parcel', recipientPhone: '+919999999999', details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } };
+  await db.doc(`bookings/${booking.bookingId}`).set(booking);
+  await notificationHarness(async sent => {
+    await notify(booking.bookingId, booking);
+    assert.deepEqual(sent.flatMap(message => message.tokens), ['driver-nearby']);
+    assert.deepEqual(sent[0].data, { bookingId: booking.bookingId, eventId: 'event-test', type: 'dispatch_offer' });
+    assert.equal(sent[0].notification.title, 'Delivery request available');
+    assert.equal(JSON.stringify(sent[0]).includes(booking.recipientPhone), false);
+    assert.equal(JSON.stringify(sent[0]).includes('pickupLocation'), false);
+  });
+});
+
 test('notification registration rejects invalid audiences and unapproved partner identities', async () => {
   for (const data of [{ audience: 'admin', platform: 'android' }, { audience: 'customer', platform: 'web' }, { audience: 'driver', platform: 'android' }, { audience: 'merchant', platform: 'android' }]) {
     await assert.rejects(callable('registerPushDevice', 'customer', { token: 'test-device', ...data }), error => ['invalid-argument', 'permission-denied'].includes(error.code));

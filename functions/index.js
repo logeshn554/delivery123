@@ -148,7 +148,15 @@ exports.exchangeNativeAuthToken = onCall({ operation: 'exchangeNativeAuthToken',
 });
 
 const { bookingNotificationFunctions } = require('./bookingNotifications');
-Object.assign(exports, bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging: () => getMessaging(app) }));
+Object.assign(exports, bookingNotificationFunctions({
+  onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging: () => getMessaging(app),
+  isOfferEligible: (driver, booking, zone) => {
+    const point = { lat: driver.currentLat, lng: driver.currentLng };
+    return containsPoint(zone.polygon, point) && pickupEligibility(driver, booking) !== null &&
+      (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) &&
+      (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities, booking.details));
+  },
+}));
 
 exports.updateMerchantPreparation = onCall({ operation: 'updateMerchantPreparation', region: REGION }, async request => {
   const uid = requireUser(request), id = documentId(request.data?.bookingId, 'Booking ID'), command = documentId(request.data?.requestId, 'Request ID');

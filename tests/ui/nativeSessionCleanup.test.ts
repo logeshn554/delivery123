@@ -6,7 +6,7 @@ async function cleanup(failRemote: boolean) {
   const calls: string[] = [];
   const key = `allgo-native-cleanup-${crypto.randomUUID()}`;
   (globalThis as Record<string, unknown>)[key] = {
-    removeLocal: () => calls.push('disable-push'), removeSession: () => calls.push('clear-booking'),
+    removeLocal: () => calls.push('disable-push'), removeSession: (key: string) => calls.push(key === 'allgo-open-dispatch' ? 'clear-dispatch' : 'clear-booking'),
     stop: async () => { calls.push('stop-location'); },
     profile: async () => { calls.push('profile'); if (failRemote) throw new Error('expired identity'); return { data: () => ({ role: 'driver' }) }; },
     callable: (name: string) => async () => { calls.push(name); if (failRemote) throw new Error('permission-denied'); },
@@ -34,9 +34,9 @@ async function cleanup(failRemote: boolean) {
 }
 
 test('shared native teardown stops device services and revokes registration before native auth', async () => {
-  assert.deepEqual(await cleanup(false), ['disable-push', 'disable-push', 'clear-booking', 'stop-location', 'profile', 'setDriverLocationConsent', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
+  assert.deepEqual(await cleanup(false), ['disable-push', 'disable-push', 'clear-booking', 'clear-dispatch', 'stop-location', 'profile', 'setDriverLocationConsent', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
 });
 
 test('expired server authorization cannot prevent local location, push-token and native-auth cleanup', async () => {
-  assert.deepEqual(await cleanup(true), ['disable-push', 'disable-push', 'clear-booking', 'stop-location', 'profile', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
+  assert.deepEqual(await cleanup(true), ['disable-push', 'disable-push', 'clear-booking', 'clear-dispatch', 'stop-location', 'profile', 'get-token', 'unregisterPushDevice', 'delete-token', 'native-signout']);
 });

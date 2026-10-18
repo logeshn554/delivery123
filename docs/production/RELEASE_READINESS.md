@@ -1,6 +1,6 @@
 # Release readiness
 
-**Not ready for release.** Updated 2026-10-17.
+**Not ready for release.** Updated 2026-10-18.
 
 React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. Android source/build presence does not establish native provider functionality; iOS has not been tested on this Windows host.
 
@@ -9,6 +9,8 @@ All master acceptance gates remain open: customer journeys, merchant/driver inte
 Current verified source scope includes the complete six-service wallet/dispatch/custody emulator journeys, partner application/eligibility workflows, 116 Firestore/integration tests, application/unit tests, TypeScript, web build, secret scan and hosted run 39007835058 for fb569c3 (all five jobs passed, including account lifecycle and all three Android build/identity/artifact jobs). See TEST_RESULTS.md and the Android/account evidence documents for exact scope; these results do not establish authenticated native or real-provider acceptance.
 
 The Android emulator cannot reach the configured development account endpoint. Native Firebase provider registrations and staging/production provider acceptance are absent. No iOS archive/device, live provider payment, signed release or deployed-rules acceptance is established. Functions and rules changes require coordinated staging deployment and verification before production rollout.
+
+The dispatch source now rotates offers across ordered booking pages, rejects stale no-response leases, and sends generic offer pushes to drivers whose verified role, consent, fresh location, pickup zone and vehicle/equipment match. Isolated integration evidence covers these paths; hosted CI for the recent pushed commits is not visible through the available check/run lookups, and no native push delivery has been accepted.
 
 Run `node scripts/check-release.mjs --environment=staging`, then production when appropriate. Do not invent acceptance records to pass these gates. Keep the original independent service workflows, default-deny rules, provider verification and explicit unavailable states.
 

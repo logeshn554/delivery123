@@ -38,6 +38,10 @@ function openBooking(id: unknown) {
   sessionStorage.setItem('allgo-open-booking', id);
   window.dispatchEvent(new CustomEvent('allgo:booking', { detail: id }));
 }
+function openDispatch() {
+  sessionStorage.setItem('allgo-open-dispatch', 'true');
+  window.dispatchEvent(new CustomEvent('allgo:dispatch'));
+}
 function openUrl(raw: string) {
   try { const url = new URL(raw); if (url.protocol === `${appScheme}:` && url.hostname === 'booking') openBooking(decodeURIComponent(url.pathname.slice(1))); } catch { /* Ignore unrelated URLs. */ }
 }
@@ -61,7 +65,10 @@ export async function initializeNativeNotifications() {
   try {
     const launch = await App.getLaunchUrl(); if (launch) openUrl(launch.url);
     if (Capacitor.isPluginAvailable('FirebaseMessaging')) {
-      handles.push(await FirebaseMessaging.addListener('notificationActionPerformed', event => openBooking((event.notification.data as { bookingId?: string } | undefined)?.bookingId)));
+      handles.push(await FirebaseMessaging.addListener('notificationActionPerformed', event => {
+        const data = event.notification.data as { bookingId?: string; type?: string } | undefined;
+        if (data?.type === 'dispatch_offer') openDispatch(); else openBooking(data?.bookingId);
+      }));
       handles.push(await FirebaseMessaging.addListener('tokenReceived', event => { if (pushEnabled()) void registerToken(pushSnapshot(), event.token).catch(() => undefined); }));
       if (pushEnabled()) {
         const snapshot = pushSnapshot();

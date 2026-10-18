@@ -85,3 +85,10 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `node --check tests/payments.integration.test.mjs` and `git diff --check` passed.
 - GitHub combined-status lookup and the available commit workflow-run lookup returned no result for pushed revision `38e1301`; hosted verification remains unconfirmed.
 
+## 2026-10-18 dispatch offer notifications
+
+- `npm run test:rules`: **119 passed, 0 failed, 0 skipped**. New regression confirms dispatch pushes go only to a fresh, consented, verified, in-zone driver with approved parcel service, and payload excludes contact/pickup details. Existing tests cover expired-lease reoffer and 101-record pagination.
+- `npm test`: passed (Functions, UI, server and secret scan); `npm run lint` and `npm run build` passed. The build retains the existing large-chunk advisory.
+- `node --check` passed for the changed Functions files; Firestore index JSON parsed and includes the driver candidate query index; logout cleanup regression covers clearing the dispatch navigation intent.
+- Provider/device delivery, background tap behavior, hosted CI for the recent pushed commits and production-scale dispatch load remain unverified.
+

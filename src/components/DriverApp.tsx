@@ -146,6 +146,12 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   const notification = useBookingNotification(activeBookings, { audience: 'driver', userId });
   useEffect(() => { if (notification.booking) setActiveSubView(null); }, [notification.booking?.bookingId]);
+  useEffect(() => {
+    const openDispatch = () => { sessionStorage.removeItem('allgo-open-dispatch'); setActiveSubView(null); };
+    if (sessionStorage.getItem('allgo-open-dispatch') === 'true') openDispatch();
+    window.addEventListener('allgo:dispatch', openDispatch);
+    return () => window.removeEventListener('allgo:dispatch', openDispatch);
+  }, []);
 
   // Find if we already have an assigned active job
   const currentAssignedJob = (notification.booking && !finishedBooking(notification.booking) ? notification.booking : undefined) || activeBookings.find(b => b.driverId === userId && b.status !== 'completed' && b.status !== 'delivered' && b.status !== 'cancelled');
