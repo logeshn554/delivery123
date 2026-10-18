@@ -1,8 +1,8 @@
 # Implementation progress — 2026-10-12
 
-## 2026-10-18 driver document expiry
+## 2026-10-18 partner document expiry
 
-Added a daily Asia/Kolkata scheduler that checks only the currently verified evidence IDs and the live driver's policy-required expiry categories. A verified expired date changes the eligibility state with a revisioned audit event. The sweep takes drivers without active work offline and empties approved services; offer listing, offer acceptance, push alerts and Firestore online reactivation all reject expired eligibility. A driver already carrying a delivery keeps location and transition access until safe completion, where the profile moves offline; repeated completion stays replay-safe. Renewal accepts the expired state and returns the application to its existing evidence-review flow. Local `npm run test:rules` passed 123/123, application tests, TypeScript, web build and syntax checks passed. Actual owner policy configuration, scheduled deployment, merchant expiry, and partner/device acceptance remain open.
+Daily Asia/Kolkata schedulers check only currently verified evidence IDs and the live driver/merchant policies’ required expiry categories. Verified expired dates change eligibility with revisioned audit events. Driver expiry blocks dispatch and online reactivation; an active delivery keeps location and transition access through safe completion, then moves the profile offline. Merchant expiry closes the catalog and returns the application to evidence review without interrupting already accepted orders. Both renewal paths reuse evidence review. Local `npm run test:rules` passed 124/124, application tests, TypeScript, web build and syntax checks passed. Actual owner policy configuration, scheduled deployment and partner/device acceptance remain open.
 
 ## Native compilation
 

@@ -93,10 +93,10 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - Provider/device delivery, background tap behavior, hosted CI for the recent pushed commits and production-scale dispatch load remain unverified.
 - The available GitHub combined-status and commit workflow-run lookups returned no checks/runs for pushed commit `04caa15`.
 
-## 2026-10-18 driver eligibility expiry
+## 2026-10-18 partner document expiry
 
-- Added a daily Asia/Kolkata expiry sweep for operations-verified document dates that are currently required by the published driver policy. It records an immutable eligibility event, blocks new dispatch and acceptance, and prevents client reactivation. Drivers with an active assignment retain location and fulfillment access until completion; completion then takes the expired profile offline. Renewal can start from the expired state.
-- `npm run test:rules`: **123 passed, 0 failed, 0 skipped**. Regressions cover expiry, idempotent sweep, renewal, active custody, online-rule protection, expired dispatch/push filtering, and six service journeys completing and retrying after a mid-job expiry.
+- Added daily Asia/Kolkata expiry sweeps for operations-verified dates required by the published driver and merchant policies. Driver expiry blocks dispatch/acceptance and reactivation; an active delivery retains location and fulfillment access until completion, then the profile goes offline. Merchant expiry closes new orders, advances the application back to evidence review and leaves accepted orders untouched. Both sweeps record immutable events and renewal follows existing evidence review.
+- `npm run test:rules`: **124 passed, 0 failed, 0 skipped**. Regressions cover driver/merchant expiry, idempotent sweeps, renewal, active custody/order preservation, online-rule protection, expired dispatch/push filtering, and six service journeys completing and retrying after a mid-job driver expiry.
 - `npm test`, `npm run lint`, `npm run build`, `node --check` on changed Functions files, and `git diff --check` passed. The build retains the existing large-chunk advisory. Emulator warnings about unset Maps/Razorpay test secrets are expected; provider calls are mocked and no production data was used.
 - The available GitHub combined-status and commit workflow-run lookups returned no checks or runs for pushed commit `a6f26a6`; hosted verification is unknown. ADB recheck failed because its local server would not start, so Swiggy inspection remains unverified. Policy configuration and real partner/device acceptance remain unverified.
 

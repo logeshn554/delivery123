@@ -1,12 +1,12 @@
 const { EVIDENCE_KINDS, activeRetention } = require('./evidencePolicy');
 
-function merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity }) {
+function merchantEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity }) {
   const policy = async () => (await db.doc('platform_config/merchant_eligibility').get()).data() || {};
   const isOperationsAdmin = async uid => {
     const account = (await db.doc(`users/${uid}`).get()).data();
     return account?.role === 'admin' && account.disabled !== true && account.suspended !== true;
   };
-  return {
+  const exports = {
     getMerchantEligibilityPolicy: onCall({ operation: 'getMerchantEligibilityPolicy', region: REGION }, async request => {
       const uid = request.auth?.uid;
       if (!uid || request.auth.token.admin !== true || !await isOperationsAdmin(uid)) throw new HttpsError('permission-denied', 'Operations access is required.');
@@ -67,6 +67,51 @@ function merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, document
       });
     })
   };
+  if (onSchedule) exports.expireMerchantEligibility = onSchedule({ schedule: 'every day 00:25', timeZone: 'Asia/Kolkata', region: REGION, maxInstances: 1, timeoutSeconds: 540 }, async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    let examined = 0, expired = 0;
+    for (const { collection } of [{ collection: 'restaurants' }, { collection: 'grocery_stores' }]) {
+      let cursor = null;
+      while (true) {
+        let query = db.collection(collection).where('merchantEligibility.status', '==', 'verified').orderBy('__name__').limit(100);
+        if (cursor) query = query.startAfter(cursor);
+        const page = await query.get();
+        if (page.empty) break;
+        for (const snapshot of page.docs) {
+          examined += 1;
+          const didExpire = await db.runTransaction(async tx => {
+            const businessRef = snapshot.ref, currentBusiness = await tx.get(businessRef), business = currentBusiness.data(), eligibility = business?.merchantEligibility;
+            if (!currentBusiness.exists || eligibility?.status !== 'verified' || !Array.isArray(eligibility.evidenceIds) || eligibility.evidenceIds.length > 10 || !business.ownerId || !eligibility.applicationId) return false;
+            const policyRef = db.doc('platform_config/merchant_eligibility'), applicationRef = db.doc(`partner_applications/${eligibility.applicationId}`), deletionRef = db.doc(`account_deletions/${business.ownerId}`);
+            const [policySnapshot, applicationSnapshot, deletion] = await Promise.all([tx.get(policyRef), tx.get(applicationRef), tx.get(deletionRef)]);
+            const required = policySnapshot.data()?.expiryRequiredKinds, application = applicationSnapshot.data();
+            if (!Array.isArray(required) || !required.length || !application || application.userId !== business.ownerId || application.businessId !== snapshot.id || application.status !== 'approved' || deletion.exists) return false;
+            const evidenceIds = eligibility.evidenceIds.filter(id => typeof id === 'string');
+            if (!evidenceIds.length || evidenceIds.length !== eligibility.evidenceIds.length) return false;
+            const proofs = await Promise.all(evidenceIds.map(id => tx.get(db.doc(`partner_evidence/${id}`))));
+            const expiredProof = proofs.some(proof => {
+              const value = proof.data();
+              return value && value.userId === business.ownerId && value.applicationId === eligibility.applicationId && required.includes(value.kind) && typeof value.verifiedExpiresOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.verifiedExpiresOn) && value.verifiedExpiresOn < today;
+            });
+            if (!expiredProof) return false;
+            const eventId = `expiry_${today}`, eventRef = businessRef.collection('eligibility_events').doc(eventId), prior = await tx.get(eventRef);
+            if (prior.exists) return false;
+            const now = new Date().toISOString(), revision = (eligibility.revision || 0) + 1, applicationRevision = (application.revision || 0) + 1;
+            tx.update(businessRef, { acceptingOrders: false, onboardingStatus: 'needs_information', merchantEligibility: { ...eligibility, status: 'expired', revision, expiredAt: now, expiredOn: today } });
+            tx.update(applicationRef, { status: 'needs_information', feedback: 'A required business document has expired. Submit current evidence for review.', revision: applicationRevision, updatedAt: now });
+            tx.create(eventRef, { action: 'merchant_eligibility_expired', actorId: 'system', revision, expiredOn: today, createdAt: now });
+            tx.create(applicationRef.collection('events').doc(eventId), { action: 'merchant_eligibility_expired', actorId: 'system', revision: applicationRevision, createdAt: now });
+            return true;
+          });
+          if (didExpire) expired += 1;
+        }
+        if (page.size < 100) break;
+        cursor = page.docs.at(-1);
+      }
+    }
+    return { examined, expired, asOf: today };
+  });
+  return exports;
 }
 
 module.exports = { merchantEligibilityFunctions };

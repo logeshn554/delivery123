@@ -65,7 +65,7 @@ Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError,
 Object.assign(exports, grocerySubstitutionExpiryFunctions({ onSchedule, db, REGION, Timestamp }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, driverEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
-Object.assign(exports, merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
+Object.assign(exports, merchantEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 function evidenceBucket(name) {
   const configured = process.env.EVIDENCE_STORAGE_BUCKET;
   if (!configured || name && name !== configured) throw new HttpsError('failed-precondition', 'The private document bucket is not configured for this environment.');

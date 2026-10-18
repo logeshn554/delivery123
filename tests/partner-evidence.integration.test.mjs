@@ -40,7 +40,7 @@ beforeEach(async () => {
   identity = { phoneNumber: '+919876500001', providerData: [{ providerId: 'phone', phoneNumber: '+919876500001' }] };
   Object.assign(commands, driverEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }), onSchedule: (_, handler) => ({ run: handler }) }));
   Object.assign(commands, partnerApplicationFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, onCall: (_, handler) => ({ run: handler }) }));
-  Object.assign(commands, merchantEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }) }));
+  Object.assign(commands, merchantEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }), onSchedule: (_, handler) => ({ run: handler }) }));
   Object.assign(commands, operationsFunctions({ db, REGION: 'asia-south1', HttpsError, Timestamp, documentId: checkedId, cleanText: checkedText, onCall: (_, handler) => ({ run: handler }) }));
   await db.doc('users/customer').set({ role: 'customer' }); await db.doc('users/admin').set({ role: 'admin' });
   await db.doc('partner_applications/application').set({ userId: 'customer', status: 'submitted', evidenceCount: 0 });
@@ -119,6 +119,24 @@ test('required-document expiry leaves an active delivery assigned for safe compl
   const profile = (await db.doc('driver_profiles/customer').get()).data();
   assert.equal(profile.activeBookingId, 'active-job'); assert.equal(profile.status, 'verified'); assert.equal(profile.online, true);
   assert.equal((await db.doc('driver_eligibility/customer').get()).data().status, 'expired');
+});
+
+test('required merchant-document expiry closes new orders and reopens evidence review', async () => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const yesterday = new Date(`${today}T00:00:00+05:30`); yesterday.setDate(yesterday.getDate() - 1);
+  const expiredOn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(yesterday);
+  await db.doc('platform_config/merchant_eligibility').set({ enabled: true, version: 1, expiryRequiredKinds: ['business_registration'] });
+  await db.doc('partner_applications/merchant-app').set({ userId: 'customer', type: 'grocery', businessId: 'merchant-shop', status: 'approved', revision: 3 });
+  await db.doc('grocery_stores/merchant-shop').set({ id: 'merchant-shop', ownerId: 'customer', applicationId: 'merchant-app', merchantType: 'grocery', onboardingStatus: 'approved', acceptingOrders: true, merchantEligibility: { status: 'verified', applicationId: 'merchant-app', evidenceIds: ['expired-business-proof'], revision: 4, policyVersion: 1 } });
+  await db.doc('partner_evidence/expired-business-proof').set({ userId: 'customer', applicationId: 'merchant-app', kind: 'business_registration', reviewStatus: 'verified', verifiedExpiresOn: expiredOn });
+  await db.doc('bookings/accepted-merchant-order').set({ merchantId: 'merchant-shop', status: 'preparing' });
+  assert.deepEqual(await commands.expireMerchantEligibility.run(), { examined: 1, expired: 1, asOf: today });
+  const business = (await db.doc('grocery_stores/merchant-shop').get()).data(), application = (await db.doc('partner_applications/merchant-app').get()).data();
+  assert.equal(business.acceptingOrders, false); assert.equal(business.onboardingStatus, 'needs_information'); assert.equal(business.merchantEligibility.status, 'expired'); assert.equal(business.merchantEligibility.revision, 5);
+  assert.equal(application.status, 'needs_information'); assert.equal(application.revision, 4);
+  assert.equal((await db.doc('bookings/accepted-merchant-order').get()).data().status, 'preparing');
+  assert.equal((await db.doc(`grocery_stores/merchant-shop/eligibility_events/expiry_${today}`).get()).data().action, 'merchant_eligibility_expired');
+  assert.deepEqual(await commands.expireMerchantEligibility.run(), { examined: 0, expired: 0, asOf: today });
 });
 
 test('merchant eligibility links the applicant, reviewed evidence and closed catalog under the live policy', async () => {
