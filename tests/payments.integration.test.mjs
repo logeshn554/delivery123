@@ -1252,6 +1252,14 @@ test('deletion requires recent authentication and blocks unresolved provider int
   await assert.rejects(callable('processAccountDeletion', 'admin', { uid: 'customer' }, true), error => error.code === 'failed-precondition');
   assert.equal((await db.doc('account_deletions/customer').get()).data().status, 'requested');
 });
+test('account deletion cannot be claimed concurrently while another operator is processing it', async () => {
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('platform_config/privacy').set({ deletionEnabled: true, policyUrl: 'https://example.test/privacy' });
+  await db.doc('account_deletions/customer').set({ uid: 'customer', status: 'processing', operatorId: 'other_admin' });
+  await assert.rejects(callable('processAccountDeletion', 'admin', { uid: 'customer' }, true), error => error.code === 'failed-precondition');
+  assert.deepEqual((await db.doc('account_deletions/customer').get()).data(), { uid: 'customer', status: 'processing', operatorId: 'other_admin' });
+  assert.equal((await db.doc('users/customer').get()).exists, true);
+});
 test('account exports are owner scoped and reject arbitrary collection names',async()=>{
   await db.doc('bookings/mine').set({customerId:'customer',status:'completed'});
   await db.doc('bookings/other').set({customerId:'other',status:'completed'});

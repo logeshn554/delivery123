@@ -215,3 +215,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm run test:rules` passed **138/138**, 0 failures and 0 skips after granting the local Firestore emulator loopback access. Tests use mocked/local providers; warning logs about absent Maps and Razorpay test secrets are expected and no live provider was called.
 - `node scripts/check-release.mjs --environment=staging` failed closed. Gate-A acceptance, staging data/backend/email/App Check/support/legal settings, private evidence bucket/scanner, project Functions config, and matching native registrations remain missing. See `BLOCKERS.md`; no values were printed or changed.
 
+# 2026-10-18 account deletion claim serialization
+
+- `processAccountDeletion` now rejects jobs already in `processing`; only `requested` and explicitly `failed` jobs can be claimed. Firestore transaction retries therefore cannot start a second destructive cleanup for the same account while another operator is running it.
+- Added an emulator regression that seeds an in-progress deletion and verifies a second operator call is rejected without changing job state or deleting the account.
+- `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 697 snapshots. `npm run lint`, `npm run build`, syntax checks and `git diff --check` passed. `npm run test:rules`: **139 passed, 0 failed, 0 skipped**. Tests use local/emulated services; live cross-store deletion and crash-recovery acceptance remain open.
+

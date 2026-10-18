@@ -1,6 +1,6 @@
 # AllGo master execution tracker
 
-Updated 2026-10-18 (Asia/Calcutta). Existing branch: `codex/allgo-production-foundations`.
+Updated 2026-10-18 (Asia/Calcutta). Active branch: `main`.
 Statuses describe the stated scope only. Unit verification is not mobile or release acceptance.
 The detailed unresolved backlog in `../audit/remediation-register.md` remains binding; no older unchecked item is closed by this tracker.
 
@@ -17,6 +17,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | FIX-05 | P1 | Manual Neon/Firebase logout runs push and native credential cleanup before primary sign-out; failure isolation covered by 217 application tests; native/provider acceptance remains | Source verified |
 | FIX-06 | P0 | Logout/API-detected expiry share native push/location/auth cleanup before runtime invalidation; concurrent teardown is deduplicated and replacement login waits before its network request; 252 application tests and web build pass; real-device expiry detection/cleanup and persistence failure across restart remain | Source verified |
 | FIX-07 | P0 | Neon-linked accounts require a live allgoSession claim for Firestore and callables, including local mode; missing-claim bypass reproduced then repaired; 111 emulator tests pass; coordinated deployment/real-provider acceptance remain | Emulator verified |
+| FIX-08 | P0 | Account deletion processing now claims only `requested` or explicitly `failed` jobs; concurrent workers cannot restart cleanup while a job is already `processing`. Emulator regression verifies in-progress status and account data remain untouched. Abrupt worker termination recovery and cross-store staging acceptance remain open | Emulator verified |
 | DISPATCH-01 | P1 | Per-driver service/zone pagination, fresh-location eligibility, proximity-ranked offers, fixed nonrenewing 30-second leases, expired no-response reoffer, paginated later-driver alerts with current-profile rechecks and concurrent one-winner acceptance are emulator-covered; configured no-partner escalation and trip-bundle fallback are covered. Owner-approved centralized priority policy, live Maps billing/provider acceptance, production-scale load/fairness and native acceptance remain | In progress |
 | INCIDENT-01 | P2 | Failed-pickup and failed-delivery reporting choices now match the server's accepted booking stages; two UI policy regressions plus application suite and web build pass | Verified |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |

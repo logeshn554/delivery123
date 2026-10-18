@@ -1269,7 +1269,10 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
       transaction.get(db.collection('bundles').where('customerId', '==', uid).where('status', 'in', ['pending', 'active', 'partial']).limit(1)),
       transaction.get(db.collection('bundle_refund_intents').where('customerId', '==', uid).where('status', 'in', ['pending', 'provider_pending', 'reconciliation_required', 'manual_review']).limit(1))
     ]);
-    if (!deletion.exists || !['requested', 'processing', 'failed'].includes(deletion.data().status)) throw new HttpsError('failed-precondition', 'No pending deletion request.');
+    // Firestore retries competing transactions. Only requested/failed jobs may
+    // be claimed; allowing "processing" here lets a second operator run the
+    // destructive cross-store cleanup concurrently after a transaction retry.
+    if (!deletion.exists || !['requested', 'failed'].includes(deletion.data().status)) throw new HttpsError('failed-precondition', 'No unclaimed deletion request is available.');
     if (!bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
     transaction.update(deletionRef, { status: 'processing', startedAt: Timestamp.now(), operatorId: request.auth.uid, policyUrl: policy.policyUrl, neonAccountId: account.data()?.neonAccountId || null });
   });
