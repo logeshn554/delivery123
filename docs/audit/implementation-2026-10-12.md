@@ -1,5 +1,9 @@
 # Implementation progress — 2026-10-12
 
+## 2026-10-18 driver document expiry
+
+Added a daily Asia/Kolkata scheduler that checks only the currently verified evidence IDs and the live driver's policy-required expiry categories. A verified expired date changes the eligibility state with a revisioned audit event. The sweep takes drivers without active work offline and empties approved services; offer listing, offer acceptance, push alerts and Firestore online reactivation all reject expired eligibility. A driver already carrying a delivery keeps location and transition access until safe completion, where the profile moves offline; repeated completion stays replay-safe. Renewal accepts the expired state and returns the application to its existing evidence-review flow. Local `npm run test:rules` passed 123/123, application tests, TypeScript, web build and syntax checks passed. Actual owner policy configuration, scheduled deployment, merchant expiry, and partner/device acceptance remain open.
+
 ## Native compilation
 
 The interrupted Android build handle was missing on resumption. An APK existed, but artifact presence alone was insufficient proof of its terminal result. The cached SHA-verified Gradle 8.14.3 compile was rerun incrementally and returned exit 0, `BUILD SUCCESSFUL`, 306 tasks up to date. Android debug compilation is verified for the previously synced Capacitor 8 assets. This is not signed production release, Firebase native provider acceptance, physical-device acceptance or iOS compilation. No authorized phone was connected in the preceding check. Gradle deprecations and flat-directory warnings remain.

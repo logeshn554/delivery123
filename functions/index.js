@@ -64,7 +64,7 @@ Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGIO
 Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, Timestamp, journal, recordStockMovement, productWithinExpiry }));
 Object.assign(exports, grocerySubstitutionExpiryFunctions({ onSchedule, db, REGION, Timestamp }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
-Object.assign(exports, driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
+Object.assign(exports, driverEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 Object.assign(exports, merchantEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 function evidenceBucket(name) {
   const configured = process.env.EVIDENCE_STORAGE_BUCKET;
@@ -812,9 +812,9 @@ exports.getDriverEarningEstimate = onCall({ operation: 'getDriverEarningEstimate
 
 exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGION }, async request => {
   const uid = requireUser(request);
-  const [account, profile] = await Promise.all([db.doc(`users/${uid}`).get(), db.doc(`driver_profiles/${uid}`).get()]);
+  const [account, profile, eligibility] = await Promise.all([db.doc(`users/${uid}`).get(), db.doc(`driver_profiles/${uid}`).get(), db.doc(`driver_eligibility/${uid}`).get()]);
   const driver = profile.data();
-  if (account.data()?.role !== 'driver' || driver?.status !== 'verified' || driver.online !== true || driver.locationConsent !== true) throw new HttpsError('permission-denied', 'Only verified online drivers with location consent can receive jobs.');
+  if (account.data()?.role !== 'driver' || driver?.status !== 'verified' || driver.online !== true || driver.locationConsent !== true || eligibility.data()?.status === 'expired') throw new HttpsError('permission-denied', 'Only currently eligible verified online drivers with location consent can receive jobs.');
   if (driver.activeBookingId) return [];
   const services = [...new Set(driver.supportedServices || [])].filter(service => ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'].includes(service));
   const zones = await db.collection('service_zones').where('enabled', '==', true).get();
@@ -861,8 +861,8 @@ exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region:
   return db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`);
     const driverRef = db.doc(`driver_profiles/${uid}`);
-    const [booking, driver, account, offer] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_offers/${uid}/offers/${bookingId}`))]);
-    if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified' || driver.data()?.online !== true || driver.data()?.locationConsent !== true) throw new HttpsError('permission-denied', 'Only verified online drivers with location consent can accept jobs.');
+    const [booking, driver, account, offer, eligibility] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_offers/${uid}/offers/${bookingId}`)), transaction.get(db.doc(`driver_eligibility/${uid}`))]);
+    if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified' || driver.data()?.online !== true || driver.data()?.locationConsent !== true || eligibility.data()?.status === 'expired') throw new HttpsError('permission-denied', 'Only currently eligible verified online drivers with location consent can accept jobs.');
     if (driver.data()?.activeBookingId) throw new HttpsError('failed-precondition', 'Complete your current job before accepting another.');
     const data = booking.data();
     if (!offer.exists || offer.data().expiresAt.toMillis() <= Date.now() || offer.data().bookingVersion !== (data?.updatedAt || data?.createdAt) || !data || pickupEligibility(driver.data(), data) === null) throw new HttpsError('failed-precondition', 'This pickup offer expired or your location is stale. Refresh offers.');
@@ -892,9 +892,10 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
   const result = await db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
     const codeRef = db.doc(`booking_codes/${bookingId}`);
-    const [booking, driver, code, account] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`))]);
+    const [booking, driver, code, account, eligibility] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`))]);
     const data = booking.data();
-    if (!data || data.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.suspended === true || account.data()?.disabled === true || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'Verified driver access and assignment are required for this job.');
+    const completedReplay = data?.driverId === uid && data.status === 'completed' && next === 'completed';
+    if (!data || data.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.suspended === true || account.data()?.disabled === true || driver.data()?.status !== 'verified' && !completedReplay) throw new HttpsError('permission-denied', 'Verified driver access and assignment are required for this job.');
     if (!['paid', 'pending_cod'].includes(data.paymentStatus)) throw new HttpsError('failed-precondition', 'This job is in payment or cancellation review. Contact operations.');
     if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
@@ -931,7 +932,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
         const priceCents = Math.round(Number(data.price || 0) * 100);
         transaction.create(db.doc(`financial_journals/cod_collected_${bookingId}`), journal('cod_cash_collected', 'cash_in_hand_driver', 'customer_receivable_cod', priceCents, { bookingId, driverId: uid }));
       }
-      transaction.update(driverRef, { activeBookingId: null, earningsDate: today, todayEarnings: addCents(current.earningsDate === today ? Math.round(Number(current.todayEarnings || 0) * 100) : 0, payoutCents) / 100, availableEarningsCents: addCents(Number(current.availableEarningsCents || 0), payoutCents), completedJobs: Number(current.completedJobs || 0) + 1 });
+      transaction.update(driverRef, { activeBookingId: null, ...(eligibility.data()?.status === 'expired' ? { status: 'pending', online: false, supportedServices: [] } : {}), earningsDate: today, todayEarnings: addCents(current.earningsDate === today ? Math.round(Number(current.todayEarnings || 0) * 100) : 0, payoutCents) / 100, availableEarningsCents: addCents(Number(current.availableEarningsCents || 0), payoutCents), completedJobs: Number(current.completedJobs || 0) + 1 });
       transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}`), { bookingId, amountCents: payoutCents, type: 'delivery_earning', createdAt: Timestamp.now() });
       if (payoutCents > 0) transaction.create(db.doc(`financial_journals/driver_earning_${bookingId}`), journal('driver_earning', 'driver_expense_pending_allocation', 'driver_payable', payoutCents, { bookingId, driverId: uid }));
       transaction.update(bookingRef, { status: next, ...(wasCod ? { paymentStatus: 'paid', cashCollectedAt: new Date().toISOString() } : {}), driverPayout: payout, driverSettlement: settlement, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });

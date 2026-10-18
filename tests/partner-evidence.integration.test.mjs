@@ -38,7 +38,7 @@ beforeEach(async () => {
   scanner = evidenceScanningFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, getBucket: name => { assert.equal(name, bucket.name); return bucket; }, scan: async () => { if (scanHook) await scanHook(); if (verdict instanceof Error) throw verdict; return verdict; }, onCall: (_, handler) => ({ run: handler }), onSchedule: (_, handler) => ({ run: handler }) }); Object.assign(commands, scanner);
   Object.assign(commands, evidenceReviewFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, onCall: (_, handler) => ({ run: handler }) }));
   identity = { phoneNumber: '+919876500001', providerData: [{ providerId: 'phone', phoneNumber: '+919876500001' }] };
-  Object.assign(commands, driverEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }) }));
+  Object.assign(commands, driverEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }), onSchedule: (_, handler) => ({ run: handler }) }));
   Object.assign(commands, partnerApplicationFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, onCall: (_, handler) => ({ run: handler }) }));
   Object.assign(commands, merchantEligibilityFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getIdentity: async () => identity, onCall: (_, handler) => ({ run: handler }) }));
   Object.assign(commands, operationsFunctions({ db, REGION: 'asia-south1', HttpsError, Timestamp, documentId: checkedId, cleanText: checkedText, onCall: (_, handler) => ({ run: handler }) }));
@@ -84,6 +84,41 @@ test('approved driver renewal is scoped, preserves active custody and earnings, 
   const renewed = (await db.doc('driver_profiles/customer').get()).data();
   assert.equal(renewed.status, 'verified'); assert.equal(renewed.online, false); assert.equal(renewed.availableEarningsCents, 5000);
   assert.equal((await db.doc('partner_applications/application').get()).data().status, 'approved');
+});
+
+test('verified required-document expiry blocks eligibility and renewal restores the review path', async () => {
+  await db.doc('users/customer').update({ role: 'driver' });
+  await db.doc('partner_applications/application').set({ userId: 'customer', type: 'driver', status: 'approved', revision: 2, phone: identity.phoneNumber, phoneVerified: true });
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const yesterday = new Date(`${today}T00:00:00+05:30`); yesterday.setDate(yesterday.getDate() - 1);
+  const expiredOn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(yesterday);
+  await db.doc('platform_config/driver_eligibility').set({ enabled: true, version: 1, policyUrl: 'https://example.test/driver-policy', requiredKinds: { food: ['identity'] }, expiryRequiredKinds: ['identity'] });
+  await db.doc('partner_evidence/expired-proof').set({ userId: 'customer', kind: 'identity', reviewStatus: 'verified', verifiedExpiresOn: expiredOn });
+  await db.doc('driver_eligibility/customer').set({ driverId: 'customer', applicationId: 'application', status: 'verified', revision: 6, evidenceIds: ['expired-proof'], supportedServices: ['food'] });
+  await db.doc('driver_profiles/customer').set({ driverId: 'customer', vehicleType: 'bike', vehicleNo: 'REG1', licenseNo: 'LIC1', status: 'verified', online: true, supportedServices: ['food'], activeBookingId: null });
+  assert.deepEqual(await commands.expireDriverEligibility.run(), { examined: 1, expired: 1, asOf: today });
+  const state = (await db.doc('driver_eligibility/customer').get()).data(), profile = (await db.doc('driver_profiles/customer').get()).data();
+  assert.equal(state.status, 'expired'); assert.equal(state.revision, 7); assert.equal(profile.status, 'pending'); assert.equal(profile.online, false); assert.deepEqual(profile.supportedServices, []);
+  assert.equal((await db.doc(`driver_eligibility/customer/events/expiry_${today}`).get()).data().action, 'eligibility_expired');
+  assert.deepEqual(await commands.expireDriverEligibility.run(), { examined: 0, expired: 0, asOf: today });
+  const renewal = await call('requestPartnerRenewal', 'customer', { applicationId: 'application', expectedRevision: 2, requestId: 'expired-renewal', reason: 'Replace expired identity document.' });
+  assert.deepEqual(renewal, { status: 'needs_information', revision: 3 });
+  assert.equal((await db.doc('driver_eligibility/customer').get()).data().status, 'needs_information');
+});
+
+test('required-document expiry leaves an active delivery assigned for safe completion', async () => {
+  await db.doc('users/customer').update({ role: 'driver' });
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const yesterday = new Date(`${today}T00:00:00+05:30`); yesterday.setDate(yesterday.getDate() - 1);
+  const expiredOn = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(yesterday);
+  await db.doc('platform_config/driver_eligibility').set({ enabled: true, version: 1, expiryRequiredKinds: ['identity'] });
+  await db.doc('partner_evidence/active-proof').set({ userId: 'customer', kind: 'identity', reviewStatus: 'verified', verifiedExpiresOn: expiredOn });
+  await db.doc('driver_eligibility/customer').set({ driverId: 'customer', status: 'verified', revision: 1, evidenceIds: ['active-proof'], supportedServices: ['food'] });
+  await db.doc('driver_profiles/customer').set({ driverId: 'customer', vehicleType: 'bike', vehicleNo: 'REG1', licenseNo: 'LIC1', status: 'verified', online: true, supportedServices: ['food'], activeBookingId: 'active-job', locationConsent: true });
+  assert.deepEqual(await commands.expireDriverEligibility.run(), { examined: 1, expired: 1, asOf: today });
+  const profile = (await db.doc('driver_profiles/customer').get()).data();
+  assert.equal(profile.activeBookingId, 'active-job'); assert.equal(profile.status, 'verified'); assert.equal(profile.online, true);
+  assert.equal((await db.doc('driver_eligibility/customer').get()).data().status, 'expired');
 });
 
 test('merchant eligibility links the applicant, reviewed evidence and closed catalog under the live policy', async () => {

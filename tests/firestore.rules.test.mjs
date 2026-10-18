@@ -116,6 +116,20 @@ test('even administrators cannot bypass audited driver eligibility through clien
   await assertFails(setDoc(doc(dbFor('admin', { admin: true }), 'driver_eligibility/driver/events/forged'), { actorId: 'admin' }));
 });
 
+test('expired eligibility cannot be re-enabled by a driver while an active delivery can keep location tracking', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'driver_eligibility/driver'), { status: 'expired', revision: 2 });
+    await updateDoc(doc(db, 'driver_profiles/driver'), { online: false });
+  });
+  await assertFails(updateDoc(doc(dbFor('driver'), 'driver_profiles/driver'), { online: true }));
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await updateDoc(doc(db, 'driver_profiles/driver'), { online: true, activeBookingId: 'assigned', locationConsent: true });
+  });
+  await assertSucceeds(updateDoc(doc(dbFor('driver'), 'driver_profiles/driver'), { online: true }));
+});
+
 test('private evidence metadata and quota controls cannot be forged or read across accounts', async () => {
   await env.withSecurityRulesDisabled(async context => {
     await setDoc(doc(context.firestore(), 'partner_evidence/proof'), { userId: 'customer', status: 'quarantined', scanStatus: 'pending' });

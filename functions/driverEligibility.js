@@ -1,7 +1,7 @@
 const { EVIDENCE_KINDS, activeRetention } = require('./evidencePolicy');
-function driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, getIdentity }) {
+function driverEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity }) {
   const services = ['food', 'grocery', 'parcel', 'ride', 'takeover', 'transport'];
-  return {
+  const exports = {
     getDriverEligibilityPolicy: onCall({ operation: 'getDriverEligibilityPolicy', region: REGION }, async request => {
       const uid = request.auth?.uid, operator = uid ? (await db.doc(`users/${uid}`).get()).data() : null;
       if (!uid || request.auth.token.admin !== true || operator?.role !== 'admin') throw new HttpsError('permission-denied', 'Operations access is required.');
@@ -66,5 +66,47 @@ function driverEligibilityFunctions({ onCall, db, REGION, HttpsError, documentId
       });
     })
   };
+  if (onSchedule) exports.expireDriverEligibility = onSchedule({ schedule: 'every day 00:15', timeZone: 'Asia/Kolkata', region: REGION, maxInstances: 1, timeoutSeconds: 540 }, async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    let cursor = null, examined = 0, expired = 0;
+    while (true) {
+      let query = db.collection('driver_eligibility').where('status', '==', 'verified').orderBy('__name__').limit(100);
+      if (cursor) query = query.startAfter(cursor);
+      const page = await query.get();
+      if (page.empty) break;
+      for (const snapshot of page.docs) {
+        examined += 1;
+        const stateRef = snapshot.ref, driverId = snapshot.id;
+        const didExpire = await db.runTransaction(async tx => {
+          const [state, policy] = await Promise.all([tx.get(stateRef), tx.get(db.doc('platform_config/driver_eligibility'))]);
+          const current = state.data(), required = policy.data()?.expiryRequiredKinds;
+          if (!current || current.status !== 'verified' || !Array.isArray(current.evidenceIds) || !Array.isArray(required) || !required.length) return false;
+          const selectedIds = current.evidenceIds.filter(id => typeof id === 'string');
+          if (!selectedIds.length || selectedIds.length > 10) return false;
+          const proofs = await Promise.all(selectedIds.map(id => tx.get(db.doc(`partner_evidence/${id}`))));
+          const expiredProof = proofs.some(proof => {
+            const value = proof.data();
+            return value && value.userId === driverId && required.includes(value.kind) && typeof value.verifiedExpiresOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.verifiedExpiresOn) && value.verifiedExpiresOn < today;
+          });
+          if (!expiredProof) return false;
+          const profileRef = db.doc(`driver_profiles/${driverId}`), profile = await tx.get(profileRef);
+          if (!profile.exists) return false;
+          const revision = (current.revision || 0) + 1, now = new Date().toISOString(), eventId = `expiry_${today}`;
+          const eventRef = stateRef.collection('events').doc(eventId), priorEvent = await tx.get(eventRef);
+          if (priorEvent.exists) return false;
+          tx.update(stateRef, { status: 'expired', revision, supportedServices: [], expiredAt: now, expiredOn: today, expiredEvidenceCheckedAt: now });
+          // Keep the current assignment and location service alive so custody can finish safely.
+          if (!profile.data().activeBookingId) tx.update(profileRef, { status: 'pending', online: false, supportedServices: [] });
+          tx.create(eventRef, { action: 'eligibility_expired', actorId: 'system', revision, expiredOn: today, createdAt: now });
+          return true;
+        });
+        if (didExpire) expired += 1;
+      }
+      if (page.size < 100) break;
+      cursor = page.docs.at(-1);
+    }
+    return { examined, expired, asOf: today };
+  });
+  return exports;
 }
 module.exports = { driverEligibilityFunctions };

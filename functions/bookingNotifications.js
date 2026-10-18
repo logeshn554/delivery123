@@ -46,10 +46,13 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
           const page = await (cursor ? query.startAfter(cursor) : query).get();
           if (page.empty) break;
           const profiles = page.docs.map(profile => ({ uid: profile.id, profile: profile.data() }));
-          const accounts = await Promise.all(profiles.map(({ uid }) => db.doc(`users/${uid}`).get()));
+          const [accounts, eligibility] = await Promise.all([
+            Promise.all(profiles.map(({ uid }) => db.doc(`users/${uid}`).get())),
+            Promise.all(profiles.map(({ uid }) => db.doc(`driver_eligibility/${uid}`).get()))
+          ]);
           for (let index = 0; index < profiles.length; index += 1) {
             const { uid, profile } = profiles[index], account = accounts[index].data();
-            if (uid !== booking.customerId && active(account) && account.role === 'driver' && account.preferences?.orderUpdates !== false && profile.activeBookingId == null && !profile.rejectedBookingIds?.includes(bookingId) && isOfferEligible?.(profile, booking, zone)) add(uid, 'dispatch');
+            if (uid !== booking.customerId && eligibility[index].data()?.status !== 'expired' && active(account) && account.role === 'driver' && account.preferences?.orderUpdates !== false && profile.activeBookingId == null && !profile.rejectedBookingIds?.includes(bookingId) && isOfferEligible?.(profile, booking, zone)) add(uid, 'dispatch');
           }
           if (page.size < 100) break;
           cursor = page.docs.at(-1);

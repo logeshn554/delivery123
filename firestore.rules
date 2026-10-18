@@ -33,6 +33,11 @@ service cloud.firestore {
       return isSignedIn() && (driverId == request.auth.uid || driverId == request.auth.uid + '_drv');
     }
 
+    function driverEligibilityNotExpired(driverId) {
+      let eligibility = /databases/$(database)/documents/driver_eligibility/$(driverId);
+      return !exists(eligibility) || get(eligibility).data.get('status', '') != 'expired';
+    }
+
     function isAssignedVerifiedDriver(data) {
       return isDriverOwner(data.get('driverId', ''))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver'
@@ -43,7 +48,8 @@ service cloud.firestore {
       return isSignedIn()
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver'
         && get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data.status == 'verified'
-        && get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data.online == true;
+        && get(/databases/$(database)/documents/driver_profiles/$(request.auth.uid)).data.online == true
+        && driverEligibilityNotExpired(request.auth.uid);
     }
 
     function canReceiveBooking(data) {
@@ -263,6 +269,7 @@ allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && i
           incoming().get('locationConsent', false) == existing().get('locationConsent', false) &&
           incoming().get('locationConsentAt', null) == existing().get('locationConsentAt', null) &&
           (!incoming().online || incoming().get('locationConsent', false) == true) &&
+          (!incoming().online || existing().get('activeBookingId', null) != null || driverEligibilityNotExpired(driverId)) &&
           (existing().status != 'verified' || (incoming().vehicleType == existing().vehicleType && incoming().vehicleNo == existing().vehicleNo && incoming().licenseNo == existing().licenseNo)) &&
           incoming().get('earningsDate', null) == existing().get('earningsDate', null)
         ))

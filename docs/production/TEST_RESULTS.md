@@ -93,3 +93,10 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - Provider/device delivery, background tap behavior, hosted CI for the recent pushed commits and production-scale dispatch load remain unverified.
 - The available GitHub combined-status and commit workflow-run lookups returned no checks/runs for pushed commit `04caa15`.
 
+## 2026-10-18 driver eligibility expiry
+
+- Added a daily Asia/Kolkata expiry sweep for operations-verified document dates that are currently required by the published driver policy. It records an immutable eligibility event, blocks new dispatch and acceptance, and prevents client reactivation. Drivers with an active assignment retain location and fulfillment access until completion; completion then takes the expired profile offline. Renewal can start from the expired state.
+- `npm run test:rules`: **123 passed, 0 failed, 0 skipped**. Regressions cover expiry, idempotent sweep, renewal, active custody, online-rule protection, expired dispatch/push filtering, and six service journeys completing and retrying after a mid-job expiry.
+- `npm test`, `npm run lint`, `npm run build`, `node --check` on changed Functions files, and `git diff --check` passed. The build retains the existing large-chunk advisory. Emulator warnings about unset Maps/Razorpay test secrets are expected; provider calls are mocked and no production data was used.
+- Hosted verification for the resulting source revision is pending; policy configuration and real partner/device acceptance remain unverified.
+

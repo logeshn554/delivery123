@@ -81,11 +81,13 @@ test('dispatch offer pushes wake only fresh, consented, in-zone eligible drivers
     ['outside', { ...eligible, currentLat: 15 }, 'driver-outside'],
     ['stale', { ...eligible, locationUpdatedAt: new Date(Date.now() - 120000).toISOString() }, 'driver-stale'],
     ['busy', { ...eligible, activeBookingId: 'another_job' }, 'driver-busy'],
+    ['expired', eligible, 'driver-expired'],
     ['no_consent', { ...eligible, locationConsent: false }, 'driver-no-consent'],
   ];
   for (const [uid, profile, token] of candidates) {
     await db.doc(`users/${uid}`).set({ role: 'driver' });
     await db.doc(`driver_profiles/${uid}`).set(profile);
+    if (uid === 'expired') await db.doc(`driver_eligibility/${uid}`).set({ status: 'expired' });
     await callable('registerPushDevice', uid, { audience: 'driver', token, platform: 'android' });
   }
   await db.doc('users/customer').update({ role: 'driver' });
@@ -218,6 +220,7 @@ for (const serviceType of ['food', 'grocery']) {
       assert.notEqual(offers[0].dropAddress, confirmed.dropAddress);
       await callable('acceptDriverBooking', 'driver', { bookingId: id });
       assert.equal((await ref.get()).data().driverId, 'driver');
+      await db.doc('driver_eligibility/driver').set({ driverId: 'driver', status: 'expired', revision: 1 });
       await callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'preparing' });
       await callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'transit' });
       await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'completed', otp: 'invalid' }), error => error.code === 'permission-denied');
@@ -227,7 +230,7 @@ for (const serviceType of ['food', 'grocery']) {
       await callable('advanceDriverBooking', 'driver', completion);
       const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
       assert.equal(completed.status, 'completed'); assert.equal(completed.driverPayout, 40);
-      assert.equal(driver.activeBookingId, null); assert.equal(driver.completedJobs, 1); assert.equal(driver.availableEarningsCents, 4000);
+      assert.equal(driver.activeBookingId, null); assert.equal(driver.status, 'pending'); assert.equal(driver.online, false); assert.deepEqual(driver.supportedServices, []); assert.equal(driver.completedJobs, 1); assert.equal(driver.availableEarningsCents, 4000);
       assert.equal((await db.collection('driver_ledger/driver/entries').get()).size, 1);
       assert.equal((await db.doc(`booking_codes/${id}`).get()).exists, false);
       assert.equal((await db.doc(itemPath).get()).data().stock, serviceType === 'grocery' ? 9 : 10);
@@ -813,6 +816,14 @@ test('dispatch creates expiring eligible offers and rejects an expired lease', a
   await db.doc('driver_offers/driver/offers/pickup').update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
   await assert.rejects(callable('acceptDriverBooking', 'driver', { bookingId: 'pickup' }), error => error.code === 'failed-precondition');
   assert.equal((await db.doc('bookings/pickup').get()).data().driverId, null);
+});
+test('expired driver eligibility blocks new offer lists and acceptance', async () => {
+  const now = new Date().toISOString();
+  await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', online: true, locationConsent: true, supportedServices: ['ride'], vehicleType: 'car', currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 });
+  await db.doc('driver_eligibility/driver').set({ driverId: 'driver', status: 'expired', revision: 2 });
+  await assert.rejects(callable('listDriverOffers', 'driver'), error => error.code === 'permission-denied');
+  await assert.rejects(callable('acceptDriverBooking', 'driver', { bookingId: 'pickup' }), error => error.code === 'permission-denied');
 });
 test('a no-response booking is reoffered after its lease expires and accepted by the next driver', async () => {
   const now = new Date().toISOString();
