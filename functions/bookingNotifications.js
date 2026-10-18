@@ -6,6 +6,10 @@ const merchantFor = (account, booking) => active(account) && account.role === 'm
 
 function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging, isOfferEligible }) {
   const deviceRef = token => db.doc(`push_devices/${crypto.createHash('sha256').update(token).digest('hex')}`);
+  const freshLocation = (profile, now = Date.now()) => {
+    const updatedAt = Date.parse(profile?.locationUpdatedAt || ''), lat = profile?.currentLat, lng = profile?.currentLng, accuracy = profile?.locationAccuracyMeters;
+    return Number.isFinite(updatedAt) && updatedAt <= now + 5000 && now - updatedAt <= 60000 && Number.isFinite(lat) && lat >= -90 && lat <= 90 && Number.isFinite(lng) && lng >= -180 && lng <= 180 && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 100;
+  };
   const registerPushDevice = onCall({ operation: 'registerPushDevice', region: REGION }, async request => {
     const uid = requireUser(request), token = cleanText(request.data?.token, 'Device token', 4096);
     const audience = request.data?.audience ?? 'customer';
@@ -84,6 +88,58 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
       }
     }
   });
-  return { registerPushDevice, unregisterPushDevice, notifyBookingChange };
+  const notifyDriverAvailability = onDocumentWritten({ region: REGION, database: databaseId, document: 'driver_profiles/{uid}', retry: true, timeoutSeconds: 120 }, async event => {
+    const profile = event.data?.after.data(), previous = event.data?.before.data();
+    const available = profile?.status === 'verified' && profile.online === true && profile.locationConsent === true && profile.activeBookingId == null;
+    const becameAvailable = available && (!previous || previous.status !== 'verified' || previous.online !== true || previous.locationConsent !== true || previous.activeBookingId != null || !freshLocation(previous) && freshLocation(profile));
+    if (!becameAvailable) return;
+
+    const uid = event.params.uid;
+    const [accountSnapshot, eligibilitySnapshot, zoneSnapshot] = await Promise.all([
+      db.doc(`users/${uid}`).get(), db.doc(`driver_eligibility/${uid}`).get(), db.collection('service_zones').where('enabled', '==', true).get()
+    ]);
+    const account = accountSnapshot.data();
+    if (!active(account) || account.role !== 'driver' || account.preferences?.orderUpdates === false || eligibilitySnapshot.data()?.status === 'expired') return;
+
+    const services = [...new Set(profile.supportedServices || [])].filter(service => ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'].includes(service));
+    const zones = zoneSnapshot.docs.filter(zone => services.some(service => zone.data().serviceTypes?.includes(service)));
+    let hasOffer = false;
+    for (const zoneDocument of zones) {
+      const zone = zoneDocument.data();
+      for (const service of services.filter(value => zone.serviceTypes?.includes(value))) {
+        const status = ['food', 'grocery'].includes(service) ? 'ready' : 'pending';
+        const page = await db.collection('bookings').where('serviceType', '==', service).where('status', '==', status)
+          .where('driverId', '==', null).where('details.pickupZoneId', '==', zoneDocument.id).orderBy('__name__').limit(100).get();
+        for (const candidate of page.docs) {
+          const booking = candidate.data();
+          if (booking.exception?.status === 'open' || !['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.customerId === uid ||
+              profile.rejectedBookingIds?.includes(candidate.id) || !isOfferEligible?.(profile, booking, zone)) continue;
+          hasOffer = true;
+          break;
+        }
+        if (hasOffer) break;
+      }
+      if (hasOffer) break;
+    }
+    if (!hasOffer) return;
+
+    const devices = await db.collection('push_devices').where('uid', '==', uid).get();
+    const targets = devices.docs.filter(record => {
+      const device = record.data(), expiresAt = typeof device.expiresAt?.toMillis === 'function' ? device.expiresAt.toMillis() : NaN;
+      return device.audience === 'driver' && Number.isFinite(expiresAt) && expiresAt > Date.now() && typeof device.token === 'string' && device.token.length > 0;
+    });
+    for (let offset = 0; offset < targets.length; offset += 500) {
+      const chunk = targets.slice(offset, offset + 500);
+      const result = await messaging().sendEachForMulticast({
+        tokens: chunk.map(record => record.data().token),
+        notification: { title: 'Delivery requests available', body: 'Open AllGo to review nearby delivery requests.' },
+        data: { type: 'dispatch_offer', eventId: event.id },
+        android: { collapseKey: 'allgo_dispatch' }, apns: { headers: { 'apns-collapse-id': 'allgo_dispatch' } }
+      });
+      await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
+      if (result.responses.some(response => response.error && !['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error.code))) throw new Error('One or more driver availability notifications require retry.');
+    }
+  });
+  return { registerPushDevice, unregisterPushDevice, notifyBookingChange, notifyDriverAvailability };
 }
 module.exports = { bookingNotificationFunctions };

@@ -105,6 +105,50 @@ test('dispatch offer pushes wake only fresh, consented, in-zone eligible drivers
   });
 });
 
+test('drivers who become available receive a private background alert for existing eligible work', async () => {
+  const now = new Date().toISOString();
+  const before = { status: 'verified', online: false, locationConsent: true, supportedServices: ['parcel'] };
+  const onlineButStale = { ...before, online: true };
+  const after = { ...onlineButStale, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 };
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  await db.doc('users/later_driver').set({ role: 'driver' });
+  await db.doc('driver_profiles/later_driver').set(before);
+  await db.doc('bookings/ALLGO_later_offer').set({ bookingId: 'ALLGO_later_offer', customerId: 'customer', status: 'pending', driverId: null, paymentStatus: 'paid', serviceType: 'parcel', recipientPhone: '+919999999999', details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
+  await callable('registerPushDevice', 'later_driver', { audience: 'driver', token: 'later-driver-app', platform: 'android' });
+  await callable('registerPushDevice', 'later_driver', { audience: 'customer', token: 'later-customer-app', platform: 'android' });
+  await db.doc('driver_profiles/later_driver').set(after);
+  const available = (previous, profile) => compiled.exports.notifyDriverAvailability.run({ id: 'driver-online-event', params: { uid: 'later_driver' }, data: { before: { data: () => previous }, after: { data: () => profile } } });
+  await notificationHarness(async sent => {
+    await available(before, onlineButStale);
+    assert.deepEqual(sent, []);
+    await available(onlineButStale, after);
+    assert.deepEqual(sent.flatMap(message => message.tokens), ['later-driver-app']);
+    assert.deepEqual(sent[0].data, { type: 'dispatch_offer', eventId: 'driver-online-event' });
+    assert.equal(sent[0].notification.title, 'Delivery requests available');
+    assert.equal(JSON.stringify(sent[0]).includes('+919999999999'), false);
+    assert.equal(JSON.stringify(sent[0]).includes('ALLGO_later_offer'), false);
+    sent.length = 0;
+    await available(after, { ...after, locationUpdatedAt: new Date(Date.now() + 1000).toISOString() });
+    assert.deepEqual(sent, []);
+  });
+});
+
+test('later-driver alerts exclude expired eligibility even when an open pickup matches', async () => {
+  const now = new Date().toISOString();
+  const before = { status: 'verified', online: false, locationConsent: true, supportedServices: ['parcel'] };
+  const after = { ...before, online: true, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 };
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  await db.doc('users/expired_later_driver').set({ role: 'driver' });
+  await db.doc('driver_profiles/expired_later_driver').set(after);
+  await db.doc('driver_eligibility/expired_later_driver').set({ status: 'expired' });
+  await db.doc('bookings/ALLGO_expired_later_offer').set({ customerId: 'customer', status: 'pending', driverId: null, paymentStatus: 'paid', serviceType: 'parcel', details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
+  await callable('registerPushDevice', 'expired_later_driver', { audience: 'driver', token: 'expired-later-driver-app', platform: 'android' });
+  await notificationHarness(async sent => {
+    await compiled.exports.notifyDriverAvailability.run({ id: 'expired-driver-online-event', params: { uid: 'expired_later_driver' }, data: { before: { data: () => before }, after: { data: () => after } } });
+    assert.deepEqual(sent, []);
+  });
+});
+
 test('notification registration rejects invalid audiences and unapproved partner identities', async () => {
   for (const data of [{ audience: 'admin', platform: 'android' }, { audience: 'customer', platform: 'web' }, { audience: 'driver', platform: 'android' }, { audience: 'merchant', platform: 'android' }]) {
     await assert.rejects(callable('registerPushDevice', 'customer', { token: 'test-device', ...data }), error => ['invalid-argument', 'permission-denied'].includes(error.code));
