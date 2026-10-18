@@ -114,3 +114,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. `npm run test:rules`: **129 passed, 0 failed, 0 skipped**, including scheduled-worker cases before and after the timeout, with an assigned ride driver, and beyond the first 50 collection-group results. `npm test`: **71 Functions, 93 UI and 98 server tests passed**; secret scan inspected 744 snapshots. TypeScript lint and development build passed; the existing large-chunk advisory remains.
 - The integration test uses the Firestore emulator and synthetic booking records. It does not establish production schedule delivery, real provider/driver availability, live dispatch fairness or native acceptance.
 
+## 2026-10-18 standard dispatch lease expiry
+
+- Driver offer refresh no longer resets active per-driver lease deadlines. Existing active offers remain visible ahead of newly discovered jobs; page rotation resumes as those leases expire, and no-response offers remain available to other eligible drivers.
+- `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. `npm run test:rules`: **130 passed, 0 failed, 0 skipped**, including repeated-poll expiry preservation, active offers retained when a nearer job appears, pagination after expiry and second-driver acceptance. `npm test`: **71 Functions, 93 UI and 98 server tests passed**; secret scan inspected 744 snapshots. TypeScript lint, development build, syntax checks and `git diff --check` passed; the build retains its existing large-chunk advisory.
+- Provider/device timing and production load/fairness are not established by these emulator tests.
+

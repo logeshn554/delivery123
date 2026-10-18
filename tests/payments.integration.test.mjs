@@ -879,9 +879,34 @@ test('dispatch creates expiring eligible offers and rejects an expired lease', a
   await db.doc('bookings/pickup').set({ serviceType: 'ride', status: 'pending', driverId: null, paymentStatus: 'paid', price: 100, createdAt: now, updatedAt: now, details: { vehicleType: 'car', pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
   const offers = await callable('listDriverOffers', 'driver');
   assert.equal(offers.length, 1);
+  const originalExpiry = (await db.doc('driver_offers/driver/offers/pickup').get()).data().expiresAt.toMillis();
+  const refreshed = await callable('listDriverOffers', 'driver');
+  assert.equal(refreshed.length, 1);
+  assert.equal(Date.parse(refreshed[0].offerExpiresAt), originalExpiry);
+  assert.equal((await db.doc('driver_offers/driver/offers/pickup').get()).data().expiresAt.toMillis(), originalExpiry);
   await db.doc('driver_offers/driver/offers/pickup').update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
   await assert.rejects(callable('acceptDriverBooking', 'driver', { bookingId: 'pickup' }), error => error.code === 'failed-precondition');
   assert.equal((await db.doc('bookings/pickup').get()).data().driverId, null);
+});
+test('dispatch refresh preserves unexpired offers ahead of newly nearer work', async () => {
+  const now = new Date().toISOString();
+  await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', online: true, locationConsent: true, supportedServices: ['parcel'], currentLat: 13.01, currentLng: 80.2, locationUpdatedAt: now, locationAccuracyMeters: 10 });
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  const batch = db.batch();
+  for (let i = 0; i < 31; i += 1) {
+    const id = `stable_${String(i).padStart(2, '0')}`, lat = 13.01 + i * 0.001;
+    batch.set(db.doc(`bookings/${id}`), { serviceType: 'parcel', status: 'pending', driverId: null, paymentStatus: 'paid', price: 100, createdAt: now, updatedAt: now, details: { pickupZoneId: 'city', pickupLocation: { lat, lng: 80.2 } } });
+  }
+  await batch.commit();
+  const first = await callable('listDriverOffers', 'driver');
+  assert.equal(first.length, 30);
+  const firstIds = new Set(first.map(offer => offer.bookingId));
+
+  await db.doc('driver_profiles/driver').update({ currentLat: 13.04, locationUpdatedAt: new Date().toISOString() });
+  const refreshed = await callable('listDriverOffers', 'driver');
+  assert.equal(refreshed.length, 30);
+  assert.deepEqual(new Set(refreshed.map(offer => offer.bookingId)), firstIds);
 });
 test('expired driver eligibility blocks new offer lists and acceptance', async () => {
   const now = new Date().toISOString();
@@ -906,7 +931,7 @@ test('a no-response booking is reoffered after its lease expires and accepted by
   assert.equal((await callable('acceptDriverBooking', 'next_driver', { bookingId: 'reoffer' })).status, 'accepted');
   assert.equal((await db.doc('bookings/reoffer').get()).data().driverId, 'next_driver');
 });
-test('driver offer listing rotates through paginated zone results without hiding bookings after the first 100', async () => {
+test('driver offer listing reaches paginated zone results after the first offer leases expire', async () => {
   const now = new Date().toISOString();
   await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
   await db.doc('driver_profiles/driver').set({ status: 'verified', online: true, locationConsent: true, supportedServices: ['parcel'], currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 });
@@ -917,6 +942,9 @@ test('driver offer listing rotates through paginated zone results without hiding
   const firstPage = await callable('listDriverOffers', 'driver');
   assert.equal(firstPage.length, 30);
   assert.ok(firstPage.every(offer => Number(offer.bookingId.slice(-3)) < 100));
+  const expire = db.batch(), expiredAt = Timestamp.fromMillis(Date.now() - 1000);
+  for (const offer of firstPage) expire.update(db.doc(`driver_offers/driver/offers/${offer.bookingId}`), { expiresAt: expiredAt });
+  await expire.commit();
   const secondPage = await callable('listDriverOffers', 'driver');
   assert.ok(secondPage.some(offer => offer.bookingId === 'parcel_100'));
   assert.ok(secondPage.length <= 30);

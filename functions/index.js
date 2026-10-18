@@ -837,6 +837,7 @@ exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGIO
   const freshIds = new Set(fresh.map(document => document.id));
   const previous = await db.collection(`driver_offers/${uid}/offers`).where('expiresAt', '>', Timestamp.now()).orderBy('expiresAt').limit(30).get();
   const priorOffers = new Map(previous.docs.map(offer => [offer.id, offer.data()]));
+  const offerEvaluationTime = Date.now();
   const priorIds = previous.docs.filter(offer => !freshIds.has(offer.id)).map(offer => offer.id);
   const priorBookings = await Promise.all(priorIds.map(id => db.doc(`bookings/${id}`).get()));
   const candidates = [...new Map([...fresh, ...priorBookings.filter(snapshot => snapshot.exists)].map(doc => [doc.id, doc])).values()].filter(document => {
@@ -845,14 +846,25 @@ exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGIO
     const dispatchable = ['food', 'grocery'].includes(booking.serviceType) ? booking.status === 'ready' : booking.status === 'pending';
     return dispatchable && !booking.driverId && booking.exception?.status !== 'open' && ['paid', 'pending_cod'].includes(booking.paymentStatus) && pickupEligibility(driver, booking) !== null && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities, booking.details)) && (!offer || offer.bookingVersion === (booking.updatedAt || booking.createdAt));
   }).sort((a, b) => {
-    const aFresh = freshIds.has(a.id), bFresh = freshIds.has(b.id);
-    return Number(bFresh) - Number(aFresh) || pickupEligibility(driver, a.data()) - pickupEligibility(driver, b.data());
+    const aLease = priorOffers.get(a.id), bLease = priorOffers.get(b.id);
+    const aActive = aLease?.expiresAt?.toMillis() > offerEvaluationTime, bActive = bLease?.expiresAt?.toMillis() > offerEvaluationTime;
+    const age = Date.parse(a.data().createdAt || '') - Date.parse(b.data().createdAt || '');
+    return Number(bActive) - Number(aActive) || pickupEligibility(driver, a.data()) - pickupEligibility(driver, b.data()) || (Number.isFinite(age) ? age : 0) || a.id.localeCompare(b.id);
   }).slice(0, 30);
-  const expiresAt = Timestamp.fromMillis(Date.now() + 30000);
+  const now = Date.now(), newExpiresAt = Timestamp.fromMillis(now + 30000);
   const batch = db.batch();
-  for (const document of candidates) batch.set(db.doc(`driver_offers/${uid}/offers/${document.id}`), { bookingVersion: document.data().updatedAt || document.data().createdAt, expiresAt });
-  await batch.commit();
-  return candidates.map(document => ({ ...publicOffer(document.id, document.data()), offerExpiresAt: expiresAt.toDate().toISOString() }));
+  let hasNewLeases = false;
+  const offers = candidates.map(document => {
+    const previousLease = priorOffers.get(document.id), activeLease = previousLease?.expiresAt?.toMillis() > now;
+    const expiresAt = activeLease ? previousLease.expiresAt : newExpiresAt;
+    if (!activeLease) {
+      batch.set(db.doc(`driver_offers/${uid}/offers/${document.id}`), { bookingVersion: document.data().updatedAt || document.data().createdAt, expiresAt });
+      hasNewLeases = true;
+    }
+    return { ...publicOffer(document.id, document.data()), offerExpiresAt: expiresAt.toDate().toISOString() };
+  });
+  if (hasNewLeases) await batch.commit();
+  return offers;
 });
 
 exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region: REGION }, async (request) => {
