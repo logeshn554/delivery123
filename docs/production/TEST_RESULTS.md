@@ -91,4 +91,5 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm test`: passed (Functions, UI, server and secret scan); `npm run lint` and `npm run build` passed. The build retains the existing large-chunk advisory.
 - `node --check` passed for the changed Functions files; Firestore index JSON parsed and includes the driver candidate query index; logout cleanup regression covers clearing the dispatch navigation intent.
 - Provider/device delivery, background tap behavior, hosted CI for the recent pushed commits and production-scale dispatch load remain unverified.
+- The available GitHub combined-status and commit workflow-run lookups returned no checks/runs for pushed commit `04caa15`.
 
