@@ -178,7 +178,7 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 
 # 2026-10-18 checkout reconciliation fairness
 
-- `reconcileCheckoutIntents` now paginates open payment intents with a persisted `(createdAt, documentId)` cursor and wraps at the end of the result set. A Firestore integration test seeds 51 old provider-created wallet intents and returns mocked HTTP 503 responses, proving the worker checks 50, then the 51st, then wraps to the first page.
+- `reconcileCheckoutIntents` now paginates open payment intents with a persisted `(createdAt, documentId)` cursor after each completed intent and wraps at the end of the result set. A Firestore integration test seeds 51 old provider-created wallet intents and returns mocked HTTP 503 responses, proving the worker checks 50, then the 51st, then wraps to the first page. Slow individual provider calls remain untested against a deployed timeout, but completed page items are checkpointed as they finish.
 - `npm run test:rules`: **135 passed, 0 failed, 0 skipped** (130.8s). `node --check` for changed JavaScript and `git diff --check` passed. Provider access was mocked; no transaction or live schedule was run against Razorpay.
 - This verifies local cursor fairness only. Signed provider reconciliation, deployed scheduler delivery, payment finality, and operations ownership for persistently failing records remain open.
 

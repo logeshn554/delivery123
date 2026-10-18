@@ -1419,9 +1419,9 @@ exports.reconcileCheckoutIntents = onSchedule({ schedule: 'every 5 minutes', reg
   for (const intent of pending.docs) {
     try { await reconcilePaymentIntent(intent.ref); }
     catch { console.error('Checkout reconciliation needs retry', { intentId: intent.id }); }
+    await cursorRef.set({ createdAt: intent.data().createdAt, lastId: intent.id, checkedAt: Timestamp.now() });
   }
-  const last = pending.docs.at(-1);
-  await cursorRef.set({ createdAt: last?.data().createdAt || null, lastId: last?.id || null, checkedAt: Timestamp.now() });
+  if (pending.empty) await cursorRef.set({ createdAt: null, lastId: null, checkedAt: Timestamp.now() });
 });
 
 async function reconcileProviderRefund(attemptRef, payment, eventId, failed = false) {
