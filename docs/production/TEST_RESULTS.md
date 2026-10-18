@@ -126,6 +126,8 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. `npm run test:rules`: **130 passed, 0 failed, 0 skipped**. TypeScript lint, development build, changed-file syntax checks and `git diff --check` passed. The build retains the existing large-chunk advisory.
 - Emulator tests do not establish production scheduler delivery or live driver/operations response.
 
+- COD exception reports and operations resolutions now accept active `pending_cod` bookings. `npm run test:rules`: **130 passed, 0 failed, 0 skipped**; the emulator verifies no-partner review restarts the search timer and a COD delivery incident can be reported and resolved. `npm test`: **71 Functions, 93 UI and 98 server tests passed**, and the secret scan inspected 744 snapshots. TypeScript lint, development build, syntax and diff checks pass; the build retains its existing large-chunk advisory. Emulator provider-secret warnings are expected because provider calls are mocked.
+
 ## 2026-10-18 release preflight and reference scope
 
 - `node scripts/check-release.mjs --environment=staging` failed closed. Gate-A acceptance evidence, staging/provider configuration, private evidence storage/scanner settings, project-specific Functions configuration and matching Android/iOS registrations are missing; no configuration values were printed or changed.

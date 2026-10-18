@@ -643,6 +643,9 @@ test('dispatch timeout is idempotent, rechecks assignment and restarts search on
   await codRef.set({ customerId: 'customer', driverId: null, serviceType: 'parcel', paymentStatus: 'pending_cod', status: 'pending', createdAt: new Date(now - 600001).toISOString() });
   assert.equal(await escalateDispatch(db, codRef, policy, now), true);
   assert.equal((await codRef.get()).data().exception.kind, 'no_partner');
+  await callable('resolveBookingException', 'admin', { bookingId: 'timeout_cod', requestId: 'retry_cod', expectedRevision: 1, reason: 'Partner availability checked; search again' }, true);
+  assert.equal((await codRef.get()).data().exception.status, 'resolved');
+  assert.equal(await escalateDispatch(db, codRef, policy, Date.now()), false);
 });
 
 test('dispatch policy requires current staff, revision checks and immutable replay-safe history', async () => {
@@ -725,6 +728,12 @@ test('booking problems pause fulfillment, retain custody and require current ope
   assert.equal((await db.collection('bookings/failed/events').get()).size, 2);
   await db.doc('users/admin').update({ role: 'customer' });
   await assert.rejects(callable('resolveBookingException', 'admin', resolve, true), error => error.code === 'permission-denied');
+
+  await db.doc('users/admin').update({ role: 'admin' });
+  await db.doc('bookings/failed_cod').set({ customerId: 'customer', driverId: 'driver', serviceType: 'parcel', status: 'transit', paymentStatus: 'pending_cod' });
+  await callable('reportBookingException', 'driver', { bookingId: 'failed_cod', requestId: 'report_cod', kind: 'failed_delivery', reason: 'Recipient is unavailable' });
+  await callable('resolveBookingException', 'admin', { bookingId: 'failed_cod', requestId: 'resolve_cod', expectedRevision: 1, reason: 'Recipient contacted; continue delivery' }, true);
+  assert.equal((await db.doc('bookings/failed_cod').get()).data().exception.status, 'resolved');
 });
 
 test('booking problem reports reject stage mismatches and unassigned merchant access', async () => {

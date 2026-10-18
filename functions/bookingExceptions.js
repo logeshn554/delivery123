@@ -17,7 +17,7 @@ function bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId,
           if (event.data().kind !== kind || event.data().reason !== reason) throw new HttpsError('already-exists', 'This request reference was already used.');
           return { reported: true };
         }
-        if (terminal(booking.status) || booking.paymentStatus !== 'paid') throw new HttpsError('failed-precondition', 'Use a support case for a closed booking or payment review.');
+        if (terminal(booking.status) || !['paid', 'pending_cod'].includes(booking.paymentStatus)) throw new HttpsError('failed-precondition', 'Use a support case for a closed booking or payment review.');
         if (booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations is already reviewing a booking problem.');
         if (kind === 'failed_delivery' && booking.status !== 'transit' || kind === 'failed_pickup' && !['accepted', 'preparing', 'ready'].includes(booking.status) || kind === 'merchant_unavailable' && !['food', 'grocery'].includes(booking.serviceType)) throw new HttpsError('failed-precondition', 'This problem does not match the current service stage.');
         const now = new Date().toISOString(), revision = (booking.exception?.revision || 0) + 1;
@@ -40,7 +40,7 @@ function bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId,
           return { resolved: true };
         }
         const booking = record.data();
-        if (!booking || terminal(booking.status) || booking.paymentStatus !== 'paid' || booking.exception?.status !== 'open') throw new HttpsError('failed-precondition', 'This booking is not awaiting exception resolution.');
+        if (!booking || terminal(booking.status) || !['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.exception?.status !== 'open') throw new HttpsError('failed-precondition', 'This booking is not awaiting exception resolution.');
         if (booking.exception.revision !== expectedRevision) throw new HttpsError('aborted', 'The problem changed. Refresh and review again.');
         const now = new Date().toISOString();
         tx.update(ref, { exception: { ...booking.exception, status: 'resolved', resolution: reason, resolvedBy: uid, resolvedAt: now, revision: expectedRevision + 1 }, ...(booking.exception.kind === 'no_partner' && !booking.driverId ? { dispatchStartedAt: now } : {}), updatedAt: now });
