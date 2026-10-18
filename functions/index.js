@@ -769,7 +769,8 @@ exports.getTrackingRoute = onCall({ operation: 'getTrackingRoute', region: REGIO
   const placeId = pickup ? booking.details?.pickupPlaceId : booking.details?.dropPlaceId;
   const destinations = await geocode(MAPS_API_KEY.value(), placeId ? { place_id: placeId } : { address: pickup ? booking.pickupAddress : booking.dropAddress });
   if (!destinations[0] || destinations[0].partialMatch) throw new HttpsError('failed-precondition', 'The journey address could not be resolved for a travel estimate.');
-  const route = await routeBetween(MAPS_API_KEY.value(), { location: { lat: tracking.currentLat, lng: tracking.currentLng } }, destinations[0]);
+  // Booking fare quotes stay traffic-unaware. Tracking estimates use current traffic and never alter a settled fare.
+  const route = await routeBetween(MAPS_API_KEY.value(), { location: { lat: tracking.currentLat, lng: tracking.currentLng } }, destinations[0], 'DRIVE', 'TRAFFIC_AWARE');
   return { distanceMeters: route.distanceMeters, estimatedMinutes: Math.ceil(route.durationSeconds / 60), calculatedAt: new Date().toISOString(), destination: pickup ? 'pickup' : 'drop', provider: 'google' };
 });
 

@@ -102,3 +102,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm test`, `npm run lint`, `npm run build`, `node --check` on changed Functions files, and `git diff --check` passed. The build retains the existing large-chunk advisory. Emulator warnings about unset Maps/Razorpay test secrets are expected; provider calls are mocked and no production data was used.
 - The available GitHub combined-status and commit workflow-run lookups returned no checks or runs for pushed commits `a6f26a6` and `51d75f0`; hosted verification is unknown. ADB recheck failed because its local server would not start, so Swiggy inspection remains unverified. Policy configuration and real partner/device acceptance remain unverified.
 
+## 2026-10-18 traffic-aware tracking estimates
+
+- `functions/maps.js` now accepts an explicit traffic preference. `getTrackingRoute` requests `TRAFFIC_AWARE`; checkout and service-quote calls retain the default `TRAFFIC_UNAWARE`, so the ETA improvement does not alter fares. Added helper tests for both modes and invalid preference rejection.
+- `npm --prefix functions test`: **69 passed, 0 failed, 0 skipped**. `npm test`: **69 Functions, 93 UI and 98 server tests passed**, secret scan passed (744 snapshots). `npm run test:rules`: **127 passed, 0 failed, 0 skipped**. TypeScript, development build, `node --check` and `git diff --check` passed; build retains the existing large-chunk advisory.
+- Provider calls in tests are mocked. Live Maps traffic estimates, paid API behavior, quota/cost approval, hosted checks and native tracking acceptance remain unverified. Google documents traffic-aware Routes requests as higher-billing than traffic-unaware requests; the current tracking screen refresh interval therefore needs owner-approved Maps quota/budget before release.
+
