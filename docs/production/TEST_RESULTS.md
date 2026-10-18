@@ -108,3 +108,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm --prefix functions test`: **69 passed, 0 failed, 0 skipped**. `npm test`: **69 Functions, 93 UI and 98 server tests passed**, secret scan passed (744 snapshots). `npm run test:rules`: **127 passed, 0 failed, 0 skipped**. TypeScript, development build, `node --check` and `git diff --check` passed; build retains the existing large-chunk advisory.
 - Provider calls in tests are mocked. Live Maps traffic estimates, paid API behavior, quota/cost approval, hosted checks and native tracking acceptance remain unverified. Google documents traffic-aware Routes requests as higher-billing than traffic-unaware requests; the current tracking screen refresh interval therefore needs owner-approved Maps quota/budget before release.
 
+## 2026-10-18 trip-bundle fallback deadline
+
+- Added a policy helper and changed the scheduled fallback worker to wait `separatePartnerDeadlineMinutes` while the ride remains unassigned. It transactionally rechecks the current ride leg, commerce leg and fulfillment policy before changing fulfillment, and leaves an assigned ride driver untouched.
+- `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. `npm run test:rules`: **129 passed, 0 failed, 0 skipped**, including scheduled-worker cases before and after the timeout, with an assigned ride driver, and beyond the first 50 collection-group results. `npm test`: **71 Functions, 93 UI and 98 server tests passed**; secret scan inspected 744 snapshots. TypeScript lint and development build passed; the existing large-chunk advisory remains.
+- The integration test uses the Firestore emulator and synthetic booking records. It does not establish production schedule delivery, real provider/driver availability, live dispatch fairness or native acceptance.
+

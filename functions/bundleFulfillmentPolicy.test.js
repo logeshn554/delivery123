@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateFulfillmentPolicy, decideLegFulfillment } = require('./bundleFulfillmentPolicy');
+const { validateFulfillmentPolicy, decideLegFulfillment, shouldFallbackFromRideDriver } = require('./bundleFulfillmentPolicy');
 
 test('bundleFulfillmentPolicy - fail-closed on missing or disabled config', () => {
   assert.throws(() => validateFulfillmentPolicy(null), /Fulfillment policy is not configured/);
@@ -86,4 +86,20 @@ test('bundleFulfillmentPolicy - assigns primary ride directly', () => {
   const result = decideLegFulfillment(rideLeg, null, null, policy);
   assert.equal(result.fulfillmentMethod, 'ride_driver');
   assert.equal(result.detourCostCents, 0);
+});
+
+test('bundle fallback waits for the configured deadline when a ride driver is unassigned', () => {
+  const now = Date.now(), policy = { enabled: true, maxDetourKm: 3, maxDetourMinutes: 10, detourCostPerKm: 500, separatePartnerDeadlineMinutes: 30 };
+  const leg = { type: 'food', status: 'pending', fulfillmentMethod: 'ride_driver', createdAt: new Date(now - 29 * 60000).toISOString() };
+  const ride = { type: 'ride', status: 'pending', driverId: null };
+  assert.equal(shouldFallbackFromRideDriver(leg, ride, policy, now), false);
+  assert.equal(shouldFallbackFromRideDriver(leg, ride, policy, now + 60000), true);
+  assert.equal(shouldFallbackFromRideDriver({ ...leg, createdAt: undefined }, ride, policy, now), false);
+});
+
+test('bundle fallback preserves an assigned ride driver and releases commerce when the ride ends', () => {
+  const now = Date.now(), policy = { enabled: true, maxDetourKm: 3, maxDetourMinutes: 10, detourCostPerKm: 500, separatePartnerDeadlineMinutes: 30 };
+  const leg = { type: 'grocery', status: 'pending', fulfillmentMethod: 'ride_driver', createdAt: new Date(now - 3600000).toISOString() };
+  assert.equal(shouldFallbackFromRideDriver(leg, { type: 'ride', status: 'accepted', driverId: 'ride_driver' }, policy, now), false);
+  assert.equal(shouldFallbackFromRideDriver(leg, { type: 'ride', status: 'cancelled', driverId: 'ride_driver' }, policy, now), true);
 });

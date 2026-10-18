@@ -553,6 +553,48 @@ test('separatePartnerDispatch - surfaces standalone leg offer to available deliv
   assert.equal(acceptRes.status, 'accepted');
 });
 
+test('bundle fulfillment fallback honors the configured deadline and keeps assigned ride work intact', async () => {
+  const now = Date.now();
+  const seed = async (bundleId, createdAt, ride = { type: 'ride', status: 'pending', driverId: null }) => {
+    await db.doc(`bundles/${bundleId}`).set({ bundleId, status: 'pending', customerId: 'customer_1', legCount: 2 });
+    await db.doc(`bundles/${bundleId}/legs/ride`).set({ ...ride, legId: 'ride', createdAt: new Date(now - 60 * 60000).toISOString() });
+    await db.doc(`bundles/${bundleId}/legs/food`).set({ legId: 'food', type: 'food', status: 'pending', driverId: null, fulfillmentMethod: 'ride_driver', createdAt: new Date(createdAt).toISOString() });
+  };
+  await seed('fallback_before_deadline', now - 29 * 60000);
+  await seed('fallback_after_deadline', now - 31 * 60000);
+  await seed('fallback_assigned_ride', now - 60 * 60000, { type: 'ride', status: 'accepted', driverId: 'driver_ride' });
+
+  await compiled.exports.reevaluateBundleFulfillment.run({});
+
+  assert.equal((await db.doc('bundles/fallback_before_deadline/legs/food').get()).data().fulfillmentMethod, 'ride_driver');
+  const reassigned = (await db.doc('bundles/fallback_after_deadline/legs/food').get()).data();
+  assert.equal(reassigned.fulfillmentMethod, 'separate_partner');
+  assert.equal(reassigned.decisionReason, 'Dispatched to separate delivery partner');
+  assert.equal((await db.doc('bundles/fallback_assigned_ride/legs/food').get()).data().fulfillmentMethod, 'ride_driver');
+});
+
+test('bundle fulfillment cursor reaches fallback work beyond the first 50 assigned legs', async () => {
+  const old = new Date(Date.now() - 60 * 60000).toISOString();
+  const batch = db.batch();
+  for (let i = 0; i < 50; i++) {
+    const bundleId = `page_${String(i).padStart(3, '0')}`;
+    batch.set(db.doc(`bundles/${bundleId}`), { bundleId, status: 'active', customerId: 'customer_1', legCount: 2 });
+    batch.set(db.doc(`bundles/${bundleId}/legs/ride`), { legId: 'ride', type: 'ride', status: 'accepted', driverId: 'driver_ride', createdAt: old });
+    batch.set(db.doc(`bundles/${bundleId}/legs/food`), { legId: 'food', type: 'food', status: 'pending', driverId: null, fulfillmentMethod: 'ride_driver', createdAt: old });
+  }
+  batch.set(db.doc('bundles/zz_after_page'), { bundleId: 'zz_after_page', status: 'pending', customerId: 'customer_1', legCount: 2 });
+  batch.set(db.doc('bundles/zz_after_page/legs/ride'), { legId: 'ride', type: 'ride', status: 'pending', driverId: null, createdAt: old });
+  batch.set(db.doc('bundles/zz_after_page/legs/food'), { legId: 'food', type: 'food', status: 'pending', driverId: null, fulfillmentMethod: 'ride_driver', createdAt: old });
+  await batch.commit();
+
+  await compiled.exports.reevaluateBundleFulfillment.run({});
+  assert.equal((await db.doc('bundles/zz_after_page/legs/food').get()).data().fulfillmentMethod, 'ride_driver');
+  assert.equal((await db.doc('reconciliation_cursors/bundle_fulfillment').get()).data().lastDocumentPath, 'bundles/page_049/legs/food');
+
+  await compiled.exports.reevaluateBundleFulfillment.run({});
+  assert.equal((await db.doc('bundles/zz_after_page/legs/food').get()).data().fulfillmentMethod, 'separate_partner');
+});
+
 // 8. bundleStatusDerivation: leg status changes propagate correctly to parent bundle
 test('bundleStatusDerivation - trigger recomputes bundle status to completed when all legs delivered', async () => {
   await db.doc('bundles/bnd_trigger').set({

@@ -12,6 +12,8 @@ The Android emulator cannot reach the configured development account endpoint. N
 
 The dispatch source now rotates offers across ordered booking pages, rejects stale no-response leases, and sends generic offer pushes to drivers whose verified role, consent, fresh location, pickup zone and vehicle/equipment match. Tracking route estimates now request traffic-aware Maps durations while quote calculations remain traffic-unaware. Isolated tests cover request selection and dispatch paths, but live Maps behavior and higher traffic-aware billing/quota approval are unverified; hosted CI for recent commits is not visible through the available check/run lookups, and no native push delivery has been accepted.
 
+Trip-bundle fallback now waits its configured separate-partner deadline for unassigned rides, preserves assigned ride drivers and rotates through collection-group pages. The emulator covers those code paths; deployed scheduler behavior and production-scale dispatch fairness remain unverified.
+
 Run `node scripts/check-release.mjs --environment=staging`, then production when appropriate. Do not invent acceptance records to pass these gates. Keep the original independent service workflows, default-deny rules, provider verification and explicit unavailable states.
 
 Saved-address source repair preserves validated delivery metadata and protects new migrations from checkpoint replay after canonical edits/deletions. This does not establish historical reconciliation, full migration coverage or deployed acceptance; those gates remain open.

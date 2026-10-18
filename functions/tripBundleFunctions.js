@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const { deriveBundleStatus, validateBundleInput, legCanBeEnRouteFulfilled } = require('./bundlePolicy');
-const { decideLegFulfillment } = require('./bundleFulfillmentPolicy');
+const { decideLegFulfillment, shouldFallbackFromRideDriver } = require('./bundleFulfillmentPolicy');
 const { isCodEligible, assertCodAllowed } = require('./codPolicy');
 const { bundleRefundFunctions } = require('./bundleRefunds');
 
@@ -196,30 +196,52 @@ function tripBundleFunctions({
     if (!policyDoc.exists || policyDoc.data()?.enabled !== true) return;
     const policy = policyDoc.data();
 
-    // Query pending commerce legs configured as ride_driver
-    const activeLegsSnap = await db.collectionGroup('legs')
+    // Rotate across pages so a large set of still-waiting legs cannot hide later fallbacks.
+    const checkpointRef = db.doc('reconciliation_cursors/bundle_fulfillment'), cursorPath = (await checkpointRef.get()).data()?.lastDocumentPath;
+    const baseQuery = db.collectionGroup('legs')
       .where('fulfillmentMethod', '==', 'ride_driver')
       .where('status', '==', 'pending')
-      .limit(50)
-      .get();
+      .orderBy('__name__')
+      .limit(50);
+    let activeLegsQuery = baseQuery, cursorSnapshot = null;
+    if (typeof cursorPath === 'string' && cursorPath.startsWith('bundles/')) {
+      cursorSnapshot = await db.doc(cursorPath).get();
+      if (cursorSnapshot.exists) activeLegsQuery = baseQuery.startAfter(cursorSnapshot);
+    }
+    let activeLegsSnap = await activeLegsQuery.get();
+    if (activeLegsSnap.empty && cursorSnapshot?.exists) activeLegsSnap = await baseQuery.get();
 
     for (const legDoc of activeLegsSnap.docs) {
       const leg = legDoc.data();
       const bundleRef = legDoc.ref.parent.parent;
       if (!bundleRef) continue;
       const rideLegSnap = await bundleRef.collection('legs').where('type', '==', 'ride').limit(1).get();
-      const rideLeg = rideLegSnap.empty ? null : rideLegSnap.docs[0].data();
-
-      const decision = decideLegFulfillment(leg, rideLeg, null, policy);
-      if (decision.fulfillmentMethod !== leg.fulfillmentMethod) {
-        await legDoc.ref.update({
-          fulfillmentMethod: decision.fulfillmentMethod,
-          fulfillmentDecidedAt: new Date().toISOString(),
-          decisionReason: decision.decisionReason,
-          updatedAt: new Date().toISOString(),
+      const rideLegRef = rideLegSnap.empty ? null : rideLegSnap.docs[0].ref;
+      try {
+        await db.runTransaction(async tx => {
+          const snapshots = await Promise.all([
+            tx.get(legDoc.ref),
+            ...(rideLegRef ? [tx.get(rideLegRef)] : []),
+            tx.get(db.doc('platform_config/bundle_fulfillment_policy')),
+          ]);
+          const currentLeg = snapshots[0].data();
+          const currentRide = rideLegRef ? snapshots[1].data() : null;
+          const currentPolicy = snapshots[rideLegRef ? 2 : 1].data();
+          if (currentPolicy?.enabled !== true || !shouldFallbackFromRideDriver(currentLeg, currentRide, currentPolicy)) return;
+          const fallbackDecision = decideLegFulfillment(currentLeg, null, null, currentPolicy);
+          const now = new Date().toISOString();
+          tx.update(legDoc.ref, {
+            fulfillmentMethod: fallbackDecision.fulfillmentMethod,
+            fulfillmentDecidedAt: now,
+            decisionReason: fallbackDecision.decisionReason,
+            updatedAt: now,
+          });
         });
+      } catch {
+        console.error('Bundle fulfillment fallback needs retry', { legPath: legDoc.ref.path });
       }
     }
+    await checkpointRef.set({ lastDocumentPath: activeLegsSnap.size === 50 ? activeLegsSnap.docs.at(-1).ref.path : null, checkedAt: Timestamp.now() });
   });
 
   // C-1: getBundleQuote

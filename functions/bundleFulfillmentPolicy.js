@@ -71,7 +71,23 @@ function decideLegFulfillment(leg, rideLeg, driver, policy) {
   };
 }
 
+function shouldFallbackFromRideDriver(leg, rideLeg, policy, now = Date.now()) {
+  validateFulfillmentPolicy(policy);
+  if (!leg || !['food', 'grocery'].includes(leg.type) || leg.fulfillmentMethod !== 'ride_driver' || leg.driverId || !['pending', 'ready'].includes(leg.status)) return false;
+
+  // A ride that has already ended cannot fulfill a commerce leg. Otherwise,
+  // wait for the owner-configured deadline before sending it to another pool.
+  if (!rideLeg || ['completed', 'cancelled'].includes(rideLeg.status)) return true;
+  if (rideLeg.driverId) return false;
+
+  const deadlineMinutes = policy.separatePartnerDeadlineMinutes ?? 30;
+  if (!Number.isFinite(deadlineMinutes) || deadlineMinutes < 0) return false;
+  const start = Date.parse(leg.dispatchStartedAt || leg.createdAt || '');
+  return Number.isFinite(start) && start <= now && now - start >= deadlineMinutes * 60000;
+}
+
 module.exports = {
   validateFulfillmentPolicy,
   decideLegFulfillment,
+  shouldFallbackFromRideDriver,
 };

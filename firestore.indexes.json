@@ -307,6 +307,20 @@
       ]
     },
     {
+      "collectionGroup": "legs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "fulfillmentMethod",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "bundles",
       "queryScope": "COLLECTION",
       "fields": [
