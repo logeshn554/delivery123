@@ -91,6 +91,13 @@ const callable = (name, uid, data, admin = false) =>
     rawRequest: { ip: '127.0.0.1' },
   });
 
+test('legacy bundle migration requires both the live admin role and admin claim', async () => {
+  await db.doc('users/admin').set({ role: 'admin' });
+  const request = { dryRun: true, bookingIds: [] };
+  await assert.rejects(callable('migrateLegacyBookingToBundle', 'admin', request), /Only administrators can migrate legacy bookings/);
+  assert.deepEqual(await callable('migrateLegacyBookingToBundle', 'admin', request, true), { migratedCount: 0, dryRun: true, results: [] });
+});
+
 test('bundle messages enforce participant access, bounded content, replay and throttling', async () => {
   await db.doc('users/customer_1').set({ uid: 'customer_1', name: 'Verified customer name', role: 'customer' });
   await db.doc('bundles/chat_bundle').set({ customerId: 'customer_1' });

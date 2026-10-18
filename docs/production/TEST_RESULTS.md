@@ -140,3 +140,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm run test:rules`: **131 passed, 0 failed, 0 skipped**, including revoked-driver, suspended-driver and suspended-admin regressions. `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. TypeScript lint, development build, syntax and diff checks passed; the build retains its existing large-chunk advisory.
 - This verifies callable authorization against the Firestore emulator; deployed rules/provider acceptance remains open.
 
+## 2026-10-18 legacy bundle migration claim check
+
+- Legacy booking migration now requires both the active admin account role and the admin custom claim. The emulator rejects a role-only caller and accepts a claim-bearing dry run.
+- `npm run test:rules`: **132 passed, 0 failed, 0 skipped**. `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. TypeScript lint, development build, syntax and diff checks passed; the build retains its existing large-chunk advisory.
+- The test covers local callable authorization; deployed claim propagation and migration approval remain open.
+

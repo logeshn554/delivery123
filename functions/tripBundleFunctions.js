@@ -35,7 +35,7 @@ function tripBundleFunctions({
   const migrateLegacyBookingToBundle = onCall({ operation: 'migrateLegacyBookingToBundle', region: REGION }, async request => {
     const uid = requireUser(request);
     const user = await db.doc(`users/${uid}`).get();
-    if (user.data()?.role !== 'admin') {
+    if (request.auth.token.admin !== true || user.data()?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Only administrators can migrate legacy bookings.');
     }
 
