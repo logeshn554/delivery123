@@ -1,5 +1,11 @@
 # Test results
 
+## 2026-10-18 delayed driver availability alerts
+
+- `notifyDriverAvailability` now rechecks the current driver profile before searching and sending, including verified status, online state, location consent, no active assignment and a fresh position within the existing 60-second/100-metre policy. A delayed/retried event after the driver goes offline is suppressed.
+- `npm run test:rules`: **133 passed, 0 failed, 0 skipped** (132.4s). The existing driver-availability emulator test now models state changes between events and verifies stale offline replay sends no push. `npm test` passed (71 Functions, 95 UI, 98 server; secret scan 746 snapshots); TypeScript, web build and `node --check` passed. The build retains its existing large-chunk advisory.
+- Firebase Messaging is stubbed in tests. Native provider delivery, retry timing and killed-app behavior remain unverified.
+
 ## 2026-10-18 stage-aware incident choices
 
 - `BookingExceptionPanel` now offers failed-pickup only for `accepted`/`preparing`/`ready` bookings and failed-delivery only for `transit`; merchant-unavailable remains food/grocery-only. The selection resets if a live booking changes stage.

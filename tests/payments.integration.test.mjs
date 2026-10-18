@@ -116,11 +116,12 @@ test('drivers who become available receive a private background alert for existi
   await db.doc('bookings/ALLGO_later_offer').set({ bookingId: 'ALLGO_later_offer', customerId: 'customer', status: 'pending', driverId: null, paymentStatus: 'paid', serviceType: 'parcel', recipientPhone: '+919999999999', details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
   await callable('registerPushDevice', 'later_driver', { audience: 'driver', token: 'later-driver-app', platform: 'android' });
   await callable('registerPushDevice', 'later_driver', { audience: 'customer', token: 'later-customer-app', platform: 'android' });
-  await db.doc('driver_profiles/later_driver').set(after);
   const available = (previous, profile) => compiled.exports.notifyDriverAvailability.run({ id: 'driver-online-event', params: { uid: 'later_driver' }, data: { before: { data: () => previous }, after: { data: () => profile } } });
   await notificationHarness(async sent => {
+    await db.doc('driver_profiles/later_driver').set(onlineButStale);
     await available(before, onlineButStale);
     assert.deepEqual(sent, []);
+    await db.doc('driver_profiles/later_driver').set(after);
     await available(onlineButStale, after);
     assert.deepEqual(sent.flatMap(message => message.tokens), ['later-driver-app']);
     assert.deepEqual(sent[0].data, { type: 'dispatch_offer', eventId: 'driver-online-event' });
@@ -129,6 +130,9 @@ test('drivers who become available receive a private background alert for existi
     assert.equal(JSON.stringify(sent[0]).includes('ALLGO_later_offer'), false);
     sent.length = 0;
     await available(after, { ...after, locationUpdatedAt: new Date(Date.now() + 1000).toISOString() });
+    assert.deepEqual(sent, []);
+    await db.doc('driver_profiles/later_driver').update({ online: false });
+    await available(before, after);
     assert.deepEqual(sent, []);
   });
 });

@@ -95,13 +95,13 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
     if (!becameAvailable) return;
 
     const uid = event.params.uid;
-    const [accountSnapshot, eligibilitySnapshot, zoneSnapshot] = await Promise.all([
-      db.doc(`users/${uid}`).get(), db.doc(`driver_eligibility/${uid}`).get(), db.collection('service_zones').where('enabled', '==', true).get()
+    const [currentProfileSnapshot, accountSnapshot, eligibilitySnapshot, zoneSnapshot] = await Promise.all([
+      db.doc(`driver_profiles/${uid}`).get(), db.doc(`users/${uid}`).get(), db.doc(`driver_eligibility/${uid}`).get(), db.collection('service_zones').where('enabled', '==', true).get()
     ]);
-    const account = accountSnapshot.data();
-    if (!active(account) || account.role !== 'driver' || account.preferences?.orderUpdates === false || eligibilitySnapshot.data()?.status === 'expired') return;
+    const currentProfile = currentProfileSnapshot.data(), account = accountSnapshot.data();
+    if (!currentProfile || currentProfile.status !== 'verified' || currentProfile.online !== true || currentProfile.locationConsent !== true || currentProfile.activeBookingId != null || !freshLocation(currentProfile) || !active(account) || account.role !== 'driver' || account.preferences?.orderUpdates === false || eligibilitySnapshot.data()?.status === 'expired') return;
 
-    const services = [...new Set(profile.supportedServices || [])].filter(service => ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'].includes(service));
+    const services = [...new Set(currentProfile.supportedServices || [])].filter(service => ['food', 'grocery', 'ride', 'parcel', 'takeover', 'transport'].includes(service));
     const zones = zoneSnapshot.docs.filter(zone => services.some(service => zone.data().serviceTypes?.includes(service)));
     let hasOffer = false;
     for (const zoneDocument of zones) {
@@ -116,7 +116,7 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
           const page = await (cursor ? baseQuery.startAfter(cursor) : baseQuery).get();
           for (const candidate of page.docs) {
             const booking = candidate.data();
-            if (booking.exception?.status === 'open' || booking.customerId === uid || profile.rejectedBookingIds?.includes(candidate.id) || !isOfferEligible?.(profile, booking, zone)) continue;
+            if (booking.exception?.status === 'open' || booking.customerId === uid || currentProfile.rejectedBookingIds?.includes(candidate.id) || !isOfferEligible?.(currentProfile, booking, zone)) continue;
             hasOffer = true;
             break;
           }
