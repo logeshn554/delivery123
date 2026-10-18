@@ -79,3 +79,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm test`: passed (Functions, UI, server, working-tree secret scan); `npm run lint` and `npm run build` passed. Build retains the existing large-chunk advisory.
 - Hosted verification for this source revision is pending; no load test, production dispatch, or live driver acceptance is claimed.
 
+## 2026-10-18 no-response reoffer
+
+- `npm run test:rules`: **118 passed, 0 failed, 0 skipped**. New regression verifies an expired no-response offer becomes visible to a second eligible driver, the first driver's expired acceptance is rejected, and the second driver wins the transactional assignment.
+- `node --check tests/payments.integration.test.mjs` and `git diff --check` passed.
+- GitHub combined-status lookup and the available commit workflow-run lookup returned no result for pushed revision `38e1301`; hosted verification remains unconfirmed.
+

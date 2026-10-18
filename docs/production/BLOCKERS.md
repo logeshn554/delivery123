@@ -1,11 +1,11 @@
 # Blockers and required setup
 
-Updated 2026-10-17. Continue unblocked source and emulator work; blockers do not justify marking features complete.
+Updated 2026-10-18. Continue unblocked source and emulator work; blockers do not justify marking features complete.
 
 | Blocker | Evidence | Exact next requirement |
 |---|---|---|
 | Authenticated Android acceptance | Pixel_8 recovered; all three apps install/launch and public recovery/welcome render, but configured account endpoint is unreachable and native provider registrations are absent | Supply an isolated reachable account/service backend and native registrations, then verify role workflows, logout, location and notification taps |
-| Remaining reference journeys | REA captures out-of-coverage home and location selector; latest relaunch produced Android “Process system isn't responding,” with no focused window; host ADB server cannot be contacted | Restore emulator/ADB through normal tooling, then relaunch Swiggy normally and continue permitted browsing; stop at protected surfaces without bypass |
+| Remaining reference journeys | REA captures out-of-coverage home and location selector; latest relaunch produced Android “Process system isn't responding,” with no focused window. On 2026-10-18, `adb devices -l` failed with “could not read ok from ADB Server” and “failed to start daemon” | Restore emulator/ADB through normal tooling, then relaunch Swiggy normally and continue permitted browsing; stop at protected surfaces without bypass |
 | Staging/provider acceptance | Existing release/audit gates document absent accepted configuration | Run check-release staging; supply real isolated Firebase/Neon registrations, identity bridge, Maps, push, Razorpay test/webhook secrets and test catalogs/coverage |
 | Business operations | Existing eligibility and release policies unaccepted | Owner-published eligibility, retention, legal/refund policies, support ownership, real service zones and settlement contracts |
 | Delivery photo proof | Driver screen previously accepted a local-only image that was discarded on completion; backend records recipient-code proof only. The misleading picker is removed. | Owner-approved delivery evidence purpose/consent, retention and deletion schedule, access/claim policy, then private upload/scan/audit implementation and verified customer receipt |

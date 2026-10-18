@@ -783,6 +783,21 @@ test('dispatch creates expiring eligible offers and rejects an expired lease', a
   await assert.rejects(callable('acceptDriverBooking', 'driver', { bookingId: 'pickup' }), error => error.code === 'failed-precondition');
   assert.equal((await db.doc('bookings/pickup').get()).data().driverId, null);
 });
+test('a no-response booking is reoffered after its lease expires and accepted by the next driver', async () => {
+  const now = new Date().toISOString();
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  await db.doc('bookings/reoffer').set({ serviceType: 'parcel', status: 'pending', driverId: null, paymentStatus: 'paid', price: 100, createdAt: now, updatedAt: now, details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
+  for (const uid of ['silent_driver', 'next_driver']) {
+    await db.doc(`users/${uid}`).set({ role: 'driver', name: uid });
+    await db.doc(`driver_profiles/${uid}`).set({ status: 'verified', online: true, locationConsent: true, supportedServices: ['parcel'], currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 });
+  }
+  assert.equal((await callable('listDriverOffers', 'silent_driver')).some(offer => offer.bookingId === 'reoffer'), true);
+  await db.doc('driver_offers/silent_driver/offers/reoffer').update({ expiresAt: Timestamp.fromMillis(Date.now() - 1000) });
+  assert.equal((await callable('listDriverOffers', 'next_driver')).some(offer => offer.bookingId === 'reoffer'), true);
+  await assert.rejects(callable('acceptDriverBooking', 'silent_driver', { bookingId: 'reoffer' }), error => error.code === 'failed-precondition');
+  assert.equal((await callable('acceptDriverBooking', 'next_driver', { bookingId: 'reoffer' })).status, 'accepted');
+  assert.equal((await db.doc('bookings/reoffer').get()).data().driverId, 'next_driver');
+});
 test('driver offer listing rotates through paginated zone results without hiding bookings after the first 100', async () => {
   const now = new Date().toISOString();
   await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });

@@ -1,6 +1,6 @@
 # AllGo master execution tracker
 
-Updated 2026-10-17 (Asia/Calcutta). Existing branch: `codex/allgo-production-foundations`.
+Updated 2026-10-18 (Asia/Calcutta). Existing branch: `codex/allgo-production-foundations`.
 Statuses describe the stated scope only. Unit verification is not mobile or release acceptance.
 The detailed unresolved backlog in `../audit/remediation-register.md` remains binding; no older unchecked item is closed by this tracker.
 
@@ -16,6 +16,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | FIX-05 | P1 | Manual Neon/Firebase logout runs push and native credential cleanup before primary sign-out; failure isolation covered by 217 application tests; native/provider acceptance remains | Source verified |
 | FIX-06 | P0 | Logout/API-detected expiry share native push/location/auth cleanup before runtime invalidation; concurrent teardown is deduplicated and replacement login waits before its network request; 252 application tests and web build pass; real-device expiry detection/cleanup and persistence failure across restart remain | Source verified |
 | FIX-07 | P0 | Neon-linked accounts require a live allgoSession claim for Firestore and callables, including local mode; missing-claim bypass reproduced then repaired; 111 emulator tests pass; coordinated deployment/real-provider acceptance remain | Emulator verified |
+| DISPATCH-01 | P1 | Per-driver service/zone pagination and expired no-response lease reoffer are emulator-covered; route ETA, centrally prioritized fallback and native acceptance remain | In progress |
 | AUTH-01 | P0 | Verify cross-store identity, role changes, revocation, logout and deletion with staging providers | Blocked |
 | AUTH-LOCAL-01 | P0 | Hosted run 39000324482 account job passes all six real PostgreSQL/Auth/Firestore lifecycle cases with no skips; registration/bridge, logout/password revocation, duplicate-phone races, cookies, limited migration and expiry verified; real providers/native acceptance remain | Verified (isolated services) |
 | PAY-01 | P0 | Verify signed provider test payments, duplicate callbacks, recovery and refunds | Blocked |
@@ -29,7 +30,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | MERCHFIN-01 | P0 | Removed fabricated merchant transfers/bank verification and assumed commission; assigned completed booking values render with explicit payout-unavailable state; real merchant allocation, ledger, bank verification and payout workflow remain unimplemented | In progress |
 | MOBILE-01 | P1 | All three debug apps install/launch on recovered Pixel_8; customer recovery and partner recovery/welcome inspected; six-service authenticated native acceptance awaits backend/providers | In progress |
 | MOBILE-02 | P1 | iOS archive and device journeys on supported macOS/Xcode host | Blocked |
-| CI-01 | P1 | Hosted run 39007835058 for fb569c3 passes checks, account integration and all three Android build/identity/artifact jobs; debug artifacts retained; release acceptance remains separate | Verified (debug builds) |
+| CI-01 | P1 | Hosted run 39007835058 for fb569c3 passes checks, account integration and all three Android build/identity/artifact jobs; debug artifacts retained. Push 38e1301 succeeded, but available check/run lookups returned no hosted result for that revision | In progress |
 | CSP-01 | P1 | Reproduced Firebase bootstrap script denial; allow exact apis.google.com script origin, retain production inline/eval restrictions; 240 application tests and rebuilt customer runtime check pass; provider auth acceptance remains | Source/runtime verified |
 | UI-01 | P2 | Public partner recovery/welcome and customer recovery inspected at 1080×2400; broader responsive/accessibility/keyboard and authenticated states remain | In progress |
 | RELEASE-01 | P0 | Provider, signing, policies, coverage, operations and release gate acceptance | Blocked |
@@ -38,4 +39,4 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 
 Hosted run 39007074131 failed only the customer Android job during Gradle dependency resolution; the subsequent run 39007835058 passed all jobs, so the dependency failure was transient.
 
-Next executable work: complete the parcel proof lifecycle after the owner publishes the delivery-evidence policy and consent/access rules; independently continue source-supported service improvements and rerun permitted Swiggy inspection when ADB returns. Partner application/eligibility integration is already covered by the 116-test isolated emulator suite. Native authenticated acceptance still needs isolated backend/provider configuration.
+Next executable work: improve dispatch prioritization and fallback without inventing operating thresholds; complete parcel proof only after the owner publishes its policy and consent/access rules; rerun permitted Swiggy inspection when ADB returns. Partner application/eligibility integration is already covered by the isolated emulator suite. Native authenticated acceptance still needs isolated backend/provider configuration.
