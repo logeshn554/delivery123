@@ -965,6 +965,27 @@ test('a no-response booking is reoffered after its lease expires and accepted by
   assert.equal((await callable('acceptDriverBooking', 'next_driver', { bookingId: 'reoffer' })).status, 'accepted');
   assert.equal((await db.doc('bookings/reoffer').get()).data().driverId, 'next_driver');
 });
+test('concurrent eligible drivers cannot both win the same live offer', async () => {
+  const now = new Date().toISOString();
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  await db.doc('bookings/dispatch_race').set({ serviceType: 'parcel', status: 'pending', driverId: null, paymentStatus: 'paid', price: 100, createdAt: now, updatedAt: now, details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 } } });
+  for (const uid of ['race_driver_a', 'race_driver_b']) {
+    await db.doc(`users/${uid}`).set({ role: 'driver', name: uid });
+    await db.doc(`driver_profiles/${uid}`).set({ status: 'verified', online: true, locationConsent: true, supportedServices: ['parcel'], currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: now, locationAccuracyMeters: 10 });
+    assert.ok((await callable('listDriverOffers', uid)).some(offer => offer.bookingId === 'dispatch_race'));
+  }
+
+  const results = await Promise.allSettled(['race_driver_a', 'race_driver_b'].map(uid => callable('acceptDriverBooking', uid, { bookingId: 'dispatch_race' })));
+  const winners = results.flatMap((result, index) => result.status === 'fulfilled' ? [['race_driver_a', 'race_driver_b'][index]] : []);
+  const losers = results.filter(result => result.status === 'rejected');
+  assert.equal(winners.length, 1);
+  assert.equal(losers.length, 1);
+  assert.equal(losers[0].reason.code, 'failed-precondition');
+  assert.equal((await db.doc('bookings/dispatch_race').get()).data().driverId, winners[0]);
+  const loser = ['race_driver_a', 'race_driver_b'].find(uid => uid !== winners[0]);
+  assert.equal((await db.doc(`driver_profiles/${winners[0]}`).get()).data().activeBookingId, 'dispatch_race');
+  assert.equal((await db.doc(`driver_profiles/${loser}`).get()).data().activeBookingId, undefined);
+});
 test('driver offer listing reaches paginated zone results after the first offer leases expire', async () => {
   const now = new Date().toISOString();
   await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });

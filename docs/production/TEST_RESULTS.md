@@ -146,3 +146,15 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm run test:rules`: **132 passed, 0 failed, 0 skipped**. `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. TypeScript lint, development build, syntax and diff checks passed; the build retains its existing large-chunk advisory.
 - The test covers local callable authorization; deployed claim propagation and migration approval remain open.
 
+# 2026-10-18 iOS driver location source increment
+
+- Commit `5bc66ab` adds the native iOS Core Location plugin, Firebase Functions reporting, Always permission/background mode, consent wording and native status/resume behavior. Uploads are limited to locations no older than 30 seconds, accuracy at most 100 metres, at least 15 seconds between reports; repeated upload failures stop tracking.
+- `npm run lint` and `npm run build` passed. `npm --prefix functions test`: **71 passed, 0 failed**. `npm run test:rules`: **132 passed, 0 failed**. Python `plistlib` parsed `Info.plist` and confirmed the `location` background mode and Always usage string. `git diff --check` passed before commit.
+- Xcode, Swift and CocoaPods are not installed on this Windows host. No iOS compile, signed build, simulator or device acceptance is established. Signed iOS testing and location-permission/background lifecycle checks remain open.
+
+# 2026-10-18 concurrent driver acceptance
+
+- Added a Firestore emulator test where two eligible drivers both obtain a live offer and race `acceptDriverBooking` for the same parcel. Exactly one call succeeds, the other receives `failed-precondition`, the booking names the winner, and only that driver's profile gets `activeBookingId`.
+- `npm run test:rules`: **133 passed, 0 failed, 0 skipped** (130.2s). `node --check tests/payments.integration.test.mjs` and `git diff --check` passed. Optional Maps/Razorpay secret warnings are expected in this isolated emulator run; no live provider was called.
+- The test verifies atomic first-committed acceptance only. It does not validate dispatch priority, provider delivery, load capacity or production fairness.
+
