@@ -317,7 +317,10 @@ export function listenToBookings(callback: (bookings: Booking[]) => void, onErro
     bookingsList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     callback(bookingsList);
   }, (err) => {
-    callback([]); onError(err);
+    // FIX-02: Clear stale rows before propagating the error so the workspace never
+    // displays stale booking data after a permission change or network error.
+    callback([]);
+    onError(err);
   });
 }
 
@@ -333,7 +336,15 @@ export function listenToCustomerBookings(userId: string, callback: (bookings: Bo
 }
 
 export function listenToMerchantBookings(merchantId: string, merchantType: 'restaurant' | 'grocery', callback: (bookings: Booking[]) => void, onError: (error: unknown) => void = console.error) {
-  return onSnapshot(query(collection(db, 'bookings'), where('merchantId', '==', merchantId), where('serviceType', '==', merchantType === 'restaurant' ? 'food' : 'grocery')), snapshot => callback(snapshot.docs.map(record => record.data() as Booking).sort((a, b) => b.createdAt.localeCompare(a.createdAt))), error => { callback([]); onError(error); });
+  return onSnapshot(
+    query(collection(db, 'bookings'), where('merchantId', '==', merchantId), where('serviceType', '==', merchantType === 'restaurant' ? 'food' : 'grocery')),
+    snapshot => callback(snapshot.docs.map(record => record.data() as Booking).sort((a, b) => b.createdAt.localeCompare(a.createdAt))),
+    error => {
+      // FIX-02: Clear stale merchant booking rows on error
+      callback([]);
+      onError(error);
+    }
+  );
 }
 export function listenToBookingEvents(id: string, callback: (events: { id: string; stage: string; createdAt: string; proofMethod?: string }[]) => void, onError: (error: unknown) => void) {
   return onSnapshot(collection(db, 'bookings', id, 'events'), snapshot => callback(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as { id: string; stage: string; createdAt: string; proofMethod?: string })).sort((a,b) => a.createdAt.localeCompare(b.createdAt))), onError);
@@ -410,7 +421,9 @@ export function listenToDriverProfiles(callback: (drivers: DriverProfile[]) => v
     });
     callback(list);
   }, (err) => {
-    callback([]); onError(err);
+    // FIX-02: Clear stale driver profile rows before propagating the error
+    callback([]);
+    onError(err);
   });
 }
 

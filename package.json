@@ -11,8 +11,6 @@
     "build:driver": "node scripts/build-app.mjs --audience=driver --platform=web",
     "android:merchant": "node scripts/build-app.mjs --audience=merchant --platform=android",
     "android:driver": "node scripts/build-app.mjs --audience=driver --platform=android",
-    "build:demo": "vite build --mode demo",
-    "android:sync:demo": "npm run build:demo && npx cap sync android && node scripts/prepare-native.mjs android",
     "build:staging": "node scripts/check-release.mjs --environment=staging && vite build --mode staging",
     "build:production": "node scripts/check-release.mjs --environment=production && vite build --mode production",
     "preview": "vite preview",

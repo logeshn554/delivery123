@@ -9,8 +9,7 @@ import firebaseConfig from './firebase-applet-config.json' with { type: 'json' }
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   const application = resolveAudience(process.env.VITE_APP_AUDIENCE ?? env.VITE_APP_AUDIENCE);
-  if (mode === 'demo' && application.id !== 'customer') throw new Error('The demo sandbox supports the customer audience only.');
-  if (command === 'build' && mode !== 'demo' && (env.VITE_DEMO_MODE === 'true' || process.env.VITE_DEMO_MODE === 'true')) throw new Error('Demo data is forbidden in normal builds. Use the explicit build:demo sandbox.');
+  if (command === 'build' && (mode === 'demo' || env.VITE_DEMO_MODE === 'true' || process.env.VITE_DEMO_MODE === 'true')) throw new Error('Demo builds are no longer supported.');
   const csp = contentSecurity({ apiUrl: env.VITE_ACCOUNT_API_URL, authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain, development: command === 'serve' });
   return {
     plugins: [react(), tailwindcss(), { name:'allgo-content-security', transformIndexHtml(html: string) { return html.replace('ALLGO_CONTENT_SECURITY_POLICY',csp); }, generateBundle() { this.emitFile({ type: 'asset', fileName: 'allgo-build.json', source: JSON.stringify({ mode, demo: mode === 'demo', audience: application.id, appId: application.appId, projectId: env.VITE_FIREBASE_PROJECT_ID || null, databaseId: env.VITE_FIREBASE_DATABASE_ID || null }) }); } }],

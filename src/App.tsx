@@ -89,8 +89,13 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUser || !userProfile) return;
-    setBookingError(''); setDrivers([]);
+    // Clear stale rows immediately before attaching new listeners (FIX-02)
+    setBookings([]);
+    setDrivers([]);
+    setBookingError('');
     const group = subscriptionGroup<Booking[]>(setBookings, () => [], error => {
+      // Propagate error and clear stale data so the UI doesn't show stale rows (FIX-02)
+      setBookings([]);
       setDrivers([]);
       setBookingError(authMessage(error));
     });
@@ -109,8 +114,8 @@ export default function App() {
   if (useNeonAccounts && userProfile.serviceIdentityEnabled && !userProfile.emailVerified && !userProfile.phoneVerified) return <VerifyAccount email={userProfile.email} onSignOut={nativeSignOut} />;
   if (bookingError) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Order updates are unavailable</h1><p role="alert">{bookingError}</p><p>Reconnect to load your current orders. Previously loaded order details have been cleared.</p><button type="button" className="auth-primary" onClick={() => setBookingRetry(value => value + 1)}>Retry order updates</button><button type="button" className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button></section></div>;
   const workspace = workspaceFor(appAudience, userProfile);
-  if (workspace === 'application' || workspace === 'denied' || workspace === 'unassigned') return <main className="partner-onboarding"><header><div className="auth-wordmark">All<span>Go</span></div><p className="auth-eyebrow">{appTitle}</p><h1>{workspace === 'application' ? 'Apply to become an AllGo partner' : 'Partner workspace unavailable'}</h1></header>{workspace === 'application' ? <><p>Submit your application for review. Approval and an assigned partner role are required before accepting work.</p><Suspense fallback={<p role="status">Opening application…</p>}><PartnerApplicationPanel userId={currentUser.uid} initialType={appAudience === 'driver' ? 'driver' : 'restaurant'} initialName={userProfile.name} initialPhone={userProfile.phone}/></Suspense></> : <p role="alert">{workspace === 'unassigned' ? 'Your merchant account has no assigned business. Contact AllGo operations to complete your setup.' : `Sign in with your approved ${appAudience} account to open this app.`}</p>}<button type="button" className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button></main>;
-  if (workspace === 'merchant' || workspace === 'driver') return <div className="allgo-workspace">{profileError && <aside role="alert" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Account updates are temporarily unavailable. {profileError}</aside>}<header className="allgo-workspace-header"><strong>{appTitle}</strong><button type="button" aria-label="Sign out" onClick={() => void nativeSignOut()} className="rounded-xl p-3 text-rose-600"><LogOut size={19}/></button></header><PartnerNotifications/><main className="allgo-workspace-main max-w-md overflow-hidden"><Suspense fallback={<p role="status">Opening your workspace…</p>}>{workspace === 'merchant' ? <MerchantPortal key={currentUser.uid} activeBookings={bookings} merchantId={userProfile.merchantId} merchantType={userProfile.merchantType}/> : <DriverApp key={currentUser.uid} userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings}/>}</Suspense></main></div>;
+
+  // FIX-01: Evaluate admin workspace FIRST so the admin UI is never shadowed by the customer branch.
   if (workspace === 'admin') {
     return (
       <div className="allgo-workspace">
@@ -131,5 +136,8 @@ export default function App() {
       </div>
     );
   }
+  if (workspace === 'application' || workspace === 'denied' || workspace === 'unassigned') return <main className="partner-onboarding"><header><div className="auth-wordmark">All<span>Go</span></div><p className="auth-eyebrow">{appTitle}</p><h1>{workspace === 'application' ? 'Apply to become an AllGo partner' : 'Partner workspace unavailable'}</h1></header>{workspace === 'application' ? <><p>Submit your application for review. Approval and an assigned partner role are required before accepting work.</p><Suspense fallback={<p role="status">Opening application…</p>}><PartnerApplicationPanel userId={currentUser.uid} initialType={appAudience === 'driver' ? 'driver' : 'restaurant'} initialName={userProfile.name} initialPhone={userProfile.phone}/></Suspense></> : <p role="alert">{workspace === 'unassigned' ? 'Your merchant account has no assigned business. Contact AllGo operations to complete your setup.' : `Sign in with your approved ${appAudience} account to open this app.`}</p>}<button type="button" className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button></main>;
+  if (workspace === 'merchant' || workspace === 'driver') return <div className="allgo-workspace">{profileError && <aside role="alert" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Account updates are temporarily unavailable. {profileError}</aside>}<header className="allgo-workspace-header"><strong>{appTitle}</strong><button type="button" aria-label="Sign out" onClick={() => void nativeSignOut()} className="rounded-xl p-3 text-rose-600"><LogOut size={19}/></button></header><PartnerNotifications/><main className="allgo-workspace-main max-w-md overflow-hidden"><Suspense fallback={<p role="status">Opening your workspace…</p>}>{workspace === 'merchant' ? <MerchantPortal key={currentUser.uid} activeBookings={bookings} merchantId={userProfile.merchantId} merchantType={userProfile.merchantType}/> : <DriverApp key={currentUser.uid} userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings}/>}</Suspense></main></div>;
+  // Customer is the default remaining workspace
   return <div className="allgo-workspace">{profileError && <aside role="alert" className="border-b border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Account updates are temporarily unavailable. Your current screen is preserved. {profileError}</aside>}<main className="mx-auto h-full w-full max-w-md"><Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-500">Opening AllGo…</div>}><CustomerApp key={currentUser.uid} userId={currentUser.uid} userName={userProfile.name} activeBookings={bookings.filter(booking => booking.customerId === currentUser.uid)} userProfile={userProfile} onSignOut={()=>nativeSignOut()}/></Suspense></main></div>;
 }

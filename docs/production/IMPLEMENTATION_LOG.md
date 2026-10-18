@@ -110,3 +110,8 @@ Hosted evidence is now complete for the final push-generation source 57ebdd0: al
 - Added `SERVICE_OPERATIONS_REFERENCE.md` covering service lifecycle transitions, actor/data boundaries, Firestore indexes and SQL base schema, cross-store migration caveats, and recovery paths for payment, refund, dispatch, grocery stock, partner evidence, account deletion, location, and push issues.
 - Reviewed the document against `firestore.rules`, `storage.rules`, `firestore.indexes.json`, `server/schema.sql`, and the corresponding callable/scheduler sources. This is documentation-only source evidence; it does not prove deployed policy/index/scheduler behavior or define staffed SLOs.
 - The documentation remediation item remains open for on-call ownership, SLO and alert thresholds, backup/restore drills, migration history, and deployed verification.
+
+# 2026-10-18 branch integration
+
+- Merged `origin/codex/stitch-welcome-screen` into the AllGo delivery work, which also contains `origin/fix/stitch-mobile-ui-cleanup-20261013`; `origin/work` was already reachable from `main`. Kept the active production workflows and trackers, removed the unsupported Goods transport placeholder and demo-only app/build entry points, and preserved audience-specific native build commands.
+- The merged working tree passes `npm run lint`, `npm run build`, `npm test`, and `npm run test:rules` (138 passed, 0 failed, 0 skipped). The web build retains the existing large-chunk advisory. This is local verification; hosted CI and remote `main` publication are still pending.

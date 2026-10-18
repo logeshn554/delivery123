@@ -22,7 +22,6 @@ export default function ServiceDirectory({ onChoose, onMoversInfo }: { onChoose:
     </section>)}
     <p className="allgo-service-note">Availability, estimated service times and final charges depend on your address and request details.</p>
     <details className="allgo-planned-services"><summary>More services on the way</summary><div className="service-grid">
-      <ServiceTile label="Goods transport" description="Planned · not available" icon={Truck} unavailable />
       <ServiceTile label="Movers" description="Planned · not available" icon={House} unavailable={!onMoversInfo} onChoose={onMoversInfo} />
     </div></details>
   </section>;
