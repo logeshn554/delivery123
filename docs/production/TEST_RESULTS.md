@@ -192,3 +192,8 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - The expiry scheduler now checkpoints each due reservation with an `(expiresAt, documentId)` cursor and wraps to the first page when it reaches the end. The emulator seeds 101 expired reservations, forces one transient transaction failure, verifies the 101st record is cleaned on the next page, then verifies the failed first record is retried after wrap-around.
 - `npm run test:rules`: **137 passed, 0 failed, 0 skipped**. `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 746 snapshots. TypeScript lint, development build, syntax and diff checks passed; the existing large-chunk advisory remains. The emulator does not verify deployed schedule timing or owner-approved live stock operations.
 
+# 2026-10-18 private evidence retention pagination
+
+- Expired partner evidence cleanup now checkpoints each object with a `(retentionUntil, evidenceId)` cursor and wraps when it reaches the end. The integration regression fails storage deletion for the first of 101 records, verifies the 100 later records are not starved, then restores storage and verifies the first record is retried after wrap-around.
+- `npm run test:rules`: **138 passed, 0 failed, 0 skipped**. `node --check` for changed JavaScript and `git diff --check` passed. The test uses memory storage plus the Firestore emulator; it does not establish production bucket IAM, object generation behavior or scheduler delivery.
+

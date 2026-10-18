@@ -344,6 +344,31 @@ test('retention cleanup retries provider deletion without marking inaccessible b
   assert.equal((await db.doc('evidence_quotas/customer').get()).data().activeCount, 0);
 });
 
+test('retention cleanup checkpoints each object and retries failures after the later page', async () => {
+  const batch = db.batch(), retentionUntil = '2020-01-01T00:00:00.000Z', firstPath = 'partner-evidence/customer/retention000';
+  for (let i = 0; i < 101; i += 1) {
+    const suffix = String(i).padStart(3, '0'), id = `retention${suffix}`, objectPath = `partner-evidence/customer/${id}`;
+    batch.set(db.doc(`partner_evidence/${id}`), { evidenceId: id, applicationId: 'application', userId: 'customer', status: 'ready_review', retentionUntil, bucket: bucket.name, objectPath, generation: '1' });
+    objects.set(objectPath, { bytes: Buffer.from('fixture'), metadata: { generation: '1', size: '7' } });
+  }
+  await batch.commit();
+  failedDeletes.add(firstPath);
+
+  await commands.purgeExpiredPartnerEvidence.run();
+  assert.equal((await db.doc('partner_evidence/retention000').get()).data().status, 'delete_requested');
+  assert.equal((await db.doc('partner_evidence/retention100').get()).exists, true);
+  assert.equal((await db.doc('internal_operations_state/evidence_retention').get()).data().evidenceId, 'retention099');
+
+  failedDeletes.clear();
+  await commands.purgeExpiredPartnerEvidence.run();
+  assert.equal((await db.doc('partner_evidence/retention100').get()).exists, false);
+  assert.equal((await db.doc('partner_evidence/retention000').get()).exists, true);
+
+  await commands.purgeExpiredPartnerEvidence.run();
+  assert.equal((await db.doc('partner_evidence/retention000').get()).exists, false);
+  assert.equal(objects.has(firstPath), false);
+});
+
 test('scanning releases only matching clean bytes, audits private downloads and rejects fake reviewers', async () => {
   await call('uploadPartnerEvidence', 'customer', payload());
   await assert.rejects(call('downloadPartnerEvidence', 'customer', { evidenceId: 'document1' }), error => error.code === 'failed-precondition');

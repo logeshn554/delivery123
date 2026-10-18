@@ -104,15 +104,17 @@ function partnerEvidenceFunctions({ onCall, onSchedule, db, REGION, HttpsError, 
   };
   if (onSchedule) exports.purgeExpiredPartnerEvidence = onSchedule({ region: REGION, schedule: 'every 60 minutes', timeoutSeconds: 540 }, async () => {
     const cursorRef = db.doc('internal_operations_state/evidence_retention'), cursor = (await cursorRef.get()).data();
-    let query = db.collection('partner_evidence').where('retentionUntil', '<=', new Date().toISOString()).orderBy('retentionUntil').orderBy('__name__').limit(100);
+    const baseQuery = db.collection('partner_evidence').where('retentionUntil', '<=', new Date().toISOString()).orderBy('retentionUntil').orderBy('__name__').limit(100);
+    let query = baseQuery;
     if (cursor?.retentionUntil && cursor?.evidenceId) query = query.startAfter(cursor.retentionUntil, cursor.evidenceId);
-    const page = await query.get();
+    let page = await query.get();
+    if (page.empty && cursor?.evidenceId) page = await baseQuery.get();
     for (const snapshot of page.docs) {
       try { await deleteEvidence(snapshot.ref); await snapshot.ref.delete(); }
       catch { console.warn('Partner document retention cleanup requires retry.'); }
+      await cursorRef.set({ retentionUntil: snapshot.data().retentionUntil, evidenceId: snapshot.id, checkedAt: new Date().toISOString() });
     }
-    const last = page.docs.at(-1);
-    await cursorRef.set(last ? { retentionUntil: last.data().retentionUntil, evidenceId: last.id } : { retentionUntil: null, evidenceId: null });
+    if (page.empty) await cursorRef.set({ retentionUntil: null, evidenceId: null, checkedAt: new Date().toISOString() });
   });
   return { exports, deleteEvidence };
 }
