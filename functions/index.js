@@ -1411,11 +1411,17 @@ async function reconcilePaymentIntent(ref) {
   return order.id;
 }
 exports.reconcileCheckoutIntents = onSchedule({ schedule: 'every 5 minutes', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET], timeoutSeconds: 540, maxInstances: 1 }, async () => {
-  const pending = await db.collection('payment_intents').where('status', 'in', ['creating', 'provider_created', 'reconciliation_required']).orderBy('createdAt').limit(50).get();
+  const cursorRef = db.doc('reconciliation_cursors/payment_intents'), cursor = (await cursorRef.get()).data();
+  let query = db.collection('payment_intents').where('status', 'in', ['creating', 'provider_created', 'reconciliation_required']).orderBy('createdAt').orderBy('__name__').limit(50);
+  if (cursor?.createdAt && cursor?.lastId) query = query.startAfter(cursor.createdAt, cursor.lastId);
+  let pending = await query.get();
+  if (pending.empty && cursor?.lastId) pending = await db.collection('payment_intents').where('status', 'in', ['creating', 'provider_created', 'reconciliation_required']).orderBy('createdAt').orderBy('__name__').limit(50).get();
   for (const intent of pending.docs) {
     try { await reconcilePaymentIntent(intent.ref); }
     catch { console.error('Checkout reconciliation needs retry', { intentId: intent.id }); }
   }
+  const last = pending.docs.at(-1);
+  await cursorRef.set({ createdAt: last?.data().createdAt || null, lastId: last?.id || null, checkedAt: Timestamp.now() });
 });
 
 async function reconcileProviderRefund(attemptRef, payment, eventId, failed = false) {

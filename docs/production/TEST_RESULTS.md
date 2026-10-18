@@ -176,3 +176,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - The emulator regression injects a transient transaction failure, confirms the queued booking is not retried early, advances the cursor beyond it, then confirms retry escalates the booking and removes the queue record. `npm run test:rules`: **134 passed, 0 failed, 0 skipped**. `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 746 snapshots. TypeScript lint, development build, syntax and diff checks pass. Existing large-chunk build advisory remains.
 - This is source/emulator evidence only. Live scheduled execution, operations ownership for prolonged retries/dead letters and broader payment/outbox reconciliation remain open.
 
+# 2026-10-18 checkout reconciliation fairness
+
+- `reconcileCheckoutIntents` now paginates open payment intents with a persisted `(createdAt, documentId)` cursor and wraps at the end of the result set. A Firestore integration test seeds 51 old provider-created wallet intents and returns mocked HTTP 503 responses, proving the worker checks 50, then the 51st, then wraps to the first page.
+- `npm run test:rules`: **135 passed, 0 failed, 0 skipped** (130.8s). `node --check` for changed JavaScript and `git diff --check` passed. Provider access was mocked; no transaction or live schedule was run against Razorpay.
+- This verifies local cursor fairness only. Signed provider reconciliation, deployed scheduler delivery, payment finality, and operations ownership for persistently failing records remain open.
+

@@ -938,6 +938,40 @@ test('receipt reconciliation rebuilds one missing checkout attempt without creat
     assert.equal((await db.collection('payment_attempts').get()).size, 1);
   } finally { globalThis.fetch = originalFetch; }
 });
+test('scheduled checkout reconciliation rotates through failing pages without starving later intents', async () => {
+  const batch = db.batch(), createdAt = Timestamp.fromMillis(Date.now() - 120000);
+  for (let i = 0; i < 51; i += 1) {
+    const id = `payment_${String(i).padStart(3, '0')}`;
+    batch.set(db.doc(`payment_intents/${id}`), { uid: 'customer', kind: 'wallet_topup', amount: 5000, receipt: `W_${id}`, status: 'provider_created', providerOrderId: `order_${id}`, createdAt });
+  }
+  await batch.commit();
+
+  const originalFetch = globalThis.fetch, originalError = console.error, calls = [];
+  try {
+    globalThis.fetch = async url => {
+      calls.push(String(url));
+      return new Response('{}', { status: 503 });
+    };
+    console.error = () => {};
+    await compiled.exports.reconcileCheckoutIntents.run();
+    assert.equal(calls.length, 50);
+    assert.ok(calls.at(-1).endsWith('/orders/order_payment_049'));
+    assert.equal((await db.doc('reconciliation_cursors/payment_intents').get()).data().lastId, 'payment_049');
+
+    await compiled.exports.reconcileCheckoutIntents.run();
+    assert.equal(calls.length, 51);
+    assert.ok(calls.at(-1).endsWith('/orders/order_payment_050'));
+    assert.equal((await db.doc('reconciliation_cursors/payment_intents').get()).data().lastId, 'payment_050');
+
+    await compiled.exports.reconcileCheckoutIntents.run();
+    assert.equal(calls.length, 101);
+    assert.ok(calls.at(-1).endsWith('/orders/order_payment_049'));
+    assert.equal((await db.doc('reconciliation_cursors/payment_intents').get()).data().lastId, 'payment_049');
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalError;
+  }
+});
 test('dispatch creates expiring eligible offers and rejects an expired lease', async () => {
   const now = new Date().toISOString();
   await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
