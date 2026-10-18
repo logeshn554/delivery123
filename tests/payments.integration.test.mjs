@@ -605,6 +605,40 @@ test('unanswered grocery replacement expires, releases reserved stock and makes 
   await assert.rejects(callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 2400, accept: true, requestId: 'too-late' }), error => error.code === 'aborted');
 });
 
+test('grocery expiry worker retries failures and reaches records beyond the first page', async () => {
+  const batch = db.batch(), expiresAt = Timestamp.fromMillis(Date.now() - 60000);
+  for (let i = 0; i < 101; i += 1) {
+    const id = `expiry_${String(i).padStart(3, '0')}`;
+    batch.set(db.doc(`grocery_substitution_expiries/${id}`), { bookingId: `missing_${i}`, lineIndex: 0, revision: 1, expiresAt });
+  }
+  await batch.commit();
+
+  const originalRunTransaction = db.runTransaction.bind(db), originalError = console.error;
+  let failedOnce = false;
+  db.runTransaction = (...args) => {
+    if (!failedOnce) { failedOnce = true; return Promise.reject(new Error('transient Firestore failure')); }
+    return originalRunTransaction(...args);
+  };
+  console.error = () => {};
+  try {
+    await compiled.exports.expireGrocerySubstitutions.run();
+    const first = db.doc('grocery_substitution_expiries/expiry_000'), last = db.doc('grocery_substitution_expiries/expiry_100');
+    assert.equal((await first.get()).exists, true);
+    assert.equal((await last.get()).exists, true);
+    assert.equal((await db.doc('reconciliation_cursors/grocery_substitution_expiries').get()).data().expiryId, 'expiry_099');
+
+    await compiled.exports.expireGrocerySubstitutions.run();
+    assert.equal((await last.get()).exists, false);
+    assert.equal((await first.get()).exists, true);
+
+    await compiled.exports.expireGrocerySubstitutions.run();
+    assert.equal((await first.get()).exists, false);
+  } finally {
+    db.runTransaction = originalRunTransaction;
+    console.error = originalError;
+  }
+});
+
 test('booking deletion redacts free text while retaining finance and stage evidence', async () => {
   const { redactBookingHistory } = require('../functions/bookingRedaction.js'), ref = db.doc('bookings/redaction');
   await ref.set({ customerId: 'customer', status: 'completed', price: 100, exception: { kind: 'delay', reason: 'Personal details', resolution: 'Personal details', status: 'resolved' }, preparation: { reason: 'Personal details', expectedReadyAt: '2026-10-11' } });

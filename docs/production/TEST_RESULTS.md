@@ -187,3 +187,8 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `reconcilePendingRefunds` now saves its document cursor after each completed provider check and resets after a full scan, so a slow or failing lookup cannot force the next invocation to replay the entire page.
 - Added a Firestore integration test with 51 refund attempts and mocked HTTP 503 provider responses. Three scheduler invocations verify 50, then 1, then wrap-around to 50, while no refund amount or financial journal is changed. `npm run test:rules`: **136 passed, 0 failed, 0 skipped**. `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 746 snapshots. TypeScript lint, development build, JavaScript syntax and diff checks passed; the existing large-chunk advisory remains.
 
+# 2026-10-18 grocery substitution expiry pagination
+
+- The expiry scheduler now checkpoints each due reservation with an `(expiresAt, documentId)` cursor and wraps to the first page when it reaches the end. The emulator seeds 101 expired reservations, forces one transient transaction failure, verifies the 101st record is cleaned on the next page, then verifies the failed first record is retried after wrap-around.
+- `npm run test:rules`: **137 passed, 0 failed, 0 skipped**. `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 746 snapshots. TypeScript lint, development build, syntax and diff checks passed; the existing large-chunk advisory remains. The emulator does not verify deployed schedule timing or owner-approved live stock operations.
+

@@ -31,11 +31,18 @@ async function releaseExpiredSubstitution(db, expiryRef, Timestamp, now = Timest
 function grocerySubstitutionExpiryFunctions({ onSchedule, db, REGION, Timestamp }) {
   return {
     expireGrocerySubstitutions: onSchedule({ schedule: 'every 5 minutes', region: REGION, maxInstances: 1, timeoutSeconds: 540 }, async () => {
-      const due = await db.collection('grocery_substitution_expiries').where('expiresAt', '<=', Timestamp.now()).orderBy('expiresAt').limit(100).get();
+      const cursorRef = db.doc('reconciliation_cursors/grocery_substitution_expiries'), cursor = (await cursorRef.get()).data();
+      const baseQuery = db.collection('grocery_substitution_expiries').where('expiresAt', '<=', Timestamp.now()).orderBy('expiresAt').orderBy('__name__').limit(100);
+      let query = baseQuery;
+      if (cursor?.expiresAt && cursor?.expiryId) query = query.startAfter(cursor.expiresAt, cursor.expiryId);
+      let due = await query.get();
+      if (due.empty && cursor?.expiryId) due = await baseQuery.get();
       for (const expiry of due.docs) {
         try { await releaseExpiredSubstitution(db, expiry.ref, Timestamp); }
         catch { console.error('Grocery substitution expiry requires retry', { expiryId: expiry.id }); }
+        await cursorRef.set({ expiresAt: expiry.data().expiresAt, expiryId: expiry.id, checkedAt: Timestamp.now() });
       }
+      if (due.empty) await cursorRef.set({ expiresAt: null, expiryId: null, checkedAt: Timestamp.now() });
     })
   };
 }
