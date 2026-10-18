@@ -89,7 +89,7 @@ All checklist items below preserve the report requirements. A checked box requir
 - [ ] P2-CHECK-05 Add CI workflows: lint, unit, rules emulator, integration, security checks, web builds, native validations.
 - [ ] P2-CHECK-06 Add browser + Android + iOS e2e, per-role integration, load, fault injection and data migration tests.
 - [ ] P2-CHECK-07 Add observability: SLOs for checkout, dispatch, notifications, location freshness and refund finality; alert on stuck states.
-- [ ] P2-CHECK-08 Add documentation of service contracts, database indexes/migrations, permission matrix and on-call runbooks.
+- [ ] P2-CHECK-08 Add documentation of service contracts, database indexes/migrations, permission matrix and on-call runbooks. Source-derived lifecycle contracts, Firestore/Storage access summary, index/schema inventory, and recovery procedures are now in `../production/SERVICE_OPERATIONS_REFERENCE.md`; accountable on-call ownership, SLO/alert thresholds, backup/restore drills, migration history, and deployed-state verification remain open.
 - [ ] P2-CHECK-09 Verify signed Android AAB, iOS archive, release keys, app stores, privacy labels, crashes and staged rollout.
 
 ### P3 expansion after core operational acceptance

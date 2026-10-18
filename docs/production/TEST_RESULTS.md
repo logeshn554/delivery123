@@ -197,3 +197,8 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - Expired partner evidence cleanup now checkpoints each object with a `(retentionUntil, evidenceId)` cursor and wraps when it reaches the end. The integration regression fails storage deletion for the first of 101 records, verifies the 100 later records are not starved, then restores storage and verifies the first record is retried after wrap-around.
 - `npm run test:rules`: **138 passed, 0 failed, 0 skipped**. `node --check` for changed JavaScript and `git diff --check` passed. The test uses memory storage plus the Firestore emulator; it does not establish production bucket IAM, object generation behavior or scheduler delivery.
 
+# 2026-10-18 operations reference documentation
+
+- Added a source-linked operational reference for lifecycle states, authorization boundaries, indexes/schema, migration caveats, and incident recovery.
+- Reviewed links and file references against the current repository sources; no runtime behavior changed and no software test was warranted. This document is not evidence of deployed rules, indexes, schedules, production SLOs, or backup/restore acceptance.
+
