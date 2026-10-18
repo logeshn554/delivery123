@@ -1,6 +1,11 @@
 function bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }) {
   const terminal = status => ['completed', 'delivered', 'cancelled'].includes(status);
-  const participant = (uid, account, booking) => booking.customerId === uid || booking.driverId === uid || account?.role === 'merchant' && !!account.merchantId && account.merchantId === booking.merchantId && (account.merchantType === 'restaurant' ? booking.serviceType === 'food' : account.merchantType === 'grocery' && booking.serviceType === 'grocery');
+  const active = account => account && account.disabled !== true && account.suspended !== true;
+  const participant = (uid, account, booking) => active(account) && (
+    account.role === 'customer' && booking.customerId === uid ||
+    account.role === 'driver' && booking.driverId === uid ||
+    account.role === 'merchant' && !!account.merchantId && account.merchantId === booking.merchantId && (account.merchantType === 'restaurant' ? booking.serviceType === 'food' : account.merchantType === 'grocery' && booking.serviceType === 'grocery')
+  );
   return {
     reportBookingException: onCall({ operation: 'reportBookingException', region: REGION }, async request => {
       const uid = request.auth?.uid;
@@ -11,7 +16,7 @@ function bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId,
       return db.runTransaction(async tx => {
         const ref = db.doc(`bookings/${bookingId}`), eventRef = ref.collection('events').doc(`exception_${uid}_${requestId}`);
         const [record, account, event] = await Promise.all([tx.get(ref), tx.get(db.doc(`users/${uid}`)), tx.get(eventRef)]);
-        const booking = record.data(), staff = request.auth.token.admin === true && account.data()?.role === 'admin';
+        const booking = record.data(), staff = request.auth.token.admin === true && active(account.data()) && account.data()?.role === 'admin';
         if (!booking || !staff && !participant(uid, account.data(), booking)) throw new HttpsError('permission-denied', 'This booking is not assigned to your account.');
         if (event.exists) {
           if (event.data().kind !== kind || event.data().reason !== reason) throw new HttpsError('already-exists', 'This request reference was already used.');
@@ -34,7 +39,7 @@ function bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId,
       return db.runTransaction(async tx => {
         const ref = db.doc(`bookings/${bookingId}`), eventRef = ref.collection('events').doc(`exception_resolution_${requestId}`);
         const [record, account, event] = await Promise.all([tx.get(ref), tx.get(db.doc(`users/${uid}`)), tx.get(eventRef)]);
-        if (account.data()?.role !== 'admin') throw new HttpsError('permission-denied', 'Active operations authorization is required.');
+        if (!active(account.data()) || account.data()?.role !== 'admin') throw new HttpsError('permission-denied', 'Active operations authorization is required.');
         if (event.exists) {
           if (event.data().actorId !== uid || event.data().reason !== reason || event.data().expectedRevision !== expectedRevision) throw new HttpsError('already-exists', 'This request reference was already used.');
           return { resolved: true };

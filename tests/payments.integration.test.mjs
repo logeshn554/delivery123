@@ -746,6 +746,26 @@ test('booking problem reports reject stage mismatches and unassigned merchant ac
   await assert.rejects(callable('reportBookingException', 'customer', { ...report, kind: 'damage' }), error => error.code === 'failed-precondition');
 });
 
+test('booking exception actions require an active account with the current participant role', async () => {
+  await db.doc('users/driver').set({ role: 'driver' });
+  await db.doc('users/admin').set({ role: 'admin' });
+  const revokedDriverBooking = db.doc('bookings/revoked_driver_exception');
+  await revokedDriverBooking.set({ customerId: 'customer', driverId: 'driver', serviceType: 'parcel', status: 'transit', paymentStatus: 'paid' });
+  await db.doc('users/driver').update({ role: 'customer' });
+  await assert.rejects(callable('reportBookingException', 'driver', { bookingId: revokedDriverBooking.id, requestId: 'revoked', kind: 'failed_delivery', reason: 'Recipient unavailable' }), error => error.code === 'permission-denied');
+  assert.equal((await revokedDriverBooking.get()).data().exception, undefined);
+
+  await db.doc('users/driver').update({ role: 'driver', suspended: true });
+  await assert.rejects(callable('reportBookingException', 'driver', { bookingId: revokedDriverBooking.id, requestId: 'suspended', kind: 'failed_delivery', reason: 'Recipient unavailable' }), error => error.code === 'permission-denied');
+  assert.equal((await revokedDriverBooking.get()).data().exception, undefined);
+
+  const openBooking = db.doc('bookings/inactive_admin_exception');
+  await openBooking.set({ customerId: 'customer', driverId: null, serviceType: 'parcel', status: 'pending', paymentStatus: 'paid', exception: { kind: 'no_partner', status: 'open', revision: 1 } });
+  await db.doc('users/admin').update({ suspended: true });
+  await assert.rejects(callable('resolveBookingException', 'admin', { bookingId: openBooking.id, requestId: 'suspended', expectedRevision: 1, reason: 'Review availability' }, true), error => error.code === 'permission-denied');
+  assert.equal((await openBooking.get()).data().exception.status, 'open');
+});
+
 test('global catalog search checks live stock, availability and item names across partners', async () => {
   const { syncSearchDocument } = require('../functions/catalogSearch.js');
   await Promise.all(['food', 'grocery'].map(service => db.doc(`service_pricing/${service}`).set({ enabled: true })));

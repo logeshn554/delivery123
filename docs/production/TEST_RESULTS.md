@@ -134,3 +134,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `adb devices -l` could not connect because the local ADB daemon failed to start. Prior AllGo install/launch evidence remains historical only; current device acceptance was not repeated.
 - Further Swiggy reference inspection is stopped at the user's direction. Existing screenshots and observations remain evidence; undocumented journeys stay open.
 
+## 2026-10-18 booking exception authorization
+
+- Exception reports now require an active current customer, assigned driver, or assigned merchant account. Operations resolution also rejects disabled or suspended admins even when an admin claim remains in the token.
+- `npm run test:rules`: **131 passed, 0 failed, 0 skipped**, including revoked-driver, suspended-driver and suspended-admin regressions. `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. TypeScript lint, development build, syntax and diff checks passed; the build retains its existing large-chunk advisory.
+- This verifies callable authorization against the Firestore emulator; deployed rules/provider acceptance remains open.
+
