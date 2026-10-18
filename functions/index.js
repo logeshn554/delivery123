@@ -1517,14 +1517,17 @@ async function checkPendingRefund(attemptRef) {
 
 exports.reconcilePendingRefunds = onSchedule({ schedule: 'every 5 minutes', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET], timeoutSeconds: 540, maxInstances: 1 }, async () => {
   const cursorRef = db.doc('reconciliation_cursors/refunds'), cursor = (await cursorRef.get()).data()?.lastId;
-  let query = db.collection('payment_attempts').where('status', 'in', ['refund_processing', 'refund_required']).orderBy('__name__').limit(50);
+  const baseQuery = db.collection('payment_attempts').where('status', 'in', ['refund_processing', 'refund_required']).orderBy('__name__').limit(50);
+  let query = baseQuery;
   if (cursor) query = query.startAfter(cursor);
-  const page = await query.get();
+  let page = await query.get();
+  if (page.empty && cursor) page = await baseQuery.get();
   for (const attempt of page.docs) {
     try { await checkPendingRefund(attempt.ref); }
     catch { console.error('Refund reconciliation needs review', { orderId: attempt.id }); }
+    await cursorRef.set({ lastId: attempt.id, checkedAt: Timestamp.now() });
   }
-  await cursorRef.set({ lastId: page.size === 50 ? page.docs.at(-1).id : null, checkedAt: Timestamp.now() });
+  if (page.empty) await cursorRef.set({ lastId: null, checkedAt: Timestamp.now() });
 });
 
 exports.reviewPendingRefund = onCall({ operation: 'reviewPendingRefund', region: REGION, secrets: [RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET] }, async request => {

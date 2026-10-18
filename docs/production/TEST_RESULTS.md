@@ -182,3 +182,8 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm run test:rules`: **135 passed, 0 failed, 0 skipped** (130.8s). `node --check` for changed JavaScript and `git diff --check` passed. Provider access was mocked; no transaction or live schedule was run against Razorpay.
 - This verifies local cursor fairness only. Signed provider reconciliation, deployed scheduler delivery, payment finality, and operations ownership for persistently failing records remain open.
 
+# 2026-10-18 refund reconciliation checkpoints
+
+- `reconcilePendingRefunds` now saves its document cursor after each completed provider check and resets after a full scan, so a slow or failing lookup cannot force the next invocation to replay the entire page.
+- Added a Firestore integration test with 51 refund attempts and mocked HTTP 503 provider responses. Three scheduler invocations verify 50, then 1, then wrap-around to 50, while no refund amount or financial journal is changed. `npm run test:rules`: **136 passed, 0 failed, 0 skipped**. `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 746 snapshots. TypeScript lint, development build, JavaScript syntax and diff checks passed; the existing large-chunk advisory remains.
+

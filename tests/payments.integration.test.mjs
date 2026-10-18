@@ -712,6 +712,40 @@ test('refund review reconciles missing provider events without initiating anothe
     assert.equal((await db.collection('financial_journals').get()).size, 2);
   } finally { globalThis.fetch = originalFetch; }
 });
+test('scheduled refund reconciliation checkpoints each failing record and rotates without starvation', async () => {
+  const batch = db.batch();
+  for (let i = 0; i < 51; i += 1) {
+    const suffix = String(i).padStart(3, '0'), id = `order_refund${suffix}`;
+    batch.set(db.doc(`payment_attempts/${id}`), { uid: 'customer', kind: 'wallet_topup', amount: 5000, paymentId: `pay_refund${suffix}`, status: 'refund_processing' });
+  }
+  await batch.commit();
+
+  const originalFetch = globalThis.fetch, originalError = console.error, calls = [];
+  try {
+    globalThis.fetch = async url => {
+      calls.push(String(url));
+      return new Response('{}', { status: 503 });
+    };
+    console.error = () => {};
+    await compiled.exports.reconcilePendingRefunds.run();
+    assert.equal(calls.length, 50);
+    assert.ok(calls.at(-1).endsWith('/payments/pay_refund049'));
+    assert.equal((await db.doc('reconciliation_cursors/refunds').get()).data().lastId, 'order_refund049');
+
+    await compiled.exports.reconcilePendingRefunds.run();
+    assert.equal(calls.length, 51);
+    assert.ok(calls.at(-1).endsWith('/payments/pay_refund050'));
+    assert.equal((await db.doc('reconciliation_cursors/refunds').get()).data().lastId, 'order_refund050');
+
+    await compiled.exports.reconcilePendingRefunds.run();
+    assert.equal(calls.length, 101);
+    assert.ok(calls.at(-1).endsWith('/payments/pay_refund049'));
+    assert.equal((await db.doc('reconciliation_cursors/refunds').get()).data().lastId, 'order_refund049');
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.error = originalError;
+  }
+});
 
 test('provider cancellation persists refund intent before calling Razorpay and posts the verified refund journal', async () => {
   const attemptRef = db.doc('payment_attempts/order_cancelTest'), bookingRef = db.doc('bookings/cancelTest');
