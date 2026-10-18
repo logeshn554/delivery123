@@ -7,7 +7,7 @@ The detailed unresolved backlog in `../audit/remediation-register.md` remains bi
 | ID | Priority | Task / completion evidence | Status |
 |---|---|---|---|
 | REF-01 | P1 | Detect emulator/package and launch Swiggy | Verified |
-| REF-02 | P1 | Observe accessible screens and record screenshots; captured out-of-coverage home, location error, Add New Address map picker and manual-search field with keyboard; no address query or save performed; Retry, result selection and later journeys remain open | In progress |
+| REF-02 | P1 | Existing captures document the out-of-coverage home, location error, Add New Address map picker and manual-search field with keyboard; no address query or save was performed. Further Swiggy inspection stopped at the user's direction; retry, results selection and later journeys remain undocumented | Blocked |
 | AUD-01 | P0 | Consolidate existing architecture audit and screen gap matrix; continue source review for unexamined paths | In progress |
 | FIX-01 | P1 | Operations Hub uses administrator booking scope, clears prior scope and ignores late callbacks; 4 scope tests and 96 emulator tests pass; authenticated device acceptance remains separate | Verified |
 | FIX-02 | P1 | Booking subscription failures clear cached rows/codes, stop joined listeners and offer retry/sign-out; 8 scope/lifecycle tests pass | Verified |

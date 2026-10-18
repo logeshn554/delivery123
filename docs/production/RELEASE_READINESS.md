@@ -1,6 +1,6 @@
 # Release readiness
 
-**Not ready for release.** Updated 2026-10-18.
+**Not ready for release.** Updated 2026-10-18. The staging preflight was run and failed closed because operator gate-A evidence, staging/provider configuration, private evidence storage/scanner settings, project Functions configuration, and matching Android/iOS registrations are missing.
 
 React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. Android source/build presence does not establish native provider functionality; iOS has not been tested on this Windows host.
 

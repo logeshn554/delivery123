@@ -126,3 +126,9 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm --prefix functions test`: **71 passed, 0 failed, 0 skipped**. `npm run test:rules`: **130 passed, 0 failed, 0 skipped**. TypeScript lint, development build, changed-file syntax checks and `git diff --check` passed. The build retains the existing large-chunk advisory.
 - Emulator tests do not establish production scheduler delivery or live driver/operations response.
 
+## 2026-10-18 release preflight and reference scope
+
+- `node scripts/check-release.mjs --environment=staging` failed closed. Gate-A acceptance evidence, staging/provider configuration, private evidence storage/scanner settings, project-specific Functions configuration and matching Android/iOS registrations are missing; no configuration values were printed or changed.
+- `adb devices -l` could not connect because the local ADB daemon failed to start. Prior AllGo install/launch evidence remains historical only; current device acceptance was not repeated.
+- Further Swiggy reference inspection is stopped at the user's direction. Existing screenshots and observations remain evidence; undocumented journeys stay open.
+
