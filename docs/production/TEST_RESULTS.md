@@ -14,6 +14,18 @@ Unexpired artifacts observed, each including its debug APK and verification JSON
 
 This establishes hosted isolated-service and Android debug packaging checks for the stated source commit. It does not prove signed release, authenticated device journeys, iOS compilation or deployed provider acceptance.
 
+## 2026-10-19 hosted merchant deletion guard verification
+
+[Application checks run 39246004016](https://github.com/logeshn554/delivery123/actions/runs/39246004016), attempt 1, passed all five jobs for `82bb87e4b6a070d1f5ee3b455caad752cf26c354`: lint, application tests, Firestore rules/integration (142 tests), web build, fixture/dependency checks, PostgreSQL/Auth integration, and customer/merchant/driver Android debug builds plus packaged identity checks.
+
+| Audience | Artifact ID | Expires (UTC) |
+|---|---|---|
+| Customer | 12183144163 | 2026-10-26 11:42:45 |
+| Driver | 12183387528 | 2026-10-26 11:42:48 |
+| Merchant | 12183743360 | 2026-10-26 11:42:50 |
+
+Hosted checks do not prove signed builds, authenticated device journeys, iOS compilation, deployed indexes or real provider acceptance.
+
 ## 2026-10-18 delayed driver availability alerts
 
 - `notifyDriverAvailability` now rechecks the current driver profile before searching and sending, including verified status, online state, location consent, no active assignment and a fresh position within the existing 60-second/100-metre policy. A delayed/retried event after the driver goes offline is suppressed.

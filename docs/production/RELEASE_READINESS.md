@@ -2,6 +2,8 @@
 
 Latest hosted verification (2026-10-19): [run 39244365802](https://github.com/logeshn554/delivery123/actions/runs/39244365802) passed all five jobs for `6375af156a654dbff0228971ace5f3ff36fcb87e`: checks (including 141 Firestore/integration tests), PostgreSQL/Auth lifecycle, and customer/merchant/driver Android debug build, identity and artifact checks. Debug artifacts expire 2026-10-26. These checks do not close signed-device, deployed-provider or operator acceptance gates.
 
+The later merchant deletion guard source is verified by [run 39246004016](https://github.com/logeshn554/delivery123/actions/runs/39246004016), which passed the same five jobs, including all 142 Firestore/integration tests and all three Android debug identity matrices for commit `82bb87e`.
+
 **Not ready for release.** Updated 2026-10-18. The staging preflight was run and failed closed because operator gate-A evidence, staging/provider configuration, private evidence storage/scanner settings, project Functions configuration, and matching Android/iOS registrations are missing.
 
 React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. iOS native background driver-location source is now present, but the current Windows host has no Xcode toolchain and no iOS build/device acceptance has been performed. Android source/build presence also does not establish native provider functionality.
