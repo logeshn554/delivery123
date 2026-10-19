@@ -302,6 +302,7 @@ Retrying after `users/{uid}` was deleted previously overwrote the job's Neon acc
 - UI regression verifies pending notification routes are validated, retained in memory when session storage throws, and safely cleared when storage is unavailable.
 - `npm run lint`, `npm test` (71 Functions and 98 UI tests; server tests and 707 secret-scan snapshots), `npm run build`, and `git diff --check` pass.
 - Web build retains the existing advisory for the `accounts` JavaScript chunk exceeding 500 kB. No real notification provider or mobile device was exercised.
+- Hosted run [39279093151](https://github.com/logeshn554/delivery123/actions/runs/39279093151) initially failed two native logout cleanup tests because the wrapper referenced `window.sessionStorage` while the test runtime exposes `sessionStorage` globally. The callbacks now use the global accessor within the guarded wrapper; local lint and tests pass after the correction. Hosted rerun is pending.
 # 2026-10-19 operations deletion confirmation
 
 - Admin UI regression verifies account deletion processing uses the accessible AllGo confirmation dialog rather than `window.confirm`.

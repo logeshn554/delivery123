@@ -16,7 +16,7 @@ export async function cleanupNativeSession() {
   await signOutWithCleanup([
     () => localStorage.removeItem('allgo-push-enabled'),
     () => localStorage.removeItem('allgo-push-user'),
-    () => clearPendingBookingId(key => window.sessionStorage.removeItem(key)),
+    () => clearPendingBookingId(key => sessionStorage.removeItem(key)),
     () => sessionStorage.removeItem('allgo-open-dispatch'),
     stopNativeDriverLocation,
     // Stop local location promptly even while an SDK registration is draining.

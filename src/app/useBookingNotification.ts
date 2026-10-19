@@ -10,7 +10,7 @@ export function useBookingNotification(bookings: Booking[], scope: PartnerBookin
   useEffect(() => {
     const open = (event?: Event) => {
       const detail = event instanceof CustomEvent ? notificationBookingId(event.detail) : null;
-      const stored = readPendingBookingId(key => window.sessionStorage.getItem(key));
+      const stored = readPendingBookingId(key => sessionStorage.getItem(key));
       const value = detail ?? stored;
       if (value === null) return;
       matched.current = false; setExpired(false);
@@ -21,14 +21,14 @@ export function useBookingNotification(bookings: Booking[], scope: PartnerBookin
   }, []);
   useEffect(() => {
     if (!request) return;
-    const timer = window.setTimeout(() => { setExpired(true); clearPendingBookingId(key => window.sessionStorage.removeItem(key)); }, 15000);
+    const timer = window.setTimeout(() => { setExpired(true); clearPendingBookingId(key => sessionStorage.removeItem(key)); }, 15000);
     return () => window.clearTimeout(timer);
   }, [request]);
   useEffect(() => {
-    if (booking) { matched.current = true; clearPendingBookingId(key => window.sessionStorage.removeItem(key)); }
+    if (booking) { matched.current = true; clearPendingBookingId(key => sessionStorage.removeItem(key)); }
     else if (matched.current) setExpired(true);
   }, [booking, request]);
-  const dismiss = () => { clearPendingBookingId(key => window.sessionStorage.removeItem(key)); setRequest(null); setExpired(false); matched.current = false; };
+  const dismiss = () => { clearPendingBookingId(key => sessionStorage.removeItem(key)); setRequest(null); setExpired(false); matched.current = false; };
   return {
     booking: booking || undefined,
     status: !request ? 'idle' as const : booking ? 'found' as const : !request.id || expired ? 'unavailable' as const : 'waiting' as const,

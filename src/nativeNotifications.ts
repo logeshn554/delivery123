@@ -36,7 +36,7 @@ async function registerToken(snapshot: ReturnType<typeof pushSnapshot>, token?: 
 
 function openBooking(id: unknown) {
   if (!notificationBookingId(id)) return;
-  const routeId = writePendingBookingId(id, (key, value) => window.sessionStorage.setItem(key, value));
+  const routeId = writePendingBookingId(id, (key, value) => sessionStorage.setItem(key, value));
   if (routeId) window.dispatchEvent(new CustomEvent('allgo:booking', { detail: routeId }));
 }
 function openDispatch() {
