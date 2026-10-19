@@ -10,11 +10,15 @@ async function redactBundleLeg(db, legRef, uid, customerDeletion, FieldValue) {
     const batch = db.batch();
     let changed = false;
     for (const event of page.docs) {
-      const actorOwned = event.data().actorId === uid;
-      if (!customerDeletion && !actorOwned) continue;
+      const actorOwned = event.data().actorId === uid, idContainsUser = event.id.includes(uid);
+      if (!customerDeletion && !actorOwned && !idContainsUser) continue;
       const redaction = { reason: FieldValue.delete(), text: FieldValue.delete(), notes: FieldValue.delete(), personalDataDeleted: true };
       if (actorOwned) redaction.actorId = FieldValue.delete();
-      batch.update(event.ref, redaction);
+      if (idContainsUser) {
+        const anonymizedId = event.id.split(uid).join('deleted_account');
+        batch.set(event.ref.parent.doc(anonymizedId), { ...event.data(), ...redaction }, { merge: true });
+        batch.delete(event.ref);
+      } else batch.update(event.ref, redaction);
       changed = true;
     }
     if (changed) await batch.commit();
