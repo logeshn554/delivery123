@@ -1,6 +1,6 @@
 # Blockers and required setup
 
-Updated 2026-10-18 after fresh release preflight and emulator verification. Continue unblocked source and emulator work; blockers do not justify marking features complete.
+Updated 2026-10-19 after fresh release preflight and emulator verification. Continue unblocked source and emulator work; blockers do not justify marking features complete.
 
 | Blocker | Evidence | Exact next requirement |
 |---|---|---|
@@ -14,10 +14,10 @@ Updated 2026-10-18 after fresh release preflight and emulator verification. Cont
 
 ## Fresh verification on published `main`
 
-- Confirmed `main` is at `d6d5feb68fb2b2615c062ac80a5000eb420cdb36` and clean. The latest `origin/codex/allgo-production-foundations` tip `4230bc11c04eb3cc42d47b5cb038a5eae48db505` is an ancestor of `main` and is included in its first-parent history; there are no AllGo source commits waiting to merge from that branch.
-- `npm run lint` and `npm run build` pass. Build retains the existing advisory for a 607 kB accounts chunk.
-- `npm run test:rules` passes **138/138**, 0 failures and 0 skips, after running with local loopback permission for the Firestore emulator. Provider secret warnings are expected in this isolated mocked environment.
-- The staging release preflight was rerun and fails closed for the owner-controlled configuration listed above. No provider credentials were read into output, and no live service was contacted.
+- Confirmed `main` at `e79dcaecedf9b69813cc04bdcc1bce45fe2e3cd3`, with no other remote branches. The previous code change `3e0da8e` is covered by hosted run `39247848805`; its lint, application tests, emulator suite, web build, fixture check and production dependency audit all passed.
+- At `3e0da8e`, `npm run test:rules` passed **143/143**, 0 failures and 0 skips, using local emulator loopback. Local warnings for unset Maps and Razorpay mock secrets are expected; no live providers were called.
+- Re-ran `node scripts/check-release.mjs --environment=staging` at `e79dcae`. It failed closed for missing operator gate-A evidence; staging DATABASE/Firebase/API/email/App Check/support/legal configuration; deployed HTTPS URL requirements; private document bucket/scanner and matching deploy target; project-specific Functions configuration; and Android/iOS Firebase registrations. Values were omitted. These owner/provider setup requirements remain external blockers; source work continues independently.
+- No provider credentials were read into output and no live service was contacted during the preflight.
 
 Credentials belong in ignored local configuration or managed secrets, never source or reports. Configuration checks must remain fail-closed. No production purchases, onboarding approvals, deployments or customer data changes have been performed.
 

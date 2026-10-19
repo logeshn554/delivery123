@@ -4,7 +4,7 @@ Latest hosted verification (2026-10-19): [run 39244365802](https://github.com/lo
 
 The later merchant deletion guard source is verified by [run 39246004016](https://github.com/logeshn554/delivery123/actions/runs/39246004016), which passed the same five jobs, including all 142 Firestore/integration tests and all three Android debug identity matrices for commit `82bb87e`.
 
-**Not ready for release.** Updated 2026-10-18. The staging preflight was run and failed closed because operator gate-A evidence, staging/provider configuration, private evidence storage/scanner settings, project Functions configuration, and matching Android/iOS registrations are missing.
+**Not ready for release.** Updated 2026-10-19. The latest staging preflight at `e79dcae` failed closed because operator gate-A evidence, staging/provider configuration, private evidence storage/scanner settings, project Functions configuration, and matching Android/iOS registrations are missing; see `BLOCKERS.md` for the exact missing categories.
 
 React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. iOS native background driver-location source is now present, but the current Windows host has no Xcode toolchain and no iOS build/device acceptance has been performed. Android source/build presence also does not establish native provider functionality.
 
@@ -13,6 +13,8 @@ All master acceptance gates remain open: customer journeys, merchant/driver inte
 Current verified source scope includes the complete six-service wallet/dispatch/custody emulator journeys, partner application/eligibility workflows, 116 Firestore/integration tests, application/unit tests, TypeScript, web build, secret scan and hosted run 39007835058 for fb569c3 (all five jobs passed, including account lifecycle and all three Android build/identity/artifact jobs). See TEST_RESULTS.md and the Android/account evidence documents for exact scope; these results do not establish authenticated native or real-provider acceptance.
 
 The Android emulator cannot reach the configured development account endpoint. Native Firebase provider registrations and staging/production provider acceptance are absent. No iOS archive/device, live provider payment, signed release or deployed-rules acceptance is established. Functions and rules changes require coordinated staging deployment and verification before production rollout.
+
+Account export now covers customer TripBundles and assigned driver legs/events with owner-scoped access and path-safe pagination. Account deletion also checks assigned active bundle legs independently of profile pointers. Both changes have emulator evidence; neither substitutes for production account-export, retention-policy or cross-store deletion acceptance.
 
 The dispatch source now rotates offers across ordered booking pages, preserves fixed nonrenewing lease deadlines during driver polling, rejects stale no-response acceptance, and sends generic offer pushes to eligible drivers. Tracking route estimates request traffic-aware Maps durations while quote calculations remain traffic-unaware. Isolated tests cover request selection, no-response reoffer and fallback timing, but standard priority coordination, production-scale fairness, live Maps billing/quota, hosted CI for recent commits and native push delivery remain unverified.
 

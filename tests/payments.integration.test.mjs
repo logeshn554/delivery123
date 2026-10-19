@@ -1286,6 +1286,8 @@ test('deletion checks assigned delivery records even when the driver profile has
   await db.doc('users/customer').update({ walletBalance: 0, role: 'driver' });
   await db.doc('driver_profiles/customer').set({ status: 'verified' });
   await db.doc('bookings/held_delivery').set({ customerId: 'other', driverId: 'customer', status: 'transit', paymentStatus: 'paid' });
+  await db.doc('bundles/held_bundle').set({ customerId: 'other', status: 'active' });
+  await db.doc('bundles/held_bundle/legs/held_leg').set({ driverId: 'customer', status: 'transit' });
   await assert.rejects(callable('requestAccountDeletion', 'customer', {}), error => error.code === 'failed-precondition');
   assert.equal((await db.doc('account_deletions/customer').get()).exists, false);
   await db.doc('users/admin').set({ role: 'admin' });
@@ -1295,6 +1297,10 @@ test('deletion checks assigned delivery records even when the driver profile has
   assert.equal((await db.doc('account_deletions/customer').get()).data().status, 'requested');
   assert.equal((await db.doc('bookings/held_delivery').get()).data().status, 'transit');
   await db.doc('bookings/held_delivery').update({ status: 'completed' });
+  await assert.rejects(callable('requestAccountDeletion', 'customer', {}), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('processAccountDeletion', 'admin', { uid: 'customer' }, true), error => error.code === 'failed-precondition');
+  assert.equal((await db.doc('account_deletions/customer').get()).data().status, 'requested');
+  await db.doc('bundles/held_bundle/legs/held_leg').update({ status: 'completed' });
   assert.deepEqual(await callable('requestAccountDeletion', 'customer', {}), { status: 'requested' });
 });
 test('merchant deletion is blocked while its restaurant or grocery orders remain active', async () => {

@@ -1238,18 +1238,19 @@ exports.requestAccountDeletion = onCall({ operation: 'requestAccountDeletion', r
   if (!Number.isFinite(authTime) || Date.now() / 1000 - authTime > 300 || authTime > Date.now() / 1000 + 5) throw new HttpsError('failed-precondition', 'Sign out and sign in again before requesting account deletion.');
   const accountRef = db.doc(`users/${uid}`);
   return db.runTransaction(async transaction => {
-    const [account, driver, bookings, attempts, intents, bundles, bundleRefunds, assignedBookings] = await Promise.all([
+    const [account, driver, bookings, attempts, intents, bundles, bundleRefunds, assignedBookings, assignedBundleLegs] = await Promise.all([
       transaction.get(accountRef), transaction.get(db.doc(`driver_profiles/${uid}`)),
       transaction.get(db.collection('bookings').where('customerId', '==', uid).where('status', 'in', ['pending', 'accepted', 'preparing', 'ready', 'transit']).limit(1)),
       transaction.get(db.collection('payment_attempts').where('uid', '==', uid).where('status', 'in', ['created', 'processing', 'refund_processing', 'refund_required']).limit(1)),
       transaction.get(db.collection('payment_intents').where('uid', '==', uid).where('status', 'in', ['creating', 'provider_created', 'reconciliation_required', 'manual_review']).limit(1)),
       transaction.get(db.collection('bundles').where('customerId', '==', uid).where('status', 'in', ['pending', 'active', 'partial']).limit(1)),
       transaction.get(db.collection('bundle_refund_intents').where('customerId', '==', uid).where('status', 'in', ['pending', 'provider_pending', 'reconciliation_required', 'manual_review']).limit(1)),
-      transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
+      transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)),
+      transaction.get(db.collectionGroup('legs').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
     ]);
     const merchantId = account.data()?.merchantId;
     const merchantBookings = merchantId ? await transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)) : { empty: true };
-    if (!account.exists || !assignedBookings.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data().walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Resolve active bookings, refunds and account balances with support before deletion.');
+    if (!account.exists || !assignedBookings.empty || !assignedBundleLegs.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data().walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Resolve active bookings, refunds and account balances with support before deletion.');
     transaction.set(db.doc(`account_deletions/${uid}`), { uid, status: 'requested', requestedAt: Timestamp.now() }, { merge: true });
     return { status: 'requested' };
   });
@@ -1264,14 +1265,15 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
   if (policy?.deletionEnabled !== true || typeof policy.policyUrl !== 'string' || !policy.policyUrl.startsWith('https://')) throw new HttpsError('failed-precondition', 'Publish and configure the retention/deletion policy first.');
   const deletionRef = db.doc(`account_deletions/${uid}`);
   await db.runTransaction(async transaction => {
-    const [deletion, account, driver, bookings, attempts, intents, bundles, bundleRefunds, assignedBookings] = await Promise.all([
+    const [deletion, account, driver, bookings, attempts, intents, bundles, bundleRefunds, assignedBookings, assignedBundleLegs] = await Promise.all([
       transaction.get(deletionRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_profiles/${uid}`)),
       transaction.get(db.collection('bookings').where('customerId', '==', uid).where('status', 'in', ['pending', 'accepted', 'preparing', 'ready', 'transit']).limit(1)),
       transaction.get(db.collection('payment_attempts').where('uid', '==', uid).where('status', 'in', ['created', 'processing', 'refund_processing', 'refund_required']).limit(1)),
       transaction.get(db.collection('payment_intents').where('uid', '==', uid).where('status', 'in', ['creating', 'provider_created', 'reconciliation_required', 'manual_review']).limit(1)),
       transaction.get(db.collection('bundles').where('customerId', '==', uid).where('status', 'in', ['pending', 'active', 'partial']).limit(1)),
       transaction.get(db.collection('bundle_refund_intents').where('customerId', '==', uid).where('status', 'in', ['pending', 'provider_pending', 'reconciliation_required', 'manual_review']).limit(1)),
-      transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
+      transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)),
+      transaction.get(db.collectionGroup('legs').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
     ]);
     const merchantId = account.data()?.merchantId;
     const merchantBookings = merchantId ? await transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)) : { empty: true };
@@ -1279,7 +1281,7 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
     // be claimed; allowing "processing" here lets a second operator run the
     // destructive cross-store cleanup concurrently after a transaction retry.
     if (!deletion.exists || !['requested', 'failed'].includes(deletion.data().status)) throw new HttpsError('failed-precondition', 'No unclaimed deletion request is available.');
-    if (!assignedBookings.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
+    if (!assignedBookings.empty || !assignedBundleLegs.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
     transaction.update(deletionRef, { status: 'processing', startedAt: Timestamp.now(), operatorId: request.auth.uid, policyUrl: policy.policyUrl, neonAccountId: account.data()?.neonAccountId || deletion.data().neonAccountId || null });
   });
   try {
