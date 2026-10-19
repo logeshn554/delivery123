@@ -12,6 +12,8 @@ Deletion also checks nonterminal bookings for the account's bound merchant ID. F
 
 Completed-bundle cleanup redacts the deleted customer's names, routes, recipient details, chats, delivery codes and tracking. It removes deleted-user IDs from event document paths and free-text fields while keeping fulfillment stages and financial totals. Driver cleanup is leg-scoped in shared code/tracking documents so other drivers' entries remain. An unverified or disconnected Neon identity cannot create an account-deletion job: both the UI route and SQL API return an explicit failure that says no request was recorded and directs the user to connect the service identity or contact support. A genuine unlinked-account deletion workflow is not implemented; do not treat a legacy `allgo_account_items(kind='deletion')` row as an accepted request.
 
+Ordinary booking event cleanup also relocates UID-bearing event document IDs to deterministic opaque SHA-256-based IDs, removes actor identity for events owned by the deleted account, and preserves nonpersonal stage/revision evidence. Emulator coverage verifies both customer and driver event IDs. This does not replace deployed retention-policy or cross-store acceptance.
+
 ## Service lifecycle contracts
 
 The canonical callable transitions are implemented in `functions/fulfillmentPolicy.js`, `functions/index.js`, and `functions/tripBundleFunctions.js`. Booking documents are server-created and client writes to bookings and booking events are denied by `firestore.rules`.
