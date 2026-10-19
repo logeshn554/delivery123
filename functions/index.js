@@ -1247,7 +1247,9 @@ exports.requestAccountDeletion = onCall({ operation: 'requestAccountDeletion', r
       transaction.get(db.collection('bundle_refund_intents').where('customerId', '==', uid).where('status', 'in', ['pending', 'provider_pending', 'reconciliation_required', 'manual_review']).limit(1)),
       transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
     ]);
-    if (!account.exists || !assignedBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data().walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Resolve active bookings, refunds and account balances with support before deletion.');
+    const merchantId = account.data()?.merchantId;
+    const merchantBookings = merchantId ? await transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)) : { empty: true };
+    if (!account.exists || !assignedBookings.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data().walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Resolve active bookings, refunds and account balances with support before deletion.');
     transaction.set(db.doc(`account_deletions/${uid}`), { uid, status: 'requested', requestedAt: Timestamp.now() }, { merge: true });
     return { status: 'requested' };
   });
@@ -1271,11 +1273,13 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
       transaction.get(db.collection('bundle_refund_intents').where('customerId', '==', uid).where('status', 'in', ['pending', 'provider_pending', 'reconciliation_required', 'manual_review']).limit(1)),
       transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
     ]);
+    const merchantId = account.data()?.merchantId;
+    const merchantBookings = merchantId ? await transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)) : { empty: true };
     // Firestore retries competing transactions. Only requested/failed jobs may
     // be claimed; allowing "processing" here lets a second operator run the
     // destructive cross-store cleanup concurrently after a transaction retry.
     if (!deletion.exists || !['requested', 'failed'].includes(deletion.data().status)) throw new HttpsError('failed-precondition', 'No unclaimed deletion request is available.');
-    if (!assignedBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
+    if (!assignedBookings.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
     transaction.update(deletionRef, { status: 'processing', startedAt: Timestamp.now(), operatorId: request.auth.uid, policyUrl: policy.policyUrl, neonAccountId: account.data()?.neonAccountId || deletion.data().neonAccountId || null });
   });
   try {

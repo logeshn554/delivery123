@@ -231,6 +231,12 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 
 # 2026-10-18 account deletion claim serialization
 
+## Follow-up 2026-10-19: merchant orders block account deletion
+
+Deletion request and processing now query nonterminal bookings for the account's bound merchant ID. This prevents removal of a merchant operator while the restaurant/grocery still has orders needing preparation or handoff. Added the `bookings(merchantId,status)` composite index. Emulator regression verifies both stages reject an active order and allow a request after completion.
+
+`npm run lint` passed. `npm run test:rules`: **142 passed, 0 failed, 0 skipped**. Changed JavaScript syntax, index JSON parsing and `git diff --check` passed. Deployed index and merchant provider acceptance remain open.
+
 ## Follow-up 2026-10-19: active driver bookings block deletion
 
 Both deletion request and processing now query assigned nonterminal bookings independently of the driver profile's active-job pointer. The emulator regression removes that pointer, verifies an assigned transit booking blocks both stages without changing custody, then completes the booking and verifies a deletion request can proceed. The existing `bookings(driverId, status)` index covers the query.

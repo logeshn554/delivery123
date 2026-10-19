@@ -8,6 +8,8 @@ Deletion retry identity (2026-10-19): the deletion job retains its recorded Neon
 
 Deletion custody guard (2026-10-19): request and processing independently query assigned nonterminal bookings, so a missing driver-profile active-job pointer does not permit deleting an account with an active delivery. Resolve custody through the supported fulfillment/incident workflow before retrying deletion.
 
+Deletion also checks nonterminal bookings for the account's bound merchant ID. Finish or resolve the restaurant/grocery queue before removing its merchant operator. The query requires the `bookings(merchantId,status)` composite index to be deployed.
+
 ## Service lifecycle contracts
 
 The canonical callable transitions are implemented in `functions/fulfillmentPolicy.js`, `functions/index.js`, and `functions/tripBundleFunctions.js`. Booking documents are server-created and client writes to bookings and booking events are denied by `firestore.rules`.

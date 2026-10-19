@@ -1275,6 +1275,20 @@ test('deletion checks assigned delivery records even when the driver profile has
   await db.doc('bookings/held_delivery').update({ status: 'completed' });
   assert.deepEqual(await callable('requestAccountDeletion', 'customer', {}), { status: 'requested' });
 });
+test('merchant deletion is blocked while its restaurant or grocery orders remain active', async () => {
+  await db.doc('users/customer').update({ walletBalance: 0, role: 'merchant', merchantId: 'shop' });
+  await db.doc('bookings/merchant_open_order').set({ customerId: 'other', merchantId: 'shop', serviceType: 'food', status: 'preparing', paymentStatus: 'paid' });
+  await assert.rejects(callable('requestAccountDeletion', 'customer', {}), error => error.code === 'failed-precondition');
+  assert.equal((await db.doc('account_deletions/customer').get()).exists, false);
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('platform_config/privacy').set({ deletionEnabled: true, policyUrl: 'https://example.test/privacy' });
+  await db.doc('account_deletions/customer').set({ status: 'requested' });
+  await assert.rejects(callable('processAccountDeletion', 'admin', { uid: 'customer' }, true), error => error.code === 'failed-precondition');
+  assert.equal((await db.doc('account_deletions/customer').get()).data().status, 'requested');
+  assert.equal((await db.doc('bookings/merchant_open_order').get()).exists, true);
+  await db.doc('bookings/merchant_open_order').update({ status: 'completed' });
+  assert.deepEqual(await callable('requestAccountDeletion', 'customer', {}), { status: 'requested' });
+});
 test('deletion retry preserves its SQL identity after the Firebase account document is removed', async () => {
   const neonAccountId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   await db.doc('users/customer').update({ walletBalance: 0, neonAccountId });
