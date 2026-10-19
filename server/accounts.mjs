@@ -314,7 +314,7 @@ app.post('/api/account/items/:kind', route(async (req, res) => {
     }
   }
   else if (kind === 'support') throw fail('Support requires a connected service session. Sign in again to connect, then retry your request.', 503, 'unavailable');
-  else if (kind === 'deletion') data = { status: 'pending', requestedAt: new Date().toISOString() };
+  else if (kind === 'deletion') throw fail('Connect and verify your AllGo service account before requesting deletion. No deletion request has been recorded. If you cannot connect, contact support.', 412, 'failed-precondition');
   else if (kind === 'partner') {
     throw fail('Partner applications require a connected service session. Sign in again to connect, then submit your application.', 503, 'unavailable');
   }

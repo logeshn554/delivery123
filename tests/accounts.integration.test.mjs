@@ -88,6 +88,16 @@ async function clientFor(customToken) {
   await signInWithCustomToken(auth, customToken); return client;
 }
 
+test('unlinked Neon deletion request fails without recording a fake pending item', async () => {
+  const user = await account();
+  const result = await request('/account/items/deletion', { method: 'POST', token: user.token, body: {} });
+  assert.equal(result.status, 412);
+  assert.equal(result.data.code, 'failed-precondition');
+  assert.match(result.data.error, /No deletion request has been recorded/);
+  const records = await pool.query("SELECT id FROM allgo_account_items WHERE account_id=$1 AND kind='deletion'", [user.accountId]);
+  assert.equal(records.rows.length, 0);
+});
+
 test('verified-phone signup, SQL sessions, Firebase bridge and real Firestore rules form one lifecycle', async () => {
   const user = await account(), identity = await bridge(user.token), uid = user.phone.localId;
   assert.equal(identity.profile.uid, uid); assert.equal(identity.profile.role, 'customer');
