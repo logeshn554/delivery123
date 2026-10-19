@@ -1260,6 +1260,36 @@ test('account deletion cannot be claimed concurrently while another operator is 
   assert.deepEqual((await db.doc('account_deletions/customer').get()).data(), { uid: 'customer', status: 'processing', operatorId: 'other_admin' });
   assert.equal((await db.doc('users/customer').get()).exists, true);
 });
+test('deletion retry preserves its SQL identity after the Firebase account document is removed', async () => {
+  const neonAccountId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  await db.doc('users/customer').update({ walletBalance: 0, neonAccountId });
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('platform_config/privacy').set({ deletionEnabled: true, policyUrl: 'https://example.test/privacy' });
+  await db.doc('account_deletions/customer').set({ uid: 'customer', status: 'requested' });
+  const auth = require('firebase-admin/auth').getAuth(getApp());
+  const original = { updateUser: auth.updateUser, revokeRefreshTokens: auth.revokeRefreshTokens, deleteUser: auth.deleteUser, recursiveDelete: db.recursiveDelete };
+  auth.updateUser = auth.revokeRefreshTokens = auth.deleteUser = async () => {};
+  let failOnce = true;
+  db.recursiveDelete = async function(ref) {
+    if (ref.path === 'driver_profiles/customer' && failOnce) { failOnce = false; throw new Error('Injected cleanup failure after user removal'); }
+    return original.recursiveDelete.call(this, ref);
+  };
+  try {
+    await assert.rejects(callable('processAccountDeletion', 'admin', { uid: 'customer' }, true), error => error.code === 'internal');
+    assert.equal((await db.doc('users/customer').get()).exists, false);
+    const failed = (await db.doc('account_deletions/customer').get()).data();
+    assert.equal(failed.status, 'failed');
+    assert.equal(failed.neonAccountId, neonAccountId);
+    assert.deepEqual(await callable('processAccountDeletion', 'admin', { uid: 'customer' }, true), { status: 'firebase_completed' });
+    const retried = (await db.doc('account_deletions/customer').get()).data();
+    assert.equal(retried.neonAccountId, neonAccountId);
+    assert.equal(retried.status, 'firebase_completed');
+    assert.equal(retried.completedAt, undefined);
+  } finally {
+    Object.assign(auth, { updateUser: original.updateUser, revokeRefreshTokens: original.revokeRefreshTokens, deleteUser: original.deleteUser });
+    db.recursiveDelete = original.recursiveDelete;
+  }
+});
 test('account exports are owner scoped and reject arbitrary collection names',async()=>{
   await db.doc('bookings/mine').set({customerId:'customer',status:'completed'});
   await db.doc('bookings/other').set({customerId:'other',status:'completed'});

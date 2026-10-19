@@ -217,6 +217,12 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 
 # 2026-10-18 account deletion claim serialization
 
+## Follow-up 2026-10-19: linked identity survives partial cleanup
+
+Retrying after `users/{uid}` was deleted previously overwrote the job's Neon account ID with null, allowing premature completion without SQL cleanup. The retry now preserves the recorded identity. A Firestore integration test injects a failure immediately after the user document is removed, retries, and verifies the same Neon ID, `firebase_completed` status and absent final completion timestamp. Firebase Auth operations are stubbed; Firestore cleanup and retry use the isolated emulator.
+
+`npm run test:rules`: **140 passed, 0 failed, 0 skipped**. SQL deletion coordinator tests: **2 passed**. Changed JavaScript syntax checks and `git diff --check` pass. Deployed Auth/SQL orchestration and crash recovery remain unverified.
+
 - `processAccountDeletion` now rejects jobs already in `processing`; only `requested` and explicitly `failed` jobs can be claimed. Firestore transaction retries therefore cannot start a second destructive cleanup for the same account while another operator is running it.
 - Added an emulator regression that seeds an in-progress deletion and verifies a second operator call is rejected without changing job state or deleting the account.
 - `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 697 snapshots. `npm run lint`, `npm run build`, syntax checks and `git diff --check` passed. `npm run test:rules`: **139 passed, 0 failed, 0 skipped**. Tests use local/emulated services; live cross-store deletion and crash-recovery acceptance remain open.

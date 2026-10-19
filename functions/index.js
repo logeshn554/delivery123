@@ -1274,7 +1274,7 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
     // destructive cross-store cleanup concurrently after a transaction retry.
     if (!deletion.exists || !['requested', 'failed'].includes(deletion.data().status)) throw new HttpsError('failed-precondition', 'No unclaimed deletion request is available.');
     if (!bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
-    transaction.update(deletionRef, { status: 'processing', startedAt: Timestamp.now(), operatorId: request.auth.uid, policyUrl: policy.policyUrl, neonAccountId: account.data()?.neonAccountId || null });
+    transaction.update(deletionRef, { status: 'processing', startedAt: Timestamp.now(), operatorId: request.auth.uid, policyUrl: policy.policyUrl, neonAccountId: account.data()?.neonAccountId || deletion.data().neonAccountId || null });
   });
   try {
     try { await getAuth(app).updateUser(uid, { disabled: true }); await getAuth(app).revokeRefreshTokens(uid); } catch (error) { if (error.code !== 'auth/user-not-found') throw error; }

@@ -113,5 +113,7 @@ Hosted evidence is now complete for the final push-generation source 57ebdd0: al
 
 # 2026-10-18 branch integration
 
+2026-10-19 linked-deletion retry: preserve the job's Neon account ID when a failed Firebase cleanup resumes after removing the user document. Previously the retry set the ID to null and could publish final completion before SQL cleanup. The new emulator regression injects that partial failure and verifies retry leaves the job at `firebase_completed` with its original SQL identity. All 140 emulator tests and two SQL coordinator tests pass; no live account was modified. Deployment and actual cross-store acceptance remain open.
+
 - Merged `origin/codex/stitch-welcome-screen` into the AllGo delivery work, which also contains `origin/fix/stitch-mobile-ui-cleanup-20261013`; `origin/work` was already reachable from `main`. Kept the active production workflows and trackers, removed the unsupported Goods transport placeholder and demo-only app/build entry points, and preserved audience-specific native build commands.
 - The merged working tree passes `npm run lint`, `npm run build`, `npm test`, and `npm run test:rules` (138 passed, 0 failed, 0 skipped). The web build retains the existing large-chunk advisory. This is local verification; hosted CI and remote `main` publication are still pending.
