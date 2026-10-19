@@ -1,12 +1,12 @@
 {
-  "projectId": "golden-polygon-3rrhs",
-  "appId": "1:89377616054:web:617a09a3ae784efc7d3617",
-  "apiKey": "AIzaSyCaZuv-v4KNCZGqPxH_uBsSWi-6C1-unAw",
-  "authDomain": "golden-polygon-3rrhs.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-33ff364a-171b-472c-93a0-dd18e20cf1e4",
-  "storageBucket": "golden-polygon-3rrhs.firebasestorage.app",
-  "messagingSenderId": "89377616054",
+  "projectId": "promtwars222",
+  "appId": "1:63483696880:android:70681b3383b0f862071435",
+  "apiKey": "AIzaSyDVm-Mg9uNARB2RKnONsbvg6BilQYOxWp0",
+  "authDomain": "promtwars222.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "promtwars222.firebasestorage.app",
+  "messagingSenderId": "63483696880",
   "measurementId": "",
-  "oAuthClientId": "89377616054-skcah592rublmr38phcjn2kn4kcn9lvd.apps.googleusercontent.com",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
