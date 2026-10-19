@@ -106,6 +106,9 @@ test("operations console configures zones, rate matrices and equipment with two-
 test("account deletion admin inspects statutory retention policy and records processing", () => {
   assert.match(deletion, /Account deletion requests/);
   assert.match(deletion, /processAccountDeletion/);
+  assert.match(deletion, /useFeedbackDialog/);
+  assert.match(deletion, /\{dialog\}/);
+  assert.doesNotMatch(deletion, /window\.confirm/);
   assert.match(deletion, /retention policy/);
   assert.match(deletion, /Process request/);
   assert.match(deletion, /Financial references are retained/);
