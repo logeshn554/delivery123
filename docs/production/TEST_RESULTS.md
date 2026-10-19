@@ -307,3 +307,8 @@ Retrying after `users/{uid}` was deleted previously overwrote the job's Neon acc
 - Admin UI regression verifies account deletion processing uses the accessible AllGo confirmation dialog rather than `window.confirm`.
 - `npm run lint`, `npm test` (71 Functions and 98 UI tests; server tests and 707 secret-scan snapshots), `npm run build`, and `git diff --check` pass.
 - No account deletion was initiated. Native screen reader/device acceptance remains open.
+# 2026-10-19 payout review confirmation
+
+- Admin UI regression verifies payout recording requires the accessible AllGo dialog and no longer calls browser `window.confirm`.
+- `npm run lint`, `npm test` (71 Functions and 98 UI tests; server tests and 707 secret-scan snapshots), `npm run build`, and `git diff --check` pass.
+- No transfer or payout record was created. The existing web-build advisory for the `accounts` chunk above 500 kB remains.

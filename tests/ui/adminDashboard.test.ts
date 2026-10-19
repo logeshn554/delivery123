@@ -85,6 +85,9 @@ test("refund review queue reconciles provider evidence and displays status", () 
 test("payout review queue records completed transfer receipt or failure with reservation return", () => {
   assert.match(payouts, /Withdrawal requests/);
   assert.match(payouts, /recordDriverPayout/);
+  assert.match(payouts, /useFeedbackDialog/);
+  assert.match(payouts, /\{dialog\}/);
+  assert.doesNotMatch(payouts, /window\.confirm/);
   assert.match(payouts, /Record completed transfer/);
   assert.match(payouts, /Record failure/);
   assert.match(payouts, /Actual transfer reference or failure reason/);
