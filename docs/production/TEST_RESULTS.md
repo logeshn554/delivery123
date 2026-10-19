@@ -255,6 +255,12 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - Hosted GitHub Actions run [39248895828](https://github.com/logeshn554/delivery123/actions/runs/39248895828) passed all workflow steps for commit `818a9883d025e5c9059e2e88acf1d4778b9dca66`, including emulator tests, build, fixture checks and production dependency audit.
 - Production index deployment and cross-store deletion acceptance remain open. Completed bundle PII/code/location cleanup is the next source audit item.
 
+# 2026-10-19 TripBundle account deletion cleanup
+
+- The account-deletion worker now scrubs completed customer bundle addresses, locations, details, chats, OTPs, tracking and free-text notes in every leg event. For a deleted driver it removes driver name/chat/event identity and that driver's own tracking/OTP map entries, retaining bundle financial values, delivery stages and other participants' identities/entries.
+- Extended the injected partial-failure/retry regression with customer and driver bundle records. The second cleanup pass is idempotent and proves retained financial/stage evidence and removal of private bundle data. `npm run lint`, `npm test` (**71 Functions, 98 UI; 701 snapshots inspected**) and `npm run test:rules` (**143 passed, 0 failed, 0 skipped**, 198 seconds) passed. No production account or provider was accessed.
+- Staging configuration, owner-approved retention terms and real cross-store lifecycle verification remain open.
+
 # 2026-10-18 account deletion claim serialization
 
 ## Follow-up 2026-10-19: merchant orders block account deletion

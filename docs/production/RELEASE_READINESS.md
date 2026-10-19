@@ -8,6 +8,8 @@ The later merchant deletion guard source is verified by [run 39246004016](https:
 
 The assigned TripBundle custody guard is now on `main` in `818a988`; hosted run [39248895828](https://github.com/logeshn554/delivery123/actions/runs/39248895828) passed all workflow steps. It complements the bundle export in `3e0da8e`; neither closes the owner-controlled staging, retention, or native acceptance gates.
 
+Completed bundle deletion redaction now has local source/emulator coverage: addresses, details, chats, OTPs and stale location data are removed while financial/stage evidence remains, and driver cleanup preserves other participants' tracking and codes. Hosted validation for this latest cleanup is pending.
+
 React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. iOS native background driver-location source is now present, but the current Windows host has no Xcode toolchain and no iOS build/device acceptance has been performed. Android source/build presence also does not establish native provider functionality.
 
 All master acceptance gates remain open: customer journeys, merchant/driver integration, deployed authorization, provider payments, consistent accessible UI, Android/iOS device journeys, external infrastructure, critical defect closure, and release documentation with operator-reviewed evidence.

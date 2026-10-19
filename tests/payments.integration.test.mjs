@@ -1320,6 +1320,19 @@ test('merchant deletion is blocked while its restaurant or grocery orders remain
 test('deletion retry preserves its SQL identity after the Firebase account document is removed', async () => {
   const neonAccountId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   await db.doc('users/customer').update({ walletBalance: 0, neonAccountId });
+  await db.doc('bundles/deletionCustomerBundle').set({ customerId: 'customer', customerName: 'Private Customer', status: 'completed', totalCents: 1234 });
+  await db.doc('bundles/deletionCustomerBundle/legs/customerLeg').set({ status: 'completed', pickupAddress: 'Private pickup', dropAddress: 'Private drop', pickupLocation: { lat: 12.3, lng: 77.6 }, dropLocation: { lat: 12.4, lng: 77.7 }, details: { recipientPhone: 'private phone' }, priceBreakdown: { totalCents: 1234 } });
+  await db.doc('bundles/deletionCustomerBundle/legs/customerLeg/events/customer_event').set({ actorId: 'customer', stage: 'completed', text: 'Private note' });
+  await db.doc('bundles/deletionCustomerBundle/legs/customerLeg/events/driver_event').set({ actorId: 'driver', stage: 'delivered', notes: 'Private customer handoff details' });
+  await db.doc('bundles/deletionCustomerBundle/legs/customerLeg/chats/customer_message').set({ senderId: 'customer', text: 'Private conversation' });
+  await db.doc('bundle_codes/deletionCustomerBundle').set({ customerId: 'customer', legs: { customerLeg: { code: '1234', pickupCode: '5678' } } });
+  await db.doc('bundle_tracking/deletionCustomerBundle').set({ legs: { customerLeg: { driverId: 'driver', currentLat: 12.3, currentLng: 77.6 } } });
+  await db.doc('bundles/deletionDriverBundle').set({ customerId: 'other', status: 'completed', totalCents: 5678 });
+  await db.doc('bundles/deletionDriverBundle/legs/driverLeg').set({ driverId: 'customer', driverName: 'Private Driver', status: 'completed', pickupAddress: 'Customer route retained', priceBreakdown: { totalCents: 5678 } });
+  await db.doc('bundles/deletionDriverBundle/legs/driverLeg/events/driver_event').set({ actorId: 'customer', stage: 'completed', notes: 'Private driver note' });
+  await db.doc('bundles/deletionDriverBundle/legs/driverLeg/chats/driver_message').set({ senderId: 'customer', text: 'Private driver conversation' });
+  await db.doc('bundle_codes/deletionDriverBundle').set({ customerId: 'other', legs: { driverLeg: { code: '1111' }, otherLeg: { code: '2222' } } });
+  await db.doc('bundle_tracking/deletionDriverBundle').set({ legs: { driverLeg: { driverId: 'customer', currentLat: 12.3, currentLng: 77.6 }, otherLeg: { driverId: 'other', currentLat: 12.5, currentLng: 77.8 } } });
   await db.doc('users/admin').set({ role: 'admin' });
   await db.doc('platform_config/privacy').set({ deletionEnabled: true, policyUrl: 'https://example.test/privacy' });
   await db.doc('account_deletions/customer').set({ uid: 'customer', status: 'requested' });
@@ -1342,6 +1355,23 @@ test('deletion retry preserves its SQL identity after the Firebase account docum
     assert.equal(retried.neonAccountId, neonAccountId);
     assert.equal(retried.status, 'firebase_completed');
     assert.equal(retried.completedAt, undefined);
+    const customerBundle = (await db.doc('bundles/deletionCustomerBundle').get()).data();
+    const customerLeg = (await db.doc('bundles/deletionCustomerBundle/legs/customerLeg').get()).data();
+    const customerEvent = (await db.doc('bundles/deletionCustomerBundle/legs/customerLeg/events/customer_event').get()).data();
+    const otherActorEvent = (await db.doc('bundles/deletionCustomerBundle/legs/customerLeg/events/driver_event').get()).data();
+    assert.equal(customerBundle.customerName, 'Deleted account'); assert.equal(customerBundle.totalCents, 1234);
+    assert.equal(customerLeg.pickupAddress, undefined); assert.equal(customerLeg.dropLocation, undefined); assert.equal(customerLeg.details, undefined); assert.deepEqual(customerLeg.priceBreakdown, { totalCents: 1234 });
+    assert.equal(customerEvent.actorId, undefined); assert.equal(customerEvent.text, undefined); assert.equal(customerEvent.stage, 'completed');
+    assert.equal(otherActorEvent.actorId, 'driver'); assert.equal(otherActorEvent.notes, undefined); assert.equal(otherActorEvent.stage, 'delivered');
+    assert.equal((await db.doc('bundles/deletionCustomerBundle/legs/customerLeg/chats/customer_message').get()).exists, false);
+    assert.equal((await db.doc('bundle_codes/deletionCustomerBundle').get()).exists, false); assert.equal((await db.doc('bundle_tracking/deletionCustomerBundle').get()).exists, false);
+    const driverLeg = (await db.doc('bundles/deletionDriverBundle/legs/driverLeg').get()).data();
+    const driverEvent = (await db.doc('bundles/deletionDriverBundle/legs/driverLeg/events/driver_event').get()).data();
+    assert.equal(driverLeg.driverName, 'Deleted account'); assert.equal(driverLeg.pickupAddress, 'Customer route retained');
+    assert.equal(driverEvent.actorId, undefined); assert.equal(driverEvent.notes, undefined);
+    assert.equal((await db.doc('bundles/deletionDriverBundle/legs/driverLeg/chats/driver_message').get()).exists, false);
+    assert.deepEqual((await db.doc('bundle_codes/deletionDriverBundle').get()).data().legs, { otherLeg: { code: '2222' } });
+    assert.deepEqual((await db.doc('bundle_tracking/deletionDriverBundle').get()).data().legs, { otherLeg: { driverId: 'other', currentLat: 12.5, currentLng: 77.8 } });
   } finally {
     Object.assign(auth, { updateUser: original.updateUser, revokeRefreshTokens: original.revokeRefreshTokens, deleteUser: original.deleteUser });
     db.recursiveDelete = original.recursiveDelete;

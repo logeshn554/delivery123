@@ -23,6 +23,7 @@ const { supportFunctions } = require('./support');
 const { bookingExceptionFunctions } = require('./bookingExceptions');
 const { dispatchRecoveryFunctions } = require('./dispatchRecovery');
 const { redactBookingHistory } = require('./bookingRedaction');
+const { redactBundleLeg, redactCustomerBundle } = require('./bundleRedaction');
 const { fullyPicked, groceryPickingFunctions } = require('./groceryPicking');
 const { grocerySubstitutionExpiryFunctions } = require('./grocerySubstitutionExpiry');
 const { productWithinExpiry } = require('./productExpiry');
@@ -1301,6 +1302,22 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
         }
         cursor = records.docs.at(-1);
       }
+    }
+    let bundleCursor = null;
+    while (true) {
+      let query = db.collection('bundles').where('customerId', '==', uid).orderBy('__name__').limit(100);
+      if (bundleCursor) query = query.startAfter(bundleCursor);
+      const page = await query.get(); if (page.empty) break;
+      for (const bundle of page.docs) await redactCustomerBundle(db, bundle.ref, uid, FieldValue);
+      bundleCursor = page.docs.at(-1);
+    }
+    let legCursor = null;
+    while (true) {
+      let query = db.collectionGroup('legs').where('driverId', '==', uid).orderBy('__name__').limit(100);
+      if (legCursor) query = query.startAfter(legCursor);
+      const page = await query.get(); if (page.empty) break;
+      for (const leg of page.docs) await redactBundleLeg(db, leg.ref, uid, false, FieldValue);
+      legCursor = page.docs.at(-1);
     }
     for (const [collection, field] of [['payment_attempts', 'uid'], ['payment_intents', 'uid'], ['service_quotes', 'uid'], ['push_devices', 'uid'], ['bridge_sessions', 'uid'], ['order_reviews', 'userId'], ['support_tickets', 'userId'], ['partner_applications', 'userId'], ['partner_application_slots', 'userId'], ['partner_evidence', 'userId']]) {
       let cursor = null;
