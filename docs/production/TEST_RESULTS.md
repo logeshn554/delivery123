@@ -1,5 +1,19 @@
 # Test results
 
+## 2026-10-19 hosted main verification
+
+[Application checks run 39244365802](https://github.com/logeshn554/delivery123/actions/runs/39244365802), attempt 1, passed all five jobs for `6375af156a654dbff0228971ace5f3ff36fcb87e`: checks (lint, application tests, 141 Firestore/integration tests, web build, fixture scan and dependency audit), PostgreSQL/Auth lifecycle, and all three Android debug build/identity/artifact jobs. Results were read directly from the GitHub run jobs API.
+
+Unexpired artifacts observed, each including its debug APK and verification JSON:
+
+| Audience | Artifact ID | Expires (UTC) |
+|---|---|---|
+| Merchant | 12183815366 | 2026-10-26 11:28:59 |
+| Customer | 12183080927 | 2026-10-26 11:29:12 |
+| Driver | 12182583371 | 2026-10-26 11:29:17 |
+
+This establishes hosted isolated-service and Android debug packaging checks for the stated source commit. It does not prove signed release, authenticated device journeys, iOS compilation or deployed provider acceptance.
+
 ## 2026-10-18 delayed driver availability alerts
 
 - `notifyDriverAvailability` now rechecks the current driver profile before searching and sending, including verified status, online state, location consent, no active assignment and a fresh position within the existing 60-second/100-metre policy. A delayed/retried event after the driver goes offline is suppressed.
