@@ -287,3 +287,8 @@ Retrying after `users/{uid}` was deleted previously overwrote the job's Neon acc
 - Added an emulator regression that seeds an in-progress deletion and verifies a second operator call is rejected without changing job state or deleting the account.
 - `npm test`: **71 Functions, 95 UI, 98 server passed**; secret scan inspected 697 snapshots. `npm run lint`, `npm run build`, syntax checks and `git diff --check` passed. `npm run test:rules`: **139 passed, 0 failed, 0 skipped**. Tests use local/emulated services; live cross-store deletion and crash-recovery acceptance remain open.
 
+# 2026-10-19 release continuation
+
+- Hosted run [39270282270](https://github.com/logeshn554/delivery123/actions/runs/39270282270) passed all five jobs for `5265e7eb7c64fc29602dcd09c0e017c53615e486`: application checks (lint, unit/rules tests, web build, fixture and dependency checks), isolated account lifecycle, and customer/merchant/driver Android debug builds with identity/artifact verification.
+- Local customer Android debug APK build succeeded with the configured build script. Local native Firebase configuration was absent, so Firebase native plugins were omitted. A Pixel_8 AVD booted without the package manager service (`Can't find service: package`) through bounded checks; no local install/launch or authenticated native workflow was accepted.
+- `node scripts/check-release.mjs --environment=staging` on `5265e7e` failed closed for missing operator gate-A evidence; staging DB, Firebase, account API, email, App Check, support and legal values; HTTPS deployed endpoints; private evidence bucket/scanner; Functions runtime configuration; and Android/iOS Firebase registrations. The check printed no secret values. No staging deployment or live provider was attempted.
