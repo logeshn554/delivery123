@@ -209,7 +209,9 @@ service cloud.firestore {
       allow list: if isAdmin();
 allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'accountAuthority', 'neonAccountId']);
       allow update: if isSignedIn() && ((isOwner(userId) && isValidUser(incoming()) && incoming().get('accountAuthority', null) == existing().get('accountAuthority', null) && incoming().get('neonAccountId', null) == existing().get('neonAccountId', null) && incoming().role == existing().role && incoming().walletBalance == existing().walletBalance && incoming().get('merchantId', null) == existing().get('merchantId', null) && incoming().get('merchantType', null) == existing().get('merchantType', null)));
-      allow delete: if isAdmin();
+      // Account deletion must use the cross-store server workflow so linked
+      // identity, sessions, bookings and audit data are cleaned consistently.
+      allow delete: if false;
 
       match /addresses/{addressId} {
         function validAddress(data) {

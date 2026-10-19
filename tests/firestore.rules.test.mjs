@@ -20,6 +20,13 @@ beforeEach(async () => {
 });
 const dbFor = (uid, claims = {}) => env.authenticatedContext(uid, claims).firestore();
 
+test('clients and admins cannot delete user records outside the account-deletion workflow', async () => {
+  for (const uid of ['customer', 'admin']) {
+    await assertFails(deleteDoc(doc(dbFor(uid), 'users/customer')));
+  }
+  await assertSucceeds(getDoc(doc(dbFor('customer'), 'users/customer')));
+});
+
 test('address migration receipts cannot be read, forged or deleted by clients', async () => {
   const path = 'users/customer/address_migration_receipts/source';
   await env.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), path), { schemaVersion: 2, outcome: 'imported' }));
