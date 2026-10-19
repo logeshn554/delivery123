@@ -113,6 +113,8 @@ Hosted evidence is now complete for the final push-generation source 57ebdd0: al
 
 # 2026-10-18 branch integration
 
+2026-10-19 documentation recovery: restored the audit-linked record-authority and proposed goods/movers design documents from pre-integration commit `d87fda6`. Reviewed identity ownership against current SQL schema, bridge and deletion coordinator, and added the recent deletion safeguards. Goods/movers remains a proposed, unimplemented domain with open operator decisions. Linked both contracts from the operations reference. Documentation-only; relative links and diff whitespace checked, no runtime test repeated. Fresh staging preflight still fails on missing owner configuration and acceptance.
+
 2026-10-19 active custody deletion guard: both deletion stages now check assigned nonterminal booking records in addition to the driver profile pointer. A missing pointer cannot by itself permit removal of an account holding an active delivery. The emulator regression verifies request/processing rejection and permits a request after the booking completes. All 141 emulator tests pass; deployed acceptance remains open.
 
 2026-10-19 linked-deletion retry: preserve the job's Neon account ID when a failed Firebase cleanup resumes after removing the user document. Previously the retry set the ID to null and could publish final completion before SQL cleanup. The new emulator regression injects that partial failure and verifies retry leaves the job at `firebase_completed` with its original SQL identity. All 140 emulator tests and two SQL coordinator tests pass; no live account was modified. Deployment and actual cross-store acceptance remain open.

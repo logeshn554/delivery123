@@ -1,5 +1,7 @@
 # Service contracts and operations reference
 
+Related contracts: [record ownership and identity](../architecture/record-authority.md) and [proposed goods/movers domain](../architecture/goods-and-movers.md). The latter remains an unimplemented expansion requiring owner decisions and acceptance.
+
 Updated 2026-10-18. This document describes the repository source as checked in; it is not proof that Firebase rules, indexes, schedules, providers, IAM, or native integrations are deployed. Release operators must verify the deployed project and use the release gates in [RELEASE_READINESS.md](RELEASE_READINESS.md).
 
 Deletion retry identity (2026-10-19): the deletion job retains its recorded Neon account ID when a failed Firebase cleanup is retried after removing `users/{uid}`. A linked job must remain `firebase_completed` until the SQL coordinator commits its cleanup and publishes `completed`. A job still in `processing` cannot be claimed by another operator; investigate a terminated worker before authorizing recovery. This source behavior does not establish deployed cross-store acceptance.
