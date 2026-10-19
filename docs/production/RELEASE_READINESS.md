@@ -10,6 +10,8 @@ The assigned TripBundle custody guard is on `main` in `818a988`; hosted run [392
 
 Completed bundle deletion redaction now has source/emulator coverage: addresses, details, chats, OTPs, stale location data and UID-bearing event IDs are removed while financial/stage evidence remains, and driver cleanup preserves other participants' tracking and codes. Hosted validation of the latest follow-up is pending.
 
+Hosted run [39252384297](https://github.com/logeshn554/delivery123/actions/runs/39252384297) passed all five jobs for `2daa759`, including the full checks job, cross-store account lifecycle integration and customer/driver/merchant Android debug builds plus packaged identity/artifact checks. It covers UID event-ID anonymization and rejection of unlinked SQL deletion notes as successful requests. The later operations-reference update is docs-only.
+
 React 19/TypeScript/Vite and Capacitor Android/iOS targets already exist. No framework migration is needed for this increment. iOS native background driver-location source is now present, but the current Windows host has no Xcode toolchain and no iOS build/device acceptance has been performed. Android source/build presence also does not establish native provider functionality.
 
 All master acceptance gates remain open: customer journeys, merchant/driver integration, deployed authorization, provider payments, consistent accessible UI, Android/iOS device journeys, external infrastructure, critical defect closure, and release documentation with operator-reviewed evidence.
