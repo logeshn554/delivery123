@@ -252,6 +252,7 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 
 - Account deletion request and operator processing now query the `legs` collection group for active work assigned to the account. This closes the custody gap where deleting a driver whose profile pointer was lost could orphan a live bundle leg. Existing `legs(driverId,status)` collection-group index covers the query.
 - Extended the deletion emulator regression to clear the profile pointer, complete its legacy booking, then prove the active bundle leg independently blocks both deletion stages; after the leg completes, a request can proceed. `npm run lint` passed. `npm run test:rules` passed **143 tests, 0 failed, 0 skipped** (156 seconds). No live account or provider was accessed.
+- Hosted GitHub Actions run [39248895828](https://github.com/logeshn554/delivery123/actions/runs/39248895828) passed all workflow steps for commit `818a9883d025e5c9059e2e88acf1d4778b9dca66`, including emulator tests, build, fixture checks and production dependency audit.
 - Production index deployment and cross-store deletion acceptance remain open. Completed bundle PII/code/location cleanup is the next source audit item.
 
 # 2026-10-18 account deletion claim serialization
