@@ -241,6 +241,12 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 - `npm run test:rules` passed **138/138**, 0 failures and 0 skips after granting the local Firestore emulator loopback access. Tests use mocked/local providers; warning logs about absent Maps and Razorpay test secrets are expected and no live provider was called.
 - `node scripts/check-release.mjs --environment=staging` failed closed. Gate-A acceptance, staging data/backend/email/App Check/support/legal settings, private evidence bucket/scanner, project Functions config, and matching native registrations remain missing. See `BLOCKERS.md`; no values were printed or changed.
 
+# 2026-10-19 TripBundle account-export verification
+
+- Account data export now returns a customer's bundle and its legs/events, plus legs/events for which the signed-in driver is currently assigned. Bundle payment identifiers and the separate delivery-code collection are excluded. Server ownership checks cover both customer and driver event history; driver pagination uses full document paths so identical leg IDs across bundles do not collide.
+- Added emulator regression coverage for customer access, cross-account denial, assigned-driver scope and unrelated-driver isolation. A 102-leg driver fixture verifies full-path cursor pagination across the 100-record page boundary. `npm run lint` passed. `npm test` passed, including **98 UI tests**, and the secret scan inspected 700 snapshots with no recognized secrets. `npm run test:rules` passed **143 tests, 0 failed, 0 skipped** (148 seconds); local emulator required loopback permission. Emulator warnings for unset Maps/Razorpay test secrets are expected, and no live provider was called.
+- This verifies emulator behavior only; mobile/native acceptance and production account-export acceptance remain open.
+
 # 2026-10-18 account deletion claim serialization
 
 ## Follow-up 2026-10-19: merchant orders block account deletion

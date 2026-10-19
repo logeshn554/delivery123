@@ -663,6 +663,28 @@ test('data exports include scoped support history and public payment fields with
   assert.equal((await callable('exportAccountPage', 'other', { section: 'payments' })).items.length, 0);
 });
 
+test('data exports include customer bundles and only assigned driver legs with scoped leg history', async () => {
+  await db.doc('bundles/exportBundle').set({ customerId: 'customer', paymentId: 'private-payment', paymentOrderId: 'provider-order' });
+  await db.doc('bundles/exportBundle/legs/customerLeg').set({ type: 'ride', status: 'completed', driverId: 'driver' });
+  await db.doc('bundles/exportBundle/legs/customerLeg/events/completed_driver').set({ stage: 'completed', actorId: 'driver' });
+  await db.doc('bundles/otherBundle').set({ customerId: 'other' });
+  await db.doc('bundles/otherBundle/legs/otherLeg').set({ type: 'ride', driverId: 'otherDriver' });
+  const bundles = await callable('exportAccountPage', 'customer', { section: 'bundles' });
+  assert.equal(bundles.items[0].id, 'exportBundle'); assert.equal(bundles.items[0].paymentId, undefined); assert.equal(bundles.items[0].paymentOrderId, undefined);
+  assert.equal((await callable('exportAccountPage', 'customer', { section: 'bundle_legs', parentId: 'exportBundle' })).items[0].id, 'customerLeg');
+  assert.equal((await callable('exportAccountPage', 'customer', { section: 'bundle_leg_events', parentId: 'exportBundle/customerLeg' })).items[0].stage, 'completed');
+  await assert.rejects(callable('exportAccountPage', 'other', { section: 'bundle_legs', parentId: 'exportBundle' }), error => error.code === 'permission-denied');
+  await assert.rejects(callable('exportAccountPage', 'other', { section: 'bundle_leg_events', parentId: 'exportBundle/customerLeg' }), error => error.code === 'permission-denied');
+  const assigned = await callable('exportAccountPage', 'driver', { section: 'driver_bundle_legs' });
+  assert.equal(assigned.items.length, 1); assert.equal(assigned.items[0].bundleId, 'exportBundle'); assert.equal(assigned.items[0].exportCursor, 'bundles/exportBundle/legs/customerLeg');
+  assert.equal((await callable('exportAccountPage', 'otherDriver', { section: 'driver_bundle_legs' })).items[0].id, 'otherLeg');
+  await Promise.all(Array.from({ length: 101 }, (_, index) => db.doc(`bundles/pagedBundle/legs/leg${String(index).padStart(3, '0')}`).set({ driverId: 'pagedDriver' })));
+  const firstPage = await callable('exportAccountPage', 'pagedDriver', { section: 'driver_bundle_legs' });
+  assert.equal(firstPage.items.length, 100); assert.ok(firstPage.nextCursor);
+  const secondPage = await callable('exportAccountPage', 'pagedDriver', { section: 'driver_bundle_legs', cursor: firstPage.nextCursor });
+  assert.equal(secondPage.items.length, 1); assert.notEqual(secondPage.items[0].exportCursor, firstPage.items.at(-1).exportCursor);
+});
+
 test('dispatch timeout is idempotent, rechecks assignment and restarts search only after operations review', async () => {
   const { escalateDispatch } = require('../functions/dispatchRecovery.js'), ref = db.doc('bookings/timeout');
   await db.doc('users/admin').set({ role: 'admin' });

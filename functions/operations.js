@@ -48,7 +48,20 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         const page = await history.get(), docs = page.docs.slice(0,100);
         return { items: docs.map(event => ({ ...event.data(), id: event.id })), nextCursor: page.size > 100 ? docs.at(-1).id : null };
       }
-      const targets = { addresses:db.collection(`users/${uid}/addresses`), bookings:db.collection('bookings').where('customerId','==',uid), driver_jobs:db.collection('bookings').where('driverId','==',uid), driver_ledger:db.collection(`driver_ledger/${uid}/entries`), payouts:db.collection('payout_requests').where('driverId','==',uid), payments:db.collection('payment_attempts').where('uid','==',uid), wallet:db.collection(`wallet_ledger/${uid}/entries`), reviews:db.collection('order_reviews').where('userId','==',uid), evidence:db.collection('partner_evidence').where('userId','==',uid), partners:db.collection('partner_applications').where('userId','==',uid), support:db.collection('support_tickets').where('userId','==',uid) };
+      const targets = { addresses:db.collection(`users/${uid}/addresses`), bookings:db.collection('bookings').where('customerId','==',uid), driver_jobs:db.collection('bookings').where('driverId','==',uid), bundles:db.collection('bundles').where('customerId','==',uid), driver_bundle_legs:db.collectionGroup('legs').where('driverId','==',uid), driver_ledger:db.collection(`driver_ledger/${uid}/entries`), payouts:db.collection('payout_requests').where('driverId','==',uid), payments:db.collection('payment_attempts').where('uid','==',uid), wallet:db.collection(`wallet_ledger/${uid}/entries`), reviews:db.collection('order_reviews').where('userId','==',uid), evidence:db.collection('partner_evidence').where('userId','==',uid), partners:db.collection('partner_applications').where('userId','==',uid), support:db.collection('support_tickets').where('userId','==',uid) };
+      if (section === 'bundle_legs') {
+        const bundleId = documentId(data.parentId, 'Bundle ID'), parent = db.doc(`bundles/${bundleId}`), bundle = (await parent.get()).data();
+        if (!bundle || bundle.customerId !== uid) throw new HttpsError('permission-denied', 'Only your own bundle history can be exported.');
+        targets.bundle_legs = parent.collection('legs');
+      }
+      if (section === 'bundle_leg_events') {
+        const parts = typeof data.parentId === 'string' ? data.parentId.split('/') : [];
+        if (parts.length !== 2) throw new HttpsError('invalid-argument', 'Choose a bundle and leg.');
+        const bundleId = documentId(parts[0], 'Bundle ID'), legId = documentId(parts[1], 'Leg ID'), bundleRef = db.doc(`bundles/${bundleId}`), legRef = bundleRef.collection('legs').doc(legId);
+        const [bundle, leg] = await Promise.all([bundleRef.get(), legRef.get()]);
+        if (!leg.exists || bundle.data()?.customerId !== uid && leg.data()?.driverId !== uid) throw new HttpsError('permission-denied', 'Only your own bundle leg history can be exported.');
+        targets.bundle_leg_events = legRef.collection('events');
+      }
       if (['support_messages', 'support_events', 'booking_events', 'partner_events'].includes(section)) {
         const id = documentId(data.parentId, 'Record ID'), support = section.startsWith('support_'), partner = section === 'partner_events', parent = db.doc(`${support ? 'support_tickets' : partner ? 'partner_applications' : 'bookings'}/${id}`), record = (await parent.get()).data();
         if (!record || (support || partner ? record.userId !== uid : record.customerId !== uid && record.driverId !== uid)) throw new HttpsError('permission-denied', 'Only your own record history can be exported.');
@@ -57,13 +70,20 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       if (section === 'profile') { const profile = await db.doc(`users/${uid}`).get();return { items:profile.exists?[{id:uid,...profile.data()}]:[],nextCursor:null }; }
       if (!Object.hasOwn(targets,section)) throw new HttpsError('invalid-argument','Choose a valid export section.');
       let query = targets[section].orderBy('__name__').limit(101);
-      if (data.cursor) query = query.startAfter(documentId(data.cursor,'Export cursor'));
+      if (data.cursor) query = section === 'driver_bundle_legs' ? query.startAfter(db.doc(data.cursor)) : query.startAfter(documentId(data.cursor,'Export cursor'));
       const snapshot = await query.get(), docs = snapshot.docs.slice(0,100);
       return { items:docs.map(doc=> {
         const record = doc.data();
+        if (section === 'driver_bundle_legs') return { ...record, id: doc.id, bundleId: doc.ref.parent.parent.id, exportCursor: doc.ref.path };
+        if (section === 'bundles') {
+          const customerRecord = { ...record };
+          delete customerRecord.paymentId;
+          delete customerRecord.paymentOrderId;
+          return { ...customerRecord, id: doc.id };
+        }
         if (section === 'payments') return { id: doc.id, amountCents: record.amount, currency: record.currency || 'INR', status: record.status, kind: record.kind || 'booking', bookingId: record.bookingId || null, refundedAmountCents: record.refundedAmountCents || 0, createdAt: record.createdAt?.toDate().toISOString() || null };
         return { ...record, id: doc.id };
-      }), nextCursor:snapshot.size>100?docs[99].id:null };
+      }), nextCursor:snapshot.size>100?(section === 'driver_bundle_legs' ? docs.at(-1).ref.path : docs.at(-1).id):null };
     }),
     submitOrderReview: onCall({ operation: 'submitOrderReview', region: REGION }, async request => {
       const uid = request.auth?.uid, data = request.data || {};

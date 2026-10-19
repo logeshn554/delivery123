@@ -23,7 +23,7 @@ export default function AccountDataExport() {
       const result: Record<string, unknown> = { exportedAt: new Date().toISOString(), consistency: 'Paginated live reads; records may change while the export is prepared.', documentFiles: 'This copy includes document metadata. Retrieve scanned document files separately from your partner application.' };
       const serviceConnected = !useNeonAccounts || hasServiceIdentity;
       if (serviceConnected) {
-        for (const section of ['profile', 'addresses', 'bookings', 'driver_jobs', 'driver_ledger', 'payouts', 'payments', 'wallet', 'reviews', 'support', 'partners', 'evidence', 'eligibility']) {
+        for (const section of ['profile', 'addresses', 'bookings', 'driver_jobs', 'bundles', 'driver_bundle_legs', 'driver_ledger', 'payouts', 'payments', 'wallet', 'reviews', 'support', 'partners', 'evidence', 'eligibility']) {
           setProgress(`Preparing ${section.replaceAll('_', ' ')}…`);
           result[section] = await collectPages(cursor => exportAccountPage(section, cursor));
         }
@@ -46,6 +46,20 @@ export default function AccountDataExport() {
           bookingHistory.push({ bookingId: booking.id, events: await collectPages(cursor => exportAccountPage('booking_events', cursor, booking.id)) });
         }
         result.bookingHistory = bookingHistory;
+        const bundleHistory: unknown[] = [];
+        for (const bundle of result.bundles as { id: string }[]) {
+          setProgress('Preparing trip bundle history…');
+          const legs = await collectPages(cursor => exportAccountPage('bundle_legs', cursor, bundle.id));
+          const legsWithEvents = await Promise.all((legs as { id: string }[]).map(async leg => ({ ...leg, events: await collectPages(cursor => exportAccountPage('bundle_leg_events', cursor, `${bundle.id}/${leg.id}`)) })));
+          bundleHistory.push({ bundleId: bundle.id, legs: legsWithEvents });
+        }
+        result.bundleHistory = bundleHistory;
+        const driverBundleLegHistory: unknown[] = [];
+        for (const leg of result.driver_bundle_legs as { id: string; bundleId: string }[]) {
+          setProgress('Preparing assigned trip leg history…');
+          driverBundleLegHistory.push({ bundleId: leg.bundleId, leg, events: await collectPages(cursor => exportAccountPage('bundle_leg_events', cursor, `${leg.bundleId}/${leg.id}`)) });
+        }
+        result.driverBundleLegHistory = driverBundleLegHistory;
       }
       if (useNeonAccounts) {
         const accountStore: Record<string, unknown> = {};
