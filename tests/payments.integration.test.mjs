@@ -650,6 +650,36 @@ test('booking deletion redacts free text while retaining finance and stage evide
   assert.equal(event.reason, undefined); assert.equal(event.stage, 'exception_resolved'); assert.equal(event.revision, 2);
 });
 
+test('booking deletion anonymizes UID-bearing event paths and preserves other actors', async () => {
+  const { createHash } = require('node:crypto'), { redactBookingHistory } = require('../functions/bookingRedaction.js');
+  const ref = db.doc('bookings/bookingEventUidRedaction');
+  await ref.set({ customerId: 'customer', driverId: 'driver', status: 'completed', price: 250 });
+  const customerEventId = 'exception_customer_request-1', driverEventId = 'exception_driver_request-2';
+  await ref.collection('events').doc(customerEventId).set({ stage: 'exception_reported', actorId: 'customer', reason: 'Private customer detail', revision: 1 });
+  await ref.collection('events').doc(driverEventId).set({ stage: 'exception_reported', actorId: 'driver', reason: 'Private driver detail', revision: 2 });
+
+  await redactBookingHistory(db, ref, 'customer', true, FieldValue);
+  await redactBookingHistory(db, ref, 'driver', false, FieldValue);
+
+  const customerRedactedId = `redacted_${createHash('sha256').update(customerEventId).digest('hex')}`;
+  const driverRedactedId = `redacted_${createHash('sha256').update(driverEventId).digest('hex')}`;
+  assert.equal((await ref.collection('events').doc(customerEventId).get()).exists, false);
+  assert.equal((await ref.collection('events').doc(driverEventId).get()).exists, false);
+  const events = (await ref.collection('events').get()).docs;
+  assert.deepEqual(events.map(event => event.id).sort(), [customerRedactedId, driverRedactedId].sort());
+  assert.equal(events.some(event => event.id.includes('customer') || event.id.includes('driver')), false);
+  const byId = Object.fromEntries(events.map(event => [event.id, event.data()]));
+  assert.equal(byId[customerRedactedId].actorId, undefined);
+  assert.equal(byId[customerRedactedId].reason, undefined);
+  assert.equal(byId[customerRedactedId].stage, 'exception_reported');
+  assert.equal(byId[driverRedactedId].actorId, undefined);
+  assert.equal(byId[driverRedactedId].reason, undefined);
+  assert.equal(byId[driverRedactedId].revision, 2);
+  const booking = (await ref.get()).data();
+  assert.equal(booking.price, 250);
+  assert.equal(booking.status, 'completed');
+});
+
 test('data exports include scoped support history and public payment fields without credential leakage', async () => {
   await db.doc('support_tickets/exportCase').set({ userId: 'customer' });
   await db.doc('support_tickets/exportCase/messages/reply').set({ text: 'Account reply' });
