@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { notificationBooking, notificationBookingId, finishedBooking } from '../../src/app/bookingNotification';
+import { clearPendingBookingId, notificationBooking, notificationBookingId, finishedBooking, pendingBookingStorageKey, readPendingBookingId, writePendingBookingId } from '../../src/app/bookingNotification';
 import BookingNotificationNotice from '../../src/components/BookingNotificationNotice';
 import type { Booking } from '../../src/types';
 
@@ -10,6 +10,19 @@ const order = { bookingId: 'ALLGO_update', serviceType: 'food', merchantId: 'sho
 test('notification IDs reject malformed URLs, paths and payloads', () => {
   for (const id of [null, {}, 'ALLGO_', '../users/private', 'allgo://booking/ALLGO_update', 'ALLGO_x?otp=123456']) assert.equal(notificationBookingId(id), null);
   assert.equal(notificationBookingId('ALLGO_update-1'), 'ALLGO_update-1');
+});
+test('notification routing degrades safely when session storage is unavailable', () => {
+  const writes: string[] = [], removals: string[] = [];
+  assert.equal(readPendingBookingId(() => { throw new Error('SecurityError'); }), null);
+  assert.equal(writePendingBookingId('ALLGO_order', (key, value) => writes.push(`${key}:${value}`)), 'ALLGO_order');
+  assert.deepEqual(writes, [`${pendingBookingStorageKey}:ALLGO_order`]);
+  assert.equal(writePendingBookingId('../private', () => assert.fail('Invalid route must not be stored')), null);
+  assert.equal(writePendingBookingId('ALLGO_order', () => { throw new Error('QuotaExceededError'); }), 'ALLGO_order');
+  assert.equal(readPendingBookingId(() => { throw new Error('SecurityError'); }), 'ALLGO_order');
+  clearPendingBookingId(key => removals.push(key));
+  assert.deepEqual(removals, [pendingBookingStorageKey]);
+  assert.equal(readPendingBookingId(() => null), null);
+  assert.doesNotThrow(() => clearPendingBookingId(() => { throw new Error('SecurityError'); }));
 });
 test('notification resolution requires the loaded booking and current driver assignment', () => {
   assert.equal(notificationBooking(order.bookingId, [order], { audience: 'driver', userId: 'driver' }), order);

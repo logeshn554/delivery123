@@ -297,3 +297,8 @@ Retrying after `users/{uid}` was deleted previously overwrote the job's Neon acc
 - Regression reproduces booking event IDs containing customer/driver UIDs and verifies deletion relocates the records under opaque stable IDs, removes the deleted actor ID and personal reason, and retains event stage/revision and booking price/status.
 - `npm run test:rules`: **144 passed, 0 failed, 0 skipped**, including the new booking deletion regression.
 - `npm run lint` and `npm test` passed during this increment; the final Firestore merge-write correction was exercised by the successful full emulator suite.
+# 2026-10-19 notification route storage recovery
+
+- UI regression verifies pending notification routes are validated, retained in memory when session storage throws, and safely cleared when storage is unavailable.
+- `npm run lint`, `npm test` (71 Functions and 98 UI tests; server tests and 707 secret-scan snapshots), `npm run build`, and `git diff --check` pass.
+- Web build retains the existing advisory for the `accounts` JavaScript chunk exceeding 500 kB. No real notification provider or mobile device was exercised.

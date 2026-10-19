@@ -9,6 +9,7 @@ import { appScheme, appAudience } from './app/audience';
 import { signOutWithCleanup } from './auth/signOutCleanup';
 import { cleanupNativeSession } from './nativeSessionCleanup';
 import { pushSession } from './auth/pushSession';
+import { notificationBookingId, writePendingBookingId } from './app/bookingNotification';
 
 const pushEnabled = () => !!auth.currentUser && localStorage.getItem('allgo-push-enabled') === 'true'
   && localStorage.getItem('allgo-push-user') === auth.currentUser.uid;
@@ -34,9 +35,9 @@ async function registerToken(snapshot: ReturnType<typeof pushSnapshot>, token?: 
 }
 
 function openBooking(id: unknown) {
-  if (typeof id !== 'string' || !/^ALLGO_[a-zA-Z0-9_-]+$/.test(id)) return;
-  sessionStorage.setItem('allgo-open-booking', id);
-  window.dispatchEvent(new CustomEvent('allgo:booking', { detail: id }));
+  if (!notificationBookingId(id)) return;
+  const routeId = writePendingBookingId(id, (key, value) => window.sessionStorage.setItem(key, value));
+  if (routeId) window.dispatchEvent(new CustomEvent('allgo:booking', { detail: routeId }));
 }
 function openDispatch() {
   sessionStorage.setItem('allgo-open-dispatch', 'true');

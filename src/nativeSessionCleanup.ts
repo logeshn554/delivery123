@@ -7,6 +7,7 @@ import { auth, db, functions } from './firebase';
 import { stopNativeDriverLocation } from './driverLocation';
 import { signOutWithCleanup } from './auth/signOutCleanup';
 import { pushSession } from './auth/pushSession';
+import { clearPendingBookingId } from './app/bookingNotification';
 
 export async function cleanupNativeSession() {
   const native = Capacitor.isNativePlatform();
@@ -15,7 +16,7 @@ export async function cleanupNativeSession() {
   await signOutWithCleanup([
     () => localStorage.removeItem('allgo-push-enabled'),
     () => localStorage.removeItem('allgo-push-user'),
-    () => sessionStorage.removeItem('allgo-open-booking'),
+    () => clearPendingBookingId(key => window.sessionStorage.removeItem(key)),
     () => sessionStorage.removeItem('allgo-open-dispatch'),
     stopNativeDriverLocation,
     // Stop local location promptly even while an SDK registration is draining.
