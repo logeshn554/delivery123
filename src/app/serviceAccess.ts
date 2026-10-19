@@ -8,3 +8,7 @@ export function serviceAccessError(profile: UserProfile | null) {
     : 'Your booking session is disconnected. Sign in again to reconnect, or contact support if this continues.';
   return Object.assign(new Error(message), { code: 'unavailable', reason });
 }
+
+export function deletionRequestServiceIdentityError() {
+  return Object.assign(new Error('Connect and verify your AllGo service account before requesting deletion. No deletion request has been recorded. If you cannot connect, contact support.'), { code: 'failed-precondition' });
+}
