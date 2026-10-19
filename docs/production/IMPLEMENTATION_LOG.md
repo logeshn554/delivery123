@@ -113,6 +113,8 @@ Hosted evidence is now complete for the final push-generation source 57ebdd0: al
 
 # 2026-10-18 branch integration
 
+2026-10-19 active custody deletion guard: both deletion stages now check assigned nonterminal booking records in addition to the driver profile pointer. A missing pointer cannot by itself permit removal of an account holding an active delivery. The emulator regression verifies request/processing rejection and permits a request after the booking completes. All 141 emulator tests pass; deployed acceptance remains open.
+
 2026-10-19 linked-deletion retry: preserve the job's Neon account ID when a failed Firebase cleanup resumes after removing the user document. Previously the retry set the ID to null and could publish final completion before SQL cleanup. The new emulator regression injects that partial failure and verifies retry leaves the job at `firebase_completed` with its original SQL identity. All 140 emulator tests and two SQL coordinator tests pass; no live account was modified. Deployment and actual cross-store acceptance remain open.
 
 - Merged `origin/codex/stitch-welcome-screen` into the AllGo delivery work, which also contains `origin/fix/stitch-mobile-ui-cleanup-20261013`; `origin/work` was already reachable from `main`. Kept the active production workflows and trackers, removed the unsupported Goods transport placeholder and demo-only app/build entry points, and preserved audience-specific native build commands.

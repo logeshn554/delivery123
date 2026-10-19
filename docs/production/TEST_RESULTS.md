@@ -217,6 +217,12 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 
 # 2026-10-18 account deletion claim serialization
 
+## Follow-up 2026-10-19: active driver bookings block deletion
+
+Both deletion request and processing now query assigned nonterminal bookings independently of the driver profile's active-job pointer. The emulator regression removes that pointer, verifies an assigned transit booking blocks both stages without changing custody, then completes the booking and verifies a deletion request can proceed. The existing `bookings(driverId, status)` index covers the query.
+
+`npm run test:rules`: **141 passed, 0 failed, 0 skipped**. Changed JavaScript syntax and whitespace checks passed. This verifies isolated callable behavior; deployed indexes, device and cross-store acceptance remain open.
+
 ## Follow-up 2026-10-19: linked identity survives partial cleanup
 
 Retrying after `users/{uid}` was deleted previously overwrote the job's Neon account ID with null, allowing premature completion without SQL cleanup. The retry now preserves the recorded identity. A Firestore integration test injects a failure immediately after the user document is removed, retries, and verifies the same Neon ID, `firebase_completed` status and absent final completion timestamp. Firebase Auth operations are stubbed; Firestore cleanup and retry use the isolated emulator.
