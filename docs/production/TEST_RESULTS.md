@@ -245,6 +245,7 @@ Final push-generation implementation 57ebdd0 passed all five hosted jobs in run 
 
 - Account data export now returns a customer's bundle and its legs/events, plus legs/events for which the signed-in driver is currently assigned. Bundle payment identifiers and the separate delivery-code collection are excluded. Server ownership checks cover both customer and driver event history; driver pagination uses full document paths so identical leg IDs across bundles do not collide.
 - Added emulator regression coverage for customer access, cross-account denial, assigned-driver scope and unrelated-driver isolation. A 102-leg driver fixture verifies full-path cursor pagination across the 100-record page boundary. `npm run lint` passed. `npm test` passed, including **98 UI tests**, and the secret scan inspected 700 snapshots with no recognized secrets. `npm run test:rules` passed **143 tests, 0 failed, 0 skipped** (148 seconds); local emulator required loopback permission. Emulator warnings for unset Maps/Razorpay test secrets are expected, and no live provider was called.
+- Hosted GitHub Actions run [39247848805](https://github.com/logeshn554/delivery123/actions/runs/39247848805) passed all workflow steps for commit `3e0da8eb02911cc394f40ee7f51f23713a9c04fa`, including dependency audit.
 - This verifies emulator behavior only; mobile/native acceptance and production account-export acceptance remain open.
 
 # 2026-10-18 account deletion claim serialization
