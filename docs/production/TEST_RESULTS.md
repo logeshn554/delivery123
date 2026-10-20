@@ -323,7 +323,7 @@ Retrying after `users/{uid}` was deleted previously overwrote the job's Neon acc
 ## 2026-10-20 local Android app launch
 
 - Installed the existing customer, merchant and driver debug APKs on the local Android 17 x86_64 emulator. Android foreground activity evidence: `in.allgo.app/.MainActivity`, `in.allgo.merchant/in.allgo.app.MainActivity` and `in.allgo.delivery/in.allgo.app.MainActivity`.
-- The customer APK was rebuilt with the development-only account API endpoint `http://10.0.2.2:3004`; the account API health check passed against isolated local PostgreSQL on loopback. A synthetic host-side account login returned HTTP 200. The Android sign-in flow remained at “Please wait…” during the last inspection, so in-app sign-in is not accepted as passing.
+- The customer APK was rebuilt with the development-only account API endpoint `http://10.0.2.2:3004`; the account API health check passed against isolated local PostgreSQL on loopback. The Android customer sign-in completed and rendered the home screen. A read-only isolated DB query found two unexpired sessions for the synthetic customer, consistent with one host-side login and one in-app login.
 - Merchant and driver were launch-checked only. This does not cover role authentication or marketplace workflows because the Firebase identity bridge is disabled. No real phone OTP, purchase, payment, external provider or production data was used.
 # 2026-10-19 payout review confirmation
 
