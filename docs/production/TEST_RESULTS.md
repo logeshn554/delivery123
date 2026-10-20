@@ -3,8 +3,8 @@
 ## 2026-10-20 local customer Android device startup
 
 - `node scripts/build-app.mjs --audience=customer --platform=android` built the customer web/native debug artifact; Gradle `assembleDebug` completed after sandboxed Gradle failed to load Windows native services. The configured local Firebase app ID is for `promtwars222` only; no production/staging config was changed.
-- Installed `.cache/apps/customer/app-debug.apk` on the local Pixel_8 AVD (`emulator-5554`) using `adb install -r`: `Success`. `monkey -p in.allgo.app 1` launched it; `dumpsys activity activities` reported `in.allgo.app/.MainActivity` as `topResumedActivity`, and `pidof in.allgo.app` returned PID `10042`.
-- This verifies package installation and activity startup only. No account sign-in, OTP, location permission, order, payment, provider API, or production data was exercised. Authenticated end-to-end and release acceptance remain open.
+- Installed `.cache/apps/customer/app-debug.apk` on the local Pixel_8 AVD (`emulator-5554`) using `adb install -r`: `Success`. `monkey -p in.allgo.app 1` launched it; `dumpsys activity activities` reported `in.allgo.app/.MainActivity` as `topResumedActivity`, and `pidof in.allgo.app` returned PID `10042`. The first screenshot showed a transient Android System UI “isn't responding” dialog. After selecting Wait, a new capture showed the rendered AllGo sign-in recovery screen with “Cannot reach the account server”; the emulator was responsive. No matching app fatal/ANR lines appeared in the bounded logcat search.
+- This verifies package installation and rendering of the account-server-unavailable recovery state only. The configured development app does not have a reachable account server in this test, so no sign-in, OTP, location permission, order, payment, provider API, or production data was exercised. Authenticated end-to-end and release acceptance remain open.
 
 ## 2026-10-19 hosted main verification
 
