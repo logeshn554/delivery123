@@ -1,5 +1,10 @@
 # Test results
 
+## 2026-10-20 synthetic parcel proof fixture
+
+- Added `tests/fixtures/parcel-proof/sample-delivery-proof.synthetic.png`: fictional parcel on a generic doorstep, with no person, readable text, branding or real address.
+- `npm run build` passed and `node scripts/check-production-fixtures.mjs` confirmed the live bundle contains no demo fixtures. The image remains test-only. Production photo upload is still blocked on the published privacy policy and approved consent/access/deletion lifecycle.
+
 ## 2026-10-20 local customer Android device startup
 
 - `node scripts/build-app.mjs --audience=customer --platform=android` built the customer web/native debug artifact; Gradle `assembleDebug` completed after sandboxed Gradle failed to load Windows native services. The configured local Firebase app ID is for `promtwars222` only; no production/staging config was changed.
