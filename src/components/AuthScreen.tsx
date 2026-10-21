@@ -4,7 +4,7 @@ import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { nativeGoogleSignIn, nativeAppleSignIn, completeNativePhoneSignIn } from '../nativeAuth';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signInWithPopup, updateProfile } from 'firebase/auth';
 import { ArrowRight, ArrowLeft, ShoppingBag, Bike, Package, Truck, Eye, EyeOff, LoaderCircle } from 'lucide-react';
-import { auth, googleProvider } from '../firebase';
+import { auth, ensureFirebaseAuthEmulator, googleProvider } from '../firebase';
 import { business } from '../business';
 import { passwordStrength, passwordStrengthLabel } from '../auth/passwordStrength';
 import { getOrCreateUserProfile, saveAccountName } from '../data/firestoreHelper';
@@ -76,9 +76,10 @@ export default function AuthScreen() {
   }, [screen, resendAt, clock]);
   const canonicalPhone = phone.replace(/[\s()-]/g, '');
   const phoneSubmit = async () => {
-    if (verificationId) { await FirebaseAuthentication.confirmVerificationCode({ verificationId, verificationCode: code }); await completeNativePhoneSignIn(); return; }
+    if (verificationId) { await ensureFirebaseAuthEmulator(); await FirebaseAuthentication.confirmVerificationCode({ verificationId, verificationCode: code }); await completeNativePhoneSignIn(); return; }
     if (!/^\+[1-9]\d{7,14}$/.test(canonicalPhone)) throw new Error('Enter your phone number with country code, such as +91…');
     if (Date.now() < resendAt) throw new Error('Wait one minute before requesting another code.');
+    await ensureFirebaseAuthEmulator();
     await FirebaseAuthentication.signInWithPhoneNumber({ phoneNumber: canonicalPhone, skipNativeAuth: false });
     setResendAt(Date.now() + 60000); setClock(Date.now());
   };

@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { phoneRegistrationIdentity } from './phoneRegistrationPolicy.mjs';
+import { assertPhoneTokenEnvironment, phoneRegistrationIdentity, phoneVerificationError } from './phoneRegistrationPolicy.mjs';
 import { projectSavedAddress } from './savedAddressPolicy.mjs';
 
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
@@ -8,12 +8,15 @@ export const identityBridgeEnabled = () => process.env.ACCOUNT_FIREBASE_BRIDGE_E
 export async function verifyPhoneIdentity(token) {
   if (!identityBridgeEnabled()) throw Object.assign(new Error('Phone verification is not configured. Please contact support.'), { status: 503, code: 'unavailable' });
   if (typeof token !== 'string' || token.length < 100 || token.length > 8000) throw Object.assign(new Error('Verify your phone to continue.'), { status: 401, code: 'auth/invalid-credential' });
-  const { auth } = firebase();
-  const claims = await auth.verifyIdToken(token, true);
-  const identity = phoneRegistrationIdentity(claims);
-  const user = await auth.getUser(identity.uid);
-  if (user.disabled || user.phoneNumber !== identity.phone) throw Object.assign(new Error('This phone identity is unavailable.'), { status: 403, code: 'permission-denied' });
-  return identity;
+  assertPhoneTokenEnvironment(token, process.env.FIREBASE_PROJECT_ID, process.env.FIREBASE_AUTH_EMULATOR_HOST);
+  try {
+    const { auth } = firebase();
+    const claims = await auth.verifyIdToken(token, true);
+    const identity = phoneRegistrationIdentity(claims);
+    const user = await auth.getUser(identity.uid);
+    if (user.disabled || user.phoneNumber !== identity.phone) throw Object.assign(new Error('This phone identity is unavailable.'), { status: 403, code: 'permission-denied' });
+    return identity;
+  } catch (error) { throw phoneVerificationError(error); }
 }
 function firebase() {
   if (!services) {

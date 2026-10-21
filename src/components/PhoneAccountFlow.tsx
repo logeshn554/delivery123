@@ -3,11 +3,17 @@ import { ArrowLeft, ArrowRight, Bike, CheckCircle2, LoaderCircle, ShoppingBag, S
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { getAuth, inMemoryPersistence, RecaptchaVerifier, setPersistence, signInWithPhoneNumber, signOut, type ConfirmationResult } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, inMemoryPersistence, RecaptchaVerifier, setPersistence, signInWithPhoneNumber, signOut, type ConfirmationResult } from 'firebase/auth';
 import { signInAccount, signInPhoneAccount } from '../accounts';
+import { firebaseEmulators } from '../firebase';
 
 import { appAudience } from '../app/audience';
 type Role = 'customer'|'driver'|'merchant';
+let phoneAuthEmulatorConfigured = false;
+// Native Firebase reads google-services.json, which can name a different project
+// from the JS development configuration. Use the JS Auth instance for emulator
+// phone verification so the token and the account API share the same project.
+const nativePhoneAuth = Capacitor.isNativePlatform() && !firebaseEmulators;
 const roles = [{id:'customer',title:'Customer',detail:'Order food, shop and book deliveries',Icon:ShoppingBag},{id:'merchant',title:'Merchant',detail:'Register your restaurant or grocery business',Icon:Store},{id:'driver',title:'Driver',detail:'Apply to deliver and earn with AllGo',Icon:Bike}] as const;
 function message(error: unknown) {
   const code = (error as {code?:string})?.code;
@@ -35,7 +41,7 @@ export default function PhoneAccountFlow({mode,onBack,onEmailLogin,onModeChange}
   useEffect(()=>{
     alive.current=true;
     const ticker=setInterval(()=>setClock(Date.now()),1000);
-    const handles=Capacitor.isNativePlatform()&&Capacitor.isPluginAvailable('FirebaseAuthentication')?Promise.all([
+    const handles=nativePhoneAuth&&Capacitor.isPluginAvailable('FirebaseAuthentication')?Promise.all([
       FirebaseAuthentication.addListener('phoneCodeSent',event=>{if(alive.current&&nativePending.current){if(timer.current)clearTimeout(timer.current);setVerificationId(event.verificationId);setStep('code');setNotice('Code sent. Enter the six digits from your SMS.');setBusy(false);}}),
       FirebaseAuthentication.addListener('phoneVerificationFailed',event=>{if(alive.current&&nativePending.current){nativePending.current=false;if(timer.current)clearTimeout(timer.current);setError(event.message||'Phone verification failed. Please try again.');setBusy(false);}}),
       FirebaseAuthentication.addListener('phoneVerificationCompleted',()=>{if(alive.current&&nativePending.current)void nativeFinish().catch(error=>{if(alive.current)setError(message(error));});}),
@@ -46,7 +52,7 @@ export default function PhoneAccountFlow({mode,onBack,onEmailLogin,onModeChange}
   const sendCode=async()=>{
     if(!/^\+[1-9]\d{7,14}$/.test(canonicalPhone))throw new Error('Enter a phone number with country code, such as +919876543210.');
     if(Date.now()<resendAt)throw new Error('Please wait before requesting another code.');
-    if(Capacitor.isNativePlatform()) {
+    if(nativePhoneAuth) {
       if(!Capacitor.isPluginAvailable('FirebaseAuthentication'))throw new Error('Phone OTP is not configured in this app build. Please contact support. Existing accounts can use email login.');
       nativePending.current=true;
       timer.current=setTimeout(()=>{if(alive.current){nativePending.current=false;setBusy(false);setError('The verification request timed out. Please try again.');}},60000);
@@ -54,6 +60,7 @@ export default function PhoneAccountFlow({mode,onBack,onEmailLogin,onModeChange}
     } else {
       const app=getApps().find(app=>app.name==='allgo-phone-verification')||initializeApp(getApp().options,'allgo-phone-verification');
       const phoneAuth=getAuth(app);await setPersistence(phoneAuth,inMemoryPersistence);
+      if(firebaseEmulators&&!phoneAuthEmulatorConfigured){connectAuthEmulator(phoneAuth,firebaseEmulators.auth.url,{disableWarnings:true});phoneAuthEmulatorConfigured=true;}
       if(!recaptcha.current)recaptcha.current=new RecaptchaVerifier(phoneAuth,'phone-recaptcha',{size:'normal'});
       try{confirmation.current=await signInWithPhoneNumber(phoneAuth,canonicalPhone,recaptcha.current);recaptcha.current.clear();recaptcha.current=null;setStep('code');setNotice('Code sent. Enter the six digits from your SMS.');}
       catch(error){recaptcha.current?.clear();recaptcha.current=null;throw error;}
@@ -67,7 +74,7 @@ export default function PhoneAccountFlow({mode,onBack,onEmailLogin,onModeChange}
       if(step==='phone'){await sendCode();return;}
       if(step==='code'){
         if(!/^\d{6}$/.test(code))throw new Error('Enter the six-digit SMS code.');
-        if(Capacitor.isNativePlatform()){nativePending.current=true;await FirebaseAuthentication.confirmVerificationCode({verificationId,verificationCode:code});await nativeFinish();}
+        if(nativePhoneAuth){nativePending.current=true;await FirebaseAuthentication.confirmVerificationCode({verificationId,verificationCode:code});await nativeFinish();}
         else{if(!confirmation.current)throw new Error('Request another verification code.');const result=await confirmation.current.confirm(code);try{await finish(await result.user.getIdToken(true));}finally{await signOut(getAuth(getApp('allgo-phone-verification')));}}
         return;
       }
@@ -80,7 +87,7 @@ export default function PhoneAccountFlow({mode,onBack,onEmailLogin,onModeChange}
   const resendWait=Math.max(0,Math.ceil((resendAt-clock)/1000));
   return <main className="auth-shell safe-area-top safe-area-bottom"><section className="auth-panel"><button className="auth-back" disabled={busy} aria-label="Previous registration step" onClick={back}><ArrowLeft size={21}/></button><div className="auth-wordmark">All<span>Go</span></div><p className="auth-eyebrow">{mode==='signup'?'CREATE YOUR ALLGO ACCOUNT':'PHONE SIGN-IN'}</p><h1>{step==='role'?'How will you use AllGo?':step==='phone'?'Start with your phone.':step==='code'?'Check your messages.':'Complete your account.'}</h1><p className="auth-description">{step==='role'?'Choose your account type. Driver and merchant access requires partner approval.':step==='phone'?'We’ll send an SMS code to verify your number.':step==='code'?`Enter the code sent to ${canonicalPhone}.`:'Your phone is verified. Add your name and email login details.'}</p><form className="auth-form" onSubmit={submit}>
     {step==='role'&&<fieldset className="auth-role-picker"><legend>Account type</legend>{roles.map(({id,title,detail,Icon})=><label key={id}><input type="radio" name="account-role" value={id} checked={role===id} onChange={()=>setRole(id)}/><Icon size={24} aria-hidden="true"/><span><strong>{title}</strong><small>{detail}</small></span></label>)}</fieldset>}
-    {step==='phone'&&<><label>Phone number with country code<input type="tel" autoComplete="tel" name="phone" required maxLength={25} placeholder="+91 98765 43210" value={phone} disabled={busy} onChange={event=>setPhone(event.target.value)}/></label>{!Capacitor.isNativePlatform()&&<div id="phone-recaptcha"/>}</>}
+    {step==='phone'&&<><label>Phone number with country code<input type="tel" autoComplete="tel" name="phone" required maxLength={25} placeholder="+91 98765 43210" value={phone} disabled={busy} onChange={event=>setPhone(event.target.value)}/></label>{!nativePhoneAuth&&<div id="phone-recaptcha"/>}</>}
     {step==='code'&&<><label>Six-digit verification code<input className="auth-otp-input" name="one-time-code" inputMode="numeric" enterKeyHint="done" autoComplete="one-time-code" autoFocus pattern="[0-9]{6}" required maxLength={6} value={code} disabled={busy} onChange={event=>setCode(event.target.value.replace(/\D/g,''))}/></label><button type="button" className="auth-text-link" disabled={busy||resendWait>0} onClick={()=>{setStep('phone');setVerificationId('');setCode('');setNotice('Request a new code for this number.');}}>{resendWait?`Request another code in ${resendWait}s`:'Request another code'}</button></>}
     {step==='details'&&<><p className="auth-verified"><CheckCircle2 size={18}/>{canonicalPhone} verified · {role}</p><label>Full name<input name="name" autoComplete="name" minLength={2} maxLength={100} required value={name} disabled={busy} onChange={event=>setName(event.target.value)}/></label><label>Email address<input name="email" type="email" autoComplete="email" autoCapitalize="none" required maxLength={254} value={email} disabled={busy} onChange={event=>setEmail(event.target.value)}/></label><label>Create a password<input name="password" type="password" autoComplete="new-password" minLength={8} maxLength={128} required value={password} disabled={busy} onChange={event=>setPassword(event.target.value)}/><small>At least 8 characters. You can also sign in with phone and OTP.</small></label></>}
     {error&&<p role="alert" className="auth-error">{error}</p>}{notice&&<p role="status" className="auth-notice">{notice}</p>}<button type="submit" className="auth-primary" disabled={busy}>{busy?<><LoaderCircle size={18} className="animate-spin"/>Please wait…</>:<>{step==='role'?'Continue':step==='phone'?'Send verification code':step==='code'?'Verify phone':'Create account'}<ArrowRight size={18}/></>}</button>

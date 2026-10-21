@@ -1,11 +1,19 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
+import { connectAuthEmulator, getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { initializeAppCheck, CustomProvider, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { Capacitor } from '@capacitor/core';
 import { FirebaseAppCheck } from '@capacitor-firebase/app-check';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import firebaseConfig from '../firebase-applet-config.json';
+import { firebaseEmulatorEndpoints } from './app/firebaseEmulators.js';
+
+export const firebaseEmulators = firebaseEmulatorEndpoints({
+  auth: import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL,
+  firestore: import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_URL,
+  functions: import.meta.env.VITE_FIREBASE_FUNCTIONS_EMULATOR_URL,
+}, import.meta.env.MODE);
 
 // Initialize Firebase
 const releaseEnvironment = ['staging', 'production'].includes(import.meta.env.MODE);
@@ -45,6 +53,17 @@ if (import.meta.env.VITE_APP_CHECK_ENABLED === 'true') {
 export const db = getFirestore(app, import.meta.env.VITE_FIREBASE_DATABASE_ID || firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const functions = getFunctions(app, 'asia-south1');
+if (firebaseEmulators) {
+  connectAuthEmulator(auth, firebaseEmulators.auth.url, { disableWarnings: true });
+  connectFirestoreEmulator(db, firebaseEmulators.firestore.host, firebaseEmulators.firestore.port);
+  connectFunctionsEmulator(functions, firebaseEmulators.functions.host, firebaseEmulators.functions.port);
+}
+let nativeAuthEmulatorReady: Promise<void> | undefined;
+export function ensureFirebaseAuthEmulator() {
+  if (!firebaseEmulators || !Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('FirebaseAuthentication')) return Promise.resolve();
+  nativeAuthEmulatorReady ??= FirebaseAuthentication.useEmulator({ host: firebaseEmulators.auth.host, port: firebaseEmulators.auth.port });
+  return nativeAuthEmulatorReady;
+}
 export const googleProvider = new GoogleAuthProvider();
 
 // Error diagnostic helper as specified in firebase-integration-rpc skill

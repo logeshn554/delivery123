@@ -11,6 +11,7 @@ import { accountActionLink } from './accountActionPolicy.mjs';
 import { exportLegacyBookings } from './accountExport.mjs';
 import { accountOrigins } from './originPolicy.mjs';
 import { deliveryDetails } from './savedAddressPolicy.mjs';
+import { accountErrorResponse } from './accountErrorPolicy.mjs';
 
 const environment = process.env.ALLGO_ENVIRONMENT;
 if (environment && !['staging', 'production'].includes(environment)) throw new Error('ALLGO_ENVIRONMENT must be staging or production.');
@@ -138,7 +139,13 @@ const sendSession = (req, res, result, status = 200) => {
   if (req.headers['x-allgo-native'] === '1') res.status(status).json(result);
   else { res.cookie(sessionCookieName, result.token, cookieOptions(production)); res.status(status).json({ profile: result.profile }); }
 };
-app.get('/api/health', route(async (_req, res) => { await pool.query('SELECT 1'); res.json({ ok: true, identityBridgeEnabled: identityBridgeEnabled() }); }));
+app.get('/api/health', route(async (_req, res) => {
+  await pool.query('SELECT 1');
+  res.json({ ok: true, identityBridgeEnabled: identityBridgeEnabled(), ...(!production && !environment ? {
+    identityProjectId: process.env.FIREBASE_PROJECT_ID || null,
+    identityMode: process.env.FIREBASE_AUTH_EMULATOR_HOST ? 'emulator' : 'cloud',
+  } : {}) });
+}));
 app.post('/api/auth/signup', route(async (req, res) => {
   const email = emailOf(req.body.email), password = passwordOf(req.body.password), name = text(req.body.name, 2, 100, 'name');
   const requestedRole = registrationRole('customer');
@@ -362,9 +369,9 @@ app.get('/api/data/bookings/:id/contacts', route(async (req, res) => {
 }));
 app.use('/api', (_req, res) => res.status(404).json({ error: 'This service endpoint is not configured.', code: 'unavailable' }));
 app.use((error, _req, res, _next) => {
-  const status = error.status || 503;
+  const { status, body } = accountErrorResponse(error);
   if (status >= 500) console.error('Account request failed:', error.code || 'database-unavailable');
-  res.status(status).json({ error: status >= 500 ? 'Account services are unavailable. Please try again.' : error.message, code: error.code && status < 500 ? error.code : 'unavailable' });
+  res.status(status).json(body);
 });
 const port = Number(process.env.ACCOUNT_API_PORT || process.env.PORT || 3004);
 const host = process.env.ACCOUNT_API_HOST || '127.0.0.1';

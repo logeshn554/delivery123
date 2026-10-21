@@ -43,10 +43,10 @@ const { journal } = require('./journalPolicy');
 const { addCents } = require('./moneyPolicy');
 const { settlementPolicy, calculateDriverSettlement } = require('./settlementPolicy');
 const { tripBundleFunctions } = require('./tripBundleFunctions');
+const { firestoreDatabaseId } = require('./databaseConfig');
 
 const app = initializeApp();
-if (process.env.ALLGO_ENVIRONMENT && !process.env.FIRESTORE_DATABASE_ID) throw new Error('Release Functions require an explicit FIRESTORE_DATABASE_ID.');
-const databaseId = process.env.FIRESTORE_DATABASE_ID || 'ai-studio-33ff364a-171b-472c-93a0-dd18e20cf1e4';
+const databaseId = firestoreDatabaseId();
 const db = getFirestore(app, databaseId);
 const RAZORPAY_KEY_ID = defineSecret('RAZORPAY_KEY_ID');
 const RAZORPAY_KEY_SECRET = defineSecret('RAZORPAY_KEY_SECRET');
