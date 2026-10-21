@@ -12,6 +12,7 @@ import { exportLegacyBookings } from './accountExport.mjs';
 import { accountOrigins } from './originPolicy.mjs';
 import { deliveryDetails } from './savedAddressPolicy.mjs';
 import { accountErrorResponse } from './accountErrorPolicy.mjs';
+import { trustProxySetting, rateLimitKey } from './clientIpPolicy.mjs';
 
 const environment = process.env.ALLGO_ENVIRONMENT;
 if (environment && !['staging', 'production'].includes(environment)) throw new Error('ALLGO_ENVIRONMENT must be staging or production.');
@@ -23,6 +24,8 @@ const app = express();
 const production = process.env.NODE_ENV === 'production';
 if (production && (!environment || !identityBridgeEnabled() || !process.env.FIREBASE_PROJECT_ID || !process.env.FIRESTORE_DATABASE_ID)) throw new Error('Release accounts require an explicit environment and canonical Firebase identity bridge.');
 if (production && !process.env.ACCOUNT_ALLOWED_ORIGINS) throw new Error('Production requires explicit ACCOUNT_ALLOWED_ORIGINS.');
+if (production && !process.env.ACCOUNT_TRUST_PROXY?.trim()) throw new Error('Production requires an explicit ACCOUNT_TRUST_PROXY (reverse-proxy hop count, 0 when clients connect directly).');
+app.set('trust proxy', trustProxySetting(process.env.ACCOUNT_TRUST_PROXY));
 app.disable('x-powered-by');
 const origins = accountOrigins({ configured: process.env.ACCOUNT_ALLOWED_ORIGINS, production, environment });
 app.use((req, res, next) => {
@@ -53,7 +56,7 @@ const emailOf = value => { const email = text(value, 3, 254, 'email address').to
 const passwordOf = value => { if (typeof value !== 'string' || value.length < 8 || value.length > 128) throw fail('Choose a password between 8 and 128 characters.', 400, 'auth/weak-password'); return value; };
 const profile = row => ({ ...row.profile, uid: row.id, email: row.email, name: row.name, role: row.profile?.role || 'customer', createdAt: row.created_at.toISOString(), walletBalance: 0, serviceIdentityEnabled: identityBridgeEnabled() });
 const checkRateLimit = async (ip) => {
-  const key = `rl:${ip}`;
+  const key = `rl:${rateLimitKey(ip)}`;
   try {
     const { rows } = await pool.query(`
       INSERT INTO allgo_rate_limits (key, count, expires_at)

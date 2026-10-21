@@ -1,5 +1,31 @@
 # Test results
 
+## 2026-10-21 supplied audit report: account rate-limit fix
+
+Provenance: the following baseline/full-suite/mutation results were reported by the supplied patch author; they are not all independently reproduced in this Windows workspace. Local verification is recorded separately below.
+
+Reported environment: cloud Linux workspace, Node 22.22.0, npm 10.9.4, Java 21. Base `main` @ `191efd701be55db287b51c036d4b41271607b850`; changes on local branch `feature/audit-and-hardening`.
+
+| Check | Baseline (`main`) | After change |
+|---|---|---|
+| `npm run lint` (`tsc --noEmit`) | pass | pass |
+| `npm run build` | pass (existing >500 kB chunk advisory) | pass |
+| Functions tests | 74/74 | 74/74 |
+| UI tests (`tests/ui`) | 155/155 | 155/155 |
+| Server tests (`server/*.test.mjs`) | 106/106 | 114/114 (+8 in `clientIpPolicy.test.mjs`) |
+| `scripts/check-secrets.mjs --working-tree` | pass | pass |
+| `npm audit --omit=dev` (root and functions) | 0 vulnerabilities | not rerun (no dependency change) |
+| `npm run test:rules` (Firestore emulator) | **not run**: `scripts/run-rules-tests.mjs` downloads the emulator jar from `storage.googleapis.com`, which this workspace's network allowlist blocks (`ENOTFOUND`) | **not run**, same reason |
+| `npm run test:accounts` (PostgreSQL + Auth emulator) | **not run** (no isolated PostgreSQL provisioned here) | **not run** |
+
+Additional evidence: reproduction script showed three clients with different `X-Forwarded-For` values sharing `req.ip` `127.0.0.1` before the fix. Mutation check (deliberately breaking `trustProxySetting` and the IPv6 grouping) made 3 of the 8 new tests fail; the restored code passes all 8. `node scripts/check-release.mjs --environment=staging` now reports the new `ACCOUNT_TRUST_PROXY` error when unset, blank or `true`, and none when set to `1`. Starting `server/accounts.mjs` with `NODE_ENV=production` and no `ACCOUNT_TRUST_PROXY` throws the intended error. The `.env.staging.local` file used for the gate check was temporary and removed.
+
+Not verified: any behavior behind a real proxy/PaaS, the account API against a live database, native Android/iOS builds, and every external provider.
+
+## 2026-10-21 local verification of the imported proxy patch
+
+Windows workspace, current auth/session fixes retained. All 114 server tests pass, including the eight real-HTTP/IP policy checks; TypeScript and the development web build pass. IPv4 addresses with an invalid zone suffix are rejected. Proxy documentation now states that hop counts require every request path to traverse the configured trusted proxies and that the edge must sanitize/append forwarded headers. No Firestore rules tests were run. No real deployed proxy topology was exercised. The source patch's additional account throttling, email-enumeration and expiry-cleanup findings remain open.
+
 ## 2026-10-20 synthetic parcel proof fixture
 
 - Added `tests/fixtures/parcel-proof/sample-delivery-proof.synthetic.png`: fictional parcel on a generic doorstep, with no person, readable text, branding or real address.

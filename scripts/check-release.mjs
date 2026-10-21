@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { parse } from 'dotenv';
+import { trustProxySetting } from '../server/clientIpPolicy.mjs';
 const environment = process.argv.find(value=>value.startsWith('--environment='))?.split('=')[1];
 if (!['staging','production'].includes(environment)) { console.error('Use --environment=staging or --environment=production.');process.exit(1); }
 const file = `.env.${environment}.local`, otherFile = `.env.${environment==='staging'?'production':'staging'}.local`;
@@ -20,6 +21,8 @@ else try {
 if (!fs.existsSync(otherFile)) errors.push('Both staging and production environment configurations are required to verify resource separation.');
 const required = ['DATABASE_URL','FIREBASE_PROJECT_ID','FIRESTORE_DATABASE_ID','VITE_FIREBASE_PROJECT_ID','VITE_FIREBASE_DATABASE_ID','VITE_FIREBASE_APP_ID','VITE_FIREBASE_API_KEY','VITE_FIREBASE_AUTH_DOMAIN','VITE_FIREBASE_MESSAGING_SENDER_ID','VITE_ACCOUNT_API_URL','ACCOUNT_ALLOWED_ORIGINS','ACCOUNT_EMAIL_API_KEY','ACCOUNT_EMAIL_FROM','ACCOUNT_PUBLIC_WEB_ORIGIN','VITE_APP_CHECK_SITE_KEY','VITE_SUPPORT_EMAIL','VITE_PRIVACY_URL','VITE_TERMS_URL','VITE_CANCELLATION_URL'];
 for(const key of required) if(!env[key]?.trim())errors.push(`${key} is missing from the ${environment} configuration.`);
+try { if (!env.ACCOUNT_TRUST_PROXY?.trim()) throw new Error(); trustProxySetting(env.ACCOUNT_TRUST_PROXY); }
+catch { errors.push('ACCOUNT_TRUST_PROXY must state the reverse-proxy hop count (0 to 5) so authentication limits identify real clients.'); }
 if (!env.EVIDENCE_STORAGE_BUCKET?.trim()) errors.push('The private document storage bucket is missing.');
 if (!env.EVIDENCE_SCANNER_HOST?.trim() || !/^[A-Za-z0-9.-]+\.[A-Za-z0-9.-]+$/.test(env.EVIDENCE_SCANNER_HOST) || !Number.isInteger(Number(env.EVIDENCE_SCANNER_PORT)) || Number(env.EVIDENCE_SCANNER_PORT) < 1 || Number(env.EVIDENCE_SCANNER_PORT) > 65535) errors.push('The verified private scanner hostname and TLS port are missing or invalid.');
 if (env.EVIDENCE_STORAGE_BUCKET && env.EVIDENCE_STORAGE_BUCKET === other.EVIDENCE_STORAGE_BUCKET) errors.push('Staging and production cannot share private document storage.');
