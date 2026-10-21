@@ -1,5 +1,10 @@
 # Implementation log
 
+2026-10-21 — Firestore booking read rule optimization:
+1. Eliminated redundant document read on single-document `getDoc` calls for `bookings/{bookingId}` in `firestore.rules`. Previously, `allow get: if canAccessBooking(bookingId);` performed an external `get(/databases/$(database)/documents/bookings/$(bookingId))` on the exact document already loaded as `resource.data`.
+2. Extracted helper `canAccessBookingData(booking)` and updated `match /bookings/{bookingId}` to evaluate `allow get, list: if canAccessBookingData(resource.data);`. Subcollections (`events`, `chats`) continue using `canAccessBooking(bookingId)` to read the parent booking.
+3. Verified zero regressions across the security suite: `npm run lint` (0 errors), `npm test` (115/115 passed), `npm run test:rules` (147/147 passed), and `npm run build` pass cleanly.
+
 2026-10-21 — Partner signup role intent & user profile rules schema alignment:
 1. Fixed contract mismatch where `/api/auth/signup` hardcoded `registrationRole('customer')`, discarding client-submitted `requestedRole` ('driver' | 'merchant'). Added `signupRequestedRole()` to safely default omitted roles to 'customer' while validating requested roles and strictly denying forged elevated roles ('admin', 'operator', non-string values) with HTTP 400. The authenticated authorization role always remains 'customer'.
 2. Aligned Firestore `isValidUser` rules with `server/firebaseIdentity.mjs` bridge writes by including `phoneVerified` (boolean) and `requestedRole` ('customer' | 'driver' | 'merchant') in the schema allowlist.

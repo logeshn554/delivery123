@@ -85,14 +85,18 @@ service cloud.firestore {
       return resource.data;
     }
 
-    function canAccessBooking(bookingId) {
-      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+    function canAccessBookingData(booking) {
       return isSignedIn() && (
         booking.customerId == request.auth.uid ||
         isAssignedVerifiedDriver(booking) ||
         isMerchantFor(booking) ||
         isAdmin()
       );
+    }
+
+    function canAccessBooking(bookingId) {
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      return canAccessBookingData(booking);
     }
 
     function canAccessDeliveryDetails(bookingId) {
@@ -342,15 +346,10 @@ service cloud.firestore {
 
     // BOOKINGS (Unified transactional records)
     match /bookings/{bookingId} {
-      allow get: if canAccessBooking(bookingId);
       // SEC-04: Drivers must NOT be able to list raw unassigned bookings — full customer PII
       // (name, address, notes) would be readable before assignment. Dispatch is server-side only.
-      allow list: if isSignedIn() && (
-        resource.data.customerId == request.auth.uid ||
-        isAssignedVerifiedDriver(resource.data) ||
-        isMerchantFor(resource.data) ||
-        isAdmin()
-      );
+      // Direct get and list evaluate resource.data directly to avoid redundant get() document reads.
+      allow get, list: if canAccessBookingData(resource.data);
       // Customer bookings are created by the verified payment Cloud Function only.
       allow create: if false;
       // Driver transitions and settlement use transactional Cloud Functions.
