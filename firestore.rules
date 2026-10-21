@@ -136,13 +136,15 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'email', 'role']) 
-        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType', 'accountAuthority', 'neonAccountId'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'phoneVerified', 'requestedRole', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType', 'accountAuthority', 'neonAccountId'])
         && (!data.keys().hasAny(['favorites']) || (data.favorites is list && data.favorites.size() <= 200))
         && data.uid == request.auth.uid
         && data.name is string && data.name.size() <= 100
         && data.email is string && data.email.size() <= 100
         && (data.role == 'customer' || data.role == 'driver' || data.role == 'merchant' || data.role == 'admin')
         && (!data.keys().hasAny(['phone']) || (data.phone is string && data.phone.size() <= 20))
+        && (!data.keys().hasAny(['phoneVerified']) || data.phoneVerified is bool)
+        && (!data.keys().hasAny(['requestedRole']) || (data.requestedRole in ['customer', 'driver', 'merchant']))
         && (!data.keys().hasAny(['walletBalance']) || (data.walletBalance is int || data.walletBalance is float))
         && (!data.keys().hasAny(['defaultAddressId']) || (data.defaultAddressId is string && data.defaultAddressId.size() <= 128))
         && (!data.keys().hasAny(['defaultAddress']) || (data.defaultAddress is string && data.defaultAddress.size() <= 300))
@@ -207,8 +209,18 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'accountAuthority', 'neonAccountId']);
-      allow update: if isSignedIn() && ((isOwner(userId) && isValidUser(incoming()) && incoming().get('accountAuthority', null) == existing().get('accountAuthority', null) && incoming().get('neonAccountId', null) == existing().get('neonAccountId', null) && incoming().role == existing().role && incoming().walletBalance == existing().walletBalance && incoming().get('merchantId', null) == existing().get('merchantId', null) && incoming().get('merchantType', null) == existing().get('merchantType', null)));
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'accountAuthority', 'neonAccountId', 'phoneVerified']);
+      allow update: if isSignedIn() && (
+        isOwner(userId) && isValidUser(incoming()) &&
+        incoming().get('accountAuthority', null) == existing().get('accountAuthority', null) &&
+        incoming().get('neonAccountId', null) == existing().get('neonAccountId', null) &&
+        incoming().role == existing().role &&
+        incoming().walletBalance == existing().walletBalance &&
+        incoming().get('merchantId', null) == existing().get('merchantId', null) &&
+        incoming().get('merchantType', null) == existing().get('merchantType', null) &&
+        incoming().get('phoneVerified', false) == existing().get('phoneVerified', false) &&
+        incoming().get('requestedRole', null) == existing().get('requestedRole', null)
+      );
       // Account deletion must use the cross-store server workflow so linked
       // identity, sessions, bookings and audit data are cleaned consistently.
       allow delete: if false;

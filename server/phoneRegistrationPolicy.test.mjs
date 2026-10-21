@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertPhoneTokenEnvironment, phoneRegistrationIdentity, phoneVerificationError, registrationRole } from './phoneRegistrationPolicy.mjs';
+import { assertPhoneTokenEnvironment, phoneRegistrationIdentity, phoneVerificationError, registrationRole, signupRequestedRole } from './phoneRegistrationPolicy.mjs';
 const now = 1800000000000;
 const claims = {uid:'verified-user',phone_number:'+919876543210',auth_time:now/1000-30,firebase:{sign_in_provider:'phone'}};
 
@@ -38,4 +38,14 @@ test('stale, future, malformed and missing phone proofs fail closed',()=>{
 test('registration rejects administrative access and unknown account types',()=>{
   for(const role of ['admin','operator',undefined,null,{},'Customer'])assert.throws(()=>registrationRole(role),/Choose Customer/);
   for(const role of ['customer','driver','merchant'])assert.equal(registrationRole(role),role);
+});
+test('signup role intent defaults safely to customer and rejects forged or unknown roles',()=>{
+  assert.equal(signupRequestedRole(), 'customer');
+  assert.equal(signupRequestedRole(undefined), 'customer');
+  assert.equal(signupRequestedRole('customer'), 'customer');
+  assert.equal(signupRequestedRole('driver'), 'driver');
+  assert.equal(signupRequestedRole('merchant'), 'merchant');
+  for(const role of ['admin', 'operator', null, {}, 'Customer', 'DRIVER', 123, true]) {
+    assert.throws(() => signupRequestedRole(role), /Choose Customer/);
+  }
 });

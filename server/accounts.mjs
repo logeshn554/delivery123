@@ -4,7 +4,7 @@ import { config } from 'dotenv';
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { identityBridgeEnabled, bridgeIdentity, revokeBridgeSessions, verifyPhoneIdentity } from './firebaseIdentity.mjs';
-import { registrationRole } from './phoneRegistrationPolicy.mjs';
+import { registrationRole, signupRequestedRole } from './phoneRegistrationPolicy.mjs';
 import { readSessionCookie, sessionCookieName, cookieOptions } from './sessionPolicy.mjs';
 import { projectLegacyBooking } from './legacyBookingReadModel.mjs';
 import { accountActionLink } from './accountActionPolicy.mjs';
@@ -151,7 +151,7 @@ app.get('/api/health', route(async (_req, res) => {
 }));
 app.post('/api/auth/signup', route(async (req, res) => {
   const email = emailOf(req.body.email), password = passwordOf(req.body.password), name = text(req.body.name, 2, 100, 'name');
-  const requestedRole = registrationRole('customer');
+  const requestedRole = signupRequestedRole(req.body.requestedRole);
   const identity = await verifyPhoneIdentity(req.body.phoneIdToken);
   const client = await pool.connect();
   try {

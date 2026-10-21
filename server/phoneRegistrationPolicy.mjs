@@ -33,3 +33,7 @@ export function registrationRole(value) {
   if (!['customer', 'driver', 'merchant'].includes(value)) throw Object.assign(new Error('Choose Customer, Driver or Merchant.'), { status: 400, code: 'invalid-argument' });
   return value;
 }
+
+export function signupRequestedRole(value) {
+  return registrationRole(value === undefined ? 'customer' : value);
+}

@@ -253,6 +253,43 @@ test('customers cannot change role or wallet balance and drivers cannot self-app
   await assertFails(updateDoc(doc(dbFor('customer'), 'users', 'customer'), { walletBalance: 100000 }));
   await assertFails(updateDoc(doc(dbFor('driver'), 'driver_profiles', 'driver'), { status: 'verified', supportedServices: ['transport'] }));
 });
+test('bridged profile with phoneVerified and requestedRole permits client updates while denying forged field changes', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), 'users', 'customer'), {
+      phone: '+919876500001',
+      phoneVerified: true,
+      requestedRole: 'driver',
+      accountAuthority: 'neon',
+      neonAccountId: 'server-owned',
+    });
+    await setDoc(doc(context.firestore(), 'bridge_sessions/partner-bridge'), { uid: 'customer', expiresAt: Timestamp.fromMillis(Date.now() + 60000) });
+  });
+  const linked = dbFor('customer', { allgoSession: 'partner-bridge' });
+  await assertSucceeds(updateDoc(doc(linked, 'users', 'customer'), { name: 'Verified Partner Applicant' }));
+  await assertSucceeds(updateDoc(doc(linked, 'users', 'customer'), { defaultAddress: '123 Verified Lane', defaultAddressId: 'addr-123' }));
+  await assertSucceeds(updateDoc(doc(linked, 'users', 'customer'), { preferences: { orderUpdates: true, promotions: false, language: 'en' } }));
+  await assertSucceeds(updateDoc(doc(linked, 'users', 'customer'), { favorites: ['dish-1', 'dish-2'] }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { phoneVerified: false }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { requestedRole: 'merchant' }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { requestedRole: 'admin' }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { role: 'driver' }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { walletBalance: 500 }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { merchantId: 'shop' }));
+  await assertFails(updateDoc(doc(linked, 'users', 'customer'), { accountAuthority: 'firebase' }));
+});
+test('client direct profile creation rejects forged phoneVerified, elevated roles and unauthorized authority', async () => {
+  const newUid = 'unverified-client';
+  const newClient = dbFor(newUid);
+  const baseProfile = { uid: newUid, name: 'New Client', email: 'new@example.test', role: 'customer', createdAt: '2026-10-21', walletBalance: 0 };
+  await assertSucceeds(setDoc(doc(newClient, 'users', newUid), baseProfile));
+  const secondUid = 'forged-client';
+  const secondClient = dbFor(secondUid);
+  const forgedBase = { uid: secondUid, name: 'Forged Client', email: 'forged@example.test', role: 'customer', createdAt: '2026-10-21', walletBalance: 0 };
+  await assertFails(setDoc(doc(secondClient, 'users', secondUid), { ...forgedBase, phoneVerified: true }));
+  await assertFails(setDoc(doc(secondClient, 'users', secondUid), { ...forgedBase, accountAuthority: 'neon' }));
+  await assertFails(setDoc(doc(secondClient, 'users', secondUid), { ...forgedBase, role: 'driver' }));
+  await assertFails(setDoc(doc(secondClient, 'users', secondUid), { ...forgedBase, requestedRole: 'admin' }));
+});
 test('private contacts, OTPs and payment attempts have separate access controls', async () => {
   await assertSucceeds(getDoc(doc(dbFor('driver'), 'booking_contacts', 'assigned')));
   await assertFails(getDoc(doc(dbFor('merchant'), 'booking_contacts', 'assigned')));
