@@ -2,6 +2,7 @@ import ParcelOrderDetails from './ParcelOrderDetails';
 import BookingNotificationNotice from './BookingNotificationNotice';
 import { useBookingNotification } from '../app/useBookingNotification';
 import { finishedBooking } from '../app/bookingNotification';
+import { isDriverOfferVisible } from '../app/driverOfferPolicy';
 import TransportOrderDetails from './TransportOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -142,7 +143,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   useEffect(() => { if (profile && (!profile.online || profile.status !== 'verified' || !profile.locationConsent)) void stopNativeDriverLocation().catch(() => undefined); }, [profile?.online, profile?.status, profile?.locationConsent]);
 
   // Find incoming jobs (pending bookings) that match our driver status
-  const pendingJobs = activeBookings.filter(b => !b.driverId && b.paymentStatus === 'paid' && (['food', 'grocery'].includes(b.serviceType) ? b.status === 'ready' : b.status === 'pending'));
+  const pendingJobs = activeBookings.filter(isDriverOfferVisible);
 
   const notification = useBookingNotification(activeBookings, { audience: 'driver', userId });
   useEffect(() => { if (notification.booking) setActiveSubView(null); }, [notification.booking?.bookingId]);
