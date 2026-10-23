@@ -81,7 +81,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
   const foodStatusTitle = cancelled ? 'Food order cancelled' : complete ? 'Your order has arrived' : booking.status === 'transit' ? 'Your order is out for delivery' : booking.status === 'ready' ? 'Your order is ready for pickup' : booking.status === 'preparing' ? 'The restaurant is preparing your order' : booking.status === 'accepted' ? 'The restaurant confirmed your order' : 'Your order was placed';
   const groceryStatusTitle = cancelled ? 'Grocery order cancelled' : complete ? 'Your groceries have arrived' : booking.status === 'transit' ? 'Your groceries are on the way' : booking.status === 'ready' ? 'Your groceries are ready for pickup' : booking.status === 'preparing' ? 'The store is picking your items' : booking.status === 'accepted' ? 'The store confirmed your order' : 'Your grocery order was placed';
   const serviceStatusTitle = isRide 
-    ? (cancelled ? 'Ride cancelled' : complete ? 'Ride complete' : stage === 2 ? 'Your ride is in progress' : stage === 1 ? 'Your driver has accepted' : 'Finding a driver') 
+    ? (cancelled ? 'Ride cancelled' : complete ? 'Ride complete' : stage === 2 ? 'Your ride is in progress' : booking.status === 'preparing' ? 'Driver arrived at pickup' : stage === 1 ? 'Your driver has accepted' : 'Finding a driver') 
     : isParcel ? parcelTracking!.title 
     : isFood ? foodStatusTitle
     : isGrocery ? groceryStatusTitle
@@ -155,7 +155,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
 
       {isRide && !complete && !cancelled && (
         <aside className="ride-match-status" role="status" aria-live="polite">
-          {booking.driverId ? <><strong>Driver assigned</strong><p>{booking.driverName || 'Your driver'} has accepted the trip. Driver contact and vehicle details appear only when provided by the booking service.</p></> : <><strong>Waiting for a driver assignment</strong><p>We’ll show driver details when an available driver accepts this booking.</p></>}
+          {booking.driverId ? <><strong>Driver assigned</strong><p>{booking.status === 'preparing' ? `${booking.driverName || 'Your driver'} has arrived at your pickup location. Meet your driver and share your trip start code.` : `${booking.driverName || 'Your driver'} has accepted the trip. Driver contact and vehicle details appear only when provided by the booking service.`}</p></> : <><strong>Waiting for a driver assignment</strong><p>We’ll show driver details when an available driver accepts this booking.</p></>}
         </aside>
       )}
 
@@ -246,7 +246,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                 </span>
                 <div>
                   <p className="text-[11px] font-bold text-white flex items-center gap-1">
-                    <span>{stage === 2 ? 'On the way' : isParcel ? 'Partner heading to pickup' : isTransport ? 'Carrier heading to pickup' : 'Driver heading to store'}</span>
+                    <span>{stage === 2 ? (isRide ? 'Ride in progress' : 'On the way') : isRide ? (booking.status === 'preparing' ? 'Driver arrived at pickup' : 'Driver heading to pickup') : isParcel ? (booking.status === 'preparing' ? 'Partner arrived at pickup' : 'Partner heading to pickup') : isTransport ? 'Carrier heading to pickup' : 'Driver heading to store'}</span>
                     {freshRoute && route && (
                       <span className="text-emerald-400 font-extrabold font-mono">
                         · ~{route.estimatedMinutes} mins
@@ -280,14 +280,14 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                     style={{ width: stage === 0 ? '15%' : stage === 1 ? '50%' : '85%' }}
                   />
 
-                  {/* Node 1: Store / Origin */}
+                  {/* Node 1: Store / Origin / Pickup */}
                   <div className="relative z-10 flex flex-col items-center gap-1">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
                       stage >= 1 ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'
                     }`}>
-                      <Store className="w-4 h-4" />
+                      {isRide || isParcel || isTransport ? <MapPin className="w-4 h-4" /> : <Store className="w-4 h-4" />}
                     </div>
-                    <span className="text-[9px] font-bold text-slate-400">Store</span>
+                    <span className="text-[9px] font-bold text-slate-400">{isRide || isParcel || isTransport ? 'Pickup' : 'Store'}</span>
                   </div>
 
                   {/* Node 2: Rider / Partner */}
@@ -307,7 +307,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                     }`}>
                       <Home className="w-4 h-4" />
                     </div>
-                    <span className="text-[9px] font-bold text-slate-400">Delivery</span>
+                    <span className="text-[9px] font-bold text-slate-400">{isRide || isTransport ? 'Destination' : 'Delivery'}</span>
                   </div>
                 </div>
               </div>
@@ -323,8 +323,16 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
 
             <p className="text-[11px] text-slate-400 mt-1 max-w-xs leading-relaxed">
               {error || (booking.driverId 
-                ? (stage === 1 ? 'Partner is picking up your order from the store.' : 'Waiting for partner GPS coordinates...') 
-                : 'A nearby delivery partner is being matched to your order.')
+                ? (stage === 1 
+                    ? (isRide 
+                        ? (booking.status === 'preparing' ? 'Driver has arrived at your pickup location.' : 'Driver is heading to your pickup location.') 
+                        : isParcel 
+                          ? (booking.status === 'preparing' ? 'Partner has arrived at sender pickup location.' : 'Partner is heading to sender pickup location.') 
+                          : isTransport 
+                            ? 'Carrier is heading to vehicle collection location.' 
+                            : 'Partner is picking up your order from the store.') 
+                    : 'Waiting for partner GPS coordinates...') 
+                : (isRide ? 'A nearby driver is being matched to your ride.' : 'A nearby delivery partner is being matched to your order.'))
               }
             </p>
           </div>
