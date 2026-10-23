@@ -462,8 +462,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       const liveVariantPrice = cartService === 'food' && c.variant
         ? (current as MenuItem | undefined)?.variants?.find((variant) => variant.id === c.variant?.id)?.price
         : undefined;
-      return total + (liveVariantPrice ?? current?.price ?? c.item.price) * c.quantity;
-    }, 0);
+      // Match server line arithmetic: accumulate integer paise, then display rupees.
+      return total + Math.round((liveVariantPrice ?? current?.price ?? c.item.price) * 100) * c.quantity;
+    }, 0) / 100;
   };
 
   const handleAddToCart = (item: MenuItem | GroceryProduct, service: 'food' | 'grocery', variant?: { id: string; label: string }, units = 1): boolean => {

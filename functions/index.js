@@ -15,6 +15,7 @@ const { reverseWalletCredit, refundProgress } = require('./refundPolicy');
 const { isCustomerCancellationReason } = require('./cancellationPolicy');
 const { publicOffer, pickupEligibility } = require('./dispatchPolicy');
 const { cartCharges } = require('./cartPolicy');
+const { checkoutCatalogItem } = require('./checkoutCatalog');
 const { merchantOpen, validateHours } = require('./merchantPolicy');
 const { validateTransport, carrierSuitable } = require('./transportPolicy');
 const { validateTakeoverDetails } = require('./takeoverPolicy');
@@ -273,26 +274,12 @@ async function priceLeg(uid, input) {
       const requested = items[index];
       if (!doc.exists) throw new HttpsError('failed-precondition', 'An item in your cart is no longer available.');
       const catalogItem = doc.data();
-      if (serviceType === 'food' && catalogItem.available === false) throw new HttpsError('failed-precondition', `${catalogItem.name || 'An item'} is sold out.`);
-      if (serviceType === 'grocery' && (!productWithinExpiry(catalogItem) || !Number.isFinite(catalogItem.stock) || catalogItem.stock < requested.quantity)) {
-        throw new HttpsError('failed-precondition', `${catalogItem.name || 'An item'} has insufficient stock.`);
-      }
-      let unitPrice = catalogItem.price;
-      let variantName;
-      if (serviceType === 'grocery' && requested.variantId) throw new HttpsError('invalid-argument', 'Grocery products do not support menu variants.');
-      if (serviceType === 'food' && Array.isArray(catalogItem.variants) && catalogItem.variants.length) {
-        if (!requested.variantId) throw new HttpsError('invalid-argument', `${catalogItem.name || 'This dish'} requires an option selection.`);
-        const variant = catalogItem.variants.find((entry) => entry?.id === requested.variantId && entry.available !== false);
-        if (!variant || !Number.isFinite(variant.price) || variant.price <= 0) throw new HttpsError('failed-precondition', `${catalogItem.name || 'This dish'} option is no longer available.`);
-        unitPrice = variant.price;
-        variantName = cleanText(variant.label, 'Menu option', 80);
-      } else if (requested.variantId) {
-        throw new HttpsError('failed-precondition', 'A selected menu option is no longer available. Refresh your cart.');
-      }
-      if (!Number.isFinite(unitPrice) || unitPrice <= 0) throw new HttpsError('failed-precondition', 'An item has an invalid catalog price.');
-      const canonical = { id: doc.id, name: cleanText(catalogItem.name, 'Item name', 120), price: unitPrice, quantity: requested.quantity, ...(requested.variantId ? { variantId: requested.variantId, variantName } : {}) };
+      let resolved;
+      try { resolved = checkoutCatalogItem(catalogItem, requested.variantId, serviceType, requested.quantity); }
+      catch (error) { throw new HttpsError('failed-precondition', error.message); }
+      const canonical = { id: doc.id, name: cleanText(catalogItem.name, 'Item name', 120), price: resolved.price, quantity: requested.quantity, ...(requested.variantId ? { variantId: requested.variantId, variantName: resolved.variantName } : {}) };
       canonicalItems.push(canonical);
-      price += canonical.price * canonical.quantity;
+      price += resolved.unitCents * canonical.quantity;
     }
     const customerNotes = detailsInput.notes ? cleanText(detailsInput.notes, 'Order instructions', 500) : '';
     details = serviceType === 'food'
@@ -314,7 +301,7 @@ async function priceLeg(uid, input) {
     if (!origin || !destination || origin.partialMatch || destination.partialMatch) throw new HttpsError('invalid-argument', 'Choose a complete delivery address with a resolved location.');
     const coverage = checkCoverage(zones.filter(zone => zone.exists).map(zone => ({ ...zone.data(), id: zone.id })), serviceType, origin.location, destination.location, true);
     const route = await routeBetween(MAPS_API_KEY.value(), origin, destination, 'DRIVE');
-    try { priceBreakdown = { ...cartCharges(Math.round(price * 100), route.distanceMeters, pricing.delivery), taxBps: pricing.delivery.taxBps ?? 0 }; }
+    try { priceBreakdown = { ...cartCharges(price, route.distanceMeters, pricing.delivery), taxBps: pricing.delivery.taxBps ?? 0 }; }
     catch (error) { throw new HttpsError('failed-precondition', error.message); }
     price = priceBreakdown.totalCents / 100;
     details = { ...details, deliveryPlaceId: destination.placeId, pickupLocation: origin.location, dropLocation: destination.location, ...coverage, estimatedKm: route.distanceMeters / 1000, estimatedMinutes: Math.ceil(route.durationSeconds / 60), routeProvider: 'google' };
@@ -623,25 +610,18 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
         stockRefs = attempt.items.map((item) => db.doc(`grocery_stores/${attempt.storeId}/products/${item.id}`));
         stockSnaps = await Promise.all(stockRefs.map((ref) => transaction.get(ref)));
         for (let index = 0; index < stockSnaps.length; index += 1) {
-          if (!stockSnaps[index].exists || !productWithinExpiry(stockSnaps[index].data()) || !Number.isSafeInteger(stockSnaps[index].data().stock) || stockSnaps[index].data().stock < attempt.items[index].quantity) {
-            throw new HttpsError('failed-precondition', 'Stock changed while payment was processing.');
-          }
+          try { checkoutCatalogItem(stockSnaps[index].data(), attempt.items[index].variantId, 'grocery', attempt.items[index].quantity); }
+          catch (error) { throw new HttpsError('failed-precondition', error.message); }
         }
       }
       let menuRefs = [];
       if (attempt.restaurantId) {
         menuRefs = attempt.items.map((item) => db.doc(`restaurants/${attempt.restaurantId}/menu_items/${item.id}`));
         const menuSnaps = await Promise.all(menuRefs.map((ref) => transaction.get(ref)));
-        if (menuSnaps.some((snapshot) => !snapshot.exists || snapshot.data().available === false)) {
-          throw new HttpsError('failed-precondition', 'A restaurant item became unavailable while payment was processing.');
-        }
         for (let index = 0; index < attempt.items.length; index += 1) {
           const item = attempt.items[index];
-          if (!item.variantId) continue;
-          const variants = menuSnaps[index].data().variants;
-          if (!Array.isArray(variants) || !variants.some((variant) => variant?.id === item.variantId && variant.available !== false)) {
-            throw new HttpsError('failed-precondition', 'A selected menu option became unavailable while payment was processing.');
-          }
+          try { checkoutCatalogItem(menuSnaps[index].data(), item.variantId, 'food', item.quantity); }
+          catch (error) { throw new HttpsError('failed-precondition', error.message); }
         }
       }
       if (walletPayment) {

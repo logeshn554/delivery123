@@ -449,6 +449,24 @@ test('concurrentStockPurchase - serializes simultaneous orders reserving remaini
   assert.equal(finalStock, 0);
 });
 
+for (const stock of [1, 2]) test(`repeated grocery products across bundle legs reserve their combined quantity with stock ${stock}`, async () => {
+  await db.doc('grocery_stores/store_1/products/item_1').update({ stock });
+  const leg = { type: 'grocery', pickupAddress: '200 Market Road, Central Zone', dropAddress: '100 Food Street, Central Zone', details: { storeId: 'store_1', items: [{ id: 'item_1', quantity: 1 }] } };
+  const quote = await callable('getBundleQuote', 'customer_1', { legs: [leg, leg] });
+  const order = await callable('createBundlePaymentOrder', 'customer_1', { quoteId: quote.quoteId, paymentMethod: 'upi' });
+  const paymentId = 'pay_repeated_product';
+  const request = { orderId: order.orderId, paymentId, signature: signRazorpay(order.orderId, paymentId, process.env.RAZORPAY_KEY_SECRET) };
+  if (stock === 1) {
+    await assert.rejects(callable('confirmBundleCheckout', 'customer_1', request), error => error.code === 'failed-precondition');
+    assert.equal((await db.collection('bundles').get()).size, 0);
+    assert.equal((await db.doc(`payment_attempts/${order.orderId}`).get()).data().status, 'created');
+  } else {
+    await callable('confirmBundleCheckout', 'customer_1', request);
+    assert.equal((await db.collection('bundles').get()).size, 1);
+  }
+  assert.equal((await db.doc('grocery_stores/store_1/products/item_1').get()).data().stock, stock === 1 ? 1 : 0);
+});
+
 // 4. codRejection: non-subscriber attempts COD -> rejected at quote AND at capture
 test('codRejection - non-subscriber has codEligible=false and is rejected at order creation', async () => {
   const quote = await callable('getBundleQuote', 'customer_1', {

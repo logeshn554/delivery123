@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { checkoutCatalogItem } = require('./checkoutCatalog');
 const { deriveBundleStatus, validateBundleInput, legCanBeEnRouteFulfilled } = require('./bundlePolicy');
 const { decideLegFulfillment, shouldFallbackFromRideDriver } = require('./bundleFulfillmentPolicy');
 const { isCodEligible, assertCodAllowed } = require('./codPolicy');
@@ -469,29 +470,30 @@ function tripBundleFunctions({
       const userDoc = await tx.get(db.doc(`users/${uid}`));
       const customerName = userDoc.data()?.name || 'Customer';
 
-      // 1. Stock checks for all grocery items across all legs
-      const groceryStockWrites = [];
+      // Read every catalog record before writing. Aggregate repeated products so
+      // separate legs cannot each reserve the same last units of inventory.
+      const groceryStockWrites = new Map();
       for (const leg of attempt.legs) {
+        if (!['food', 'grocery'].includes(leg.type)) continue;
         const items = leg.items || leg.details?.items;
-        const merchantId = leg.merchantId || leg.details?.storeId;
-        if (leg.type === 'grocery' && merchantId && Array.isArray(items)) {
-          for (const item of items) {
-            const prodRef = db.doc(`grocery_stores/${merchantId}/products/${item.id}`);
-            const prodSnap = await tx.get(prodRef);
-            if (!prodSnap.exists || !productWithinExpiry(prodSnap.data()) || !Number.isSafeInteger(prodSnap.data().stock) || prodSnap.data().stock < item.quantity) {
-              throw new HttpsError('failed-precondition', `Insufficient stock for item "${item.name}".`);
-            }
-            groceryStockWrites.push({
-              ref: prodRef,
-              before: prodSnap.data().stock,
-              after: prodSnap.data().stock - item.quantity,
-              quantity: item.quantity,
-            });
+        const merchantId = leg.merchantId || (leg.type === 'food' ? leg.details?.restaurantId : leg.details?.storeId);
+        if (!merchantId || !Array.isArray(items) || !items.length) throw new HttpsError('failed-precondition', 'The order catalog details need reconciliation.');
+        const catalog = leg.type === 'food' ? `restaurants/${merchantId}/menu_items` : `grocery_stores/${merchantId}/products`;
+        for (const item of items) {
+          const ref = db.doc(`${catalog}/${item.id}`);
+          const snapshot = await tx.get(ref);
+          const product = snapshot.data();
+          try { checkoutCatalogItem(product, item.variantId, leg.type, item.quantity); }
+          catch (error) { throw new HttpsError('failed-precondition', error.message); }
+          if (leg.type === 'grocery') {
+            const reserved = groceryStockWrites.get(ref.path);
+            const quantity = (reserved?.quantity || 0) + item.quantity;
+            if (product.stock < quantity) throw new HttpsError('failed-precondition', 'Insufficient stock across the selected bundle legs.');
+            groceryStockWrites.set(ref.path, { ref, before: product.stock, after: product.stock - quantity, quantity });
           }
         }
       }
 
-      // 2. Decrement stock
       groceryStockWrites.forEach(sw => {
         tx.update(sw.ref, { stock: sw.after });
         recordStockMovement(tx, sw.ref, `reserve_${orderId}`, 'reservation', sw.before, sw.after, { bundleId });

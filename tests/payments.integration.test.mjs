@@ -1593,6 +1593,37 @@ test('merchant rejection is business scoped and refunds an unaccepted wallet ord
   assert.equal((await db.collection('wallet_ledger/customer/entries').get()).docs.filter(record => record.data().kind === 'refund').length, 1);
 });
 
+test('food checkout rejects newly required variants without debiting the wallet or publishing an order', async () => {
+  await walletAttempt('changed_menu');
+  const attemptRef = db.doc('payment_attempts/changed_menu');
+  const attempt = (await attemptRef.get()).data();
+  await attemptRef.update({
+    storeId: null, restaurantId: 'restaurant',
+    booking: { ...attempt.booking, serviceType: 'food', merchantId: 'restaurant', settlementContract: { ...attempt.booking.settlementContract, serviceType: 'food' }, details: { restaurantId: 'restaurant', items: attempt.items } },
+  });
+  await db.doc('restaurants/restaurant/menu_items/item').set({ name: 'Dish', price: 100, available: true, variants: [{ id: 'large', label: 'Large', price: 120, available: true }] });
+  await assert.rejects(settleCapturedPayment('changed_menu', 'wallet_changed_menu', null, true), error => error.code === 'failed-precondition' && /option selection/.test(error.message));
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1000);
+  assert.equal((await db.collection('bookings').get()).size, 0);
+  assert.equal((await db.collection('wallet_ledger/customer/entries').get()).size, 0);
+  assert.equal((await attemptRef.get()).data().status, 'created');
+});
+
+test('valid quoted food price remains locked after the merchant changes its price', async () => {
+  const bookingId = await walletAttempt('locked_price');
+  const attemptRef = db.doc('payment_attempts/locked_price');
+  const attempt = (await attemptRef.get()).data();
+  await attemptRef.update({
+    storeId: null, restaurantId: 'restaurant',
+    booking: { ...attempt.booking, serviceType: 'food', merchantId: 'restaurant', settlementContract: { ...attempt.booking.settlementContract, serviceType: 'food' }, details: { restaurantId: 'restaurant', items: attempt.items } },
+  });
+  await db.doc('restaurants/restaurant/menu_items/item').set({ name: 'Dish', price: 150, available: true });
+  await settleCapturedPayment('locked_price', 'wallet_locked_price', null, true);
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 900);
+  assert.equal((await db.doc(`bookings/${bookingId}`).get()).data().price, 100);
+  assert.equal((await db.doc('grocery_stores/shop/products/item').get()).data().stock, 10);
+});
+
 test('concurrent confirmations create one booking, wallet debit and inventory reservation', async () => {
   await walletAttempt('same');
   const results = await Promise.all(Array.from({ length: 4 }, () => settleCapturedPayment('same', 'wallet_same', null, true)));
