@@ -28,7 +28,7 @@ const { fullyPicked, groceryPickingFunctions } = require('./groceryPicking');
 const { grocerySubstitutionExpiryFunctions } = require('./grocerySubstitutionExpiry');
 const { productWithinExpiry } = require('./productExpiry');
 const { assertStockBaseline } = require('./stockBaseline');
-const { recordStockMovement, combineStockLines } = require('./inventoryJournal');
+const { recordStockMovement, groceryReservations } = require('./inventoryJournal');
 const { partnerApplicationFunctions } = require('./partnerApplications');
 const { partnerEvidenceFunctions } = require('./partnerEvidence');
 const { evidenceScanningFunctions } = require('./evidenceScanning');
@@ -1592,7 +1592,7 @@ exports.listPendingRefunds = onCall({ operation: 'listPendingRefunds', region: R
 
 async function restoreCancelledInventory(transaction, bookingRef, booking) {
   if (booking.serviceType !== 'grocery' || booking.inventoryRestored === true || !booking.details?.storeId) return;
-  const plan = combineStockLines(booking.details.items), items = plan.items;
+  const plan = groceryReservations(booking), items = plan.items;
   const refs = items.map(item => db.doc(`grocery_stores/${booking.details.storeId}/products/${item.id}`));
   const snapshots = await Promise.all(refs.map(ref => transaction.get(ref)));
   let needsReview = plan.needsReview;

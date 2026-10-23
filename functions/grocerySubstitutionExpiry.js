@@ -9,7 +9,7 @@ async function releaseExpiredSubstitution(db, expiryRef, Timestamp, now = Timest
     if (!(expiry.expiresAt?.toMillis?.() <= now.toMillis())) return false;
     const bookingRef = db.doc(`bookings/${expiry.bookingId}`), bookingSnap = await tx.get(bookingRef), booking = bookingSnap.data();
     const key = String(expiry.lineIndex), substitution = booking?.picking?.substitutions?.[key];
-    if (!booking || booking.status !== 'preparing' || booking.serviceType !== 'grocery' || booking.picking?.revision !== expiry.revision || substitution?.status !== 'pending' || substitution.revision !== expiry.revision) {
+    if (!booking || booking.status !== 'preparing' || booking.serviceType !== 'grocery' || substitution?.status !== 'pending' || substitution.revision !== expiry.revision) {
       tx.delete(expiryRef);
       return false;
     }
@@ -17,7 +17,8 @@ async function releaseExpiredSubstitution(db, expiryRef, Timestamp, now = Timest
     if (!replacement || typeof replacement.id !== 'string' || !Number.isSafeInteger(replacement.quantity) || replacement.quantity < 1) throw new Error('Expired grocery reservation needs operations review.');
     const productRef = db.doc(`grocery_stores/${booking.merchantId}/products/${replacement.id}`), productSnap = await tx.get(productRef), product = productSnap.data();
     if (!productSnap.exists || !Number.isSafeInteger(product.stock) || product.stock < 0 || !Number.isSafeInteger(product.stock + replacement.quantity)) throw new Error('Expired grocery stock needs operations review.');
-    const stockAfter = product.stock + replacement.quantity, revision = expiry.revision + 1, nowIso = new Date(now.toMillis()).toISOString();
+    if (!Number.isSafeInteger(booking.picking.revision) || booking.picking.revision < expiry.revision || booking.picking.revision >= Number.MAX_SAFE_INTEGER) throw new Error('Grocery picking revision needs operations review.');
+    const stockAfter = product.stock + replacement.quantity, revision = booking.picking.revision + 1, nowIso = new Date(now.toMillis()).toISOString();
     const substitutions = { ...booking.picking.substitutions, [key]: { ...substitution, status: 'expired', expiredAt: nowIso, revision } };
     tx.update(productRef, { stock: stockAfter });
     recordStockMovement(tx, productRef, `substitute_expire_${expiryRef.id}`, 'return', product.stock, stockAfter, { bookingId: expiry.bookingId });

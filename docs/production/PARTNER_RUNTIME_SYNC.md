@@ -6,6 +6,8 @@ The standalone `../merchant app` and `../delivery app` workspaces had 131 differ
 
 Previous bytes plus before/after SHA-256 manifests are in `.cache/partner-workspace-sync/71c97c54-ab6d-4e08-b0a6-26cfebed1ea3/`. The two standalone folders are not Git checkouts; the canonical implementation and repeatable synchronization script are versioned here. Keep the local backup before any future cleanup of `.cache`.
 
+The subsequent grocery stock/expiry repair updated four backend files per partner, backed up under `.cache/partner-workspace-sync/0a57e68a-ec56-4dfa-9320-a43146ac80d7/`. Final canonical suites pass 350 application tests and 162 Firebase integration tests; subsequent backend changes do not alter the client bundle identity.
+
 ## Preserved identities and deployment contracts
 
 | Workspace | Android application ID | Fixed client audience | Booking scheme | Account API fallback port |

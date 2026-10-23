@@ -647,6 +647,7 @@ test('grocery substitutions reserve stock, require a customer price decision and
   await assert.rejects(callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 2399, accept: true, requestId: 'wrong-price' }), error => error.code === 'aborted');
   await callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 2400, accept: true, requestId: 'accept' });
   const accepted = (await ref.get()).data();
+  assert.equal((await db.doc('grocery_stores/shop/products/original').get()).data().stock, 2);
   assert.equal(accepted.price, 24); assert.equal(accepted.details.items[0].id, 'replacement'); assert.equal(accepted.picking.lines['0'].quantity, 2); assert.equal((await db.doc('users/customer').get()).data().walletBalance, 996);
   const journal = await db.collection('financial_journals').get(); assert.equal(journal.size, 1); assert.equal(journal.docs[0].data().amountCents, 400);
 });
@@ -660,7 +661,60 @@ test('declining a grocery replacement releases candidate stock and refunds the r
   await callable('proposeGrocerySubstitution', 'merchant', { bookingId: ref.id, lineIndex: 0, replacementId: 'replacement', expectedRevision: 0, requestId: 'remove-proposal' });
   await callable('respondToGrocerySubstitution', 'customer', { bookingId: ref.id, lineIndex: 0, expectedRevision: 1, expectedTotalCents: 0, accept: false, requestId: 'remove' });
   const removed = (await ref.get()).data();
+  assert.equal((await db.doc('grocery_stores/shop/products/original').get()).data().stock, 2);
   assert.equal(removed.price, 0); assert.equal(removed.details.items[0].removed, true); assert.equal(removed.picking.lines['0'].quantity, 0); assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 5); assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1020);
+});
+
+async function reservedSubstitutionOrder(id, secondLine = false) {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('grocery_stores/shop/products/original').set({ name: 'Original', price: 10, stock: 0 });
+  await db.doc('grocery_stores/shop/products/replacement').set({ name: 'Replacement', price: 12, stock: 5 });
+  await db.doc('grocery_stores/shop/products/second').set({ name: 'Second', price: 5, stock: 0 });
+  const ref = db.doc(`bookings/${id}`), amount = secondLine ? 2500 : 2000, orderId = `wallet_customer_${id}`;
+  await ref.set({ bookingId: id, customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', paymentMethod: 'wallet', paymentId: orderId, paymentOrderId: orderId, driverId: null, price: amount / 100, priceBreakdown: { itemCents: amount, deliveryCents: 0, packagingCents: 0, platformCents: 0, taxCents: 0, taxBps: 0, discountCents: 0, totalCents: amount }, details: { storeId: 'shop', items: [{ id: 'original', name: 'Original', price: 10, quantity: 2 }, ...(secondLine ? [{ id: 'second', name: 'Second', price: 5, quantity: 1 }] : [])] }, picking: { revision: 0, lines: {} } });
+  await db.doc(`payment_attempts/${orderId}`).set({ uid: 'customer', kind: 'booking', status: 'paid', bookingId: id, amount });
+  await callable('proposeGrocerySubstitution', 'merchant', { bookingId: id, lineIndex: 0, replacementId: 'replacement', expectedRevision: 0, requestId: 'reservation_proposal' });
+  return { ref, expiryRef: db.doc(`grocery_substitution_expiries/${expiryId(id, 0, 1)}`) };
+}
+
+for (const expire of [false, true]) test(`grocery cancellation ${expire ? 'racing expiry' : 'with pending substitution'} releases original and candidate stock once`, async () => {
+  const { ref, expiryRef } = await reservedSubstitutionOrder('cancel_substitution');
+  if (expire) {
+    await expiryRef.update({ expiresAt: Timestamp.fromMillis(Date.now() - 1) });
+    await ref.update({ 'picking.substitutions.0.expiresAt': new Date(Date.now() - 1).toISOString() });
+  }
+  await Promise.all([
+    callable('cancelPaidBooking', 'admin', { bookingId: ref.id }, true),
+    ...(expire ? [compiled.exports.expireGrocerySubstitutions.run()] : []),
+  ]);
+  await callable('cancelPaidBooking', 'admin', { bookingId: ref.id }, true);
+  assert.equal((await ref.get()).data().status, 'cancelled');
+  assert.equal((await db.doc('grocery_stores/shop/products/original').get()).data().stock, 2);
+  assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, 5);
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1020);
+});
+
+for (const action of ['accept', 'expire']) test(`packing another line preserves a pending substitution until its ${action} decision`, async () => {
+  const { ref, expiryRef } = await reservedSubstitutionOrder(`other_line_${action}`, true);
+  await callable('confirmGroceryPicking', 'merchant', { bookingId: ref.id, lineIndex: 1, quantity: 1, expectedRevision: 1, requestId: 'pack_second' });
+  const packing = (await ref.get()).data().picking;
+  assert.equal(packing.revision, 2); assert.equal(packing.substitutions['0'].status, 'pending');
+  if (action === 'expire') {
+    await expiryRef.update({ expiresAt: Timestamp.fromMillis(Date.now() - 1) });
+    await ref.update({ 'picking.substitutions.0.expiresAt': new Date(Date.now() - 1).toISOString() });
+    await compiled.exports.expireGrocerySubstitutions.run();
+  } else {
+    const input = { bookingId: ref.id, lineIndex: 0, expectedRevision: 2, expectedTotalCents: 2900, accept: true, requestId: 'accept_after_packing' };
+    await callable('respondToGrocerySubstitution', 'customer', input);
+    await callable('respondToGrocerySubstitution', 'customer', input);
+  }
+  const picking = (await ref.get()).data().picking;
+  assert.equal(picking.revision, 3); assert.equal(picking.lines['1'].quantity, 1);
+  assert.equal(picking.substitutions['0'].status, action === 'expire' ? 'expired' : 'accepted');
+  assert.equal((await expiryRef.get()).exists, false);
+  assert.equal((await db.doc('grocery_stores/shop/products/original').get()).data().stock, action === 'expire' ? 0 : 2);
+  assert.equal((await db.doc('grocery_stores/shop/products/replacement').get()).data().stock, action === 'expire' ? 5 : 3);
 });
 
 test('unanswered grocery replacement expires, releases reserved stock and makes stale customer decisions fail', async () => {

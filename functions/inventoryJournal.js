@@ -18,4 +18,15 @@ function combineStockLines(source) {
   }
   return { items: [...counts].filter(([id]) => !invalid.has(id)).map(([id, quantity]) => ({ id, quantity })), needsReview };
 }
-module.exports = { stockMovement, recordStockMovement, combineStockLines };
+function groceryReservations(booking) {
+  const source = booking?.details?.items;
+  if (!Array.isArray(source)) return { items: [], needsReview: true };
+  // A proposal holds both the original line and its candidate until a decision.
+  const lines = source.filter(item => item?.removed !== true);
+  for (const substitution of Object.values(booking.picking?.substitutions || {})) {
+    if (substitution?.status === 'pending') lines.push(substitution.replacement);
+  }
+  if (!lines.length) return { items: [], needsReview: false };
+  return combineStockLines(lines);
+}
+module.exports = { stockMovement, recordStockMovement, combineStockLines, groceryReservations };

@@ -50,7 +50,7 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         if (!item || item.removed === true || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || quantity > item.quantity) throw new HttpsError('invalid-argument', 'Packed quantity cannot exceed the reserved order quantity.');
         if (booking.picking?.substitutions?.[String(lineIndex)]?.status === 'pending') throw new HttpsError('failed-precondition', 'Wait for the customer to decide on the proposed replacement.');
         const revision = nextPickingRevision(booking.picking?.revision, expectedRevision, HttpsError), now = new Date().toISOString(), lines = { ...(booking.picking?.lines || {}), [String(lineIndex)]: { itemId: item.id, quantity } };
-        tx.update(ref, { picking: { revision, lines, updatedAt: now }, updatedAt: now });
+        tx.update(ref, { picking: { ...(booking.picking || {}), revision, lines, updatedAt: now }, updatedAt: now });
         tx.create(eventRef, { stage: 'grocery_picking_confirmed', actorId: uid, actorRole: 'merchant', itemId: item.id, lineIndex, quantity, expectedRevision, revision, createdAt: now });
         return { revision };
       });
@@ -107,8 +107,12 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         if (!Number.isFinite(Date.parse(substitution.expiresAt)) || Date.parse(substitution.expiresAt) <= Date.now()) throw new HttpsError('failed-precondition', 'This replacement offer expired. Refresh the order while the store releases its reservation.');
         const items = booking.details?.items, original = items?.[lineIndex], replacement = substitution.replacement;
         if (!original || original.removed || original.id !== substitution.originalItemId || !Number.isSafeInteger(original.quantity) || original.quantity < 1 || replacement?.quantity !== original.quantity || !Number.isFinite(original.price) || !Number.isFinite(replacement.price)) throw new HttpsError('failed-precondition', 'The original order line needs operations review.');
-        const replacementRef = db.doc(`grocery_stores/${booking.merchantId}/products/${replacement.id}`), replacementSnap = await tx.get(replacementRef), replacementProduct = replacementSnap.data();
+        const replacementRef = db.doc(`grocery_stores/${booking.merchantId}/products/${documentId(replacement.id, 'Replacement item')}`);
+        const originalRef = db.doc(`grocery_stores/${booking.merchantId}/products/${documentId(original.id, 'Original item')}`);
+        const [replacementSnap, originalSnap] = await Promise.all([tx.get(replacementRef), tx.get(originalRef)]), replacementProduct = replacementSnap.data(), originalProduct = originalSnap.data();
         if (!replacementSnap.exists || !Number.isSafeInteger(replacementProduct.stock) || replacementProduct.stock < 0) throw new HttpsError('failed-precondition', 'Reserved replacement stock needs operations review.');
+        if (!originalSnap.exists || !Number.isSafeInteger(originalProduct.stock) || originalProduct.stock < 0 || !Number.isSafeInteger(originalProduct.stock + original.quantity) || !Number.isSafeInteger(replacementProduct.stock + replacement.quantity)) throw new HttpsError('failed-precondition', 'Original or replacement stock needs operations review.');
+        if (accept && !productWithinExpiry(replacementProduct)) throw new HttpsError('failed-precondition', 'The replacement expired. Remove it or contact the store.');
         let nextItems = [...items], lines = { ...(booking.picking.lines || {}) }, oldTotal = Math.round(booking.price * 100), price;
         if (accept) {
           const oldLine = Math.round(original.price * 100) * original.quantity, newLine = Math.round(replacement.price * 100) * replacement.quantity;
@@ -132,10 +136,12 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         const revision = currentRevision + 1, now = new Date().toISOString(), status = accept ? 'accepted' : 'removed';
         const substitutions = { ...(booking.picking.substitutions || {}), [key]: { ...substitution, status, respondedBy: uid, respondedAt: now, revision } };
         const priceBreakdown = { ...booking.priceBreakdown, itemCents: price.itemCents, taxCents: price.taxCents, discountCents: price.discountCents, totalCents: price.totalCents };
+        tx.update(originalRef, { stock: originalProduct.stock + original.quantity });
+        recordStockMovement(tx, originalRef, `substitute_original_return_${bookingId}_${requestId}`, 'return', originalProduct.stock, originalProduct.stock + original.quantity, { bookingId });
         if (delta !== 0) tx.update(walletRef, { walletBalance: walletNext / 100 });
         const orderId = booking.paymentOrderId || booking.bookingId;
         if (delta) tx.create(db.doc(`financial_journals/grocery_sub_${crypto.createHash('sha256').update(`${bookingId}:${requestId}`).digest('hex')}`), journal('grocery_substitution_adjustment', delta > 0 ? 'wallet_liability' : 'booking_funds_unallocated', delta > 0 ? 'booking_funds_unallocated' : 'wallet_liability', Math.abs(delta), { bookingId, customerId: uid, orderId }));
-        tx.delete(db.doc(`grocery_substitution_expiries/${expiryId(bookingId, lineIndex, currentRevision)}`));
+        tx.delete(db.doc(`grocery_substitution_expiries/${expiryId(bookingId, lineIndex, substitution.revision)}`));
         tx.update(ref, { details: { ...booking.details, items: nextItems }, price: price.totalCents / 100, originalPrice: price.grossCents / 100, couponDiscountCents: price.discountCents, priceBreakdown, picking: { ...booking.picking, revision, lines, substitutions, updatedAt: now }, updatedAt: now });
         tx.create(eventRef, { stage: accept ? 'grocery_substitution_accepted' : 'grocery_item_removed', actorId: uid, actorRole: 'customer', lineIndex, replacementId: replacement.id, accept, expectedTotalCents, amountDeltaCents: delta, status, priceCents: price.totalCents, walletBalanceCents: walletNext, expectedRevision, revision, createdAt: now });
         return { revision, status, price: price.totalCents / 100, walletBalance: walletNext / 100 };
