@@ -142,7 +142,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   useEffect(() => { if (profile && (!profile.online || profile.status !== 'verified' || !profile.locationConsent)) void stopNativeDriverLocation().catch(() => undefined); }, [profile?.online, profile?.status, profile?.locationConsent]);
 
   // Find incoming jobs (pending bookings) that match our driver status
-  const pendingJobs = activeBookings.filter(b => !b.driverId && b.paymentStatus === 'paid' && (['food', 'grocery'].includes(b.serviceType) ? b.status === 'ready' : b.status === 'pending'));
+  const pendingJobs = activeBookings.filter(b => !b.driverId && ['paid', 'pending_cod'].includes(b.paymentStatus || '') && (['food', 'grocery'].includes(b.serviceType) ? b.status === 'ready' : b.status === 'pending'));
 
   const notification = useBookingNotification(activeBookings, { audience: 'driver', userId });
   useEffect(() => { if (notification.booking) setActiveSubView(null); }, [notification.booking?.bookingId]);
@@ -561,7 +561,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               
               {currentAssignedJob.status === 'accepted' && (
                 <div>
-                  <p className="text-[10px] text-slate-400 mb-2">Step 1: Ride coordinates locked. Drive to pickup spot.</p>
+                  <p className="text-[10px] text-slate-400 mb-2">{['food', 'grocery'].includes(currentAssignedJob.serviceType) ? 'Step 1: Drive to partner location. Mark arrived upon arrival.' : 'Step 1: Ride coordinates locked. Drive to pickup spot.'}</p>
                   <button 
                     disabled={actionBusy}
                     onClick={() => handleArrivedAtPickup(currentAssignedJob.bookingId)}

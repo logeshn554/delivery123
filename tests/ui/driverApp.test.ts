@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
@@ -32,7 +32,8 @@ test("availability toggle requires verified status and consent disclosure before
 });
 
 // TASK-94: Job offers / incoming jobs
-test("incoming job offers show countdown timer and expire when time passes", () => {
+test("incoming job offers include paid online and cash-on-delivery orders, show countdown and expire when time passes", () => {
+  assert.match(src, /\['paid', 'pending_cod'\]/);
   assert.match(src, /offerExpiresAt/);
   assert.match(src, /Offer expires in/);
   assert.match(src, /Offer expired/);
