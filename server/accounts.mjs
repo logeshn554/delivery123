@@ -12,6 +12,7 @@ import { exportLegacyBookings } from './accountExport.mjs';
 import { accountOrigins } from './originPolicy.mjs';
 import { deliveryDetails } from './savedAddressPolicy.mjs';
 import { accountErrorResponse } from './accountErrorPolicy.mjs';
+import { accountObjectBody } from './accountInputPolicy.mjs';
 import { trustProxySetting, rateLimitKey } from './clientIpPolicy.mjs';
 
 const environment = process.env.ALLGO_ENVIRONMENT;
@@ -46,6 +47,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '16kb' }));
+app.use('/api', accountObjectBody);
 const route = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 const fail = (message, status = 400, code = 'invalid-argument') => Object.assign(new Error(message), { status, code });
 const digest = value => createHash('sha256').update(value).digest('hex');

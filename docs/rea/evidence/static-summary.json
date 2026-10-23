@@ -1,0 +1,1118 @@
+{
+  "reaEvidence": "ev_bdfa3739d401f7d65a4728ae4221e2241399e14aeba8f023c9c4ecb84eb68db7",
+  "manifest": {
+    "manifest_id": "agm_6b7f0cba71810fcc229ee52c5b3842c9fcc0f0e6d7a181b1536a8104315ef1d5",
+    "root_artifact_id": "art_7ae799313ed0ce21b56a28efecfe9795b5634f8894005a63d6568f144dac46ec",
+    "root_sha256": "4599d496d20310b5df72ed9603abb03055ad82b9809fbb9fa5e4cd17fe1c70d7",
+    "root_format": "apk",
+    "graph_sha256": "dce19cd3bd9a2a6d47c9fe00baa92f50383965f1342d7bea139b55471027c2b5",
+    "node_count": 5833,
+    "occurrence_count": 6060,
+    "edge_count": 6059
+  },
+  "dexEntries": [
+    "classes.dex",
+    "classes2.dex",
+    "classes3.dex",
+    "classes4.dex",
+    "classes5.dex",
+    "classes6.dex",
+    "classes7.dex",
+    "classes8.dex"
+  ],
+  "libraryEntries": [],
+  "componentCounts": {
+    "application": 1,
+    "activity": 114,
+    "activity-alias": 3,
+    "service": 25,
+    "receiver": 28,
+    "provider": 11
+  },
+  "components": [
+    {
+      "kind": "application",
+      "line": 294,
+      "name": "in.swiggy.android.SwiggyApplication"
+    },
+    {
+      "kind": "activity",
+      "line": 312,
+      "name": "in.swiggy.android.activities.DeepLinkActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 677,
+      "name": "in.swiggy.android.launcherwidgets.SwiggyNavTileWidget",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 711,
+      "name": "in.swiggy.android.activities.HomeActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "activity-alias",
+      "line": 724,
+      "name": "in.swiggy.android.FestiveIcon",
+      "exported": "true",
+      "targetActivity": "in.swiggy.android.activities.HomeActivity"
+    },
+    {
+      "kind": "activity-alias",
+      "line": 739,
+      "name": "in.swiggy.android.HomeIconClone",
+      "exported": "true",
+      "targetActivity": "in.swiggy.android.activities.HomeActivity"
+    },
+    {
+      "kind": "activity-alias",
+      "line": 754,
+      "name": "in.swiggy.android.HomeIcon",
+      "exported": "true",
+      "targetActivity": "in.swiggy.android.activities.HomeActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 775,
+      "name": "in.swiggy.android.activities.SettingsUpdateActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 781,
+      "name": "in.swiggy.android.docombinedinventory.ui.CombinedInventoryActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 786,
+      "name": "in.swiggy.android.dinersone.ui.scenes.DineoutScenesActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 792,
+      "name": "in.swiggy.android.dogallery.ui.DineoutMenuActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 796,
+      "name": "in.swiggy.android.suggesterpage.activity.SuggesterActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 801,
+      "name": "in.swiggy.android.menupage.MenuV2Activity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 808,
+      "name": "in.swiggy.android.feature.address.smartNudges.latLngCorrection.LatLngCorrectionActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 813,
+      "name": "in.swiggy.android.dogallery.ui.DineoutGalleryActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 819,
+      "name": "in.swiggy.android.perfmetrics.utils.SwiggyPerfProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 827,
+      "name": "in.swiggy.android.accounts.activity.AccountContainerActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 833,
+      "name": "in.swiggy.android.irctc.activity.IrctcActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 839,
+      "name": "in.swiggy.android.feature.rating.ui.InstamartRatingActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 844,
+      "name": "in.swiggy.android.feature.landing.LandingCollectionListingActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 850,
+      "name": "in.swiggy.android.feature.collection.CollectionActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 855,
+      "name": "in.swiggy.android.activities.ForceUpdateActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 862,
+      "name": "in.swiggy.android.feature.filters.ui.FiltersActivityV3",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 890,
+      "name": "in.swiggy.android.SwiggyFCMListenerService",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 920,
+      "name": "in.swiggy.android.receiver.AppUpdateBroadcastReceiver",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 926,
+      "name": "in.swiggy.android.track.receivers.NotificationClickedBroadcastReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 929,
+      "name": "in.swiggy.android.notificationkit.chatnotification.receiver.ChatNotificationReplyReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 932,
+      "name": "in.swiggy.android.track.receivers.TrackNotificationClickedBroadCastReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 935,
+      "name": "com.appsflyer.MultipleInstallBroadcastReceiver",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 941,
+      "name": "com.google.android.gms.analytics.CampaignTrackingReceiver",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 950,
+      "name": "com.google.android.gms.analytics.AnalyticsReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 957,
+      "name": "com.google.android.gms.analytics.AnalyticsJobService",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 962,
+      "name": "in.swiggy.android.services.ChatBubbleService",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 966,
+      "name": "in.swiggy.android.menupage.receiver.MenuSharedReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 970,
+      "name": "in.swiggy.android.orderdetails.activities.OrderDetailsActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 977,
+      "name": "in.swiggy.android.nux.login.LoginActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 988,
+      "name": "in.swiggy.android.nux.login.LoginActivityV2",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 993,
+      "name": "in.swiggy.android.activities.AddressActivityV2",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 999,
+      "name": "in.swiggy.android.notificationkit.receivers.KabootarBroadcastReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1002,
+      "name": "in.swiggy.android.activities.SearchLocationActivityV3",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1008,
+      "name": "in.swiggy.android.deeplinks.coordinator.SeoDeeplinkCoordinatorActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1013,
+      "name": "in.swiggy.android.activities.RequestAddressActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1019,
+      "name": "in.swiggy.android.activities.AddressActivityV5",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1026,
+      "name": "in.swiggy.android.track.activities.TrackOrderActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1034,
+      "name": "in.swiggy.android.foodcart.ViewCartLynxActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1041,
+      "name": "in.swiggy.android.feature.scratchCards.ui.ScratchCardsActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1045,
+      "name": "in.swiggy.android.feature.userConsent.UserPhoneNumberConsentActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1049,
+      "name": "in.swiggy.android.nux.activities.SignUpActivityV2",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1056,
+      "name": "in.swiggy.android.nux.activities.ForgotPasswordOTPActivityV2",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1064,
+      "name": "in.swiggy.android.activities.IMLauncherActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1079,
+      "name": "in.swiggy.android.feature.web.WebviewActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1091,
+      "name": "in.swiggy.android.ratingpage.RatingActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1097,
+      "name": "in.swiggy.android.activities.SettingsActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1102,
+      "name": "in.swiggy.android.nux.loginlimit.LoginLimitErrorActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1108,
+      "name": "in.swiggy.android.activities.MultiChatActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1113,
+      "name": "in.swiggy.android.receiver.OrderDetailsReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1119,
+      "name": "in.swiggy.android.feature.fullscreenvideo.FullScreenVideoActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1128,
+      "name": "in.swiggy.android.feature.fullscreenvideo.FullScreenPortraitVideoActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 1132,
+      "name": "in.swiggy.android.feature.web.ImageShareFileProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1140,
+      "name": "in.swiggy.android.feature.datasharing.DataShareActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "provider",
+      "line": 1153,
+      "name": "in.swiggy.android.feature.datasharing.DataShareFileProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 1162,
+      "name": "androidx.startup.InitializationProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1172,
+      "name": "in.swiggy.android.activities.SearchActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1177,
+      "name": "in.swiggy.android.activities.InstamartProductDescriptionActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1183,
+      "name": "in.swiggy.android.feature.diagnostics.filestorage.FileStorageListingActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1189,
+      "name": "in.juspay.hypersdk.core.CustomtabActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1227,
+      "name": "in.swiggy.android.referral.ReferralActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1232,
+      "name": "in.swiggy.android.referral.xml.ReferralXMLActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1237,
+      "name": "in.swiggy.android.referral.ReferralSearchActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1242,
+      "name": "in.swiggy.android.discovery.reorder.SearchOnReorderActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1248,
+      "name": "in.swiggy.android.reels.activity.ReelsActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1254,
+      "name": "in.swiggy.android.dochatbot.ui.ChatBotScreenActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1260,
+      "name": "in.swiggy.android.activities.QuickOverlayActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1265,
+      "name": "in.swiggy.android.imPdp.views.IMPdpActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1271,
+      "name": "in.swiggy.android.imOverlay.ui.MiniOverlayWrapperActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 1276,
+      "name": "androidx.core.content.FileProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1284,
+      "name": "in.swiggy.android.services.ChatBubbleServiceV2",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1288,
+      "name": "in.swiggy.android.instamartcommons.imReels.activity.ImReelsActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1294,
+      "name": "in.swiggy.android.instamartcommons.blockingloader.ImBlockingLoaderActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1300,
+      "name": "in.swiggy.android.activities.EditAddressActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1306,
+      "name": "in.swiggy.android.imshoppinglist.ShoppingListActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1312,
+      "name": "in.swiggy.android.imshoppinglist.shoppingListV2.search.ShoppingListSearchActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1318,
+      "name": "in.swiggy.android.imshoppinglist.shoppingListV2.listing.ShoppingListV2Activity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1324,
+      "name": "in.swiggy.android.dorestaurantdetail.ui.DineoutRestaurantDetailActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1331,
+      "name": "in.swiggy.android.dinersone.ui.bookingDeals.BookingCardListActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1335,
+      "name": "in.swiggy.android.doeventdetail.ui.EventsDetailActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1340,
+      "name": "in.swiggy.android.dodigitalmenu.ui.activity.DoDigitalMenuActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1347,
+      "name": "in.swiggy.android.dodigitalmenu.liveupdate.DigitalMenuLiveTapActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1354,
+      "name": "in.swiggy.android.docamerapaybill.activities.PayBillDineoutActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1359,
+      "name": "in.swiggy.android.dosplitbill.ui.ContactPickerActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1365,
+      "name": "in.swiggy.android.swiggylynx.ui.LynxActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1370,
+      "name": "in.swiggy.android.swiggylynx.ui.LynxActivityTransparent",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1374,
+      "name": "in.swiggy.android.activities.PrintActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1380,
+      "name": "in.swiggy.android.print.PrintDocumentActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1386,
+      "name": "in.swiggy.android.dash.activity.DashActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1392,
+      "name": "in.swiggy.android.dash.dashentryanimation.DashEntryAnimationActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1396,
+      "name": "in.swiggy.address.formV2.AddressFormActivityV2",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1401,
+      "name": "in.swiggy.android.systemcheck.ui.SystemCheckActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1404,
+      "name": "in.swiggy.android.compose.screen.host.ComposeHostActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1411,
+      "name": "in.swiggy.android.compose.screen.host.InstamartPrintComposeHostActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1415,
+      "name": "in.swiggy.android.commonsui.ui.view.fullscreenvideo.FullScreenVideoActivityV2",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 1421,
+      "name": "in.swiggy.android.perfkit.startup.StartupPerfContentProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1425,
+      "name": "com.google.firebase.components.ComponentDiscoveryService",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1477,
+      "name": "com.google.firebase.sessions.SessionLifecycleService",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1481,
+      "name": "com.payu.threedsui.view.activities.FallbackActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1485,
+      "name": "com.wibmo.threeds2.sdk.ui.ChallengeNativeActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1490,
+      "name": "com.wibmo.threeds2.sdk.ui.ChallengeHtmlActivity"
+    },
+    {
+      "kind": "service",
+      "line": 1492,
+      "name": "com.google.mlkit.common.internal.MlKitComponentDiscoveryService",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1508,
+      "name": "com.google.android.gms.analytics.AnalyticsService",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1512,
+      "name": "com.google.android.gms.auth.api.signin.internal.SignInHubActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1517,
+      "name": "com.google.android.gms.auth.api.signin.RevocationBoundService",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 1522,
+      "name": "com.google.firebase.iid.FirebaseInstanceIdReceiver",
+      "exported": "true"
+    },
+    {
+      "kind": "service",
+      "line": 1532,
+      "name": "com.google.firebase.messaging.FirebaseMessagingService",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1540,
+      "name": "com.amazon.android.apay.commonlibrary.browsinglib.activity.BrowsingActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1545,
+      "name": "com.amazon.android.apay.commonlibrary.browsinglib.activity.RedirectUriReceiverActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1559,
+      "name": "in.juspay.hypersdk.core.CustomtabResult",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1573,
+      "name": "in.juspay.hypersdk.core.RedirectResponseActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 1587,
+      "name": "in.juspay.hypersmshandler.SmsRetrieverReceiver",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1594,
+      "name": "com.google.android.gms.common.api.GoogleApiActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1598,
+      "name": "com.amazon.identity.auth.apay.activity.AuthActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1604,
+      "name": "com.amazon.identity.auth.device.workflow.WorkflowActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1620,
+      "name": "com.phonepe.intent.sdk.ui.B2BPGActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1624,
+      "name": "com.phonepe.intent.sdk.ui.TransactionActivity"
+    },
+    {
+      "kind": "service",
+      "line": 1629,
+      "name": "com.phonepe.intent.sdk.ui.PreCacheService",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1632,
+      "name": "com.phonepe.intent.sdk.ui.OpenIntentTransactionActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1635,
+      "name": "com.phonepe.intent.sdk.ui.UpiAppsSelectionDialogActivity"
+    },
+    {
+      "kind": "service",
+      "line": 1641,
+      "name": "com.moengage.richnotification.internal.MoERichPushIntentService",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1644,
+      "name": "com.moengage.richnotification.internal.MoERichPushReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1647,
+      "name": "androidx.camera.core.impl.MetadataHolderService",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1654,
+      "name": "com.moengage.pushbase.internal.activity.PermissionActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1658,
+      "name": "com.moengage.pushbase.internal.MoEPushReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1661,
+      "name": "com.moengage.pushbase.activities.PushTracker"
+    },
+    {
+      "kind": "activity",
+      "line": 1666,
+      "name": "com.moengage.pushbase.activities.PushClickDialogTracker"
+    },
+    {
+      "kind": "service",
+      "line": 1673,
+      "name": "com.moengage.pushbase.internal.MoEPushWorker",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1676,
+      "name": "com.moengage.sdk.debugger.MoEDebuggerActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "provider",
+      "line": 1691,
+      "name": "in.juspay.hyperqr.QrFileProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1699,
+      "name": "com.google.android.gms.ads.AdActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 1704,
+      "name": "com.google.android.gms.ads.MobileAdsInitProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1709,
+      "name": "com.google.android.gms.ads.AdService",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1713,
+      "name": "com.google.android.gms.ads.OutOfContextTestingActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1717,
+      "name": "com.google.android.gms.ads.NotificationHandlerActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1724,
+      "name": "com.google.android.gms.measurement.AppMeasurementReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1728,
+      "name": "com.google.android.gms.measurement.AppMeasurementService",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1732,
+      "name": "com.google.android.gms.measurement.AppMeasurementJobService",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 1740,
+      "name": "com.google.firebase.provider.FirebaseInitProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1746,
+      "name": "androidx.test.core.app.InstrumentationActivityInvoker$BootstrapActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1754,
+      "name": "androidx.test.core.app.InstrumentationActivityInvoker$EmptyActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "activity",
+      "line": 1762,
+      "name": "androidx.test.core.app.InstrumentationActivityInvoker$EmptyFloatingActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "provider",
+      "line": 1770,
+      "name": "org.jetbrains.compose.resources.AndroidContextProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1775,
+      "name": "androidx.work.multiprocess.RemoteWorkManagerService",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1778,
+      "name": "androidx.work.impl.background.systemalarm.SystemAlarmService",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1783,
+      "name": "androidx.work.impl.background.systemjob.SystemJobService",
+      "exported": "true"
+    },
+    {
+      "kind": "service",
+      "line": 1789,
+      "name": "androidx.work.impl.foreground.SystemForegroundService",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1794,
+      "name": "androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1799,
+      "name": "androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1809,
+      "name": "androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1819,
+      "name": "androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1829,
+      "name": "androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1837,
+      "name": "androidx.work.impl.background.systemalarm.RescheduleReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1849,
+      "name": "androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1857,
+      "name": "androidx.work.impl.diagnostics.DiagnosticsReceiver",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 1866,
+      "name": "com.facebook.CurrentAccessTokenExpirationBroadcastReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1872,
+      "name": "com.facebook.AuthenticationTokenManager$CurrentAuthenticationTokenChangedBroadcastReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1887,
+      "name": "androidx.compose.ui.tooling.PreviewActivity",
+      "exported": "true"
+    },
+    {
+      "kind": "receiver",
+      "line": 1890,
+      "name": "androidx.profileinstaller.ProfileInstallReceiver",
+      "exported": "true"
+    },
+    {
+      "kind": "service",
+      "line": 1908,
+      "name": "androidx.room.MultiInstanceInvalidationService",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1912,
+      "name": "com.google.android.datatransport.runtime.backends.TransportBackendDiscovery",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1918,
+      "name": "com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService",
+      "exported": "false"
+    },
+    {
+      "kind": "receiver",
+      "line": 1922,
+      "name": "com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1925,
+      "name": "com.google.android.play.core.common.PlayCoreDialogWrapperActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1930,
+      "name": "com.moe.pushlibrary.activities.MoEActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "provider",
+      "line": 1935,
+      "name": "com.moengage.core.internal.storage.providers.MoEngageFileProvider",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1943,
+      "name": "org.npci.upi.security.pinactivitycomponent.UserAuthInfoActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1947,
+      "name": "org.npci.upi.security.pinactivitycomponent.GetCredential",
+      "exported": "false"
+    },
+    {
+      "kind": "service",
+      "line": 1957,
+      "name": "org.npci.upi.security.pinactivitycomponent.CLRemoteServiceImpl",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1967,
+      "name": "co.hyperverge.hypersnapsdk.activities.HVConsentActivity",
+      "exported": "false"
+    },
+    {
+      "kind": "activity",
+      "line": 1973,
+      "name": "co.hyperverge.hypersnapsdk.activities.HVRetakeActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1978,
+      "name": "co.hyperverge.hypersnapsdk.activities.HVDocsActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1983,
+      "name": "co.hyperverge.hypersnapsdk.activities.HVFaceInstructionActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1988,
+      "name": "co.hyperverge.hypersnapsdk.activities.HVFaceActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1993,
+      "name": "co.hyperverge.hypersnapsdk.activities.HVDocReviewActivity"
+    },
+    {
+      "kind": "activity",
+      "line": 1998,
+      "name": "co.hyperverge.hypersnapsdk.activities.HVQRScannerActivityInternal"
+    }
+  ],
+  "limitations": [
+    "Manifest decoded with Android SDK aapt2 35.0.0, not JADX or REA Android class inspection.",
+    "Declarations and archive names do not establish runtime execution, enabled server features, class methods or working integrations."
+  ]
+}

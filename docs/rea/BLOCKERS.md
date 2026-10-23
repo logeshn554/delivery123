@@ -1,0 +1,9 @@
+# Remaining blockers — 2026-10-23
+
+1. **Static class/method evidence:** `inspect-android-package` fails because `REA_JADX_MCP_JAR` is unconfigured. Need an existing caller-supplied `jadx-headless-mcp 0.7.1` JAR and supported Java. No JAR was found in the scoped local checks. No installation/configuration repair was performed. APK extraction succeeded; preserve the saved artifacts and hashes.
+2. **MCP execution context:** tools initially unavailable; later the MCP call could not see the emulator while the approved REA CLI could. CLI results are explicitly labeled and retained. Reconnection/configuration alignment does not by itself prove live MCP access.
+3. **Resolved local account integration prerequisite:** provisioned fresh disposable PostgreSQL instances from cached binaries, using generated test-only credentials. Initial resource failure and one retry timeout are retained in logs. Final clean run passed all 9 account integration tests without changing deadlines, then stopped its database/emulators. Live provider and production acceptance remain separate.
+4. **Provider acceptance:** real Razorpay payment/refund callbacks, SMS/OTP, maps, push notifications, release signing and live participant journeys are not established by local tests. Existing credentials were not printed or substituted with mocks.
+5. **Native acceptance:** Android debug build/install succeeded and AllGo foreground activity was observed, but launch-wait timed out. No authenticated native workflow or successful screenshot acceptance is claimed. The task-owned headless emulator was stopped after its ADB shutdown stalled, releasing resources. iOS testing remains unavailable on this Windows host.
+
+No end-to-end production-readiness claim, full APK capability inventory, or completion of milestones 1–8 is justified yet. Continue from IMPLEMENTATION_PLAN.md without repeating extraction or overwriting working features.

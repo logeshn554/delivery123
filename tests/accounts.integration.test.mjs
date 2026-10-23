@@ -60,6 +60,16 @@ async function authRequest(route, body) {
   const response = await fetch(`http://${services.authHost}/identitytoolkit.googleapis.com/v1/accounts:${route}?key=isolated-test-key`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(10000) });
   const result = await response.json(); assert.equal(response.status, 200, result.error?.message); return result;
 }
+
+test('account API rejects malformed JSON and array bodies before authentication', async () => {
+  for (const [body, expected] of [['{"password":"private-test-marker",}', 400], ['[]', 400], [JSON.stringify({ data: 'x'.repeat(17000) }), 413]]) {
+    const response = await fetch(`${base}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(10000) });
+    assert.equal(response.status, expected);
+    const result = await response.json();
+    assert.equal(result.code, 'invalid-argument');
+    assert.doesNotMatch(JSON.stringify(result), /private-test-marker/);
+  }
+});
 async function phoneIdentity() {
   const phoneNumber = `+165055501${String(++phoneSequence).padStart(2, '0')}`;
   const { sessionInfo } = await authRequest('sendVerificationCode', { phoneNumber, recaptchaToken: 'emulator-only' });
