@@ -228,7 +228,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                 {displayedOrders.map(ord => (
                   <div key={ord.bookingId} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
                     <BookingExceptionPanel booking={ord}/>
-                    {ord.status === 'pending' && !ord.driverId && ord.paymentStatus === 'paid' && <MerchantRejection bookingId={ord.bookingId}/>}
+                    {ord.status === 'pending' && !ord.driverId && ['paid', 'pending_cod'].includes(ord.paymentStatus || '') && <MerchantRejection bookingId={ord.bookingId} cashOnDelivery={ord.paymentStatus === 'pending_cod'}/>}
                     <MerchantPreparationEditor booking={ord}/>
                     <div className="flex justify-between items-start pb-2 border-b border-slate-700">
                       <div>

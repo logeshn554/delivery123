@@ -142,7 +142,7 @@ export interface Booking {
   merchantId?: string;
   otp?: string;
   pickupOtp?: string;
-  paymentStatus?: 'paid' | 'pending_cod' | 'refund_processing' | 'refunded' | 'refund_required';
+  paymentStatus?: 'paid' | 'pending_cod' | 'cancelled' | 'refund_processing' | 'refunded' | 'refund_required';
   paymentMethod?: 'upi' | 'card' | 'netbanking' | 'wallet' | 'cash' | 'emi' | 'other';
   paymentOrderId?: string;
   paymentId?: string;

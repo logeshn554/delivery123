@@ -29,6 +29,72 @@ beforeEach(async () => {
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
 
+async function savedCashIntent(id = 'cash_retry', amount = 12000) {
+  const booking = { bookingId: id, customerId: 'customer', customerName: 'Test customer', merchantId: 'shop', serviceType: 'grocery', status: 'pending', price: amount / 100, otp: '1234', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), settlementContract: { version: 1, serviceType: 'grocery', baseCents: 4000, maxPayoutCents: 4000 }, details: { storeId: 'shop', items: [{ id: 'item', name: 'Test item', quantity: 1, price: 100 }] } };
+  const orderId = `cod_customer_${id}`;
+  await db.doc(`payment_attempts/${orderId}`).set({ uid: 'customer', kind: 'cod_booking', bookingId: id, booking, amount, items: booking.details.items, storeId: 'shop', restaurantId: null, status: 'created', createdAt: Timestamp.now() });
+  return { orderId, checkout: { requestId: id, expectedAmountCents: amount, booking: { serviceType: 'grocery' } } };
+}
+
+test('saved cash checkout recovery is owner-scoped and never uses a payment provider', async () => {
+  const { orderId, checkout } = await savedCashIntent();
+  await assert.rejects(callable('recoverCodBooking', 'other', { orderId }), error => error.code === 'permission-denied');
+  const results = await Promise.all([callable('recoverCodBooking', 'customer', { orderId }), callable('createCodBooking', 'customer', checkout)]);
+  assert.deepEqual(results[0], results[1]);
+  assert.equal(results[0].status, 'pending_cod');
+  assert.equal((await db.doc('grocery_stores/shop/products/item').get()).data().stock, 9);
+  assert.equal((await db.collection('bookings').get()).size, 1);
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1000);
+  const activity = await callable('listPaymentActivity', 'customer', {});
+  assert.equal(activity.attempts[0].paymentMethod, 'cash');
+  await assert.rejects(callable('createCodBooking', 'customer', { ...checkout, expectedAmountCents: 11999 }), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('createCodBooking', 'customer', { ...checkout, booking: { serviceType: 'food' } }), error => error.code === 'failed-precondition');
+});
+
+test('persisted over-limit cash attempts remain blocked on every retry and recovery', async () => {
+  const { orderId, checkout } = await savedCashIntent('over_limit', 200001);
+  for (let index = 0; index < 2; index++) await assert.rejects(callable('createCodBooking', 'customer', checkout), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('recoverCodBooking', 'customer', { orderId }), error => error.code === 'failed-precondition');
+  assert.equal((await db.doc('bookings/over_limit').get()).exists, false);
+  assert.equal((await db.doc('grocery_stores/shop/products/item').get()).data().stock, 10);
+});
+
+for (const merchantRefusal of [false, true]) test(`cash ${merchantRefusal ? 'merchant refusal' : 'customer cancellation'} reverses receivable and inventory once without a refund`, async () => {
+  const { orderId, checkout } = await savedCashIntent('cash_cancel');
+  await callable('createCodBooking', 'customer', checkout);
+  await db.doc('users/merchant').set({ role: 'merchant', merchantType: 'grocery', merchantId: 'shop' });
+  const method = merchantRefusal ? 'rejectMerchantBooking' : 'cancelPaidBooking';
+  const data = { bookingId: 'cash_cancel', reason: merchantRefusal ? 'Unable to fulfill this order' : 'changed_mind' };
+  await assert.rejects(callable(method, 'other', data), error => error.code === 'permission-denied');
+  const uid = merchantRefusal ? 'merchant' : 'customer';
+  await Promise.all([callable(method, uid, data), callable(method, uid, data)]);
+  const booking = (await db.doc('bookings/cash_cancel').get()).data();
+  assert.equal(booking.status, 'cancelled'); assert.equal(booking.paymentStatus, 'cancelled');
+  assert.equal((await db.doc('grocery_stores/shop/products/item').get()).data().stock, 10);
+  assert.equal((await db.doc('users/customer').get()).data().walletBalance, 1000);
+  assert.equal((await db.collection('wallet_ledger/customer/entries').get()).size, 0);
+  assert.equal((await db.doc('booking_codes/cash_cancel').get()).exists, false);
+  assert.equal((await db.doc(`payment_attempts/${orderId}`).get()).data().status, 'cancelled');
+  const entry = (await db.doc('financial_journals/cod_cancelled_cash_cancel').get()).data();
+  assert.equal(entry.amountCents, 12000);
+  assert.deepEqual(await callable('recoverCodBooking', 'customer', { orderId }), { status: 'cancelled', bookingId: 'cash_cancel' });
+  await assert.rejects(callable('createCodBooking', 'customer', checkout), error => error.code === 'failed-precondition');
+});
+
+test('cash cancellation racing merchant acceptance preserves one committed outcome', async () => {
+  const { checkout } = await savedCashIntent('cash_accept_race');
+  await callable('createCodBooking', 'customer', checkout);
+  await db.doc('users/merchant').set({ role: 'merchant', merchantType: 'grocery', merchantId: 'shop' });
+  const outcomes = await Promise.allSettled([
+    callable('cancelPaidBooking', 'customer', { bookingId: 'cash_accept_race', reason: 'changed_mind' }),
+    callable('advanceMerchantBooking', 'merchant', { bookingId: 'cash_accept_race', status: 'preparing' }),
+  ]);
+  assert.equal(outcomes.filter(result => result.status === 'fulfilled').length, 1);
+  const booking = (await db.doc('bookings/cash_accept_race').get()).data();
+  assert.ok(['cancelled', 'preparing'].includes(booking.status));
+  assert.equal((await db.doc('grocery_stores/shop/products/item').get()).data().stock, booking.status === 'cancelled' ? 10 : 9);
+});
+
 test('Neon-linked callable users cannot fall back to an unbridged Firebase credential in local mode', async () => {
   await db.doc('users/customer').update({ accountAuthority: 'neon', neonAccountId: 'sql-account' });
   const data = { platform: 'android', audience: 'customer', token: 'bridge-test-device' };
@@ -237,8 +303,8 @@ test('grocery picking changes notify customer and assigned store for substitutio
   await notificationHarness(async sent => { await notify('ALLGO_sub_push', after, before); assert.deepEqual(sent.flatMap(message => message.tokens).sort(), ['grocery-customer', 'grocery-store']); });
 });
 
-for (const serviceType of ['food', 'grocery']) {
-  test(`${serviceType} customer checkout reaches merchant preparation, private dispatch, delivery and review`, async () => {
+for (const serviceType of ['food', 'grocery']) for (const cash of [false, true]) {
+  test(`${serviceType} ${cash ? 'cash' : 'wallet'} checkout reaches merchant preparation, private dispatch, delivery and review`, async () => {
     const restoreMaps = mockJourneyMaps();
     // Only external Maps responses are simulated. Pricing, wallet, inventory,
     // merchant transitions, dispatch leases and fulfillment run against Firestore.
@@ -265,15 +331,16 @@ for (const serviceType of ['food', 'grocery']) {
           items: [{ id: 'item', quantity: 1, price: 1 }],
         } },
       };
-      const result = await callable('payWithWallet', 'customer', checkout);
-      assert.equal(result.status, 'paid');
-      assert.deepEqual(await callable('payWithWallet', 'customer', checkout), result);
+      const checkoutMethod = cash ? 'createCodBooking' : 'payWithWallet';
+      const result = cash ? (await Promise.all([callable(checkoutMethod, 'customer', checkout), callable(checkoutMethod, 'customer', checkout)]))[0] : await callable(checkoutMethod, 'customer', checkout);
+      assert.equal(result.status, cash ? 'pending_cod' : 'paid');
+      assert.deepEqual(await callable(checkoutMethod, 'customer', checkout), result);
       const id = result.bookingId, ref = db.doc(`bookings/${id}`);
       const confirmed = (await ref.get()).data();
       assert.equal(confirmed.price, 120); assert.equal(confirmed.details.items[0].price, 100);
       assert.equal(confirmed.status, 'pending'); assert.equal(confirmed.otp, undefined);
-      assert.equal((await db.doc('users/customer').get()).data().walletBalance, 880);
-      assert.equal((await db.collection('wallet_ledger/customer/entries').get()).size, 1);
+      assert.equal((await db.doc('users/customer').get()).data().walletBalance, cash ? 1000 : 880);
+      assert.equal((await db.collection('wallet_ledger/customer/entries').get()).size, cash ? 0 : 1);
       assert.deepEqual(await callable('listDriverOffers', 'driver', {}), []);
       await assert.rejects(callable('advanceMerchantBooking', 'other', { bookingId: id, status: 'preparing' }), error => error.code === 'permission-denied');
       await callable('advanceMerchantBooking', 'merchant', { bookingId: id, status: 'preparing' });
@@ -300,6 +367,13 @@ for (const serviceType of ['food', 'grocery']) {
       await callable('advanceDriverBooking', 'driver', completion);
       const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
       assert.equal(completed.status, 'completed'); assert.equal(completed.driverPayout, 40);
+      assert.equal(completed.paymentStatus, 'paid');
+      if (cash) {
+        assert.ok(completed.cashCollectedAt);
+        assert.equal((await db.doc(`payment_attempts/${completed.paymentOrderId}`).get()).data().status, 'paid');
+        const collected = await db.doc(`financial_journals/cod_collected_${id}`).get();
+        assert.equal(collected.data().amountCents, 12000);
+      }
       assert.equal(driver.activeBookingId, null); assert.equal(driver.status, 'pending'); assert.equal(driver.online, false); assert.deepEqual(driver.supportedServices, []); assert.equal(driver.completedJobs, 1); assert.equal(driver.availableEarningsCents, 4000);
       assert.equal((await db.collection('driver_ledger/driver/entries').get()).size, 1);
       assert.equal((await db.doc(`booking_codes/${id}`).get()).exists, false);
@@ -326,8 +400,8 @@ const quotedJourneys = [
   { serviceType: 'transport', option: 'bike', details: { transportVehicleType: 'bike', transportMakeModel: 'Test motorcycle', transportRegNo: 'TEST-BIKE', ownershipConfirmed: true, vehicleWeightKg: 150, vehicleDimensions: { lengthCm: 200, widthCm: 80, heightCm: 110 } } },
 ];
 
-for (const { serviceType, option, details } of quotedJourneys) {
-  test(`${serviceType} quote, wallet checkout, assigned pickup proof and recipient completion form one journey`, async () => {
+for (const { serviceType, option, details } of quotedJourneys) for (const cash of [false, true]) {
+  test(`${serviceType} quote, ${cash ? 'cash' : 'wallet'} checkout, assigned pickup proof and recipient completion form one journey`, async () => {
     const restoreMaps = mockJourneyMaps();
     try {
       await db.doc('platform_config/wallet').set({ enabled: true, maxTopupCents: 100000 });
@@ -347,12 +421,13 @@ for (const { serviceType, option, details } of quotedJourneys) {
       const quote = await callable('getServiceQuote', 'customer', { serviceType, pickupAddress: 'Merchant pickup street', dropAddress: 'Customer delivery street', details: { ...details, pickupPlaceId: 'pickup-place', dropPlaceId: 'drop-place' } });
       assert.equal(quote.amount, 10000); assert.equal(quote.currency, 'INR');
       const checkout = { requestId: `${serviceType}_journey`, expectedAmountCents: quote.amount, booking: { serviceType, details: { quoteId: quote.quoteId } } };
-      const result = await callable('payWithWallet', 'customer', checkout);
-      assert.deepEqual(await callable('payWithWallet', 'customer', checkout), result);
+      const checkoutMethod = cash ? 'createCodBooking' : 'payWithWallet';
+      const result = await callable(checkoutMethod, 'customer', checkout);
+      assert.deepEqual(await callable(checkoutMethod, 'customer', checkout), result);
       const ref = db.doc(`bookings/${result.bookingId}`), confirmed = (await ref.get()).data();
       assert.equal(confirmed.status, 'pending'); assert.equal(confirmed.serviceType, serviceType);
       assert.equal(confirmed.price, 100); assert.equal(confirmed.otp, undefined);
-      assert.equal((await db.doc('users/customer').get()).data().walletBalance, 900);
+      assert.equal((await db.doc('users/customer').get()).data().walletBalance, cash ? 1000 : 900);
       assert.equal((await db.doc(`service_quotes/${quote.quoteId}`).get()).data().claimed, true);
       if (serviceType === 'parcel') {
         assert.equal(confirmed.details.parcelContacts, undefined);
@@ -377,6 +452,8 @@ for (const { serviceType, option, details } of quotedJourneys) {
       await callable('advanceDriverBooking', 'driver', finish);
       const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
       assert.equal(completed.status, 'completed'); assert.equal(completed.driverPayout, 40);
+      assert.equal(completed.paymentStatus, 'paid');
+      if (cash) assert.equal((await db.doc(`payment_attempts/${completed.paymentOrderId}`).get()).data().status, 'paid');
       assert.equal(driver.availableEarningsCents, 4000); assert.equal(driver.completedJobs, 1); assert.equal(driver.activeBookingId, null);
       assert.equal((await db.doc(`booking_codes/${ref.id}`).get()).exists, false);
       const events = (await ref.collection('events').get()).docs.map(event => event.data().stage);

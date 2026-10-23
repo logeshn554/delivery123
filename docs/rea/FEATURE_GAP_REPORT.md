@@ -2,6 +2,8 @@
 
 Repository verified: `origin=https://github.com/logeshn554/delivery123.git`. React 19 / TypeScript / Vite frontend, Capacitor Android/iOS projects, PostgreSQL account API and Firebase Auth/Firestore/Functions. Customer, merchant, driver and admin components exist in this checkout; sibling `../merchant app` and `../delivery app` have separate native/API packaging. Their full source parity has not been established. Preserve existing components and domain-specific policies.
 
+Update: the user authorized independent production implementation without waiting for APK evidence. COD checkout/accounting/recovery/cancellation and all six cash/wallet service journeys are now emulator verified; see `../production/2026-10-23-production-work.md`. Reference unknowns below are not execution blockers for independent AllGo work.
+
 **Reference comparison is incomplete:** APK identity/extraction are verified, but the JADX provider is missing. Every “unresolved” cell below means there is no class/method evidence yet. None of these rows asserts that Swiggy implements the corresponding behavior. Status describes inspected source and tests, not production acceptance.
 
 Manifest declarations now supply partial structural evidence for home/deep links, menu/filter/suggestions, address correction, accounts, ratings, notifications, WorkManager, Room and payment SDK components. See APK_ANALYSIS.md for exact class names and decoded-manifest locations. These do not resolve the behavioral/method-level gaps in this matrix.

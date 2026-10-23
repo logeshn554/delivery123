@@ -3,11 +3,12 @@ import { CUSTOMER_CANCELLATION_REASONS, type CustomerCancellationReason } from '
 
 interface CancellationDialogProps {
   busy: boolean;
+  cashOnDelivery?: boolean;
   onClose: () => void;
   onConfirm: (reason: CustomerCancellationReason) => void;
 }
 
-export default function CancellationDialog({ busy, onClose, onConfirm }: CancellationDialogProps) {
+export default function CancellationDialog({ busy, cashOnDelivery = false, onClose, onConfirm }: CancellationDialogProps) {
   const [reason, setReason] = useState<CustomerCancellationReason | ''>('');
 
   return (
@@ -33,7 +34,9 @@ export default function CancellationDialog({ busy, onClose, onConfirm }: Cancell
           ))}
         </fieldset>
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
-          This action is available only while the order is pending. The current cancellation flow requests a refund of the full paid amount and deducts no cancellation fee. Wallet refunds are recorded immediately; payment-provider refunds may take time and are not instant.
+          {cashOnDelivery
+            ? 'This action is available only while the order is pending. No cash has been collected. Cancelling removes the cash amount due; no refund or cancellation fee applies.'
+            : 'This action is available only while the order is pending. The current cancellation flow requests a refund of the full paid amount and deducts no cancellation fee. Wallet refunds are recorded immediately; payment-provider refunds may take time and are not instant.'}
         </div>
         <div className="flex gap-3">
           <button type="button" disabled={busy} onClick={onClose} className="min-h-11 flex-1 rounded-xl border border-slate-300 px-3 font-semibold text-slate-700 disabled:opacity-50">Keep order</button>

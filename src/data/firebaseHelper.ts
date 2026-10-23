@@ -278,6 +278,9 @@ export async function listPaymentActivity(): Promise<PaymentActivity[]> {
 export async function recoverPayment(orderId: string) {
   return (await httpsCallable<{ orderId: string }, { status: string; bookingId?: string }>(functions, 'recoverPayment')({ orderId })).data;
 }
+export async function recoverCodBooking(orderId: string) {
+  return (await httpsCallable<{ orderId: string }, { status: string; bookingId?: string }>(functions, 'recoverCodBooking')({ orderId })).data;
+}
 
 export async function reportBookingException(data: { bookingId: string; requestId: string; kind: string; reason: string }) {
   return (await httpsCallable(functions, 'reportBookingException')(data)).data;

@@ -41,6 +41,7 @@ const { catalogSearchFunctions } = require('./catalogSearch');
 const { contractFor, driverTransition, merchantTransition } = require('./fulfillmentPolicy');
 const { journal } = require('./journalPolicy');
 const { addCents } = require('./moneyPolicy');
+const { assertCodAmount, assertCodAttempt } = require('./codBookingPolicy');
 const { settlementPolicy, calculateDriverSettlement } = require('./settlementPolicy');
 const { tripBundleFunctions } = require('./tripBundleFunctions');
 const { firestoreDatabaseId } = require('./databaseConfig');
@@ -563,7 +564,7 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
   if (!attemptSnap.exists) throw new HttpsError('not-found', 'Payment request could not be found.');
   const attempt = attemptSnap.data();
   if (attempt.status === 'paid' || attempt.status === 'pending_cod') return { bookingId: attempt.bookingId || null, status: attempt.status };
-  if (['refunded', 'refund_processing', 'refund_required'].includes(attempt.status)) {
+  if (['cancelled', 'refunded', 'refund_processing', 'refund_required'].includes(attempt.status)) {
     throw new HttpsError('failed-precondition', 'This payment is already in refund handling and cannot create another booking.');
   }
   if (!walletPayment && !codPayment && (providerPayment.status !== 'captured' || providerPayment.order_id !== orderId || providerPayment.amount !== attempt.amount || providerPayment.currency !== CURRENCY)) {
@@ -598,7 +599,7 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
     await db.runTransaction(async (transaction) => {
       const latestAttempt = await transaction.get(attemptRef);
       if (!latestAttempt.exists) throw new HttpsError('not-found', 'Payment request could not be found.');
-      if (latestAttempt.data().status === 'paid') return;
+      if (latestAttempt.data().status === 'paid' || codPayment && latestAttempt.data().status === 'pending_cod') return;
       if (['refunded', 'refund_processing', 'refund_required'].includes(latestAttempt.data().status)) throw new HttpsError('aborted', 'This payment is in refund handling.');
       if (latestAttempt.data().status !== 'created') throw new HttpsError('failed-precondition', 'This checkout is no longer active. Request a fresh quote.');
       if (latestAttempt.data().uid !== attempt.uid) throw new HttpsError('permission-denied', 'Payment owner does not match.');
@@ -937,14 +938,21 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
       let settlement;
       try { settlement = calculateDriverSettlement(data); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
+      const wasCod = data.paymentStatus === 'pending_cod';
+      const cashAttemptRef = wasCod ? db.doc(`payment_attempts/${documentId(data.paymentOrderId, 'Cash order')}`) : null;
+      const cashAttempt = cashAttemptRef ? (await transaction.get(cashAttemptRef)).data() : null;
+      const priceCents = Math.round(Number(data.price) * 100);
+      if (wasCod) {
+        assertCodAttempt(cashAttempt, data.customerId, data.serviceType, priceCents);
+        if (cashAttempt.status !== 'pending_cod' || cashAttempt.bookingId !== bookingId) throw new HttpsError('failed-precondition', 'Cash payment records need reconciliation before completion.');
+      }
       const payout = settlement.totalCents / 100;
       const today = new Date().toISOString().slice(0, 10);
       const current = driver.data();
       const payoutCents = Math.round(payout * 100);
-      const wasCod = data.paymentStatus === 'pending_cod';
       if (wasCod) {
-        const priceCents = Math.round(Number(data.price || 0) * 100);
         transaction.create(db.doc(`financial_journals/cod_collected_${bookingId}`), journal('cod_cash_collected', 'cash_in_hand_driver', 'customer_receivable_cod', priceCents, { bookingId, driverId: uid }));
+        transaction.update(cashAttemptRef, { status: 'paid', paidAt: Timestamp.now(), cashCollectedBy: uid });
       }
       transaction.update(driverRef, { activeBookingId: null, ...(eligibility.data()?.status === 'expired' ? { status: 'pending', online: false, supportedServices: [] } : {}), earningsDate: today, todayEarnings: addCents(current.earningsDate === today ? Math.round(Number(current.todayEarnings || 0) * 100) : 0, payoutCents) / 100, availableEarningsCents: addCents(Number(current.availableEarningsCents || 0), payoutCents), completedJobs: Number(current.completedJobs || 0) + 1 });
       transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}`), { bookingId, amountCents: payoutCents, type: 'delivery_earning', createdAt: Timestamp.now() });
@@ -1189,6 +1197,7 @@ exports.payWithWallet = onCall({ operation: 'payWithWallet', region: REGION, sec
 
 exports.createCodBooking = onCall({ operation: 'createCodBooking', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
   const uid = requireUser(request);
+  assertCodAmount(request.data?.expectedAmountCents);
   const requestId = documentId(request.data?.requestId, 'Checkout request');
   const orderId = `cod_${uid}_${requestId}`, ref = db.doc(`payment_attempts/${orderId}`);
   const existing = await ref.get();
@@ -1219,9 +1228,7 @@ exports.createCodBooking = onCall({ operation: 'createCodBooking', region: REGIO
       quote = await applyCoupon(uid, quote, request.data?.booking?.couponCode);
     }
     if (quote.amount !== request.data.expectedAmountCents) throw new HttpsError('failed-precondition', 'The price changed. Refresh and review the current total.');
-    if (quote.amount > 200000) {
-      throw new HttpsError('failed-precondition', 'Cash on delivery is limited to orders up to ₹2,000. Please select an online payment method or AllGo wallet.');
-    }
+    assertCodAmount(quote.amount);
     if (!serviceQuoteRef) {
       try {
         await ref.create({ uid, kind: 'cod_booking', bookingId: quote.booking.bookingId, booking: quote.booking, amount: quote.amount, items: quote.items || [], restaurantId: quote.restaurantId || null, storeId: quote.storeId || null, status: 'created', createdAt: Timestamp.now() });
@@ -1230,7 +1237,17 @@ exports.createCodBooking = onCall({ operation: 'createCodBooking', region: REGIO
       }
     }
   }
+  assertCodAttempt((await ref.get()).data(), uid, request.data?.booking?.serviceType, request.data?.expectedAmountCents);
   return await settleCapturedPayment(orderId, orderId, null, false, true);
+});
+
+exports.recoverCodBooking = onCall({ operation: 'recoverCodBooking', region: REGION }, async request => {
+  const uid = requireUser(request), orderId = documentId(request.data?.orderId, 'Cash order');
+  const attempt = (await db.doc(`payment_attempts/${orderId}`).get()).data();
+  if (!attempt || attempt.uid !== uid || attempt.kind !== 'cod_booking') throw new HttpsError('permission-denied', 'This cash checkout does not belong to your account.');
+  assertCodAttempt(attempt, uid, attempt.booking?.serviceType, attempt.amount);
+  if (attempt.status === 'cancelled') return { status: 'cancelled', bookingId: attempt.bookingId };
+  return settleCapturedPayment(orderId, orderId, null, false, true);
 });
 
 exports.requestAccountDeletion = onCall({ operation: 'requestAccountDeletion', region: REGION }, async request => {
@@ -1408,7 +1425,7 @@ exports.listPaymentActivity = onCall({ operation: 'listPaymentActivity', region:
       updatedAt: timestamp(data.updatedAt),
       bookingId: data.bookingId || null,
       paymentId: typeof data.paymentId === 'string' ? data.paymentId : null,
-      paymentMethod: typeof data.paymentMethod === 'string' ? data.paymentMethod : null,
+      paymentMethod: data.kind === 'cod_booking' ? 'cash' : typeof data.paymentMethod === 'string' ? data.paymentMethod : null,
       refundStatus: typeof data.refundStatus === 'string' ? data.refundStatus : null,
       refundedAmountCents: cents(data.refundedAmountCents || (data.status === 'refunded' ? data.amount : 0)),
       refundRequestedAmountCents: cents(data.refundRequestedAmountCents),
@@ -1605,12 +1622,29 @@ async function cancelPaidBooking(request, merchantRefusal = false) {
     const [snapshot, actor] = await Promise.all([transaction.get(bookingRef), transaction.get(db.doc(`users/${uid}`))]);
     if (!snapshot.exists || (merchantRefusal ? !merchantOwns(actor.data(), snapshot.data()) : snapshot.data().customerId !== uid && !admin)) throw new HttpsError('permission-denied', 'This order does not belong to your account or business.');
     booking = snapshot.data();
-    if (booking.status === 'cancelled' && ['refunded', 'refund_processing'].includes(booking.paymentStatus)) return;
+    if (booking.status === 'cancelled' && ['cancelled', 'refunded', 'refund_processing'].includes(booking.paymentStatus)) return;
     if (booking.paymentStatus === 'refund_required') throw new HttpsError('failed-precondition', 'A refund needs support follow-up.');
     if (booking.paymentStatus === 'refund_processing') throw new HttpsError('already-exists', 'A refund is already being processed.');
     if (merchantRefusal && (booking.status !== 'pending' || booking.driverId)) throw new HttpsError('failed-precondition', 'Only an unaccepted order can be rejected. Contact operations for preparation or custody problems.');
-    if (!(admin ? ['pending', 'accepted', 'preparing', 'ready'].includes(booking.status) : booking.status === 'pending') || booking.paymentStatus !== 'paid' || !booking.paymentId) {
+    if (!(admin ? ['pending', 'accepted', 'preparing', 'ready'].includes(booking.status) : booking.status === 'pending') || !['paid', 'pending_cod'].includes(booking.paymentStatus) || !booking.paymentId) {
       throw new HttpsError('failed-precondition', 'This order can no longer be cancelled in the app.');
+    }
+    if (booking.paymentStatus === 'pending_cod') {
+      const cashRef = db.doc(`payment_attempts/${documentId(booking.paymentOrderId, 'Cash order')}`);
+      const driverRef = booking.driverId ? db.doc(`driver_profiles/${booking.driverId}`) : null;
+      const [cash, driver] = await Promise.all([transaction.get(cashRef), driverRef ? transaction.get(driverRef) : null]);
+      const amount = Math.round(booking.price * 100);
+      assertCodAttempt(cash.data(), booking.customerId, booking.serviceType, amount);
+      if (cash.data().status !== 'pending_cod' || cash.data().bookingId !== bookingId || booking.cashCollectedAt) throw new HttpsError('failed-precondition', 'Cash records need reconciliation before cancellation.');
+      await restoreCancelledInventory(transaction, bookingRef, booking);
+      transaction.update(cashRef, { status: 'cancelled', updatedAt: Timestamp.now() });
+      transaction.create(db.doc(`financial_journals/cod_cancelled_${bookingId}`), journal('cod_booking_cancelled', 'booking_funds_unallocated', 'customer_receivable_cod', amount, { bookingId, orderId: booking.paymentOrderId, customerId: booking.customerId }));
+      if (driver?.data()?.activeBookingId === bookingId) transaction.update(driverRef, { activeBookingId: null });
+      transaction.delete(db.doc(`booking_codes/${bookingId}`));
+      transaction.create(bookingRef.collection('events').doc('cancellation_requested'), { stage: merchantRefusal ? 'merchant_rejected' : 'cancellation_requested', actorId: uid, actorRole: merchantRefusal ? 'merchant' : admin ? 'admin' : 'customer', ...((refusalReason || cancellationReason) ? { reason: refusalReason || cancellationReason } : {}), createdAt: new Date().toISOString() });
+      transaction.update(bookingRef, { status: 'cancelled', paymentStatus: 'cancelled', updatedAt: new Date().toISOString() });
+      booking = { ...booking, status: 'cancelled', paymentStatus: 'cancelled' };
+      return;
     }
     if (booking.paymentOrderId?.startsWith('wallet_')) {
       const accountRef = db.doc(`users/${booking.customerId}`), attemptRef = db.doc(`payment_attempts/${booking.paymentOrderId}`);

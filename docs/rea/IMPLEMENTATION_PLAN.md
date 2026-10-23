@@ -8,8 +8,8 @@ Milestone 1, account input boundary: stop parser error messages reflecting reque
 
 ## Resume order
 
-1. Restore active REA MCP device access if available. Existing CLI Evidence is reusable; do not extract the same installed version again without checking hashes.
-2. Configure an existing caller-supplied `jadx-headless-mcp 0.7.1` JAR for REA. Inspect the saved base APK, manifest, classes and selected methods/references. Record exact evidence, confidence and unknowns for each requested subsystem.
+1. Latest user direction: implement independently from AllGo requirements without waiting for the reference APK or JADX. Preserve historical evidence; no additional Swiggy operation is needed.
+2. Continue transaction and authorization repairs, shared customer/merchant/driver runtime alignment and verified builds. Current work is recorded in `../production/2026-10-23-production-work.md`.
 3. Reuse the passing account integration evidence for this revision. For future changes, run the isolated PostgreSQL/Auth/Firestore suite with a fresh dedicated test connection; never reuse production application credentials. Complete native account/address acceptance before marking milestone 1 complete.
 4. Refine the gap matrix from method evidence and actual AllGo failures. Implement one smallest coherent defect at a time, in priority order: food transaction completion, grocery, merchant, partner dispatch, parcel, rides/vehicle services, administration.
 5. Preserve real payment/SMS/maps integrations and report missing credentials. No mock replacement, copied reference code/assets, private endpoints or production-readiness claims.

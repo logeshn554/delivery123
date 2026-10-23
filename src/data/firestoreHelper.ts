@@ -51,6 +51,7 @@ export const updateDriverStatus = route('updateDriverStatus');
 export const updateDriverVerification = route('updateDriverVerification');
 export const startOnlinePayment = route('startOnlinePayment');
 export const createCodBooking = route('createCodBooking');
+export const recoverCodBooking = route('recoverCodBooking');
 export const getServiceQuote = route('getServiceQuote');
 export const searchServiceLocations = route('searchServiceLocations');
 export const listenToAccountProfile = route('listenToAccountProfile');
