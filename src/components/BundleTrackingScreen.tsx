@@ -4,8 +4,9 @@ import { httpsCallable } from 'firebase/functions';
 import BundleLegChat from '../features/tracking/BundleLegChat';
 import { db, functions } from '../firebase';
 import { useFeedbackDialog } from './useFeedbackDialog';
-import type { TripBundle, BundleLeg } from '../types';
+import type { TripBundle, BundleLeg, LegType } from '../types';
 import { isFreshTrackingTimestamp } from '../design-system/trackingFreshness';
+import HandoverCode from './HandoverCode';
 
 interface BundleTrackingScreenProps {
   bundleId: string;
@@ -26,12 +27,35 @@ interface BundleTrackingDoc {
   updatedAt?: string;
 }
 
+interface BundleLegCode {
+  code?: string;
+  pickupCode?: string;
+}
+
+interface BundleCodesDoc {
+  customerId: string;
+  legs?: Record<string, BundleLegCode>;
+}
+
+const getLegIcon = (type: LegType) => {
+  switch (type) {
+    case 'ride': return '🚗';
+    case 'food': return '🍲';
+    case 'grocery': return '🛒';
+    case 'parcel': return '📦';
+    case 'takeover': return '👤';
+    case 'transport': return '🚛';
+    default: return '📍';
+  }
+};
+
 export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bundleId, onBack }) => {
   const { alert, confirm, dialog } = useFeedbackDialog();
 
   const [bundle, setBundle] = useState<TripBundle | null>(null);
   const [legs, setLegs] = useState<BundleLeg[]>([]);
   const [tracking, setTracking] = useState<BundleTrackingDoc | null>(null);
+  const [legCodes, setLegCodes] = useState<Record<string, BundleLegCode>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedLegId, setExpandedLegId] = useState<string | null>(null);
@@ -47,10 +71,10 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
   // Chat state
   const [activeChatLegId, setActiveChatLegId] = useState<string | null>(null);
 
-  // Firestore real-time listeners for bundle, legs, and bundle_tracking
+  // Firestore real-time listeners for bundle, legs, bundle_codes, and bundle_tracking
   useEffect(() => {
     let active = true;
-    setBundle(null); setLegs([]); setTracking(null); setExpandedLegId(null);
+    setBundle(null); setLegs([]); setTracking(null); setLegCodes({}); setExpandedLegId(null);
     setActiveChatLegId(null);
     setLoading(true); setError(null);
     if (!bundleId) { setLoading(false); setError('Choose a journey from Activity.'); return; }
@@ -107,11 +131,29 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
       }
     );
 
+    // 4. Secure handover codes listener
+    const unsubCodes = onSnapshot(
+      doc(db, 'bundle_codes', bundleId),
+      snap => {
+        if (active) {
+          const data = snap.data() as BundleCodesDoc | undefined;
+          setLegCodes(data?.legs || {});
+        }
+      },
+      err => {
+        if (active) {
+          setLegCodes({});
+          console.warn('Bundle codes subscription warning:', err);
+        }
+      }
+    );
+
     return () => {
       active = false; clearTimeout(timeout);
       unsubBundle();
       unsubLegs();
       unsubTracking();
+      unsubCodes();
     };
   }, [bundleId, retry]);
 
@@ -243,7 +285,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                           : 'bg-slate-100 border-slate-500 text-slate-700'
                       }`}
                     >
-                      {leg.type === 'ride' ? '🚗' : leg.type === 'food' ? '🍲' : '🛒'}
+                      {getLegIcon(leg.type)}
                     </div>
                     <span className="text-[10px] font-semibold text-slate-700 mt-1">
                       Leg #{i + 1}
@@ -299,7 +341,7 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-base">
-                      {leg.type === 'ride' ? '🚗' : leg.type === 'food' ? '🍲' : '🛒'}
+                      {getLegIcon(leg.type)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -355,6 +397,99 @@ export const BundleTrackingScreen: React.FC<BundleTrackingScreenProps> = ({ bund
                         ))}
                       </div>
                     )}
+
+                    {/* Non-commerce leg details if available */}
+                    {leg.type === 'parcel' && leg.details && (
+                      <div className="p-2.5 bg-white/60 rounded-xl border border-slate-200 space-y-1">
+                        <span className="text-slate-500 block font-semibold">Package Details</span>
+                        <p className="text-slate-700">
+                          {leg.details.parcelType || 'Parcel'} {leg.details.weightKg ? `· ${leg.details.weightKg} kg` : ''}
+                        </p>
+                        {leg.details.parcelDescription && (
+                          <p className="text-slate-600">{leg.details.parcelDescription}</p>
+                        )}
+                        {leg.details.fragile && (
+                          <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                            Fragile — handle with care
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {leg.type === 'takeover' && (leg.details?.takeoverVehicleModel || leg.details?.takeoverVehicleNo) && (
+                      <div className="p-2.5 bg-white/60 rounded-xl border border-slate-200 space-y-1">
+                        <span className="text-slate-500 block font-semibold">Vehicle Takeover Details</span>
+                        <p className="text-slate-700 font-medium">
+                          {leg.details.takeoverVehicleModel}
+                        </p>
+                        <p className="text-slate-600 font-mono text-[11px]">
+                          Plate: {leg.details.takeoverVehicleNo} {leg.details.takeoverTransmission ? `· ${leg.details.takeoverTransmission.toUpperCase()}` : ''}
+                        </p>
+                      </div>
+                    )}
+
+                    {leg.type === 'transport' && (leg.details?.transportMakeModel || leg.details?.transportRegNo) && (
+                      <div className="p-2.5 bg-white/60 rounded-xl border border-slate-200 space-y-1">
+                        <span className="text-slate-500 block font-semibold">Vehicle Transport Details</span>
+                        <p className="text-slate-700 font-medium">
+                          {leg.details.transportMakeModel} ({leg.details.transportRegNo})
+                        </p>
+                        <p className="text-slate-600 text-[11px]">
+                          Type: {leg.details.transportVehicleType === 'car' ? 'Passenger Car' : 'Motorbike'}
+                          {Number.isFinite(leg.details.vehicleWeightKg) ? ` · ${leg.details.vehicleWeightKg} kg` : ''}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Secure Handover Codes */}
+                    {(() => {
+                      const codes = legCodes[leg.legId];
+                      const pickupOtp = codes?.pickupCode || leg.pickupOtp;
+                      const deliveryOtp = codes?.code || leg.otp;
+                      if (!pickupOtp && !deliveryOtp) return null;
+                      return (
+                        <div className="space-y-2 pt-1">
+                          {pickupOtp && (
+                            <HandoverCode
+                              label={
+                                leg.type === 'transport'
+                                  ? 'Vehicle handover start code'
+                                  : ['ride', 'takeover'].includes(leg.type)
+                                  ? 'Trip start code'
+                                  : 'Sender pickup code'
+                              }
+                              code={pickupOtp}
+                              guidance={
+                                leg.type === 'transport'
+                                  ? 'Share with carrier driver after joint pre-loading inspection.'
+                                  : ['ride', 'takeover'].includes(leg.type)
+                                  ? 'Share with partner upon boarding / vehicle handover to begin the trip.'
+                                  : 'Share with the assigned partner once items or package are verified.'
+                              }
+                            />
+                          )}
+                          {deliveryOtp && (
+                            <HandoverCode
+                              label={
+                                leg.type === 'transport'
+                                  ? 'Vehicle delivery code'
+                                  : ['ride', 'takeover'].includes(leg.type)
+                                  ? 'Trip completion code'
+                                  : 'Recipient delivery code'
+                              }
+                              code={deliveryOtp}
+                              guidance={
+                                leg.type === 'transport'
+                                  ? 'Share only after vehicle inspection and unloading at destination.'
+                                  : ['ride', 'takeover'].includes(leg.type)
+                                  ? 'Share with partner at the destination upon trip completion.'
+                                  : 'Share only when delivery is received at the destination.'
+                              }
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Action buttons: Chat & Cancel */}
                     <div className="flex items-center justify-between pt-2">

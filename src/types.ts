@@ -283,6 +283,7 @@ export interface BundleLeg {
   fulfillmentMethod?: FulfillmentMethod;
   fulfillmentDecidedAt?: string;
   items?: BookingDetails['items'];
+  details?: BookingDetails;
   priceBreakdown: BundleLegBreakdown;
   settlementContract?: PartnerSettlementContract;
   otp?: string;

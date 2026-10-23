@@ -33,3 +33,14 @@ test('combined journey tracker reports only fresh assigned-partner positions and
   assert.doesNotMatch(tracker, /Simulated Live Route Canvas Pins/);
   assert.match(tracker, /leg\.driverId && leg\.fulfillmentMethod !== 'self_pickup'/);
 });
+
+test('combined journey tracker synchronizes secure handover codes and supports all mobility and fulfillment leg types', () => {
+  const tracker = readFileSync(new URL('../../src/components/BundleTrackingScreen.tsx', import.meta.url), 'utf8');
+  assert.match(tracker, /bundle_codes/);
+  assert.match(tracker, /HandoverCode/);
+  assert.match(tracker, /getLegIcon/);
+  assert.match(tracker, /leg\.type === 'parcel'/);
+  assert.match(tracker, /leg\.type === 'takeover'/);
+  assert.match(tracker, /leg\.type === 'transport'/);
+});
+

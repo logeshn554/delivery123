@@ -140,3 +140,11 @@ test("active job chat renders a live message log with participant name and send 
   assert.match(src, /sendChatMessage/);
   assert.match(src, /aria-live="polite"/);
 });
+
+// Bundle leg indicator
+test("driver app identifies bundle legs in incoming offers and active job banner", () => {
+  assert.match(src, /currentAssignedJob\.bundleId/);
+  assert.match(src, /job\.bundleId/);
+  assert.match(src, /Bundle Leg/);
+});
+

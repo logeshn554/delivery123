@@ -461,6 +461,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                 <span className="bg-purple-600/10 text-purple-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/20 uppercase">
                   Active {currentAssignedJob.serviceType} job
                 </span>
+                {currentAssignedJob.bundleId && (
+                  <span className="ml-2 bg-indigo-600/10 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-500/20 uppercase">
+                    Bundle Leg
+                  </span>
+                )}
                 <p className="text-[9px] font-mono text-slate-400 mt-1">Order Ref: {currentAssignedJob.bookingId}</p>
                 <BookingExceptionPanel key={currentAssignedJob.bookingId} booking={currentAssignedJob}/>
               </div>
@@ -761,6 +766,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                         <span className="bg-blue-900/40 text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded border border-blue-500/20 uppercase">
                           {job.serviceType}
                         </span>
+                        {job.bundleId && (
+                          <span className="ml-1.5 bg-indigo-900/40 text-indigo-400 text-[9px] font-bold px-2 py-0.5 rounded border border-indigo-500/20 uppercase">
+                            Bundle Leg
+                          </span>
+                        )}
                         <h4 className="text-xs font-bold text-slate-900 mt-1.5">Ref: {job.bookingId}</h4>
                       </div>
                       <div className="text-right">
