@@ -1,5 +1,7 @@
 # Blockers and required setup
 
+2026-10-23 update: `promtwars222` is reachable through the existing Firebase CLI. Customer, merchant and delivery Android registrations and their matching SDK configurations are verified; both new partner registrations were created as part of this work. All three debug APKs build and package the correct Firebase IDs. Native runtime acceptance remains blocked by local AVD lock/disk/Windows commit limits. Google OAuth client entries are absent from the downloaded SDK configurations; Google provider/consent setup and signing-certificate enrollment have not been performed. The actual staging/production designation and deployed HTTPS account API remain unspecified. Production preflights still fail; no hosted backend deployment, signing evidence, policy acceptance or real provider transaction is claimed. See `2026-10-23-production-work.md` for source fixes and exact verification scope.
+
 Updated 2026-10-20 after local-only Firebase configuration and Android customer emulator launch. Continue unblocked source work; blockers do not justify marking features complete.
 
 | Blocker | Evidence | Exact next requirement |

@@ -2,31 +2,34 @@
   {
     "audience": "customer",
     "appId": "in.allgo.app",
+    "firebaseAndroidAppId": "1:63483696880:android:70681b3383b0f862071435",
     "path": ".cache/apps/customer/app-debug.apk",
     "bytes": 10793630,
     "sha256": "754459ad6b31d61b490f41c521d1b673c0a511d95b1eac896e57f6e43bf35b4a",
     "mode": "development",
     "signing": "debug",
-    "verification": "aapt2 package and embedded allgo-build.json audience/appId verified"
+    "verification": "aapt2 package, embedded audience metadata, and Firebase native app ID in resources.arsc verified"
   },
   {
     "audience": "merchant",
     "appId": "in.allgo.merchant",
+    "firebaseAndroidAppId": "1:63483696880:android:0720874d9d0b3534071435",
     "path": ".cache/apps/merchant/app-debug.apk",
     "bytes": 10793698,
-    "sha256": "5a0a36702fca66c38a0cae261e900a94a56989d3dc414fd2bba4db8210c00102",
+    "sha256": "d1d3d33ba4ae5c5240ef046fd6921acc3ede69a8dfdfce3531eb7bdbfdcdbb27",
     "mode": "development",
     "signing": "debug",
-    "verification": "aapt2 package and embedded allgo-build.json audience/appId verified"
+    "verification": "aapt2 package, embedded audience metadata, and Firebase native app ID in resources.arsc verified"
   },
   {
     "audience": "driver",
     "appId": "in.allgo.delivery",
+    "firebaseAndroidAppId": "1:63483696880:android:1347a086ad14c9d4071435",
     "path": ".cache/apps/driver/app-debug.apk",
     "bytes": 10793794,
-    "sha256": "4b9b5560e89f63c4bed972317fcd5e8ab25be9ec9e98d7cdef2e162a9de01016",
+    "sha256": "27a2239ef3a5c6278642f00ea14adb12477a4699ea478b1021b69c8dc3df2ecb",
     "mode": "development",
     "signing": "debug",
-    "verification": "aapt2 package and embedded allgo-build.json audience/appId verified"
+    "verification": "aapt2 package, embedded audience metadata, and Firebase native app ID in resources.arsc verified"
   }
 ]

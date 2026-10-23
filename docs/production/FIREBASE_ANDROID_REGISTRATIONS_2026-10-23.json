@@ -1,0 +1,24 @@
+{
+  "projectId": "promtwars222",
+  "apps": [
+    {
+      "audience": "customer",
+      "appId": "1:63483696880:android:70681b3383b0f862071435",
+      "packageName": "in.allgo.app",
+      "verified": true
+    },
+    {
+      "audience": "merchant",
+      "appId": "1:63483696880:android:0720874d9d0b3534071435",
+      "packageName": "in.allgo.merchant",
+      "verified": true
+    },
+    {
+      "audience": "driver",
+      "appId": "1:63483696880:android:1347a086ad14c9d4071435",
+      "packageName": "in.allgo.delivery",
+      "verified": true
+    }
+  ],
+  "status": "SDK configuration downloaded and package identity verified; provider/signing/device acceptance pending"
+}

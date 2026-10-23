@@ -34,6 +34,14 @@ All **162** Firebase/rules/integration tests pass, including four new cancellati
 
 Historical or manually corrupted stock was not retroactively rewritten; existing stock-event history and operator reconciliation remain authoritative. No money-policy, tax, commission or retention agreement was invented.
 
+## Verified Firebase Android identity configuration
+
+Created AllGo Merchant Android (`in.allgo.merchant`) and AllGo Delivery Android (`in.allgo.delivery`) registrations in the user's configured accessible project `promtwars222`. Reused the existing customer registration. Downloaded SDK configurations with `firebase apps:sdkconfig ANDROID <appId> --project promtwars222 --out <local-file>` and validated project ID, Firebase app ID and package name before writing ignored native config files. Exact app IDs are in `FIREBASE_ANDROID_REGISTRATIONS_2026-10-23.json`; no API keys or private credentials are in that report.
+
+Rebuilt all three APKs sequentially with those configurations. The package ID, embedded audience and the matching Firebase app ID in `resources.arsc` all verify. Latest hashes are in `ANDROID_ARTIFACTS_2026-10-23.json`; logs `.cache/production-firebase-{customer,merchant,driver}-android.log`. Firebase App Check/Auth/Messaging native plugins are included; this does not prove runtime provider success.
+
+SDK output has no Google OAuth client entries. Google provider/consent configuration, debug and release signing-certificate enrollment, phone/SMS provider acceptance, App Check and actual native login remain required. Registering Android app identities and downloading SDK configuration does not enable or verify Google sign-in. No existing authentication provider was disabled or changed.
+
 ## Remaining work and release boundaries
 
 - Separate merchant/delivery shared runtimes were synchronized and both standalone workspaces passed TypeScript and development web builds. The reproducible sync command, exact scope and backups are documented in `PARTNER_RUNTIME_SYNC.md`. Android packaging verification is recorded there.
