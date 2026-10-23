@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { 
   Bike, Car, Check, MapPin, MessageSquare, Package, ShieldCheck, Truck, 
-  Phone, Navigation, Store, Home, Banknote, Clock, Sparkles
+  Phone, Navigation, Store, Home, Banknote, Clock, Sparkles, Star, ChevronRight
 } from 'lucide-react';
 import type { Booking } from '../types';
 import BookingExceptionPanel from './BookingExceptionPanel';
@@ -12,7 +12,7 @@ import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority'
 import { getGroceryPickingProgress, getGroceryTrackingStage, GROCERY_TRACKING_STAGES } from '../design-system/groceryTracking';
 import HandoverCode from './HandoverCode';
 
-export default function OrderTrackingScreen({ booking, onChat }: { booking: Booking; onChat: () => void }) {
+export default function OrderTrackingScreen({ booking, onChat, onReview }: { booking: Booking; onChat: () => void; onReview?: () => void }) {
   const authority = bookingAuthorityCapabilities(booking);
   const [driver, setDriver] = useState<BookingTracking | null>(null);
   const [error, setError] = useState('');
@@ -381,6 +381,28 @@ export default function OrderTrackingScreen({ booking, onChat }: { booking: Book
           </div>
         )}
       </div>
+
+      {/* Rate & Review Card when complete */}
+      {complete && onReview && (
+        <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-3.5 flex items-center justify-between gap-3 text-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center shrink-0">
+              <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">How was your order?</p>
+              <p className="text-[10px] text-slate-300">Rate your partner and share your experience</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onReview}
+            className="shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-xl transition-all shadow-sm flex items-center gap-1 active:scale-95"
+          >
+            Review <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* OTP Delivery Confirmation Codes */}
       {booking.otp && !complete && !cancelled && (

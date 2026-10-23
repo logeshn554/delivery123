@@ -158,6 +158,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [currentTab, setCurrentTab] = useState<CustomerTab>('home');
   const [extraPage, setExtraPage] = useState<CustomerPage>('help');
   const [requestedReceiptId, setRequestedReceiptId] = useState('');
+  const [requestedReviewBookingId, setRequestedReviewBookingId] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { contentRef.current?.scrollTo({ top: 0, behavior: 'auto' }); }, [currentTab, extraPage]);
   const openPage = (page: CustomerPage) => { setExtraPage(page); setActiveWorkflow('none'); setCurrentTab('more'); };
@@ -839,80 +840,6 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         />
       )}
 
-      {/* REAL-TIME MESSAGING POPUP DRAWER */}
-      {activeChatBookingId && (
-        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end z-40 animate-fadeIn" role="dialog" aria-modal="true" aria-labelledby="customer-chat-title">
-          <div className="bg-white rounded-t-3xl h-[85%] flex flex-col shadow-2xl animate-slideUp">
-
-            {/* Chat header */}
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-3xl">
-              <div className="flex items-center gap-2">
-                <button type="button" aria-label="Close booking chat" onClick={() => setActiveChatBookingId(null)} className="min-h-11 min-w-11 p-1 hover:bg-slate-200 rounded-lg">
-                  <ArrowLeft className="w-5 h-5 text-slate-700" />
-                </button>
-                <div>
-                  <h3 id="customer-chat-title" className="text-xs font-black text-slate-800 uppercase tracking-wide">Booking chat</h3>
-                  <p className="text-[9px] font-mono text-slate-400">Order Ref: {activeChatBookingId}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Chat Messages Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50" role="log" aria-label="Messages for this booking" aria-live="polite" aria-relevant="additions">
-              {chatMessages.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 space-y-1">
-                  <MessageSquare className="w-8 h-8 mx-auto text-slate-300" />
-                  <p className="text-[11px] font-bold">No messages in this booking yet.</p>
-                  <p className="text-[9px] text-slate-500">Messages from you and your delivery partner appear here.</p>
-                </div>
-              ) : (
-                chatMessages.map(msg => {
-                  const isMe = msg.senderId === userId;
-                  return (
-                    <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                      <div className={`p-3 rounded-2xl text-xs max-w-[80%] shadow-sm ${
-                        isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none'
-                      }`}>
-                        <p className="font-semibold text-[9px] opacity-75 mb-0.5">{msg.senderName}</p>
-                        <p className="leading-snug">{msg.text}</p>
-                      </div>
-                      <span className="text-[8px] text-slate-400 mt-0.5 mx-1 font-mono">
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={chatBottomRef}></div>
-            </div>
-
-            {/* Chat Input Footer Form */}
-            <form onSubmit={handleSendChatMessage} className="p-3 bg-white border-t border-slate-100 flex gap-2 shrink-0">
-              <label htmlFor="customer-booking-message" className="sr-only">Message your delivery partner</label>
-              <input
-                id="customer-booking-message"
-                name="message"
-                type="text"
-                autoComplete="off"
-                placeholder="Write a message…"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                className="min-w-0 flex-1 bg-slate-50 border border-slate-200 text-base rounded-xl px-3.5 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus:bg-white"
-              />
-              <button
-                type="submit"
-                aria-label="Send booking message"
-                disabled={chatSending || !chatInput.trim()}
-                className="min-h-11 min-w-11 bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl flex items-center justify-center shrink-0 transition-colors disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-
-          </div>
-        </div>
-      )}
-
       {/* SECOND PAGE HEADER */}
       <div className="allgo-customer-header safe-area-top sticky top-0 z-10 shrink-0 border-b border-slate-100 bg-white px-4 py-3">
         <div className="flex items-center justify-between">
@@ -968,6 +895,50 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               {matchingStores.map((store) => <button type="button" key={`store:${store.id}`} onClick={() => { rememberGlobalSearch(searchQuery); setSelectedStoreId(store.id); setSelectedGroceryCategory('All'); setGrocerySearch(''); setActiveWorkflow('grocery'); setSearchQuery(''); setGlobalSearchFocused(false); }} className="block w-full px-4 py-3 text-left text-xs text-slate-700 hover:bg-slate-50"><span className="font-bold">{store.name}</span><span className="ml-2 text-slate-400">Grocery store · {store.address}</span></button>)}
             </div>}
           </div>
+        )}
+
+        {/* Swiggy-Style Quick Service Switcher Bar */}
+        {currentTab === 'home' && (
+          <nav aria-label="Service categories" className="flex items-center gap-1.5 overflow-x-auto pt-2.5 pb-0.5 scrollbar-none">
+            {[
+              { id: 'all', label: 'All', icon: House, workflow: 'none' as const },
+              { id: 'food', label: 'Food', icon: Utensils, workflow: 'food' as const },
+              { id: 'grocery', label: 'Instamart', icon: ShoppingBag, workflow: 'grocery' as const },
+              { id: 'parcel', label: 'Parcel', icon: Package, workflow: 'parcel' as const },
+              { id: 'ride', label: 'Rides', icon: Bike, workflow: 'ride' as const },
+              { id: 'takeover', label: 'Driver', icon: UserRound, workflow: 'takeover' as const },
+              { id: 'transport', label: 'Transport', icon: Truck, workflow: 'transport' as const },
+            ].map(service => {
+              const active = (service.workflow === 'none' && activeWorkflow === 'none') || (service.workflow !== 'none' && activeWorkflow === service.workflow);
+              const Icon = service.icon;
+              return (
+                <button
+                  key={service.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    if (service.workflow === 'none') {
+                      setSelectedRestaurant(null);
+                      setSelectedStoreId('');
+                      setActiveWorkflow('none');
+                    } else {
+                      if (service.workflow !== 'food') setSelectedRestaurant(null);
+                      if (service.workflow !== 'grocery') setSelectedStoreId('');
+                      setActiveWorkflow(service.workflow);
+                    }
+                  }}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    active
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/60'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 ${active ? 'text-white' : 'text-slate-500'}`} />
+                  <span>{service.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         )}
       </div>
 
@@ -1204,7 +1175,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               const items = Array.isArray(bk.details?.items) ? bk.details.items : [];
               const authority = bookingAuthorityCapabilities(bk);
               const legacy = !authority.verifiedPayment;
-              return <>{legacy ? <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" role="status"><strong>Legacy read-only history.</strong> AllGo cannot verify this order against current booking, tracking or payment records.</div> : <OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} />}{!legacy && bk.serviceType === 'grocery' && <GrocerySubstitutionReview booking={bk} />}{bk.serviceType === 'food' && !legacy && <FoodOrderReceipt booking={bk} onContactSupport={() => { setTicketBooking(bk.bookingId); setTicketSubject(`Restaurant order help · ${bk.bookingId}`); setTicketMessage(`Please help me with restaurant order ${bk.bookingId}.`); setCurrentTab('support'); }}/>}<ParcelOrderDetails booking={bk} onContactSupport={!legacy ? () => { setTicketBooking(bk.bookingId); setTicketCategory('delay'); setTicketSubject(`Parcel delivery help · ${bk.bookingId}`); setTicketMessage(`Please help me with parcel delivery ${bk.bookingId}.`); setCurrentTab('support'); } : undefined}/><TransportOrderDetails booking={bk} onContactSupport={!legacy ? () => { setTicketBooking(bk.bookingId); setTicketCategory('route_deviation'); setTicketSubject(`Vehicle transport issue · ${bk.bookingId}`); setTicketMessage(`Please help me with vehicle transport ${bk.bookingId}. Include any damage or route concerns.`); setCurrentTab('support'); } : undefined}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{legacy ? `Recorded: ${bk.status}` : bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Recorded delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{legacy ? 'Unverified historical data' : bk.paymentMethod === 'cash' ? 'Cash on Delivery (COD)' : bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className={`font-bold capitalize ${bk.paymentStatus === 'pending_cod' ? 'text-amber-700' : 'text-slate-800'}`}>{legacy ? 'Not verified by payment ledger' : bk.paymentStatus === 'pending_cod' ? 'Cash on Delivery (Pay upon arrival)' : bk.paymentStatus || 'Not recorded'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Recorded payment reference (unverified): {bk.paymentId}</p>}{!legacy && bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{!legacy && bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{!legacy && bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{!legacy && bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => setCancellationBooking(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{!legacy && bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{!legacy && bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
+              return <>{legacy ? <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" role="status"><strong>Legacy read-only history.</strong> AllGo cannot verify this order against current booking, tracking or payment records.</div> : <OrderTrackingScreen booking={bk} onChat={() => setActiveChatBookingId(bk.bookingId)} onReview={() => { setRequestedReviewBookingId(bk.bookingId); openPage('reviews'); }} />}{!legacy && bk.serviceType === 'grocery' && <GrocerySubstitutionReview booking={bk} />}{bk.serviceType === 'food' && !legacy && <FoodOrderReceipt booking={bk} onContactSupport={() => { setTicketBooking(bk.bookingId); setTicketSubject(`Restaurant order help · ${bk.bookingId}`); setTicketMessage(`Please help me with restaurant order ${bk.bookingId}.`); setCurrentTab('support'); }}/>}<ParcelOrderDetails booking={bk} onContactSupport={!legacy ? () => { setTicketBooking(bk.bookingId); setTicketCategory('delay'); setTicketSubject(`Parcel delivery help · ${bk.bookingId}`); setTicketMessage(`Please help me with parcel delivery ${bk.bookingId}.`); setCurrentTab('support'); } : undefined}/><TransportOrderDetails booking={bk} onContactSupport={!legacy ? () => { setTicketBooking(bk.bookingId); setTicketCategory('route_deviation'); setTicketSubject(`Vehicle transport issue · ${bk.bookingId}`); setTicketMessage(`Please help me with vehicle transport ${bk.bookingId}. Include any damage or route concerns.`); setCurrentTab('support'); } : undefined}/><div className="space-y-3 rounded-2xl border border-slate-100 bg-white p-4 text-xs"><div className="flex items-start justify-between"><div><span className="rounded bg-indigo-50 px-2 py-1 text-[10px] font-extrabold uppercase text-indigo-700">{bk.serviceType}</span><p className="mt-2 break-all font-mono text-[10px] text-slate-400">{bk.bookingId}</p><p className="mt-1 text-[10px] text-slate-500">Placed {new Date(bk.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold capitalize text-amber-700">{legacy ? `Recorded: ${bk.status}` : bk.status}</span></div><div className="rounded-xl bg-slate-50 p-3"><p className="font-bold text-slate-700">Pickup / collection</p><p className="mt-1 text-slate-500">{bk.pickupAddress || 'Not applicable'}</p>{bk.dropAddress && <><p className="mt-3 font-bold text-slate-700">Drop / delivery</p><p className="mt-1 text-slate-500">{bk.dropAddress}</p></>}</div>{items.length > 0 && <div><p className="mb-2 font-bold text-slate-700">Items ordered</p>{items.map((item) => <div key={`${item.id}:${item.variantId || ''}`} className="flex justify-between py-1 text-slate-600"><span>{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span><span>₹{item.price * item.quantity}</span></div>)}</div>}{bk.details?.notes && <div className="rounded-xl bg-amber-50 p-3"><p className="font-bold text-amber-900">Recorded delivery instructions</p><p className="mt-1 whitespace-pre-wrap text-amber-800">{bk.details.notes}</p></div>}<div className="flex justify-between border-t pt-3 font-black text-slate-900"><span>Order total</span><span>₹{bk.price}</span></div><div className="flex justify-between text-slate-600"><span>Payment method</span><span className="capitalize">{legacy ? 'Unverified historical data' : bk.paymentMethod === 'cash' ? 'Cash on Delivery (COD)' : bk.paymentMethod || 'Not available'}</span></div><div className="flex justify-between text-slate-600"><span>Payment status</span><span className={`font-bold capitalize ${bk.paymentStatus === 'pending_cod' ? 'text-amber-700' : 'text-slate-800'}`}>{legacy ? 'Not verified by payment ledger' : bk.paymentStatus === 'pending_cod' ? 'Cash on Delivery (Pay upon arrival)' : bk.paymentStatus || 'Not recorded'}</span></div>{bk.paymentId && <p className="break-all text-[10px] text-slate-400">Recorded payment reference (unverified): {bk.paymentId}</p>}{!legacy && bk.otp && <p className="rounded-xl bg-indigo-50 p-3 font-bold text-indigo-800">Delivery OTP <span className="float-right font-mono text-base">{bk.otp}</span><span className="mt-1 block text-[10px] font-normal">Share this only when you receive your order.</span></p>}{!legacy && bk.driverName && <p className="text-slate-600">Delivery partner: <strong>{bk.driverName}</strong></p>}{!legacy && bk.driverId && <button onClick={() => setActiveChatBookingId(bk.bookingId)} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white">Chat with delivery partner</button>}{!legacy && bk.status === 'pending' && bk.paymentStatus === 'paid' && <button onClick={() => setCancellationBooking(bk)} disabled={cancellingOrderId === bk.bookingId} className="w-full rounded-xl border border-rose-200 py-2.5 font-bold text-rose-700 disabled:opacity-50">{cancellingOrderId === bk.bookingId ? 'Requesting refund…' : 'Cancel order & refund'}</button>}{!legacy && bk.paymentStatus === 'refund_processing' && <p className="rounded-xl bg-amber-50 p-3 text-amber-800">Refund is being processed to your original payment method.</p>}{!legacy && bk.paymentStatus === 'refund_required' && <button onClick={() => { setCurrentTab('support'); setSelectedOrderId(null); setTicketSubject(`Refund help · ${bk.bookingId}`); setTicketMessage(`Please help me with the refund for payment ${bk.paymentId || bk.paymentOrderId || 'attached to my order'}.`); }} className="w-full rounded-xl bg-rose-50 py-2.5 font-bold text-rose-700">Contact support about this refund</button>}</div></>;
             })()}
 
             {!selectedOrderId && activeBookings.length === 0 ? (
@@ -1250,6 +1221,18 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                         <MessageSquare className="w-3.5 h-3.5" /> Chat with Driver
                       </button>
                     )}
+                    {bk.recordAuthority !== 'legacy_neon' && ['completed', 'delivered'].includes(bk.status) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRequestedReviewBookingId(bk.bookingId);
+                          openPage('reviews');
+                        }}
+                        className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-[10px] font-bold text-amber-800 hover:bg-amber-100 flex items-center gap-1"
+                      >
+                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" /> Rate & Review
+                      </button>
+                    )}
                     <button type="button" onClick={() => setSelectedOrderId(bk.bookingId)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-700">Track order</button>
                   </div>
                 </div>
@@ -1290,7 +1273,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
           </form>
         )}
 
-        {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} products={productsList} menuItems={menuItemsList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} onReorder={(service) => setShopAgain(service)} onReceipt={id => { setRequestedReceiptId(id); openPage('receipts'); }} initialReceiptId={requestedReceiptId} />}
+        {currentTab === 'more' && activeWorkflow === 'none' && <CustomerPages key={extraPage} page={extraPage} userId={userId} profile={userProfile} bookings={activeBookings} addresses={savedAddresses} restaurants={restaurantsList} stores={groceryStoresList} products={productsList} menuItems={menuItemsList} favorites={favoriteCatalogIds} onFavorite={toggleFavorite} onBack={() => setCurrentTab('profile')} onAddAddress={() => setShowAddressModal(true)} onSupport={() => setCurrentTab('support')} onCatalog={(service,id) => { setCurrentTab('home'); setActiveWorkflow(service); if (service === 'food') setSelectedRestaurant(restaurantsList.find(item => item.id === id) || null); else if (id) setSelectedStoreId(id); }} onOrder={id => { setSelectedOrderId(id); setCurrentTab('orders'); }} onReorder={(service) => setShopAgain(service)} onReceipt={id => { setRequestedReceiptId(id); openPage('receipts'); }} initialReceiptId={requestedReceiptId} initialReviewBookingId={requestedReviewBookingId} />}
 
         {currentTab === 'offers' && activeWorkflow === 'none' && <OffersScreen hasCart={cart.length>0} onBack={()=>setCurrentTab('home')} onApply={code=>{setCouponCode(code);setCouponError('');setCurrentTab('cart');}} onBrowse={service=>{setCurrentTab('home');setActiveWorkflow(service);}}/>}
         {currentTab === 'profile' && activeWorkflow === 'none' && <ProfileScreen profile={userProfile} name={userName} onSignOut={onSignOut} actions={[
@@ -1311,6 +1294,45 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       {successBookingId && <OrderConfirmationScreen bookingId={successBookingId} cashOnDelivery={successCashOnDelivery} onTrack={() => setSuccessBookingId(null)} onContinue={() => { setSuccessBookingId(null); setSelectedOrderId(null); setCurrentTab('home'); setActiveWorkflow('none'); }} />}
 
       {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} products={productsList} selectedStoreId={selectedStoreId} canAdd={!cart.length || (cartService === 'grocery' && cartSourceId === selectedStoreId)} onQuickAdd={handleQuickGroceryReorder} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}
+
+      {/* FLOATING LIVE ACTIVITY DOCK (Swiggy-style persistent live tracking across tabs) */}
+      {latestOpenBooking && (currentTab !== 'orders' || selectedOrderId !== latestOpenBooking.bookingId) && (
+        <aside aria-label="Current active order" className="sticky bottom-0 z-30 px-3 pb-2 pt-1 pointer-events-none">
+          <div className="pointer-events-auto bg-slate-900 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 border border-slate-800 animate-slideUp">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 animate-pulse">
+                {latestOpenBooking.serviceType === 'food' ? <Utensils className="w-4 h-4" /> :
+                 latestOpenBooking.serviceType === 'grocery' ? <ShoppingBag className="w-4 h-4" /> :
+                 latestOpenBooking.serviceType === 'parcel' ? <Package className="w-4 h-4" /> :
+                 latestOpenBooking.serviceType === 'ride' ? <Bike className="w-4 h-4" /> :
+                 <Clock className="w-4 h-4" />}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                  <p className="text-xs font-bold capitalize truncate">
+                    {latestOpenBooking.status.replace(/_/g, ' ')}
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-300 font-mono truncate">
+                  {latestOpenBooking.serviceType.toUpperCase()} · #{latestOpenBooking.bookingId.slice(-6)}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveWorkflow('none');
+                setCurrentTab('orders');
+                setSelectedOrderId(latestOpenBooking.bookingId);
+              }}
+              className="shrink-0 bg-white text-slate-900 font-bold text-xs px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-1 shadow-xs"
+            >
+              Track <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </aside>
+      )}
 
       {activeWorkflow === 'none' && !showCheckoutReview && !catalogPage && !shopAgain && !selectedOrderId && <BottomNavigation<CustomerTab>
         active={customerDestination(currentTab)}
@@ -1333,7 +1355,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         const cannedReplies = ["I'm at the gate", "Call when you arrive", "Please leave at the door", "On my way down"];
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="customer-chat-title">
             <div className="bg-white rounded-2xl w-full max-w-md h-[520px] flex flex-col shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
               {/* Chat Header */}
               <div className="p-3.5 bg-slate-900 text-white flex justify-between items-center shrink-0">
@@ -1342,7 +1364,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                     <Bike className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold text-white">{partnerName}</h3>
+                    <h3 id="customer-chat-title" className="text-xs font-bold text-white">{partnerName}</h3>
                     <p className="text-[10px] text-slate-300 font-mono">
                       Order #{activeChatBookingId.slice(-6)} · {chatBooking?.serviceType || 'Delivery'}
                     </p>
@@ -1351,14 +1373,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 <button 
                   onClick={() => setActiveChatBookingId(null)}
                   className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-                  aria-label="Close chat"
+                  aria-label="Close booking chat"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Messages Body */}
-              <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5 bg-slate-50" role="log" aria-label="Order messages">
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-2.5 bg-slate-50" role="log" aria-label="Messages for this booking" aria-live="polite" aria-relevant="additions">
                 {chatMessages.length === 0 ? (
                   <div className="text-center py-20 text-slate-400 text-xs">
                     <MessageSquare className="w-8 h-8 text-slate-300 mx-auto mb-2" />
@@ -1409,7 +1431,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
 
               {/* Chat Input Bar */}
               <form onSubmit={handleSendChatMessage} className="p-2.5 bg-white border-t border-slate-200 flex gap-2 items-center">
+                <label htmlFor="customer-booking-message" className="sr-only">Message your delivery partner</label>
                 <input
+                  id="customer-booking-message"
+                  name="message"
                   type="text"
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
@@ -1418,6 +1443,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 />
                 <button
                   type="submit"
+                  aria-label="Send booking message"
                   disabled={chatSending || !chatInput.trim()}
                   className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center shadow-sm shadow-blue-500/20 active:scale-95 transition-all"
                 >
