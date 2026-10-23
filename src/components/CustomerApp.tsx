@@ -580,6 +580,10 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       if (!cartQuote || cartQuoteBusy || cartQuoteError) return;
       price = cartQuote.amount / 100;
     } else price = Math.round(price * 100 - (appliedCoupon?.discountCents || 0)) / 100;
+    const resolvedPickup = route?.pickupAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? pickupSpot : serviceType === 'parcel' ? parcelPickup : serviceType === 'transport' ? transportOrigin : deliveryAddress);
+    const resolvedDrop = route?.dropAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? dropSpot : serviceType === 'parcel' ? parcelDrop : serviceType === 'transport' ? transportDestination : '');
+    const resolvedCustomerName = userName || 'AllGo Customer';
+
     if (paymentMethodChoice === 'cod') {
       const priceCents = Math.round(price * 100);
       if (priceCents > 200000) {
@@ -590,9 +594,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       const draft = {
         couponCode: appliedCoupon?.code,
         serviceType,
-        customerName: userName || 'AllGo Customer',
-        pickupAddress: route?.pickupAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? pickupSpot : serviceType === 'parcel' ? parcelPickup : serviceType === 'transport' ? transportOrigin : deliveryAddress),
-        dropAddress: route?.dropAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? dropSpot : serviceType === 'parcel' ? parcelDrop : serviceType === 'transport' ? transportDestination : ''),
+        customerName: resolvedCustomerName,
+        pickupAddress: resolvedPickup,
+        dropAddress: resolvedDrop,
         details: extraDetails
       };
       try {
@@ -625,7 +629,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     }
     if (useWallet) {
       setPaymentBusy(true);
-      const draft = { couponCode: appliedCoupon?.code, serviceType, customerName: userName, pickupAddress: route?.pickupAddress ?? deliveryAddress, dropAddress: route?.dropAddress ?? '', details: extraDetails };
+      const draft = {
+        couponCode: appliedCoupon?.code,
+        serviceType,
+        customerName: resolvedCustomerName,
+        pickupAddress: resolvedPickup,
+        dropAddress: resolvedDrop,
+        details: extraDetails
+      };
       const fingerprint = JSON.stringify(draft) + price;
       if (walletRequest.current.fingerprint !== fingerprint) walletRequest.current = { fingerprint, id: crypto.randomUUID() };
       try {
@@ -644,9 +655,9 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       const paymentOrder = await startOnlinePayment({
         ...(appliedCoupon ? { couponCode: appliedCoupon.code } : {}),
         serviceType,
-        customerName: userName || 'AllGo Customer',
-        pickupAddress: route?.pickupAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? pickupSpot : serviceType === 'parcel' ? parcelPickup : serviceType === 'transport' ? transportOrigin : deliveryAddress),
-        dropAddress: route?.dropAddress ?? (serviceType === 'ride' || serviceType === 'takeover' ? dropSpot : serviceType === 'parcel' ? parcelDrop : serviceType === 'transport' ? transportDestination : ''),
+        customerName: resolvedCustomerName,
+        pickupAddress: resolvedPickup,
+        dropAddress: resolvedDrop,
         details: extraDetails
       });
       createdOrderId = paymentOrder.orderId;

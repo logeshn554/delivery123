@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { getBookingProgress } from '../../src/design-system/bookingProgress.ts';
 import { getOrderHistory } from '../../src/design-system/orderHistory.ts';
 
@@ -20,4 +21,11 @@ test('order history returns only completed, delivered or cancelled records and s
   ] as never[];
   assert.deepEqual(getOrderHistory(bookings).map(item => item.bookingId), ['1', '2']);
   assert.deepEqual(getOrderHistory(bookings, 'grocery').map(item => item.bookingId), ['2']);
+});
+
+test('checkout resolves pickup and drop addresses uniformly across payment methods', () => {
+  const src = readFileSync(new URL('../../src/components/CustomerApp.tsx', import.meta.url), 'utf8');
+  assert.match(src, /resolvedPickup = route\?\.pickupAddress \?\?/);
+  assert.match(src, /resolvedDrop = route\?\.dropAddress \?\?/);
+  assert.match(src, /customerName: resolvedCustomerName/);
 });
