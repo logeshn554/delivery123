@@ -212,9 +212,12 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const handleAcceptJob = (jobId: string) => performAction(() => acceptDriverBooking(jobId));
   const handleRejectJob = (jobId: string) => performAction(() => rejectDriverBooking(jobId));
   const handleArrivedAtPickup = (jobId: string) => performAction(() => advanceDriverBooking(jobId, 'preparing'));
-  const handleVerifyOTP = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'transit', pickupCode));
+  const handleVerifyOTP = (job: Booking) => performAction(async () => {
+    await advanceDriverBooking(job.bookingId, 'transit', pickupCode.trim());
+    setPickupCode('');
+  });
   const handleCompleteJob = (job: Booking) => performAction(async () => {
-    await advanceDriverBooking(job.bookingId, 'completed', otpInput);
+    await advanceDriverBooking(job.bookingId, 'completed', otpInput.trim());
     setOtpInput('');
   });
 
@@ -561,7 +564,13 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               
               {currentAssignedJob.status === 'accepted' && (
                 <div>
-                  <p className="text-[10px] text-slate-400 mb-2">{['food', 'grocery'].includes(currentAssignedJob.serviceType) ? 'Step 1: Drive to partner location. Mark arrived upon arrival.' : 'Step 1: Ride coordinates locked. Drive to pickup spot.'}</p>
+                  <p className="text-[10px] text-slate-400 mb-2">
+                    {['food', 'grocery'].includes(currentAssignedJob.serviceType)
+                      ? 'Step 1: Drive to partner location. Mark arrived upon arrival.'
+                      : ['ride', 'takeover'].includes(currentAssignedJob.serviceType)
+                        ? 'Step 1: Ride coordinates locked. Drive to passenger pickup spot.'
+                        : 'Step 1: Parcel pickup location locked. Drive to sender pickup spot.'}
+                  </p>
                   <button 
                     disabled={actionBusy}
                     onClick={() => handleArrivedAtPickup(currentAssignedJob.bookingId)}
@@ -574,16 +583,36 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
               {(currentAssignedJob.status === 'preparing' || currentAssignedJob.status === 'ready') && (
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
-                  <p className="text-[10px] text-slate-400 mb-1.5 font-semibold">Step 2: Confirm pickup and start delivery.</p>
-                  {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && <label className="block text-xs text-slate-700">Customer pickup/start code<input name="pickupCode" autoComplete="one-time-code" spellCheck={false} value={pickupCode} onChange={event => setPickupCode(event.target.value)} maxLength={4} inputMode="numeric" className="w-full border rounded-xl p-3 my-2 text-base text-slate-900"/></label>}
+                  <p className="text-[10px] text-slate-400 mb-1.5 font-semibold">
+                    {['ride', 'takeover'].includes(currentAssignedJob.serviceType)
+                      ? 'Step 2: Verify passenger start code and begin trip.'
+                      : 'Step 2: Confirm pickup and start delivery.'}
+                  </p>
+                  {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && (
+                    <label className="block text-xs text-slate-700">
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip start code' : 'Customer pickup/start code'}
+                      <input 
+                        name="pickupCode" 
+                        autoComplete="one-time-code" 
+                        spellCheck={false} 
+                        value={pickupCode} 
+                        onChange={event => setPickupCode(event.target.value)} 
+                        maxLength={4} 
+                        inputMode="numeric" 
+                        placeholder="Enter 4-digit code…"
+                        className="w-full border rounded-xl p-3 my-2 text-base text-slate-900"
+                      />
+                    </label>
+                  )}
                   
                   <div className="flex gap-2">
                     <button 
-                      disabled={actionBusy}
+                      disabled={actionBusy || (['ride', 'takeover', 'parcel', 'transport'].includes(currentAssignedJob.serviceType) && pickupCode.trim().length !== 4)}
                       onClick={() => handleVerifyOTP(currentAssignedJob)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 rounded-lg"
+                      className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5"
                     >
-                      Start delivery
+                      <Check className="w-4 h-4" />
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Start Trip' : 'Start delivery'}
                     </button>
                   </div>
 
@@ -593,14 +622,32 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {currentAssignedJob.status === 'transit' && (
                 <div className="space-y-3">
                   <div>
-                    <p className="text-[10px] text-slate-400 mb-2">Ask the recipient for the delivery code at the destination.</p>
-                    <label className="sr-only" htmlFor="recipient-delivery-code">Recipient delivery code</label><input id="recipient-delivery-code" name="deliveryCode" autoComplete="one-time-code" spellCheck={false} value={otpInput} onChange={event => setOtpInput(event.target.value)} placeholder="Enter recipient delivery code…" inputMode="numeric" className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" />
+                    <p className="text-[10px] text-slate-400 mb-2">
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType)
+                        ? 'Ask the passenger for the 4-digit trip completion code at the destination.'
+                        : 'Ask the recipient for the delivery code at the destination.'}
+                    </p>
+                    <label className="sr-only" htmlFor="recipient-delivery-code">
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip completion code' : 'Recipient delivery code'}
+                    </label>
+                    <input 
+                      id="recipient-delivery-code" 
+                      name="deliveryCode" 
+                      autoComplete="one-time-code" 
+                      spellCheck={false} 
+                      value={otpInput} 
+                      onChange={event => setOtpInput(event.target.value)} 
+                      placeholder={['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? "Enter trip completion code…" : "Enter recipient delivery code…"} 
+                      inputMode="numeric" 
+                      className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" 
+                    />
                     <button 
                       disabled={actionBusy || otpInput.trim().length !== 4}
                       onClick={() => handleCompleteJob(currentAssignedJob)}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15"
                     >
-                      <CheckCircle2 className="w-4 h-4" /> Mark Job Completed (Payout Release)
+                      <CheckCircle2 className="w-4 h-4" /> 
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Complete Trip (Payout Release)' : 'Mark Job Completed (Payout Release)'}
                     </button>
                   </div>
                 </div>

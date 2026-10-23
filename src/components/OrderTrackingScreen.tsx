@@ -408,7 +408,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
       {booking.otp && !complete && !cancelled && (
         isParcel
           ? <HandoverCode label="Recipient delivery code" code={booking.otp} guidance="Share only after the parcel is handed to the recipient." />
-          : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Delivery confirmation code</strong><small>Share only after receiving your order from the delivery partner.</small></div><b>{booking.otp}</b></div>
+          : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>{isRide || booking.serviceType === 'takeover' ? 'Trip completion code' : 'Delivery confirmation code'}</strong><small>{isRide || booking.serviceType === 'takeover' ? 'Share with your driver upon reaching your destination.' : 'Share only after receiving your order from the delivery partner.'}</small></div><b>{booking.otp}</b></div>
       )}
 
       {booking.pickupOtp && (isParcel || ['ride', 'takeover'].includes(booking.serviceType)) && !complete && !cancelled && (

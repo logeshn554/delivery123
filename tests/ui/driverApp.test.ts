@@ -70,7 +70,8 @@ test("pickup code entry uses OTP autofill and is scoped to ride/takeover/parcel/
   assert.match(src, /autoComplete="one-time-code"/);
   assert.match(src, /inputMode="numeric"/);
   assert.match(src, /ride.*takeover.*parcel.*transport/);
-  assert.match(src, /pickupCode/);
+  assert.match(src, /pickupCode\.trim\(\)\.length !== 4/);
+  assert.match(src, /setPickupCode\(''\)/);
 });
 
 // TASK-98: Navigation / route
