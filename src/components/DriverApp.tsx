@@ -3,6 +3,7 @@ import BookingNotificationNotice from './BookingNotificationNotice';
 import { useBookingNotification } from '../app/useBookingNotification';
 import { finishedBooking } from '../app/bookingNotification';
 import TransportOrderDetails from './TransportOrderDetails';
+import TakeoverOrderDetails from './TakeoverOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight, 
@@ -552,7 +553,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Navigation</p>
-              <ParcelOrderDetails booking={currentAssignedJob}/><TransportOrderDetails booking={currentAssignedJob}/>
+              <ParcelOrderDetails booking={currentAssignedJob}/><TransportOrderDetails booking={currentAssignedJob}/><TakeoverOrderDetails booking={currentAssignedJob}/>
               <p className="mb-3 text-xs text-slate-700">{currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress || 'Address unavailable'}</p>
               <p className="mb-3 text-[10px] text-slate-400">{profile?.currentLat != null && profile.currentLng != null ? `Last GPS: ${profile.currentLat.toFixed(5)}, ${profile.currentLng.toFixed(5)}` : 'GPS location is not available.'}</p>
               {(currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress) && <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress || '' : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress || '')}`} target="_blank" rel="noreferrer" className="block rounded-lg bg-purple-600 px-3 py-2 text-center text-xs font-bold text-white">Open directions</a>}
@@ -567,9 +568,13 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                   <p className="text-[10px] text-slate-400 mb-2">
                     {['food', 'grocery'].includes(currentAssignedJob.serviceType)
                       ? 'Step 1: Drive to partner location. Mark arrived upon arrival.'
-                      : ['ride', 'takeover'].includes(currentAssignedJob.serviceType)
-                        ? 'Step 1: Ride coordinates locked. Drive to passenger pickup spot.'
-                        : 'Step 1: Parcel pickup location locked. Drive to sender pickup spot.'}
+                      : currentAssignedJob.serviceType === 'takeover'
+                        ? 'Step 1: Driver takeover assigned. Drive to customer vehicle location.'
+                        : currentAssignedJob.serviceType === 'transport'
+                          ? 'Step 1: Vehicle transport assigned. Drive carrier to pickup location.'
+                          : ['ride', 'takeover'].includes(currentAssignedJob.serviceType)
+                            ? 'Step 1: Ride coordinates locked. Drive to passenger pickup spot.'
+                            : 'Step 1: Parcel pickup location locked. Drive to sender pickup spot.'}
                   </p>
                   <button 
                     disabled={actionBusy}
@@ -584,13 +589,17 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
               {(currentAssignedJob.status === 'preparing' || currentAssignedJob.status === 'ready') && (
                 <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <p className="text-[10px] text-slate-400 mb-1.5 font-semibold">
-                    {['ride', 'takeover'].includes(currentAssignedJob.serviceType)
-                      ? 'Step 2: Verify passenger start code and begin trip.'
-                      : 'Step 2: Confirm pickup and start delivery.'}
+                    {currentAssignedJob.serviceType === 'takeover'
+                      ? 'Step 2: Inspect vehicle with customer, enter start code, and begin trip.'
+                      : currentAssignedJob.serviceType === 'transport'
+                        ? 'Step 2: Complete inspection checklist, verify start code, and secure vehicle.'
+                        : ['ride', 'takeover'].includes(currentAssignedJob.serviceType)
+                          ? 'Step 2: Verify passenger start code and begin trip.'
+                          : 'Step 2: Confirm pickup and start delivery.'}
                   </p>
                   {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && (
                     <label className="block text-xs text-slate-700">
-                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip start code' : 'Customer pickup/start code'}
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip start code' : currentAssignedJob.serviceType === 'transport' ? 'Vehicle handover start code' : 'Customer pickup/start code'}
                       <input 
                         name="pickupCode" 
                         autoComplete="one-time-code" 
@@ -623,12 +632,16 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                 <div className="space-y-3">
                   <div>
                     <p className="text-[10px] text-slate-400 mb-2">
-                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType)
-                        ? 'Ask the passenger for the 4-digit trip completion code at the destination.'
-                        : 'Ask the recipient for the delivery code at the destination.'}
+                      {currentAssignedJob.serviceType === 'takeover'
+                        ? 'Ask customer for 4-digit trip completion code upon parking and returning keys.'
+                        : currentAssignedJob.serviceType === 'transport'
+                          ? 'Inspect unloaded vehicle with recipient and request 4-digit delivery code.'
+                          : ['ride', 'takeover'].includes(currentAssignedJob.serviceType)
+                            ? 'Ask the passenger for the 4-digit trip completion code at the destination.'
+                            : 'Ask the recipient for the delivery code at the destination.'}
                     </p>
                     <label className="sr-only" htmlFor="recipient-delivery-code">
-                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip completion code' : 'Recipient delivery code'}
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip completion code' : currentAssignedJob.serviceType === 'transport' ? 'Vehicle delivery code' : 'Recipient delivery code'}
                     </label>
                     <input 
                       id="recipient-delivery-code" 
@@ -637,7 +650,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                       spellCheck={false} 
                       value={otpInput} 
                       onChange={event => setOtpInput(event.target.value)} 
-                      placeholder={['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? "Enter trip completion code…" : "Enter recipient delivery code…"} 
+                      placeholder={['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? "Enter trip completion code…" : currentAssignedJob.serviceType === 'transport' ? "Enter vehicle delivery code…" : "Enter recipient delivery code…"} 
                       inputMode="numeric" 
                       className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" 
                     />

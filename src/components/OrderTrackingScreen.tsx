@@ -66,6 +66,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
   const isFood = booking.serviceType === 'food';
   const isGrocery = booking.serviceType === 'grocery';
   const isTransport = booking.serviceType === 'transport';
+  const isTakeover = booking.serviceType === 'takeover';
   const stage = complete ? 3 : booking.status === 'transit' ? 2 : ['accepted', 'preparing', 'ready'].includes(booking.status) ? 1 : 0;
   const foodStage = complete ? 4 : booking.status === 'transit' ? 3 : ['preparing', 'ready'].includes(booking.status) ? 2 : booking.status === 'accepted' ? 1 : 0;
   const groceryStage = getGroceryTrackingStage(booking.status);
@@ -74,14 +75,29 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
   
   const vehicleType = String(booking.details?.vehicleType || '');
   const vehicleLabel = vehicleType === 'bike' ? 'Bike' : vehicleType === 'auto' ? 'Auto' : vehicleType === 'car' ? 'Car' : '';
-  const PartnerVehicleIcon = isTransport || vehicleType === 'auto' ? Truck : vehicleType === 'bike' ? Bike : vehicleType === 'car' ? Car : booking.serviceType === 'parcel' ? Package : Bike;
+  const PartnerVehicleIcon = isTransport ? Truck : isTakeover ? Car : vehicleType === 'auto' ? Truck : vehicleType === 'bike' ? Bike : vehicleType === 'car' ? Car : booking.serviceType === 'parcel' ? Package : Bike;
   
   const parcelTracking = isParcel ? getParcelTrackingPresentation(booking.status) : null;
-  const trackingStages = isRide ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] : isParcel ? parcelTracking!.steps : isFood ? ['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'] : isGrocery ? GROCERY_TRACKING_STAGES : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
+  const trackingStages = isRide 
+    ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] 
+    : isTakeover
+      ? ['Driver requested', 'Driver assigned', 'Driving your vehicle', 'Trip completed']
+      : isTransport
+        ? ['Carrier requested', 'Carrier assigned', 'In transit on carrier', 'Vehicle delivered']
+        : isParcel 
+          ? parcelTracking!.steps 
+          : isFood ? ['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'] 
+          : isGrocery 
+            ? GROCERY_TRACKING_STAGES 
+            : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
   const foodStatusTitle = cancelled ? 'Food order cancelled' : complete ? 'Your order has arrived' : booking.status === 'transit' ? 'Your order is out for delivery' : booking.status === 'ready' ? 'Your order is ready for pickup' : booking.status === 'preparing' ? 'The restaurant is preparing your order' : booking.status === 'accepted' ? 'The restaurant confirmed your order' : 'Your order was placed';
   const groceryStatusTitle = cancelled ? 'Grocery order cancelled' : complete ? 'Your groceries have arrived' : booking.status === 'transit' ? 'Your groceries are on the way' : booking.status === 'ready' ? 'Your groceries are ready for pickup' : booking.status === 'preparing' ? 'The store is picking your items' : booking.status === 'accepted' ? 'The store confirmed your order' : 'Your grocery order was placed';
+  const takeoverStatusTitle = cancelled ? 'Driver hire cancelled' : complete ? 'Trip complete · Vehicle returned' : stage === 2 ? 'Driver is operating your vehicle' : booking.status === 'preparing' ? 'Driver arrived at your vehicle' : stage === 1 ? 'Personal driver assigned' : 'Finding a professional driver';
+  const transportStatusTitle = cancelled ? 'Vehicle transport cancelled' : complete ? 'Vehicle delivered safely' : stage === 2 ? 'Vehicle in transit on carrier' : booking.status === 'preparing' ? 'Carrier arrived for loading' : stage === 1 ? 'Carrier truck assigned' : 'Assigning an authorized carrier';
   const serviceStatusTitle = isRide 
     ? (cancelled ? 'Ride cancelled' : complete ? 'Ride complete' : stage === 2 ? 'Your ride is in progress' : booking.status === 'preparing' ? 'Driver arrived at pickup' : stage === 1 ? 'Your driver has accepted' : 'Finding a driver') 
+    : isTakeover ? takeoverStatusTitle
+    : isTransport ? transportStatusTitle
     : isParcel ? parcelTracking!.title 
     : isFood ? foodStatusTitle
     : isGrocery ? groceryStatusTitle
@@ -217,9 +233,40 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
 
       {isTransport && (
         <article className="parcel-tracking-summary transport-tracking-summary">
-          <div className="parcel-track-package"><span><Truck size={21}/></span><div><small>VEHICLE BEING TRANSPORTED</small><strong>{booking.details?.transportMakeModel || 'Make and model unavailable'} · {booking.details?.transportRegNo || 'Registration unavailable'}</strong><p>{booking.details?.transportVehicleType || 'Vehicle type unavailable'} · {Number.isFinite(booking.details?.vehicleWeightKg) ? `${booking.details?.vehicleWeightKg} kg` : 'Weight unavailable'}</p></div></div>
+          <div className="parcel-track-package"><span><Truck size={21}/></span><div><small>VEHICLE BEING TRANSPORTED</small><strong>{booking.details?.transportMakeModel || 'Make and model unavailable'} · {booking.details?.transportRegNo || 'Registration unavailable'}</strong><p>{booking.details?.transportVehicleType === 'car' ? 'Car' : 'Motorbike'} · {Number.isFinite(booking.details?.vehicleWeightKg) ? `${booking.details?.vehicleWeightKg} kg` : 'Weight unavailable'}</p></div></div>
           <div className="parcel-track-addresses"><div><small>COLLECTION</small><p>{booking.pickupAddress || 'Pickup address unavailable'}</p></div><span aria-hidden="true"/><div><small>DELIVERY</small><p>{booking.dropAddress || 'Delivery address unavailable'}</p></div></div>
           <p className="transport-terms-note">The carrier’s vehicle details and photo are not available in this tracking view.</p>
+        </article>
+      )}
+
+      {isTakeover && (
+        <article className="parcel-tracking-summary takeover-tracking-summary">
+          <div className="parcel-track-package">
+            <span><Car size={21}/></span>
+            <div>
+              <small>VEHICLE FOR DRIVER HIRE</small>
+              <strong>{booking.details?.takeoverVehicleModel || 'Vehicle model unavailable'} · {booking.details?.takeoverVehicleNo || 'Registration unavailable'}</strong>
+              <p>
+                {booking.details?.takeoverTransmission === 'automatic' ? 'Automatic' : 'Manual'} Transmission · {booking.details?.takeoverOption === 'fullday' ? 'Full Day (8 hrs)' : booking.details?.takeoverOption === 'halfday' ? 'Half Day (4 hrs)' : 'Hourly Hire'}
+              </p>
+            </div>
+            <strong>{Number.isFinite(booking.price) ? `₹${booking.price.toLocaleString('en-IN')}` : 'Fare unavailable'}</strong>
+          </div>
+          <div className="parcel-track-addresses">
+            <div>
+              <small>PICKUP POINT</small>
+              <p>{booking.pickupAddress || 'Pickup address unavailable'}</p>
+            </div>
+            {booking.dropAddress && (
+              <>
+                <span aria-hidden="true"/>
+                <div>
+                  <small>DESTINATION</small>
+                  <p>{booking.dropAddress}</p>
+                </div>
+              </>
+            )}
+          </div>
         </article>
       )}
 
@@ -240,7 +287,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
         {coordinates ? (
           <div className="relative w-full h-[280px]">
             <iframe 
-              title={isRide ? 'Ride driver reported location' : isTransport ? 'Carrier reported location' : 'Delivery partner reported location'}
+              title={isRide ? 'Ride driver reported location' : isTakeover ? 'Personal driver reported location' : isTransport ? 'Carrier reported location' : 'Delivery partner reported location'}
               src={`https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${lat},${lng}`} 
               loading="lazy" 
               referrerPolicy="no-referrer" 
@@ -256,7 +303,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                 </span>
                 <div>
                   <p className="text-[11px] font-bold text-white flex items-center gap-1">
-                    <span>{stage === 2 ? (isRide ? 'Ride in progress' : 'On the way') : isRide ? (booking.status === 'preparing' ? 'Driver arrived at pickup' : 'Driver heading to pickup') : isParcel ? (booking.status === 'preparing' ? 'Partner arrived at pickup' : 'Partner heading to pickup') : isTransport ? 'Carrier heading to pickup' : 'Driver heading to store'}</span>
+                    <span>{stage === 2 ? (isRide ? 'Ride in progress' : isTakeover ? 'Driving your vehicle' : isTransport ? 'Carrier in transit' : 'On the way') : isRide ? (booking.status === 'preparing' ? 'Driver arrived at pickup' : 'Driver heading to pickup') : isTakeover ? (booking.status === 'preparing' ? 'Driver arrived at vehicle' : 'Driver heading to vehicle') : isParcel ? (booking.status === 'preparing' ? 'Partner arrived at pickup' : 'Partner heading to pickup') : isTransport ? (booking.status === 'preparing' ? 'Carrier arrived for loading' : 'Carrier heading to pickup') : 'Driver heading to store'}</span>
                     {freshRoute && route && (
                       <span className="text-emerald-400 font-extrabold font-mono">
                         · ~{route.estimatedMinutes} mins
@@ -295,9 +342,9 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
                       stage >= 1 ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'
                     }`}>
-                      {isRide || isParcel || isTransport ? <MapPin className="w-4 h-4" /> : <Store className="w-4 h-4" />}
+                      {isRide || isParcel || isTransport || isTakeover ? <MapPin className="w-4 h-4" /> : <Store className="w-4 h-4" />}
                     </div>
-                    <span className="text-[9px] font-bold text-slate-400">{isRide || isParcel || isTransport ? 'Pickup' : 'Store'}</span>
+                    <span className="text-[9px] font-bold text-slate-400">{isRide || isParcel || isTransport || isTakeover ? 'Pickup' : 'Store'}</span>
                   </div>
 
                   {/* Node 2: Rider / Partner */}
@@ -307,7 +354,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                     }`}>
                       <PartnerVehicleIcon className="w-4 h-4 animate-bounce" />
                     </div>
-                    <span className="text-[9px] font-bold text-slate-400">Partner</span>
+                    <span className="text-[9px] font-bold text-slate-400">{isTakeover ? 'Driver' : isTransport ? 'Carrier' : isRide ? 'Driver' : 'Partner'}</span>
                   </div>
 
                   {/* Node 3: Customer / Destination */}
@@ -317,7 +364,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                     }`}>
                       <Home className="w-4 h-4" />
                     </div>
-                    <span className="text-[9px] font-bold text-slate-400">{isRide || isTransport ? 'Destination' : 'Delivery'}</span>
+                    <span className="text-[9px] font-bold text-slate-400">{isRide || isTransport || isTakeover ? 'Destination' : 'Delivery'}</span>
                   </div>
                 </div>
               </div>
@@ -328,7 +375,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
             </div>
 
             <strong className="text-white text-xs font-bold">
-              {complete ? 'Journey complete' : cancelled ? 'Tracking has ended' : isRide ? 'Driver location will appear here' : isTransport ? 'Carrier GPS will appear here when a fresh position is available' : 'Live GPS route will appear upon partner transit'}
+              {complete ? 'Journey complete' : cancelled ? 'Tracking has ended' : isRide || isTakeover ? 'Driver location will appear here' : isTransport ? 'Carrier GPS will appear here when a fresh position is available' : 'Live GPS route will appear upon partner transit'}
             </strong>
 
             <p className="text-[11px] text-slate-400 mt-1 max-w-xs leading-relaxed">
@@ -336,13 +383,15 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
                 ? (stage === 1 
                     ? (isRide 
                         ? (booking.status === 'preparing' ? 'Driver has arrived at your pickup location.' : 'Driver is heading to your pickup location.') 
-                        : isParcel 
-                          ? (booking.status === 'preparing' ? 'Partner has arrived at sender pickup location.' : 'Partner is heading to sender pickup location.') 
-                          : isTransport 
-                            ? 'Carrier is heading to vehicle collection location.' 
-                            : 'Partner is picking up your order from the store.') 
+                        : isTakeover
+                          ? (booking.status === 'preparing' ? 'Driver has arrived at your vehicle.' : 'Driver is heading to your vehicle.')
+                          : isParcel 
+                            ? (booking.status === 'preparing' ? 'Partner has arrived at sender pickup location.' : 'Partner is heading to sender pickup location.') 
+                            : isTransport 
+                              ? (booking.status === 'preparing' ? 'Carrier has arrived for vehicle loading.' : 'Carrier is heading to vehicle collection location.') 
+                              : 'Partner is picking up your order from the store.') 
                     : 'Waiting for partner GPS coordinates...') 
-                : (isRide ? 'A nearby driver is being matched to your ride.' : 'A nearby delivery partner is being matched to your order.'))
+                : (isRide ? 'A nearby driver is being matched to your ride.' : isTakeover ? 'A certified driver is being matched.' : isTransport ? 'An authorized carrier truck is being assigned.' : 'A nearby delivery partner is being matched to your order.'))
               }
             </p>
           </div>
@@ -383,13 +432,13 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
         <span className="partner-avatar"><PartnerVehicleIcon size={24} /></span>
         <div>
           <strong>{booking.driverName || (isRide ? 'Your driver' : isTransport ? 'Your carrier' : 'Your delivery partner')}</strong>
-          <small>{booking.driverId ? isTransport ? 'Carrier assigned' : `${vehicleLabel ? `${vehicleLabel} · ` : ''}Assigned partner` : 'Finding your partner'}</small>
+          <small>{booking.driverId ? (isTransport ? 'Carrier assigned' : isTakeover ? 'Personal driver assigned' : `${vehicleLabel ? `${vehicleLabel} · ` : ''}Assigned partner`) : 'Finding your partner'}</small>
         </div>
 
         {booking.driverId && !complete && !cancelled && (
           <div className="flex items-center gap-1.5 ml-auto">
             <button 
-              aria-label={isRide ? 'Chat with driver' : isTransport ? 'Chat with carrier' : 'Chat with partner'}
+              aria-label={isRide || isTakeover ? 'Chat with driver' : isTransport ? 'Chat with carrier' : 'Chat with partner'}
               onClick={onChat}
               className="p-2.5 rounded-xl bg-blue-600/15 text-blue-400 hover:bg-blue-600/25 border border-blue-500/30 transition-colors"
               title="Chat with partner"
@@ -426,13 +475,17 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
       {booking.otp && !complete && !cancelled && (
         isParcel
           ? <HandoverCode label="Recipient delivery code" code={booking.otp} guidance="Share only after the parcel is handed to the recipient." />
-          : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>{isRide || booking.serviceType === 'takeover' ? 'Trip completion code' : 'Delivery confirmation code'}</strong><small>{isRide || booking.serviceType === 'takeover' ? 'Share with your driver upon reaching your destination.' : 'Share only after receiving your order from the delivery partner.'}</small></div><b>{booking.otp}</b></div>
+          : isTransport
+            ? <HandoverCode label="Vehicle delivery code" code={booking.otp} guidance="Share only after vehicle inspection and unloading at destination." />
+            : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>{isRide || isTakeover ? 'Trip completion code' : 'Delivery confirmation code'}</strong><small>{isRide || isTakeover ? 'Share with your driver upon reaching your destination.' : 'Share only after receiving your order from the delivery partner.'}</small></div><b>{booking.otp}</b></div>
       )}
 
-      {booking.pickupOtp && (isParcel || ['ride', 'takeover'].includes(booking.serviceType)) && !complete && !cancelled && (
+      {booking.pickupOtp && (isParcel || ['ride', 'takeover'].includes(booking.serviceType) || isTransport) && !complete && !cancelled && (
         isParcel
           ? <HandoverCode label="Sender pickup code" code={booking.pickupOtp} guidance="Share only after the assigned partner checks and takes custody of the parcel." />
-          : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Trip start code</strong><small>Share at pickup after checking the assigned partner and vehicle.</small></div><b>{booking.pickupOtp}</b></div>
+          : isTransport
+            ? <HandoverCode label="Vehicle handover start code" code={booking.pickupOtp} guidance="Share with carrier driver after joint pre-loading inspection." />
+            : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Trip start code</strong><small>Share at pickup after checking the assigned partner and vehicle.</small></div><b>{booking.pickupOtp}</b></div>
       )}
     </section>
   );
