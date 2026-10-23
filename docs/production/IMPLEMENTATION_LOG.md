@@ -1,5 +1,12 @@
 # Implementation log
 
+2026-10-23 — Customer Service Switcher, Live Order Activity Dock, Ratings & Reviews, and Chat Deduplication (`6626c90`):
+1. Quick Service Switcher Bar: Added a Swiggy-style horizontal service switcher bar in `CustomerApp.tsx` under the customer header, providing 1-tap navigation between all 6 core services (`Food`, `Instamart`, `Parcel`, `Rides`, `Driver Hire`, `Transport`) directly from the home tab and active workflows.
+2. Persistent Floating Live Order Activity Dock: Implemented an active order tracking dock anchored above the bottom navigation bar across all tabs and workflows when `latestOpenBooking` exists. Customers can monitor progress and tap "Track" from any screen.
+3. End-to-End Rate & Review Integration: Added `onReview` prop to `OrderTrackingScreen` with a prominent completion CTA; wired direct "Rate & Review" buttons on delivered/completed order cards; and extended `CustomerPages` with `initialReviewBookingId` so completed bookings are preselected in the rating form.
+4. Customer Chat Drawer Deduplication: Removed redundant legacy chat drawer overlay in `CustomerApp.tsx`, preserving the modern modal with quick canned replies and complete accessibility attributes (`role="dialog"`, `aria-modal="true"`, `aria-labelledby="customer-chat-title"`, `role="log"`, `aria-live="polite"`).
+5. Verification: All checks pass cleanly with 0 regressions: `npm run lint` (0 errors), `npm test` (116/116 unit/UI/server tests passed, 729 snapshots inspected), and `npm run test:rules` (147/147 Firestore emulator rules passed).
+
 2026-10-21 — Firestore booking read rule optimization:
 1. Eliminated redundant document read on single-document `getDoc` calls for `bookings/{bookingId}` in `firestore.rules`. Previously, `allow get: if canAccessBooking(bookingId);` performed an external `get(/databases/$(database)/documents/bookings/$(bookingId))` on the exact document already loaded as `resource.data`.
 2. Extracted helper `canAccessBookingData(booking)` and updated `match /bookings/{bookingId}` to evaluate `allow get, list: if canAccessBookingData(resource.data);`. Subcollections (`events`, `chats`) continue using `canAccessBooking(bookingId)` to read the parent booking.
