@@ -27,3 +27,23 @@ export function getGroceryPickingProgress(booking: Pick<Booking, 'details' | 'pi
   }).length;
   return { packed, total: items.length };
 }
+
+export function isGroceryOrderFullyPicked(booking: Pick<Booking, 'details' | 'picking'>): boolean {
+  const items = booking.details?.items;
+  if (!Array.isArray(items) || items.length === 0) return false;
+  return items.every((item, index) => {
+    const key = String(index);
+    if (booking.picking?.substitutions?.[key]?.status === 'pending') return false;
+    const line = booking.picking?.lines?.[key];
+    if (item?.removed === true) return line?.itemId === item.id && line?.quantity === 0;
+    return Boolean(
+      item &&
+      typeof item.id === 'string' &&
+      item.id.trim().length > 0 &&
+      Number.isSafeInteger(item.quantity) &&
+      item.quantity > 0 &&
+      line?.itemId === item.id &&
+      line?.quantity === item.quantity
+    );
+  });
+}

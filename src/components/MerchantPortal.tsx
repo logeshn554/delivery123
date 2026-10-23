@@ -38,6 +38,7 @@ import MerchantPreparationEditor from './MerchantPreparationEditor';
 import BookingExceptionPanel from './BookingExceptionPanel';
 import MerchantRejection from './MerchantRejection';
 import GroceryPickingEditor from './GroceryPickingEditor';
+import { isGroceryOrderFullyPicked } from '../design-system/groceryTracking';
 import { 
   advanceMerchantBooking,
   listenToMenuItems, 
@@ -245,8 +246,14 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                     <div className="space-y-1.5 text-xs text-slate-300">
                       {ord.details?.items?.map((it: any, idx: number) => (
                         <div key={idx} className="flex justify-between">
-                          <span>{it.name}{it.variantName && <span className="text-slate-400"> · {it.variantName}</span>} <span className="text-slate-400">× {it.quantity}</span></span>
-                          <span>₹{it.price * it.quantity}</span>
+                          <span>
+                            {it.removed ? (
+                              <span className="text-rose-400 line-through">{it.name} (Removed)</span>
+                            ) : (
+                              <span>{it.name}{it.variantName && <span className="text-slate-400"> · {it.variantName}</span>} <span className="text-slate-400">× {it.quantity}</span></span>
+                            )}
+                          </span>
+                          <span>{it.removed ? '₹0' : `₹${it.price * it.quantity}`}</span>
                         </div>
                       ))}
                     </div>
@@ -265,13 +272,22 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                       )}
 
                       {ord.status === 'preparing' && !ord.driverId && (
-                        <button 
-                          disabled={Boolean(busy) || ord.exception?.status === 'open' || ord.serviceType === 'grocery' && !ord.details?.items?.every((item, index) => ord.picking?.lines[String(index)]?.itemId === item.id && ord.picking.lines[String(index)].quantity === item.quantity)}
-                          onClick={() => handleMarkOrderReady(ord.bookingId)}
-                          className="merchant-order-action w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-2 rounded-lg"
-                        >
-                          Mark Ready for Delivery Pickup
-                        </button>
+                        <div className="space-y-1">
+                          <button 
+                            disabled={Boolean(busy) || ord.exception?.status === 'open' || (ord.serviceType === 'grocery' && !isGroceryOrderFullyPicked(ord))}
+                            onClick={() => handleMarkOrderReady(ord.bookingId)}
+                            className="merchant-order-action w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-sm py-2 rounded-lg"
+                          >
+                            Mark Ready for Delivery Pickup
+                          </button>
+                          {ord.serviceType === 'grocery' && !isGroceryOrderFullyPicked(ord) && (
+                            <p className="text-[10px] text-amber-400 font-medium text-center">
+                              {Object.values(ord.picking?.substitutions || {}).some(s => s.status === 'pending')
+                                ? 'Waiting for customer decision on pending substitution.'
+                                : 'Confirm all packed items in the packing editor before marking ready.'}
+                            </p>
+                          )}
+                        </div>
                       )}
 
                       {ord.status === 'ready' && !ord.driverId && (

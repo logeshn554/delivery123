@@ -109,7 +109,17 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
           <strong>Store packing update</strong>
           {(() => {
             const progress = getGroceryPickingProgress(booking);
-            return <p>{progress.total ? `${progress.packed} of ${progress.total} order lines fully packed.` : 'Packing details have not been shared yet.'}</p>;
+            const hasPendingSub = Object.values(booking.picking?.substitutions || {}).some(s => s.status === 'pending');
+            return (
+              <>
+                <p>{progress.total ? `${progress.packed} of ${progress.total} order lines fully packed.` : 'Packing details have not been shared yet.'}</p>
+                {hasPendingSub && (
+                  <p className="text-amber-300 font-bold mt-1">
+                    An item replacement requires your review below.
+                  </p>
+                )}
+              </>
+            );
           })()}
           <small>Picker notes are not available for this order.</small>
         </aside>
