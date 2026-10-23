@@ -1,0 +1,32 @@
+[
+  {
+    "audience": "customer",
+    "appId": "in.allgo.app",
+    "path": ".cache/apps/customer/app-debug.apk",
+    "bytes": 10793630,
+    "sha256": "754459ad6b31d61b490f41c521d1b673c0a511d95b1eac896e57f6e43bf35b4a",
+    "mode": "development",
+    "signing": "debug",
+    "verification": "aapt2 package and embedded allgo-build.json audience/appId verified"
+  },
+  {
+    "audience": "merchant",
+    "appId": "in.allgo.merchant",
+    "path": ".cache/apps/merchant/app-debug.apk",
+    "bytes": 10793698,
+    "sha256": "5a0a36702fca66c38a0cae261e900a94a56989d3dc414fd2bba4db8210c00102",
+    "mode": "development",
+    "signing": "debug",
+    "verification": "aapt2 package and embedded allgo-build.json audience/appId verified"
+  },
+  {
+    "audience": "driver",
+    "appId": "in.allgo.delivery",
+    "path": ".cache/apps/driver/app-debug.apk",
+    "bytes": 10793794,
+    "sha256": "4b9b5560e89f63c4bed972317fcd5e8ab25be9ec9e98d7cdef2e162a9de01016",
+    "mode": "development",
+    "signing": "debug",
+    "verification": "aapt2 package and embedded allgo-build.json audience/appId verified"
+  }
+]
