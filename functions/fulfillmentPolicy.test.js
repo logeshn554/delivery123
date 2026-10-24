@@ -6,9 +6,9 @@ test('service transitions enforce pickup, trip start, destination arrival and co
     assert.throws(() => driverTransition(service, 'accepted', 'transit'));
     assert.throws(() => driverTransition(service, 'preparing', 'completed'));
     assert.equal(driverTransition(service, 'preparing', 'transit').requiresPickupCode, !['food', 'grocery'].includes(service));
-    if (service === 'ride') {
+    if (['ride', 'transport'].includes(service)) {
       assert.equal(driverTransition(service, 'transit', 'arrived_at_destination').stage, 'arrived_at_destination');
-      assert.equal(driverTransition(service, 'arrived_at_destination', 'completed').stage, 'trip_completed');
+      assert.equal(driverTransition(service, 'arrived_at_destination', 'completed').stage, service === 'ride' ? 'trip_completed' : 'delivery_confirmed');
       assert.throws(() => driverTransition(service, 'transit', 'completed'));
     } else {
       assert.equal(driverTransition(service, 'transit', 'completed').requiresPickupCode, false);

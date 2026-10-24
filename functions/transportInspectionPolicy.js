@@ -17,4 +17,9 @@ function requireTransportInspection(stage, inspection) {
   if ((inspection?.inspectionStage || inspection?.stage) !== stage || inspection?.status !== 'recorded' || !inspection?.checklist || !stages[stage]?.every(key => inspection.checklist[key] === true)) throw new Error(`Record the ${stage} vehicle inspection before continuing.`);
 }
 
-module.exports = { stages, validateTransportInspection, validateInspectionPhotos, requireTransportInspection };
+function requireTransportInspectionStage(stage, currentStatus) {
+  const expectedStatus = stage === 'pickup' ? 'preparing' : stage === 'delivery' ? 'arrived_at_destination' : null;
+  if (!expectedStatus || currentStatus !== expectedStatus) throw new Error('The booking is not at this vehicle inspection stage.');
+}
+
+module.exports = { stages, validateTransportInspection, validateInspectionPhotos, requireTransportInspection, requireTransportInspectionStage };

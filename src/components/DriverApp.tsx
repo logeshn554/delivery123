@@ -694,16 +694,16 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                 </div>
               )}
 
-              {currentAssignedJob.status === 'transit' && currentAssignedJob.serviceType === 'ride' && (
+              {currentAssignedJob.status === 'transit' && ['ride', 'transport'].includes(currentAssignedJob.serviceType) && (
                 <div className="space-y-3">
-                  <p className="text-xs text-slate-500">Confirm arrival when you reach the passenger's destination. GPS must be recent and within 300 metres.</p>
-                  <button type="button" disabled={actionBusy} onClick={() => handleArrivedAtDestination(currentAssignedJob)} className="w-full rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white disabled:opacity-50">Confirm arrival at destination</button>
+                  <p className="text-xs text-slate-500">{currentAssignedJob.serviceType === 'ride' ? "Confirm arrival when you reach the passenger's destination." : 'Confirm carrier arrival before recording the destination vehicle inspection.'} GPS must be recent and within 300 metres.</p>
+                  <button type="button" disabled={actionBusy} onClick={() => handleArrivedAtDestination(currentAssignedJob)} className="w-full rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white disabled:opacity-50">{currentAssignedJob.serviceType === 'ride' ? 'Confirm arrival at destination' : 'Confirm carrier arrival'}</button>
                 </div>
               )}
-              {currentAssignedJob.status === 'arrived_at_destination' && currentAssignedJob.serviceType === 'ride' && (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm font-semibold text-indigo-900">You are at the destination. Ask the passenger for the completion code.</div>
+              {currentAssignedJob.status === 'arrived_at_destination' && ['ride', 'transport'].includes(currentAssignedJob.serviceType) && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm font-semibold text-indigo-900">{currentAssignedJob.serviceType === 'ride' ? 'You are at the destination. Ask the passenger for the completion code.' : 'Carrier arrival recorded. Complete the joint vehicle condition inspection and customer handover.'}</div>
               )}
-              {(currentAssignedJob.status === 'transit' && currentAssignedJob.serviceType !== 'ride' || currentAssignedJob.status === 'arrived_at_destination' && currentAssignedJob.serviceType === 'ride') && (
+              {(currentAssignedJob.status === 'transit' && !['ride', 'transport'].includes(currentAssignedJob.serviceType) || currentAssignedJob.status === 'arrived_at_destination' && ['ride', 'transport'].includes(currentAssignedJob.serviceType)) && (
                 <div className="space-y-3">
                   <div>
                     <p className="text-[10px] text-slate-400 mb-2">

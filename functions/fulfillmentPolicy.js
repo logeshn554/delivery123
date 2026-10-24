@@ -20,8 +20,8 @@ function driverTransition(service, current, next) {
   const allowed = {
     preparing: ['accepted'],
     transit: ['preparing'],
-    arrived_at_destination: service === 'ride' ? ['transit'] : [],
-    completed: service === 'ride' ? ['arrived_at_destination'] : ['transit'],
+    arrived_at_destination: ['ride', 'transport'].includes(service) ? ['transit'] : [],
+    completed: ['ride', 'transport'].includes(service) ? ['arrived_at_destination'] : ['transit'],
   };
   if (!allowed[next]?.includes(current)) throw new HttpsError('failed-precondition', 'The order has changed. Refresh before continuing.');
   const stage = next === 'preparing' ? 'arrived_at_pickup'

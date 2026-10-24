@@ -1044,7 +1044,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
     if (data.status === next) return { status: next };
     if (next === 'preparing' && data.serviceType === 'ride' && pickupEligibility(driver.data(), data, Date.now(), 0.3) === null) throw new HttpsError('failed-precondition', 'Move within 300 metres of the pickup and wait for a fresh, accurate location before marking arrival.');
-    if (next === 'arrived_at_destination' && data.serviceType === 'ride' && destinationEligibility(driver.data(), data, Date.now(), 0.3) === null) throw new HttpsError('failed-precondition', 'Move within 300 metres of the destination and wait for a fresh, accurate location before marking arrival.');
+    if (next === 'arrived_at_destination' && ['ride', 'transport'].includes(data.serviceType) && destinationEligibility(driver.data(), data, Date.now(), 0.3) === null) throw new HttpsError('failed-precondition', 'Move within 300 metres of the destination and wait for a fresh, accurate location before marking arrival.');
     if (data.serviceType === 'transport' && ['transit', 'completed'].includes(next)) {
       try { requireTransportInspection(next === 'transit' ? 'pickup' : 'delivery', (next === 'transit' ? pickupInspection : deliveryInspection).data()); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }

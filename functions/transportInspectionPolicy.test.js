@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { validateTransportInspection, validateInspectionPhotos, requireTransportInspection } = require('./transportInspectionPolicy');
+const { validateTransportInspection, validateInspectionPhotos, requireTransportInspection, requireTransportInspectionStage } = require('./transportInspectionPolicy');
 const clean = value => { if (typeof value !== 'string') throw new Error('Notes required'); return value.trim().slice(0, 500); };
 
 test('pickup inspection requires each custody and loading check plus condition notes', () => {
@@ -23,6 +23,14 @@ test('pickup and delivery transitions require their own recorded inspection', ()
   assert.doesNotThrow(() => requireTransportInspection('delivery', delivery));
   assert.throws(() => requireTransportInspection('delivery', pickup));
   assert.throws(() => requireTransportInspection('pickup', { ...pickup, status: 'pending' }));
+});
+
+test('vehicle inspections are only recordable at their authoritative lifecycle stage', () => {
+  assert.doesNotThrow(() => requireTransportInspectionStage('pickup', 'preparing'));
+  assert.doesNotThrow(() => requireTransportInspectionStage('delivery', 'arrived_at_destination'));
+  assert.throws(() => requireTransportInspectionStage('delivery', 'transit'));
+  assert.throws(() => requireTransportInspectionStage('pickup', 'arrived_at_destination'));
+  assert.throws(() => requireTransportInspectionStage('other', 'transit'));
 });
 
 test('inspection photos require one or two bounded images matching their declared format', () => {

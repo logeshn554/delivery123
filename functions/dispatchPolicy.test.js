@@ -14,7 +14,7 @@ test('pickup eligibility rejects missing, stale, inaccurate, future and distant 
   assert.equal(pickupEligibility(driver, { details: { pickupLocation: { lat: 13.084, lng: 80.27 } } }, now, 0.3), null);
   assert.equal(pickupEligibility(driver, {}, now), null);
 });
-test('ride destination arrival requires a fresh accurate driver position within 300 metres', () => {
+test('ride and transport destination arrival requires a fresh accurate driver position within 300 metres', () => {
   const now = Date.now();
   const driver = { currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: new Date(now).toISOString(), locationAccuracyMeters: 10 };
   const booking = { details: { dropLocation: { lat: 13.081, lng: 80.271 } } };

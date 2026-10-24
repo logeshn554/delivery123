@@ -1,4 +1,4 @@
-const { validateTransportInspection, validateInspectionPhotos } = require('./transportInspectionPolicy');
+const { validateTransportInspection, validateInspectionPhotos, requireTransportInspectionStage } = require('./transportInspectionPolicy');
 
 function transportInspectionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }) {
   return {
@@ -15,8 +15,8 @@ function transportInspectionFunctions({ onCall, db, REGION, HttpsError, document
           [booking, account, driver, existing] = await Promise.all([tx.get(bookingRef), tx.get(db.doc(`users/${uid}`)), tx.get(db.doc(`driver_profiles/${uid}`)), tx.get(inspectionRef)]), value = booking.data();
         if (!value || value.serviceType !== 'transport' || value.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.disabled === true || account.data()?.suspended === true || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'Only the verified assigned carrier can record this inspection.');
         if (value.exception?.status === 'open' || !['paid', 'pending_cod'].includes(value.paymentStatus)) throw new HttpsError('failed-precondition', 'Resolve the booking issue or payment review before recording a vehicle inspection.');
-        const expectedStatus = stage === 'pickup' ? 'preparing' : stage === 'delivery' ? 'transit' : null;
-        if (!expectedStatus || value.status !== expectedStatus) throw new HttpsError('failed-precondition', 'The booking is not at this vehicle inspection stage.');
+        try { requireTransportInspectionStage(stage, value.status); }
+        catch (error) { throw new HttpsError('failed-precondition', error.message); }
         if (existing.exists) {
           const prior = existing.data();
           if (prior.driverId === uid && prior.conditionNotes === inspection.conditionNotes && JSON.stringify(prior.checklist) === JSON.stringify(inspection.checklist) && JSON.stringify(prior.photos) === JSON.stringify(inspection.photos)) return { status: 'recorded', stage };

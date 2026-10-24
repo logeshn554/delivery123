@@ -686,7 +686,13 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
         assert.equal((await ref.collection('events').doc('arrived_at_destination_driver').get()).data().stage, 'arrived_at_destination');
       }
       const finish = { bookingId: ref.id, status: 'completed', otp: codes.code };
-      if (serviceType === 'transport') await callable('recordTransportInspection', 'driver', { bookingId: ref.id, stage: 'delivery', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true }, conditionNotes: 'Condition unchanged; vehicle handed over.', photos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] });
+      if (serviceType === 'transport') {
+        await assert.rejects(callable('advanceDriverBooking', 'driver', finish), error => error.code === 'failed-precondition');
+        await assert.rejects(callable('recordTransportInspection', 'driver', { bookingId: ref.id, stage: 'delivery', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true }, conditionNotes: 'Condition unchanged; vehicle handed over.', photos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] }), error => error.code === 'failed-precondition');
+        await db.doc('driver_profiles/driver').update({ currentLat: confirmed.details.dropLocation.lat, currentLng: confirmed.details.dropLocation.lng, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10 });
+        await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'arrived_at_destination' });
+        await callable('recordTransportInspection', 'driver', { bookingId: ref.id, stage: 'delivery', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true }, conditionNotes: 'Condition unchanged; vehicle handed over.', photos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] });
+      }
       if (serviceType === 'parcel') await collectSignature(ref.id);
       await callable('advanceDriverBooking', 'driver', finish);
       await callable('advanceDriverBooking', 'driver', finish);
@@ -1688,11 +1694,12 @@ test('pickup and recipient codes protect custody; concurrent completion settles 
 });
 test('completed operator transport records customer gross, actual driver payout and a reviewable operator margin exactly once', async () => {
   await db.doc('users/driver').set({ role: 'driver', name: 'Carrier driver' });
-  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'operator_transport', availableEarningsCents: 0, completedJobs: 0 });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'operator_transport', availableEarningsCents: 0, completedJobs: 0, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10 });
   await db.doc('transport_operators/carrier-one').set({ status: 'approved', ownerUid: 'operator-owner' });
-  await db.doc('bookings/operator_transport').set({ bookingId: 'operator_transport', customerId: 'customer', driverId: 'driver', transportOperatorId: 'carrier-one', serviceType: 'transport', status: 'transit', paymentStatus: 'paid', price: 150, settlementContract: { serviceType: 'transport', version: 1, baseCents: 8000, maxPayoutCents: 10000 }, details: { estimatedKm: 10, estimatedMinutes: 30 } });
+  await db.doc('bookings/operator_transport').set({ bookingId: 'operator_transport', customerId: 'customer', driverId: 'driver', transportOperatorId: 'carrier-one', serviceType: 'transport', status: 'transit', paymentStatus: 'paid', price: 150, settlementContract: { serviceType: 'transport', version: 1, baseCents: 8000, maxPayoutCents: 10000 }, details: { dropLocation: { lat: 13.08, lng: 80.27 }, estimatedKm: 10, estimatedMinutes: 30 } });
   await db.doc('booking_codes/operator_transport').set({ customerId: 'customer', code: '5678', attempts: 0 });
   await db.doc('bookings/operator_transport/events/transport_inspection_delivery').set({ inspectionStage: 'delivery', status: 'recorded', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true } });
+  await callable('advanceDriverBooking', 'driver', { bookingId: 'operator_transport', status: 'arrived_at_destination' });
   await Promise.all([callable('advanceDriverBooking', 'driver', { bookingId: 'operator_transport', status: 'completed', otp: '5678' }), callable('advanceDriverBooking', 'driver', { bookingId: 'operator_transport', status: 'completed', otp: '5678' })]);
   const ledger = (await db.doc('transport_operator_ledger/carrier-one/entries/operator_transport').get()).data();
   assert.equal(ledger.grossCents, 15000);
@@ -1709,9 +1716,9 @@ test('transport toll receipt requires finance review and is reimbursed once from
   await db.doc('users/driver').set({ role: 'driver', name: 'Carrier driver' });
   await db.doc('users/operator-owner').set({ uid: 'operator-owner', role: 'merchant', transportOperatorId: 'carrier-one' });
   await db.doc('users/admin').set({ uid: 'admin', role: 'admin' });
-  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'toll_transport', availableEarningsCents: 0, completedJobs: 0 });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'toll_transport', availableEarningsCents: 0, completedJobs: 0, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10 });
   await db.doc('transport_operators/carrier-one').set({ status: 'approved', ownerUid: 'operator-owner' });
-  await db.doc('bookings/toll_transport').set({ bookingId: 'toll_transport', customerId: 'customer', driverId: 'driver', transportOperatorId: 'carrier-one', serviceType: 'transport', status: 'transit', paymentStatus: 'paid', price: 150, settlementContract: { serviceType: 'transport', version: 1, baseCents: 8000, maxPayoutCents: 10000 } });
+  await db.doc('bookings/toll_transport').set({ bookingId: 'toll_transport', customerId: 'customer', driverId: 'driver', transportOperatorId: 'carrier-one', serviceType: 'transport', status: 'transit', paymentStatus: 'paid', price: 150, settlementContract: { serviceType: 'transport', version: 1, baseCents: 8000, maxPayoutCents: 10000 }, details: { dropLocation: { lat: 13.08, lng: 80.27 } } });
   await db.doc('booking_codes/toll_transport').set({ customerId: 'customer', code: '5678', attempts: 0 });
   await db.doc('bookings/toll_transport/events/transport_inspection_pickup').set({ inspectionStage: 'pickup', status: 'recorded' });
   await db.doc('bookings/toll_transport/events/transport_inspection_delivery').set({ inspectionStage: 'delivery', status: 'recorded', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true } });
@@ -1725,6 +1732,7 @@ test('transport toll receipt requires finance review and is reimbursed once from
   await assert.rejects(callable('reviewTransportTollClaim', 'customer', review, true), error => error.code === 'permission-denied');
   await callable('reviewTransportTollClaim', 'admin', review, true);
   assert.deepEqual(await callable('submitTransportTollClaim', 'driver', claimInput), { claimId: claim.claimId, status: 'approved' });
+  await callable('advanceDriverBooking', 'driver', { bookingId: 'toll_transport', status: 'arrived_at_destination' });
   await Promise.all([callable('advanceDriverBooking', 'driver', { bookingId: 'toll_transport', status: 'completed', otp: '5678' }), callable('advanceDriverBooking', 'driver', { bookingId: 'toll_transport', status: 'completed', otp: '5678' })]);
   assert.equal((await db.doc('bookings/toll_transport').get()).data().driverPayout, 90);
   assert.equal((await db.doc('bookings/toll_transport').get()).data().transportTollReimbursementCents, 1000);

@@ -36,7 +36,10 @@ test('checkout resolves pickup and drop addresses uniformly across payment metho
 test('ride history names the arrival state instead of showing a cancelled fallback', () => {
   const src = readFileSync(new URL('../../src/components/CustomerApp.tsx', import.meta.url), 'utf8');
   const tracking = readFileSync(new URL('../../src/components/OrderTrackingScreen.tsx', import.meta.url), 'utf8');
-  assert.match(src, /arrived_at_destination' \? 'Driver arrived at destination'/);
+  assert.match(src, /arrived_at_destination' \? bk\.serviceType === 'transport' \? 'Carrier arrived; vehicle inspection underway' : 'Driver arrived at destination'/);
   assert.match(tracking, /booking\.status === 'arrived_at_destination' \? 'Your driver arrived at the destination'/);
   assert.match(tracking, /'Trip started', 'At destination', 'Completed'/);
+  assert.match(tracking, /'Destination inspection', 'Vehicle delivered'/);
+  const customer = readFileSync(new URL('../../src/components/CustomerApp.tsx', import.meta.url), 'utf8');
+  assert.match(customer, /Carrier arrived; vehicle inspection underway/);
 });

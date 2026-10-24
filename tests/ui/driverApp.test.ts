@@ -85,7 +85,8 @@ test("pickup code entry uses OTP autofill and is scoped to ride/takeover/parcel/
 test('ride flow verifies the rider at pickup and records destination arrival before trip completion', () => {
   assert.match(src, /handleArrivedAtDestination/);
   assert.match(src, /status === 'arrived_at_destination'/);
-  assert.match(src, /Mark Arrived at Destination/);
+  assert.match(src, /Confirm arrival at destination/);
+  assert.match(src, /currentAssignedJob\.serviceType === 'transport'/);
   assert.match(src, /Passenger trip completion code/);
 });
 
