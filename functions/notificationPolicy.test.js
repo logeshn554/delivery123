@@ -30,3 +30,15 @@ test('destination arrival notifications explain the ride and carrier handover st
   assert.equal(bookingNotificationContent({ ...previous, serviceType: 'transport', status: 'arrived_at_destination' }, { ...previous, serviceType: 'transport' }).body, 'Vehicle transport ALLGO_2 is at the destination; vehicle inspection and handover are underway.');
 });
 
+test('food and grocery notifications report the delivery partner arrival location', () => {
+  for (const [serviceType, label] of [['food', 'restaurant'], ['grocery', 'store']]) {
+    const previous = { bookingId: 'ALLGO_PICKUP', serviceType, status: 'accepted', paymentStatus: 'paid', driverId: 'driver-1' };
+    const changed = { ...previous, status: 'preparing', arrivedAtPickup: '2026-10-24T10:00:00.000Z' };
+    assert.deepEqual(bookingNotificationContent(changed, previous), {
+      type: 'driver_arrived_at_pickup',
+      title: 'Delivery partner at pickup',
+      body: `Your delivery partner has arrived at the ${label} for ${serviceType === 'food' ? 'food order' : 'grocery order'} ALLGO_PICKUP.`,
+    });
+  }
+});
+

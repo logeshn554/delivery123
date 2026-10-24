@@ -27,6 +27,11 @@ test('grocery tracking milestones follow confirmed operational statuses', () => 
   );
 });
 
+test('grocery tracking advances to pickup only after the assigned driver arrives', () => {
+  assert.equal(getGroceryTrackingStage('preparing', true), 3);
+  assert.equal(getGroceryTrackingStage('preparing'), 2);
+});
+
 test('isGroceryOrderFullyPicked checks that every line is packed or cleanly removed without open substitutions', () => {
   // Bread is quantity 1 but packed 0 -> false
   assert.equal(isGroceryOrderFullyPicked(booking), false);

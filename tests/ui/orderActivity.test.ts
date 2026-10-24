@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { getBookingProgress } from '../../src/design-system/bookingProgress.ts';
 import { getOrderHistory } from '../../src/design-system/orderHistory.ts';
+import { getFoodTrackingStage } from '../../src/design-system/foodTracking.ts';
 
 test('verified order progress increases with canonical status and stops for cancellation', () => {
   assert.equal(getBookingProgress('pending'), 15);
@@ -14,6 +15,13 @@ test('verified order progress increases with canonical status and stops for canc
   assert.equal(getBookingProgress('arrived_at_destination'), 92);
   assert.equal(getBookingProgress('completed'), 100);
   assert.equal(getBookingProgress('cancelled'), 0);
+});
+
+test('food tracking distinguishes merchant preparation, driver arrival, transit and completion', () => {
+  assert.equal(getFoodTrackingStage({ status: 'preparing' }), 2);
+  assert.equal(getFoodTrackingStage({ status: 'preparing', driverId: 'driver-1', arrivedAtPickup: '2026-10-24T10:00:00.000Z' }), 3);
+  assert.equal(getFoodTrackingStage({ status: 'transit', driverId: 'driver-1', arrivedAtPickup: '2026-10-24T10:00:00.000Z' }), 4);
+  assert.equal(getFoodTrackingStage({ status: 'completed' }), 5);
 });
 
 test('order history returns only completed, delivered or cancelled records and supports service filtering', () => {
