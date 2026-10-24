@@ -1038,7 +1038,7 @@ exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region:
       }
     }
     if (!driver.data().supportedServices?.includes(data.serviceType)) throw new HttpsError('permission-denied', 'Your account is not approved for this service. Contact operations.');
-    transaction.update(bookingRef, { driverId: uid, driverName: account.data().name, status: 'accepted', updatedAt: new Date().toISOString(), ...(data.serviceType === 'transport' && data.transportOperatorId ? { transportVehicleId: fleetAssignment.vehicleId, 'transportAssignment.status': 'accepted', 'transportAssignment.acceptedAt': new Date().toISOString() } : {}) });
+    transaction.update(bookingRef, { driverId: uid, driverName: account.data().name, arrivedAtPickup: FieldValue.delete(), merchantPickupConfirmedAt: FieldValue.delete(), status: 'accepted', updatedAt: new Date().toISOString(), ...(data.serviceType === 'transport' && data.transportOperatorId ? { transportVehicleId: fleetAssignment.vehicleId, 'transportAssignment.status': 'accepted', 'transportAssignment.acceptedAt': new Date().toISOString() } : {}) });
     transaction.update(driverRef, { activeBookingId: bookingId });
     transaction.create(db.doc(`bookings/${bookingId}/events/accepted_${uid}`), { stage: 'partner_assigned', actorRole: 'driver', actorId: uid, createdAt: new Date().toISOString() });
     return { status: 'accepted' };

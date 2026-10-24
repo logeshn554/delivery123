@@ -604,8 +604,12 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
       assert.equal(offers.length, 1); assert.equal(offers[0].bookingId, id);
       assert.equal(offers[0].customerName, ''); assert.equal(offers[0].otp, undefined);
       assert.notEqual(offers[0].dropAddress, confirmed.dropAddress);
+      await ref.update({ arrivedAtPickup: '2026-10-23T10:00:00.000Z', merchantPickupConfirmedAt: '2026-10-23T10:01:00.000Z' });
       await callable('acceptDriverBooking', 'driver', { bookingId: id });
-      assert.equal((await ref.get()).data().driverId, 'driver');
+      const accepted = (await ref.get()).data();
+      assert.equal(accepted.driverId, 'driver');
+      assert.equal(accepted.arrivedAtPickup, undefined);
+      assert.equal(accepted.merchantPickupConfirmedAt, undefined);
       await db.doc('driver_eligibility/driver').set({ driverId: 'driver', status: 'expired', revision: 1 });
       await callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'preparing' });
       await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'transit' }), error => error.code === 'failed-precondition');
