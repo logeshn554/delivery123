@@ -10,10 +10,23 @@ function partnerEvidenceFunctions({ onCall, onSchedule, db, REGION, HttpsError, 
     try { const [metadata] = await file.getMetadata(); await file.delete({ ifGenerationMatch: metadata.generation }); }
     catch (error) { if (Number(error.code) !== 404) throw error; }
   };
-  const deleteEvidence = async ref => {
+  const deleteEvidence = async (ref, { retentionPurge = false } = {}) => {
     const record = await db.runTransaction(async tx => {
       const snapshot = await tx.get(ref), data = snapshot.data();
       if (!data || data.status === 'deleted') return data;
+      const applicationRef = data.applicationId ? db.doc(`partner_applications/${data.applicationId}`) : null;
+      const applicationSnapshot = applicationRef ? await tx.get(applicationRef) : null, application = applicationSnapshot?.data();
+      const businessCollection = application?.type === 'restaurant' ? 'restaurants' : application?.type === 'grocery' ? 'grocery_stores' : null;
+      const businessRef = businessCollection && application?.businessId ? db.doc(`${businessCollection}/${application.businessId}`) : null;
+      const businessSnapshot = businessRef ? await tx.get(businessRef) : null, business = businessSnapshot?.data(), eligibility = business?.merchantEligibility;
+      if (businessSnapshot?.exists && eligibility?.status === 'verified' && eligibility.applicationId === data.applicationId && eligibility.evidenceIds?.includes(ref.id)) {
+        if (!retentionPurge) throw new HttpsError('failed-precondition', 'This verified business document cannot be removed while it supports active eligibility. Operations must review a replacement first.');
+        const now = new Date().toISOString(), businessRevision = (eligibility.revision || 0) + 1, applicationRevision = (application?.revision || 0) + 1, eventId = `retention_${ref.id}`;
+        tx.update(businessRef, { acceptingOrders: false, onboardingStatus: 'needs_information', merchantEligibility: { ...eligibility, status: 'expired', revision: businessRevision, expiredAt: now, retentionExpiredEvidenceId: ref.id } });
+        if (application?.status === 'approved') tx.update(applicationRef, { status: 'needs_information', revision: applicationRevision, feedback: 'A required business document reached its retention limit. Upload current evidence for review.', updatedAt: now });
+        tx.create(businessRef.collection('eligibility_events').doc(eventId), { action: 'merchant_eligibility_expired', actorId: 'system', reason: 'document_retention_expired', evidenceId: ref.id, revision: businessRevision, createdAt: now });
+        tx.create(applicationRef.collection('events').doc(eventId), { action: 'merchant_eligibility_expired', actorId: 'system', reason: 'document_retention_expired', evidenceId: ref.id, revision: applicationRevision, createdAt: now });
+      }
       tx.update(ref, { status: 'delete_requested', updatedAt: new Date().toISOString() });
       return data;
     });
@@ -110,7 +123,7 @@ function partnerEvidenceFunctions({ onCall, onSchedule, db, REGION, HttpsError, 
     let page = await query.get();
     if (page.empty && cursor?.evidenceId) page = await baseQuery.get();
     for (const snapshot of page.docs) {
-      try { await deleteEvidence(snapshot.ref); await snapshot.ref.delete(); }
+      try { await deleteEvidence(snapshot.ref, { retentionPurge: true }); await snapshot.ref.delete(); }
       catch { console.warn('Partner document retention cleanup requires retry.'); }
       await cursorRef.set({ retentionUntil: snapshot.data().retentionUntil, evidenceId: snapshot.id, checkedAt: new Date().toISOString() });
     }

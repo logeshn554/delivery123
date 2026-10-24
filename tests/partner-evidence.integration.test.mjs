@@ -162,8 +162,16 @@ test('merchant eligibility links the applicant, reviewed evidence and closed cat
   assert.equal(business.ownerId, 'customer'); assert.equal(business.onboardingStatus, 'approved'); assert.equal(business.acceptingOrders, false);
   assert.equal((await db.doc('users/customer').get()).data().role, 'customer');
   assert.deepEqual((await db.doc('users/customer').get()).data().merchantBusinessIds, { restaurant: [], grocery: ['merchant-shop'] });
+  await db.doc('users/customer').update({ role: 'merchant', merchantId: 'merchant-shop', merchantType: 'grocery' });
+  assert.deepEqual(await call('listMerchantBusinesses', 'customer'), { businesses: [{ id: 'merchant-shop', merchantType: 'grocery', name: 'Applicant shop', address: 'Actual shop address', acceptingOrders: false, profileRevision: 0, timeZone: 'Asia/Kolkata', applicationId: 'merchant-app', canManageStaff: true }] });
+  await assert.rejects(call('deletePartnerEvidence', 'customer', { evidenceId: 'merchant-proof' }), error => error.code === 'failed-precondition');
+  await db.doc('partner_evidence/merchant-proof').update({ retentionUntil: '2000-01-01T00:00:00.000Z' });
+  await commands.purgeExpiredPartnerEvidence.run();
+  assert.equal((await db.doc('partner_applications/merchant-app').get()).data().status, 'needs_information');
+  assert.equal((await db.doc('grocery_stores/merchant-shop').get()).data().merchantEligibility.status, 'expired');
+  assert.deepEqual(await call('listMerchantBusinesses', 'customer'), { businesses: [{ id: 'merchant-shop', merchantType: 'grocery', name: 'Applicant shop', address: 'Actual shop address', acceptingOrders: false, profileRevision: 0, timeZone: 'Asia/Kolkata', permissions: [], applicationId: 'merchant-app', applicationNeedsInformation: true, canManageStaff: false }] });
   await assert.rejects(call('reviewMerchantEligibility', 'admin', { ...decision, reason: 'Changed decision' }, true), error => error.code === 'already-exists');
-  assert.equal((await db.collection('grocery_stores/merchant-shop/eligibility_events').get()).size, 1);
+  assert.equal((await db.collection('grocery_stores/merchant-shop/eligibility_events').get()).size, 2);
 });
 
 test('an existing merchant may submit another outlet under independent eligibility review', async () => {
