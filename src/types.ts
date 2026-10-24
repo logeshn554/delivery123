@@ -25,6 +25,7 @@ export interface UserProfile {
 }
 
 export interface SavedAddress {
+  location?: { lat: number; lng: number };
   deliveryDetails?: { building: string; landmark: string; instructions: string };
   id: string;
   label: string;

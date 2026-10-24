@@ -239,7 +239,12 @@ service cloud.firestore {
       match /addresses/{addressId} {
         function validAddress(data) {
           return data.keys().hasAll(['label', 'address', 'createdAt'])
-            && data.keys().hasOnly(['label', 'address', 'createdAt', 'deliveryDetails'])
+            && data.keys().hasOnly(['label', 'address', 'createdAt', 'deliveryDetails', 'location'])
+            && (!('location' in data) || (data.location is map
+              && data.location.keys().hasAll(['lat', 'lng'])
+              && data.location.keys().hasOnly(['lat', 'lng'])
+              && data.location.lat is number && data.location.lat >= -90 && data.location.lat <= 90
+              && data.location.lng is number && data.location.lng >= -180 && data.location.lng <= 180))
             && (!('deliveryDetails' in data) || (data.deliveryDetails is map
               && data.deliveryDetails.keys().hasAll(['building', 'landmark', 'instructions'])
               && data.deliveryDetails.keys().hasOnly(['building', 'landmark', 'instructions'])

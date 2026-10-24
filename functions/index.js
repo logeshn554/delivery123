@@ -8,7 +8,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 const { onCall: firebaseOnCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
-const { geocode, routeBetween } = require('./maps');
+const { geocode, routeBetween, mapPreview } = require('./maps');
 const { validPoint, checkCoverage, calculateFare, calculateFareBreakdown, containsPoint } = require('./bookingPolicy');
 const { validateParcelContents, separateParcelContacts, parcelWeight } = require('./parcelPolicy');
 const { reverseWalletCredit, refundProgress } = require('./refundPolicy');
@@ -693,6 +693,12 @@ exports.reverseServiceLocation = onCall({ operation: 'reverseServiceLocation', r
   requireUser(request);
   if (!validPoint(request.data?.location)) throw new HttpsError('invalid-argument', 'A valid device location is required.');
   return { locations: await geocode(MAPS_API_KEY.value(), { latlng: `${request.data.location.lat},${request.data.location.lng}` }) };
+});
+
+exports.getMapPickerPreview = onCall({ operation: 'getMapPickerPreview', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
+  requireUser(request);
+  const zoom = request.data?.zoom ?? 16;
+  return { image: await mapPreview(MAPS_API_KEY.value(), request.data?.location, zoom) };
 });
 
 exports.setDriverLocationConsent = onCall({ operation: 'setDriverLocationConsent', region: REGION }, async request => {

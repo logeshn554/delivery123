@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deliveryDetails, projectSavedAddress } from './savedAddressPolicy.mjs';
+import { addressLocation, deliveryDetails, projectSavedAddress } from './savedAddressPolicy.mjs';
 
 const details = { building: ' Flat 2 ', landmark: ' Library ', instructions: ' Ring bell ' };
 const row = data => ({ data: { label: 'Home', address: 'Test Street', ...data }, created_at: new Date('2026-10-17T00:00:00Z') });
@@ -26,4 +26,13 @@ test('missing and invalid legacy metadata omit Firestore fields and record revie
     assert.equal(Object.hasOwn(projected.data, 'deliveryDetails'), false);
     assert.doesNotThrow(() => JSON.stringify(projected));
   }
+});
+
+test('saved address coordinates are range checked and preserved during migration', () => {
+  assert.deepEqual(addressLocation({ lat: 13.08, lng: 80.27 }), { lat: 13.08, lng: 80.27 });
+  for (const value of [null, [], { lat: 91, lng: 0 }, { lat: 0, lng: -181 }, { lat: '13', lng: 80 }, { lat: 0, lng: 0, extra: true }]) {
+    assert.throws(() => addressLocation(value), /Invalid address location/);
+  }
+  assert.deepEqual(projectSavedAddress(row({ location: { lat: 13.08, lng: 80.27 } })).data.location, { lat: 13.08, lng: 80.27 });
+  assert.equal(Object.hasOwn(projectSavedAddress(row({ location: { lat: 100, lng: 0 } })).data, 'location'), false);
 });

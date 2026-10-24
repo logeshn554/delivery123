@@ -11,7 +11,7 @@ export const neonAccountHandlers: Record<string, (...args: any[]) => any> = {
   updateUserAddress: (_uid, defaultAddress, defaultAddressId = '') => updateAccount({ defaultAddress, defaultAddressId }),
   listenToAccountProfile: (_uid, callback, error) => pollAccount('/account', callback, error),
   listenToSavedAddresses: (_uid, callback) => pollAccount('/account/items/addresses', callback),
-  saveUserAddress: async (_uid, label, address, deliveryDetails) => (await accountRequest<{ id: string }>('/account/items/addresses', 'POST', { label, address, deliveryDetails })).id,
+  saveUserAddress: async (_uid, label, address, deliveryDetails, location, addressId) => (await accountRequest<{ id: string }>('/account/items/addresses', 'POST', { label, address, deliveryDetails, location, addressId })).id,
   deleteSavedAddress: (_uid, id) => accountRequest(`/account/items/addresses/${encodeURIComponent(id)}`, 'DELETE'),
   createSupportTicket: () => Promise.reject(serviceAccessError()),
   listenToSupportTickets: (_uid, _callback, error) => { error?.(serviceAccessError()); return () => {}; },

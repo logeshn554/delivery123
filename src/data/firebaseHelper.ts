@@ -96,12 +96,13 @@ export function listenToSavedAddresses(uid: string, callback: (addresses: SavedA
   }, (err) => handleFirestoreError(err, OperationType.GET, path));
 }
 
-export async function saveUserAddress(uid: string, label: string, address: string, deliveryDetails?: SavedAddress['deliveryDetails']) {
+export async function saveUserAddress(uid: string, label: string, address: string, deliveryDetails?: SavedAddress['deliveryDetails'], location?: SavedAddress['location'], addressId?: string) {
   const path = `users/${uid}/addresses`;
   try {
-    const addressRef = doc(collection(db, 'users', uid, 'addresses'));
+    const addressRef = addressId ? doc(db, 'users', uid, 'addresses', addressId) : doc(collection(db, 'users', uid, 'addresses'));
     const batch = writeBatch(db);
-    batch.set(addressRef, { label: label.trim(), address: address.trim(), ...(deliveryDetails ? { deliveryDetails } : {}), createdAt: new Date().toISOString() });
+    const fields = { label: label.trim(), address: address.trim(), ...(deliveryDetails ? { deliveryDetails } : {}), ...(location ? { location } : {}), ...(!addressId ? { createdAt: new Date().toISOString() } : {}) };
+    if (addressId) batch.update(addressRef, fields); else batch.set(addressRef, fields);
     batch.update(doc(db, 'users', uid), { defaultAddressId: addressRef.id, defaultAddress: address.trim() });
     await batch.commit();
     return addressRef.id;
@@ -593,6 +594,10 @@ export async function updateUserWalletBalance(uid: string, balance: number) {
 
 export async function reverseServiceLocation(lat: number, lng: number): Promise<ServiceLocation[]> {
   return (await httpsCallable<{ location: { lat: number; lng: number } }, { locations: ServiceLocation[] }>(functions, 'reverseServiceLocation')({ location: { lat, lng } })).data.locations;
+}
+
+export async function getMapPickerPreview(lat: number, lng: number, zoom = 16): Promise<string> {
+  return (await httpsCallable<{ location: { lat: number; lng: number }; zoom: number }, { image: string }>(functions, 'getMapPickerPreview')({ location: { lat, lng }, zoom })).data.image;
 }
 
 export async function createWalletTopup(amountCents: number, requestId: string) {

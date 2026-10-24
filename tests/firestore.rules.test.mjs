@@ -189,11 +189,13 @@ test('support conversation and case history are private and cannot be forged or 
   await assertFails(updateDoc(doc(dbFor('admin', { admin: true }), 'support_tickets/case'), { status: 'resolved' }));
 });
 test('structured delivery addresses are owner scoped and reject extra or oversized fields', async () => {
-  const address = { label: 'Work', address: 'Flat 2, Test Street', createdAt: '2026-10-10', deliveryDetails: { building: 'Flat 2', landmark: 'Library', instructions: 'Ring bell' } };
+  const address = { label: 'Work', address: 'Flat 2, Test Street', createdAt: '2026-10-10', location: { lat: 13.08, lng: 80.27 }, deliveryDetails: { building: 'Flat 2', landmark: 'Library', instructions: 'Ring bell' } };
   await assertSucceeds(setDoc(doc(dbFor('customer'), 'users/customer/addresses/work'), address));
   await assertFails(getDoc(doc(dbFor('other'), 'users/customer/addresses/work')));
   await assertFails(setDoc(doc(dbFor('customer'), 'users/customer/addresses/extra'), { ...address, deliveryDetails: { ...address.deliveryDetails, verified: true } }));
   await assertFails(setDoc(doc(dbFor('customer'), 'users/customer/addresses/long'), { ...address, deliveryDetails: { ...address.deliveryDetails, instructions: 'x'.repeat(121) } }));
+  await assertFails(setDoc(doc(dbFor('customer'), 'users/customer/addresses/out-of-range'), { ...address, location: { lat: 91, lng: 0 } }));
+  await assertFails(setDoc(doc(dbFor('customer'), 'users/customer/addresses/extra-coordinate'), { ...address, location: { ...address.location, geohash: 'forged' } }));
   await assertSucceeds(setDoc(doc(dbFor('customer'), 'users/customer/addresses/legacy'), { label: 'Home', address: 'Test Street', createdAt: '2026-10-10' }));
 });
 test('financial postings and pricing proposals are private, immutable server records', async () => {

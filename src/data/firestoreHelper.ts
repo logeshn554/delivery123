@@ -92,6 +92,7 @@ export const listenToPayoutRequests = route('listenToPayoutRequests');
 export const recordDriverPayout = route('recordDriverPayout');
 export const updateUserWalletBalance = route('updateUserWalletBalance');
 export const reverseServiceLocation = route('reverseServiceLocation');
+export const getMapPickerPreview = route('getMapPickerPreview');
 export const createWalletTopup = route('createWalletTopup');
 export const payWithWallet = route('payWithWallet');
 export const requestAccountDeletion = route('requestAccountDeletion');

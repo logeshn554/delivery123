@@ -35,4 +35,17 @@ async function routeBetween(key, pickup, drop, travelMode = 'DRIVE', routingPref
   return { distanceMeters: route.distanceMeters, durationSeconds };
 }
 
-module.exports = { geocode, routeBetween };
+async function mapPreview(key, location, zoom = 16) {
+  if (!key) throw new HttpsError('failed-precondition', 'Map preview is not configured yet.');
+  if (!validPoint(location) || !Number.isInteger(zoom) || zoom < 14 || zoom > 18) throw new HttpsError('invalid-argument', 'A valid map location and zoom are required.');
+  const query = new URLSearchParams({ center: `${location.lat},${location.lng}`, zoom: String(zoom), size: '640x400', scale: '2', maptype: 'roadmap', format: 'png32', key });
+  let response;
+  try { response = await fetch(`https://maps.googleapis.com/maps/api/staticmap?${query}`, { signal: AbortSignal.timeout(10000) }); }
+  catch { throw new HttpsError('unavailable', 'Map preview timed out. Please try again.'); }
+  if (!response.ok || !response.headers.get('content-type')?.startsWith('image/png')) throw new HttpsError('unavailable', 'Map preview is unavailable. You can still select an address or use device location.');
+  const image = Buffer.from(await response.arrayBuffer());
+  if (!image.length || image.length > 2_000_000) throw new HttpsError('unavailable', 'Map preview is too large to display.');
+  return { image: image.toString('base64') };
+}
+
+module.exports = { geocode, routeBetween, mapPreview };

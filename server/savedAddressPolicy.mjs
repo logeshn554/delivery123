@@ -1,5 +1,13 @@
 const limits = { building: 80, landmark: 80, instructions: 120 };
 
+export function addressLocation(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).some(key => !['lat', 'lng'].includes(key))
+    || !Number.isFinite(value.lat) || value.lat < -90 || value.lat > 90
+    || !Number.isFinite(value.lng) || value.lng < -180 || value.lng > 180) throw new Error('Invalid address location.');
+  return { lat: value.lat, lng: value.lng };
+}
+
 export function deliveryDetails(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).some(key => !Object.hasOwn(limits, key))
@@ -11,6 +19,9 @@ export function deliveryDetails(value) {
 
 export function projectSavedAddress(row) {
   const data = { label: row.data.label, address: row.data.address, createdAt: row.created_at.toISOString() };
+  if (row.data.location !== undefined) {
+    try { data.location = addressLocation(row.data.location); } catch { /* Invalid legacy coordinates are omitted. */ }
+  }
   let deliveryDetailsStatus = 'absent';
   if (row.data.deliveryDetails !== undefined) {
     try {

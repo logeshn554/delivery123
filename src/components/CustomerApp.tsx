@@ -171,6 +171,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [showAddressModal, setShowAddressModal] = useState(false);
   const addressCloseRef = useRef<HTMLButtonElement>(null);
   const [addressDraft, setAddressDraft] = useState('');
+  const [addressDraftLocation, setAddressDraftLocation] = useState<{lat:number;lng:number}|null>(null);
   useEffect(() => { if (showAddressModal) setAddressDraft(detectedAddress || ''); }, [showAddressModal]);
   useEffect(() => { if (showAddressModal) addressCloseRef.current?.focus(); }, [showAddressModal]);
   const [addressSaving, setAddressSaving] = useState(false);
@@ -178,7 +179,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [addressBuilding, setAddressBuilding] = useState('');
   const [addressLandmark, setAddressLandmark] = useState('');
   const [addressInstructions, setAddressInstructions] = useState('');
-  useEffect(() => { if (showAddressModal) { setAddressBuilding(''); setAddressLandmark(''); setAddressInstructions(''); } }, [showAddressModal]);
+  useEffect(() => { if (showAddressModal) { setAddressBuilding(''); setAddressLandmark(''); setAddressInstructions(''); setAddressDraftLocation(null); } }, [showAddressModal]);
   const [addressLookup, setAddressLookup] = useState(false);
   const [addressLabel, setAddressLabel] = useState('Home');
   const [searchQuery, setSearchQuery] = useState("");
@@ -220,13 +221,13 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     try {
       const savedAddress = savedAddresses.find((address) => address.address === completeAddress);
       if (savedAddress) {
-        await updateUserAddress(userId, completeAddress, savedAddress.id);
+        await saveUserAddress(userId, addressLabel, completeAddress, { building: addressBuilding.trim(), landmark: addressLandmark.trim(), instructions: addressInstructions.trim() }, addressDraftLocation || savedAddress.location, savedAddress.id);
       } else {
         if (savedAddresses.length >= 10) {
           alert('You can save up to 10 addresses. Remove an old address to add another.');
           return;
         }
-        await saveUserAddress(userId, addressLabel, completeAddress, { building: addressBuilding.trim(), landmark: addressLandmark.trim(), instructions: addressInstructions.trim() });
+        await saveUserAddress(userId, addressLabel, completeAddress, { building: addressBuilding.trim(), landmark: addressLandmark.trim(), instructions: addressInstructions.trim() }, addressDraftLocation || undefined);
       }
       setDeliveryAddress(completeAddress);
       setPickupSpot(completeAddress);
@@ -1366,8 +1367,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         onNavigate={tab => { setCurrentTab(tab); setActiveWorkflow('none'); }}
       />}
 
-      {showAddressModal && <AddressSheet addresses={savedAddresses} currentAddress={deliveryAddress} defaultId={userProfile?.defaultAddressId} fields={{address:addressDraft,label:addressLabel,building:addressBuilding,landmark:addressLandmark,instructions:addressInstructions}} busy={addressSaving} onField={(key,value)=>{if(key==='address')setAddressDraft(value);else if(key==='label')setAddressLabel(value);else if(key==='building')setAddressBuilding(value);else if(key==='landmark')setAddressLandmark(value);else setAddressInstructions(value);}} onSelect={address=>void handleSelectSavedAddress(address)} onDelete={address=>void handleDeleteSavedAddress(address)} onSave={()=>void handleSaveAddress()} onClose={()=>setShowAddressModal(false)}/>} 
-
+      {showAddressModal && <AddressSheet addresses={savedAddresses} currentAddress={deliveryAddress} defaultId={userProfile?.defaultAddressId} fields={{address:addressDraft,label:addressLabel,building:addressBuilding,landmark:addressLandmark,instructions:addressInstructions}} busy={addressSaving} onLocationChange={setAddressDraftLocation} onField={(key,value)=>{if(key==='address')setAddressDraft(value);else if(key==='label')setAddressLabel(value);else if(key==='building')setAddressBuilding(value);else if(key==='landmark')setAddressLandmark(value);else setAddressInstructions(value);}} onSelect={address=>void handleSelectSavedAddress(address)} onDelete={address=>void handleDeleteSavedAddress(address)} onSave={()=>void handleSaveAddress()} onClose={()=>setShowAddressModal(false)}/>}
       {/* REAL-TIME IN-APP CHAT WITH DELIVERY PARTNER MODAL */}
       {activeChatBookingId && (() => {
         const chatBooking = activeBookings.find(b => b.bookingId === activeChatBookingId);

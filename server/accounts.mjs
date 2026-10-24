@@ -10,7 +10,7 @@ import { projectLegacyBooking } from './legacyBookingReadModel.mjs';
 import { accountActionLink } from './accountActionPolicy.mjs';
 import { exportLegacyBookings } from './accountExport.mjs';
 import { accountOrigins } from './originPolicy.mjs';
-import { deliveryDetails } from './savedAddressPolicy.mjs';
+import { addressLocation, deliveryDetails } from './savedAddressPolicy.mjs';
 import { accountErrorResponse } from './accountErrorPolicy.mjs';
 import { accountObjectBody } from './accountInputPolicy.mjs';
 import { trustProxySetting, rateLimitKey } from './clientIpPolicy.mjs';
@@ -317,12 +317,21 @@ app.get('/api/account/export', route(async (req,res) => {
   res.json({items,nextCursor:rows.length>100?items[99].id:null});
 }));
 app.post('/api/account/items/:kind', route(async (req, res) => {
-  const kind = req.params.kind, id = randomUUID(); let data;
+  const kind = req.params.kind, updateAddress = kind === 'addresses' && req.body.addressId !== undefined;
+  let id = randomUUID(), data;
   if (kind === 'addresses') {
+    if (updateAddress) {
+      if (!/^[a-f0-9-]{36}$/i.test(req.body.addressId)) throw fail('Invalid address identifier.');
+      id = req.body.addressId;
+    }
     data = { label: text(req.body.label, 1, 30, 'address label'), address: text(req.body.address, 3, 300, 'address') };
     if (req.body.deliveryDetails !== undefined) {
       try { data.deliveryDetails = deliveryDetails(req.body.deliveryDetails); }
       catch { throw fail('Invalid delivery details.'); }
+    }
+    if (req.body.location !== undefined) {
+      try { data.location = addressLocation(req.body.location); }
+      catch { throw fail('Invalid address location.'); }
     }
   }
   else if (kind === 'support') throw fail('Support requires a connected service session. Sign in again to connect, then retry your request.', 503, 'unavailable');
@@ -340,7 +349,10 @@ app.post('/api/account/items/:kind', route(async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query('INSERT INTO allgo_account_items (id,account_id,kind,data) VALUES ($1,$2,$3,$4)', [id, req.account.id, kind, JSON.stringify(data)]);
+    if (updateAddress) {
+      const updated = await client.query("UPDATE allgo_account_items SET data=$4 WHERE id=$1 AND account_id=$2 AND kind=$3 RETURNING id", [id, req.account.id, kind, JSON.stringify(data)]);
+      if (!updated.rowCount) throw fail('Saved address was not found.', 404, 'not-found');
+    } else await client.query('INSERT INTO allgo_account_items (id,account_id,kind,data) VALUES ($1,$2,$3,$4)', [id, req.account.id, kind, JSON.stringify(data)]);
     if (kind === 'addresses') await client.query('UPDATE allgo_accounts SET profile=profile || $2::jsonb WHERE id=$1', [req.account.id, JSON.stringify({ defaultAddressId: id, defaultAddress: data.address })]);
     await client.query('COMMIT');
   } catch (error) { await client.query('ROLLBACK'); if (error.code === '23505') throw fail('You already reviewed this order.', 409); throw error; } finally { client.release(); }
