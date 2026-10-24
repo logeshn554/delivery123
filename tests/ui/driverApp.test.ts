@@ -32,6 +32,13 @@ test("availability toggle requires verified status and consent disclosure before
   assert.match(src, /locationConsent/);
 });
 
+test("foreground GPS errors are shown to online drivers with retry and offline controls", () => {
+  assert.match(src, /Location permission is off/);
+  assert.match(src, /Could not send your location/);
+  assert.match(src, /Retry GPS/);
+  assert.match(src, /Stop sharing and go offline/);
+});
+
 // TASK-94: Job offers / incoming jobs
 test("incoming job offers include paid online and cash-on-delivery orders, show countdown and expire when time passes", () => {
   assert.match(src, /\['paid', 'pending_cod'\]/);

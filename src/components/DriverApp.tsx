@@ -32,6 +32,7 @@ interface DriverAppProps {
 export default function DriverApp({ userId, userName, activeBookings, detectedLat, detectedLng }: DriverAppProps) {
   const { alert, confirm, dialog } = useFeedbackDialog();
   const [locationMessage, setLocationMessage] = useState('');
+  const [locationRetry, setLocationRetry] = useState(0);
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [vehicleType, setVehicleType] = useState<DriverProfile['vehicleType']>('bike');
   const [vehicleNo, setVehicleNo] = useState('');
@@ -125,17 +126,29 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
 
   // Native apps upload through the platform location service; web requires an open app.
   useEffect(() => {
-    if (usesNativeLocation || !profile?.online || !profile.locationConsent || profile.status !== 'verified' || !navigator.geolocation) return;
+    if (usesNativeLocation || !profile?.online || !profile.locationConsent || profile.status !== 'verified') return;
+    if (!navigator.geolocation) { setLocationMessage('GPS is unavailable. Go offline until location access is restored.'); return; }
+    let active = true;
+    setLocationMessage('Waiting for a fresh GPS location…');
     const watchId = navigator.geolocation.watchPosition(
       ({ coords }) => {
+        if (active) setLocationMessage(`Sharing active · GPS accuracy about ${Math.round(coords.accuracy)} m`);
         void updateDriverLocation(coords.latitude, coords.longitude, coords.accuracy)
-          .catch(error => console.error('Location sharing failed (foreground only):', error));
+          .catch(() => { if (active) setLocationMessage('Could not send your location. Check your connection, retry, or go offline.'); });
       },
-      (err) => console.warn('Geolocation unavailable:', err.message),
+      err => {
+        if (!active) return;
+        const message = err.code === err.PERMISSION_DENIED
+          ? 'Location permission is off. Allow GPS access, retry, or go offline.'
+          : err.code === err.TIMEOUT
+            ? 'GPS is taking too long. Move to an open area, retry, or go offline.'
+            : 'GPS is unavailable. Check location services, retry, or go offline.';
+        setLocationMessage(message);
+      },
       { enableHighAccuracy: true, maximumAge: 15000, timeout: 10000 }
     );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [profile?.online, profile?.status, profile?.locationConsent, userId]);
+    return () => { active = false; navigator.geolocation.clearWatch(watchId); };
+  }, [profile?.online, profile?.status, profile?.locationConsent, userId, locationRetry]);
   useEffect(() => {
     if (!usesNativeLocation) return;
     const refresh = () => { void nativeDriverLocationStatus().then(status => setLocationMessage(status ? `${status.running ? 'Sharing active' : 'Sharing stopped'} · ${status.message}` : '')).catch(() => setLocationMessage('Location service unavailable. Update the app.')); };
@@ -251,7 +264,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     <div className="allgo-driver bg-white text-slate-900 h-full flex flex-col font-sans select-none relative">
       {dialog}
       <BookingNotificationNotice {...notification} onDismiss={notification.dismiss}/>
-      {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{usesNativeLocation ? locationMessage : 'Location sharing requires this app to stay open on this device.'}</p>{usesNativeLocation && <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
+      {profile?.online && <div className="p-3 text-xs border-b" role="status"><p>{locationMessage || (usesNativeLocation ? 'Checking location service…' : 'Location sharing requires this app to stay open on this device.')}</p>{usesNativeLocation ? <button disabled={actionBusy} className="underline mt-2" onClick={() => void performAction(() => startNativeDriverLocation(userId))}>Resume location sharing</button> : <button disabled={actionBusy} className="underline mt-2" onClick={() => setLocationRetry(value => value + 1)}>Retry GPS</button>}<button disabled={actionBusy} className="underline ml-3" onClick={() => void handleToggleOnline()}>Stop sharing and go offline</button></div>}
       
       {/* 2.5 POPUP OVERLAY DRAWER FOR SUB-VIEWS */}
       {activeSubView && (
