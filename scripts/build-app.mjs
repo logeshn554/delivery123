@@ -20,7 +20,11 @@ function run(command, args, env = process.env) {
 }
 
 const node = process.execPath;
-const buildEnv = { ...process.env, VITE_APP_AUDIENCE: application.id };
+const buildEnv = {
+  ...process.env,
+  VITE_APP_AUDIENCE: application.id,
+  GRADLE_USER_HOME: process.env.GRADLE_USER_HOME || path.join(process.cwd(), '.cache', 'gradle'),
+};
 run(node, ['node_modules/vite/bin/vite.js', 'build', '--mode', 'development'], buildEnv);
 if (platform === 'web') process.exit(0);
 
