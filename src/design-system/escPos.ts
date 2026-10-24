@@ -27,6 +27,14 @@ export function buildEscPosReceipt(booking: Booking, width = 32): Uint8Array {
   return command;
 }
 
+export function buildEscPosPrinterTest(): Uint8Array {
+  return new Uint8Array([
+    0x1b, 0x40,
+    ...new TextEncoder().encode('AllGo printer test\nReady for order receipts\n'),
+    0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x42, 0x00,
+  ]);
+}
+
 export function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildEscPosReceipt } from '../../src/design-system/escPos.ts';
+import { buildEscPosPrinterTest, buildEscPosReceipt } from '../../src/design-system/escPos.ts';
 import type { Booking } from '../../src/types.ts';
 
 const booking: Booking = {
@@ -22,4 +22,13 @@ test('ESC/POS receipt is bounded, printable ASCII with init/feed/cut commands', 
 
 test('ESC/POS receipt rejects unsupported paper widths', () => {
   assert.throws(() => buildEscPosReceipt(booking, 12), /Unsupported printer paper width/);
+});
+
+test('ESC/POS printer test is a small independent receipt without customer or order data', () => {
+  const bytes = buildEscPosPrinterTest();
+  const text = new TextDecoder().decode(bytes);
+  assert.match(text, /AllGo printer test/);
+  assert.match(text, /Ready for order receipts/);
+  assert.deepEqual(Array.from(bytes.slice(-7)), [10, 10, 10, 29, 86, 66, 0]);
+  assert.ok(bytes.length < 128);
 });

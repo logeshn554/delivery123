@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 const portal = readFileSync(new URL("../../src/components/MerchantPortal.tsx", import.meta.url), "utf8");
+const thermalPrint = readFileSync(new URL("../../src/components/MerchantThermalPrint.tsx", import.meta.url), "utf8");
 const setup = readFileSync(new URL("../../src/components/MerchantBusinessSetup.tsx", import.meta.url), "utf8");
 const prep = readFileSync(new URL("../../src/components/MerchantPreparationEditor.tsx", import.meta.url), "utf8");
 const picking = readFileSync(new URL("../../src/components/GroceryPickingEditor.tsx", import.meta.url), "utf8");
@@ -102,6 +103,14 @@ test("merchant closures editor supports date-level closures with reason and conf
   assert.match(closures, /The business record changed while editing/);
   assert.match(closures, /Add closure date/);
   assert.match(closures, /Reload calendar and discard edits/);
+});
+
+test("merchant printer settings save a paired device locally and provide a data-free test print", () => {
+  assert.match(portal, /<MerchantPrinterSettings\/>/);
+  assert.match(thermalPrint, /Default receipt printer/);
+  assert.match(thermalPrint, /Save default/);
+  assert.match(thermalPrint, /Print test receipt/);
+  assert.match(thermalPrint, /The printer only starts when you press Print on an order/);
 });
 
 // TASK-113: Settlement info

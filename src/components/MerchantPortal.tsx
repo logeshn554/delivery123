@@ -33,7 +33,7 @@ import { useBookingNotification } from '../app/useBookingNotification';
 import { finishedBooking } from '../app/bookingNotification';
 import MerchantClosuresEditor from './MerchantClosuresEditor';
 import MerchantCatalogEditor from './MerchantCatalogEditor';
-import MerchantThermalPrint from './MerchantThermalPrint';
+import MerchantThermalPrint, { MerchantPrinterSettings } from './MerchantThermalPrint';
 import StockMovementHistory from './StockMovementHistory';
 import MerchantPreparationEditor from './MerchantPreparationEditor';
 import BookingExceptionPanel from './BookingExceptionPanel';
@@ -369,6 +369,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
             <h2 className="role-section-title">Business hours & closures</h2>
             <MerchantHoursEditor id={activeMerchantId} type={activeMerchantType}/>
             <MerchantClosuresEditor id={activeMerchantId} type={activeMerchantType}/>
+            <MerchantPrinterSettings/>
           </section>
         )}
 
