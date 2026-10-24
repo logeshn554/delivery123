@@ -14,7 +14,7 @@ import HandoverCode from './HandoverCode';
 import DeliverySignatureReceipt from './DeliverySignatureReceipt';
 import RideSafetyActions from './RideSafetyActions';
 
-export default function OrderTrackingScreen({ booking, onChat, onReview }: { booking: Booking; onChat: () => void; onReview?: () => void }) {
+export default function OrderTrackingScreen({ booking, onChat, onReview, onSafetyConcern }: { booking: Booking; onChat: () => void; onReview?: () => void; onSafetyConcern?: () => void }) {
   const authority = bookingAuthorityCapabilities(booking);
   const [driver, setDriver] = useState<BookingTracking | null>(null);
   const [error, setError] = useState('');
@@ -195,7 +195,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
         </aside>
       )}
 
-      {isRide && !complete && !cancelled && <RideSafetyActions booking={booking} driverName={booking.driverName} vehicle={vehicleLabel} position={fresh && Number.isFinite(lat) && Number.isFinite(lng) ? { lat: lat!, lng: lng! } : undefined}/>}
+      {isRide && !complete && !cancelled && <RideSafetyActions booking={booking} driverName={booking.driverName} vehicle={vehicleLabel} position={fresh && Number.isFinite(lat) && Number.isFinite(lng) ? { lat: lat!, lng: lng! } : undefined} onReport={onSafetyConcern || (() => {})}/>}
 
       {/* Ride details summary */}
       {isRide && (

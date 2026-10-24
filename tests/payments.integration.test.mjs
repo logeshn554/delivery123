@@ -1318,10 +1318,14 @@ test('support cases enforce order ownership and preserve scoped reply and resolu
   await db.doc('users/other').set({ role: 'customer' });
   await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'support_shop', merchantType: 'restaurant' });
   await db.doc('bookings/support_order').set({ customerId: 'customer', serviceType: 'food' });
+  await db.doc('bookings/safety_ride').set({ customerId: 'customer', driverId: 'driver', serviceType: 'ride', status: 'transit' });
   await db.doc('platform_config/support').set({ firstResponseMinutes: 30 });
   const create = { ticketId: 'case1', subject: 'Missing item', message: 'One item is missing', category: 'missing_item', bookingId: 'support_order' };
   await assert.rejects(callable('createSupportCase', 'other', create), error => error.code === 'permission-denied');
   await callable('createSupportCase', 'customer', create);
+  await callable('createSupportCase', 'customer', { ticketId: 'ride_safety_case', subject: 'Ride safety concern · safety_ride', message: 'I need help with a safety concern during ride safety_ride.', category: 'safety', bookingId: 'safety_ride' });
+  const safetyCase = (await db.doc('support_tickets/ride_safety_case').get()).data();
+  assert.equal(safetyCase.category, 'safety'); assert.equal(safetyCase.bookingId, 'safety_ride'); assert.equal(safetyCase.userId, 'customer');
   await callable('createSupportCase', 'customer', create);
   await callable('createSupportCase', 'merchant', { ticketId: 'merchant_case', subject: 'Catalog help', message: 'Need help updating a menu item', category: 'general' });
   const merchantCase = (await db.doc('support_tickets/merchant_case').get()).data();
