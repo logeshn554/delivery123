@@ -1,7 +1,23 @@
+import { useEffect, useState } from 'react';
 import type { Booking } from '../types';
 import BookingTimeline from './BookingTimeline';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 import HandoverCode from './HandoverCode';
+import { getTransportInspection, type TransportInspectionRecord, type TransportInspectionStage } from '../data/firestoreHelper';
+
+function TransportInspectionHistory({ bookingId, updatedAt }: { bookingId: string; updatedAt: string }) {
+  const [records, setRecords] = useState<Partial<Record<TransportInspectionStage, TransportInspectionRecord>>>({});
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true; setRecords({}); setError('');
+    void Promise.all((['pickup', 'delivery'] as const).map(async stage => [stage, await getTransportInspection(bookingId, stage)] as const)).then(rows => {
+      if (active) setRecords(Object.fromEntries(rows.filter(([, value]) => value).map(([stage, value]) => [stage, value])));
+    }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Vehicle inspection records could not be loaded.'); });
+    return () => { active = false; };
+  }, [bookingId, updatedAt]);
+  const stages: TransportInspectionStage[] = ['pickup', 'delivery'];
+  return <section className="mt-3 space-y-2" aria-label="Vehicle inspection records"><h3 className="font-bold">Recorded inspections</h3>{error && <p role="alert">{error}</p>}{stages.map(stage => { const record = records[stage]; return <article key={stage} className="rounded border p-3"><strong>{stage === 'pickup' ? 'Pickup' : 'Delivery'} inspection</strong>{record ? <><p>{record.conditionNotes}</p><small>Recorded {new Date(record.recordedAt).toLocaleString()}</small><ul>{Object.keys(record.checklist).map(item => <li key={item}>✓ {item.replaceAll(/([A-Z])/g, ' $1').toLowerCase()}</li>)}</ul><div className="mt-2 flex flex-wrap gap-2">{(record.photos || []).map((photo, index) => <img key={index} src={`data:${photo.contentType};base64,${photo.base64}`} alt={`${stage} vehicle condition ${index + 1}`} className="max-h-48 max-w-full rounded border" loading="lazy"/>)}</div></> : <p className="text-xs">{stage === 'pickup' ? 'Not recorded yet.' : 'Recorded when the vehicle is handed over at destination.'}</p>}</article>;})}</section>;
+}
 
 export default function TransportOrderDetails({ booking, onContactSupport }: { booking: Booking; onContactSupport?: () => void }) {
   if (booking.serviceType !== 'transport') return null;
@@ -54,6 +70,8 @@ export default function TransportOrderDetails({ booking, onContactSupport }: { b
             <li>Verify 4-point wheel tie-down straps are secured on carrier bed</li>
           </ul>
         </div>
+
+        <TransportInspectionHistory bookingId={booking.bookingId} updatedAt={booking.updatedAt}/>
 
         {booking.pickupOtp && <HandoverCode label="Sender pickup code" code={booking.pickupOtp} guidance="Share after joint pre-loading inspection when vehicle is loaded onto carrier." />}
         {booking.otp && <HandoverCode label="Recipient delivery code" code={booking.otp} guidance="Share only after the vehicle is unloaded and its condition is checked." />}

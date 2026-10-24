@@ -20,6 +20,7 @@ import AccountDataExport from './AccountDataExport';
 import { useFeedbackDialog } from './useFeedbackDialog';
 import { usesAndroidLocation, usesNativeLocation, locationConsent, startNativeDriverLocation, stopNativeDriverLocation, nativeDriverLocationStatus } from '../driverLocation';
 import DeliverySignaturePad from './DeliverySignaturePad';
+import TransportInspectionForm from './TransportInspectionForm';
 
 interface DriverAppProps {
   userId: string;
@@ -45,6 +46,8 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const [otpInput, setOtpInput] = useState("");
   const [pickupCode, setPickupCode] = useState('');
   const [signatureProofId, setSignatureProofId] = useState('');
+  const [transportPickupInspectionId, setTransportPickupInspectionId] = useState('');
+  const [transportDeliveryInspectionId, setTransportDeliveryInspectionId] = useState('');
   const [offerNow, setOfferNow] = useState(Date.now());
   useEffect(() => {
     const timer = setInterval(() => setOfferNow(Date.now()), 1000);
@@ -653,10 +656,11 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                       />
                     </label>
                   )}
+                  {currentAssignedJob.serviceType === 'transport' && <TransportInspectionForm key={`${currentAssignedJob.bookingId}:pickup`} bookingId={currentAssignedJob.bookingId} stage="pickup" onSaved={saved => setTransportPickupInspectionId(saved ? currentAssignedJob.bookingId : '')}/>}
                   
                   <div className="flex gap-2">
                     <button 
-                      disabled={actionBusy || (['ride', 'takeover', 'parcel', 'transport'].includes(currentAssignedJob.serviceType) && pickupCode.trim().length !== 4)}
+                      disabled={actionBusy || (['ride', 'takeover', 'parcel', 'transport'].includes(currentAssignedJob.serviceType) && pickupCode.trim().length !== 4) || currentAssignedJob.serviceType === 'transport' && transportPickupInspectionId !== currentAssignedJob.bookingId}
                       onClick={() => handleVerifyOTP(currentAssignedJob)}
                       className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5"
                     >
@@ -680,6 +684,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                             ? 'Ask the passenger for the 4-digit trip completion code at the destination.'
                             : 'Ask the recipient for the delivery code at the destination.'}
                     </p>
+                    {currentAssignedJob.serviceType === 'transport' && <TransportInspectionForm key={`${currentAssignedJob.bookingId}:delivery`} bookingId={currentAssignedJob.bookingId} stage="delivery" onSaved={saved => setTransportDeliveryInspectionId(saved ? currentAssignedJob.bookingId : '')}/>}
                     {['food', 'grocery', 'parcel'].includes(currentAssignedJob.serviceType) && (signatureProofId
                       ? <p className="allgo-feedback success" role="status">Recipient signature recorded and stored privately.</p>
                       : <DeliverySignaturePad bookingId={currentAssignedJob.bookingId} onSaved={(proofId, code) => { setSignatureProofId(proofId); setOtpInput(code); }}/>
@@ -699,7 +704,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                       className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" 
                     />
                     <button 
-                      disabled={actionBusy || otpInput.trim().length !== 4 || (['food', 'grocery', 'parcel'].includes(currentAssignedJob.serviceType) && !signatureProofId)}
+                      disabled={actionBusy || otpInput.trim().length !== 4 || (['food', 'grocery', 'parcel'].includes(currentAssignedJob.serviceType) && !signatureProofId) || currentAssignedJob.serviceType === 'transport' && transportDeliveryInspectionId !== currentAssignedJob.bookingId}
                       onClick={() => handleCompleteJob(currentAssignedJob)}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15"
                     >

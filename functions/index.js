@@ -49,6 +49,8 @@ const { settlementPolicy, calculateDriverSettlement } = require('./settlementPol
 const { tripBundleFunctions } = require('./tripBundleFunctions');
 const { firestoreDatabaseId } = require('./databaseConfig');
 const { parcelPickupTimeAvailable } = require('./parcelPickupPolicy');
+const { transportInspectionFunctions } = require('./transportInspection');
+const { requireTransportInspection } = require('./transportInspectionPolicy');
 
 const app = initializeApp();
 const databaseId = firestoreDatabaseId();
@@ -68,6 +70,7 @@ Object.assign(exports, supportFunctions({ onCall, db, REGION, HttpsError, docume
 Object.assign(exports, bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, HttpsError, documentId, cleanText }));
 Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, Timestamp, journal, recordStockMovement, productWithinExpiry }));
+Object.assign(exports, transportInspectionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, grocerySubstitutionExpiryFunctions({ onSchedule, db, REGION, Timestamp }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, driverEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
@@ -899,8 +902,8 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
   if (!['preparing', 'transit', 'completed'].includes(next)) throw new HttpsError('invalid-argument', 'Invalid job transition.');
   const result = await db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
-    const codeRef = db.doc(`booking_codes/${bookingId}`), proofRef = db.doc(`booking_delivery_proofs/${bookingId}`);
-    const [booking, driver, code, account, eligibility, proof, merchantReadyEvent] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`)), transaction.get(proofRef), transaction.get(bookingRef.collection('events').doc('merchant_ready'))]);
+    const codeRef = db.doc(`booking_codes/${bookingId}`), proofRef = db.doc(`booking_delivery_proofs/${bookingId}`), pickupInspectionRef = bookingRef.collection('events').doc('transport_inspection_pickup'), deliveryInspectionRef = bookingRef.collection('events').doc('transport_inspection_delivery');
+    const [booking, driver, code, account, eligibility, proof, merchantReadyEvent, pickupInspection, deliveryInspection] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`)), transaction.get(proofRef), transaction.get(bookingRef.collection('events').doc('merchant_ready')), transaction.get(pickupInspectionRef), transaction.get(deliveryInspectionRef)]);
     const data = booking.data();
     const completedReplay = data?.driverId === uid && data.status === 'completed' && next === 'completed';
     if (!data || data.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.suspended === true || account.data()?.disabled === true || driver.data()?.status !== 'verified' && !completedReplay) throw new HttpsError('permission-denied', 'Verified driver access and assignment are required for this job.');
@@ -909,6 +912,10 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
     if (data.status === next) return { status: next };
     if (next === 'preparing' && data.serviceType === 'ride' && pickupEligibility(driver.data(), data, Date.now(), 0.3) === null) throw new HttpsError('failed-precondition', 'Move within 300 metres of the pickup and wait for a fresh, accurate location before marking arrival.');
+    if (data.serviceType === 'transport' && ['transit', 'completed'].includes(next)) {
+      try { requireTransportInspection(next === 'transit' ? 'pickup' : 'delivery', (next === 'transit' ? pickupInspection : deliveryInspection).data()); }
+      catch (error) { throw new HttpsError('failed-precondition', error.message); }
+    }
     if (next === 'transit') requireMerchantReady(data.serviceType, merchantReadyEvent.exists);
     const transition = driverTransition(data.serviceType, data.status, next);
     if (transition.requiresPickupCode) {

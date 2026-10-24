@@ -12,7 +12,7 @@ async function redactBookingHistory(db, bookingRef, uid, customerDeletion, Field
       const actorOwned = event.data().actorId === uid;
       const idContainsUser = event.id.includes(uid);
       if (!customerDeletion && !actorOwned && !idContainsUser) continue;
-      const redaction = { reason: FieldValue.delete(), text: FieldValue.delete(), notes: FieldValue.delete(), personalDataDeleted: true };
+      const redaction = { reason: FieldValue.delete(), text: FieldValue.delete(), notes: FieldValue.delete(), conditionNotes: FieldValue.delete(), photos: FieldValue.delete(), personalDataDeleted: true };
       if (actorOwned) redaction.actorId = FieldValue.delete();
       if (idContainsUser) {
         // Exception and other idempotency event IDs can contain the Firebase

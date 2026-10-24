@@ -262,6 +262,16 @@ export async function advanceDriverBooking(bookingId: string, status: 'preparing
   return (await httpsCallable<{ bookingId: string; status: string; otp?: string }, { status: string }>(functions, 'advanceDriverBooking')({ bookingId, status, ...(otp ? { otp } : {}) })).data;
 }
 
+export type TransportInspectionStage = 'pickup' | 'delivery';
+export type TransportInspectionPhoto = { contentType: string; base64: string };
+export type TransportInspectionRecord = { bookingId: string; stage: TransportInspectionStage; status: 'recorded'; driverId: string; checklist: Record<string, true>; conditionNotes: string; photos: TransportInspectionPhoto[]; recordedAt: string };
+export async function recordTransportInspection(bookingId: string, stage: TransportInspectionStage, checklist: Record<string, boolean>, conditionNotes: string, photos: TransportInspectionPhoto[]) {
+  return (await httpsCallable<{ bookingId: string; stage: TransportInspectionStage; checklist: Record<string, boolean>; conditionNotes: string; photos: TransportInspectionPhoto[] }, { status: 'recorded'; stage: TransportInspectionStage }>(functions, 'recordTransportInspection')({ bookingId, stage, checklist, conditionNotes, photos })).data;
+}
+export async function getTransportInspection(bookingId: string, stage: TransportInspectionStage) {
+  return (await httpsCallable<{ bookingId: string; stage: TransportInspectionStage }, { inspection: TransportInspectionRecord | null }>(functions, 'getTransportInspection')({ bookingId, stage })).data.inspection;
+}
+
 export type DeliveryProofPolicy = { enabled: boolean; version: number; retentionDays: number; privacyPolicyUrl: string };
 export async function getDeliveryProofPolicy() {
   return (await httpsCallable<void, DeliveryProofPolicy>(functions, 'getDeliveryProofPolicy')()).data;
