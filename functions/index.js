@@ -1180,7 +1180,7 @@ exports.requestDriverPayout = onCall({ operation: 'requestDriverPayout', region:
   return db.runTransaction(async transaction => {
     const [existing, driver, account] = await Promise.all([transaction.get(payoutRef), transaction.get(driverRef), transaction.get(db.doc(`users/${uid}`))]);
     if (existing.exists) return { amount: existing.data().amount, status: existing.data().status };
-    if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'Only verified partners can request payouts.');
+    if (account.data()?.role !== 'driver' || account.data()?.disabled === true || account.data()?.suspended === true || driver.data()?.status !== 'verified') throw new HttpsError('permission-denied', 'Only active, verified partners can request payouts.');
     const cents = driver.data().availableEarningsCents;
     if (!Number.isSafeInteger(cents) || cents <= 0) throw new HttpsError('failed-precondition', 'No ledger earnings are available for withdrawal.');
     transaction.update(driverRef, { availableEarningsCents: 0, reservedEarningsCents: addCents(Number(driver.data().reservedEarningsCents || 0), cents) });
@@ -1192,13 +1192,14 @@ exports.requestDriverPayout = onCall({ operation: 'requestDriverPayout', region:
 });
 
 exports.recordDriverPayout = onCall({ operation: 'recordDriverPayout', region: REGION }, async request => {
-  requireUser(request);
+  const uid = requireUser(request);
   if (request.auth.token.admin !== true) throw new HttpsError('permission-denied', 'An operations administrator must record transfers.');
   const requestId = documentId(request.data?.requestId, 'Payout request'), status = request.data?.status;
   if (!['paid', 'failed'].includes(status)) throw new HttpsError('invalid-argument', 'Select the actual transfer result.');
   const reference = cleanText(request.data?.reference, status === 'paid' ? 'Actual transfer reference' : 'Failure reason', 200);
   return db.runTransaction(async transaction => {
-    const payoutRef = db.doc(`payout_requests/${requestId}`), payout = await transaction.get(payoutRef), data = payout.data();
+    const payoutRef = db.doc(`payout_requests/${requestId}`), [payout, adminAccount] = await Promise.all([transaction.get(payoutRef), transaction.get(db.doc(`users/${uid}`))]), data = payout.data(), administrator = adminAccount.data();
+    if (administrator?.role !== 'admin' || administrator.disabled === true || administrator.suspended === true) throw new HttpsError('permission-denied', 'An active operations administrator must record transfers.');
     if (!data) throw new HttpsError('not-found', 'Payout request not found.');
     if (data.status === status && data.transferReference === reference) return { status };
     if (data.status !== 'requested') throw new HttpsError('failed-precondition', 'This transfer already has a recorded result.');
@@ -1234,12 +1235,13 @@ exports.requestTransportOperatorPayout = onCall({ operation: 'requestTransportOp
 
 exports.recordTransportOperatorPayout = onCall({ operation: 'recordTransportOperatorPayout', region: REGION }, async request => {
   const uid = requireUser(request);
-  if (request.auth.token.admin !== true || (await db.doc(`users/${uid}`).get()).data()?.role !== 'admin') throw new HttpsError('permission-denied', 'An operations administrator must record actual transfers.');
+  if (request.auth.token.admin !== true) throw new HttpsError('permission-denied', 'An operations administrator must record actual transfers.');
   const requestId = documentId(request.data?.requestId, 'Payout request'), status = request.data?.status;
   if (!['paid', 'failed'].includes(status)) throw new HttpsError('invalid-argument', 'Select the actual transfer result.');
   const reference = cleanText(request.data?.reference, status === 'paid' ? 'Actual transfer reference' : 'Failure reason', 200);
   return db.runTransaction(async tx => {
-    const payoutRef = db.doc(`payout_requests/${requestId}`), payout = await tx.get(payoutRef), data = payout.data();
+    const payoutRef = db.doc(`payout_requests/${requestId}`), [payout, adminAccount] = await Promise.all([tx.get(payoutRef), tx.get(db.doc(`users/${uid}`))]), data = payout.data(), administrator = adminAccount.data();
+    if (administrator?.role !== 'admin' || administrator.disabled === true || administrator.suspended === true) throw new HttpsError('permission-denied', 'An active operations administrator must record actual transfers.');
     if (!data || data.beneficiaryType !== 'transport_operator' || !data.operatorId) throw new HttpsError('not-found', 'Transport operator payout request not found.');
     if (data.status === status && data.transferReference === reference) return { status };
     if (data.status !== 'requested') throw new HttpsError('failed-precondition', 'This payout transfer already has a recorded result.');

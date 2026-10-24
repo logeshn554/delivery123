@@ -1803,6 +1803,9 @@ test('transport operator settlement approval and payout require ownership, finan
   assert.equal(payout.amountCents, 7000);
   assert.equal((await db.doc('transport_operator_balances/carrier-one').get()).data().reservedCents, 7000);
   await assert.rejects(callable('recordTransportOperatorPayout', 'operator-owner', { requestId: payout.requestId, status: 'paid', reference: 'BANK-REF-A' }), error => error.code === 'permission-denied');
+  await db.doc('users/admin').update({ suspended: true });
+  await assert.rejects(callable('recordTransportOperatorPayout', 'admin', { requestId: payout.requestId, status: 'paid', reference: 'BANK-REF-A' }, true), error => error.code === 'permission-denied');
+  await db.doc('users/admin').update({ suspended: false });
   await callable('recordTransportOperatorPayout', 'admin', { requestId: payout.requestId, status: 'paid', reference: 'BANK-REF-A' }, true);
   assert.deepEqual(await callable('recordTransportOperatorPayout', 'admin', { requestId: payout.requestId, status: 'paid', reference: 'BANK-REF-A' }, true), { status: 'paid' });
   const payoutDoc = (await db.doc(`payout_requests/${payout.requestId}`).get()).data();
@@ -1818,6 +1821,50 @@ test('transport operator settlement approval and payout require ownership, finan
   await callable('reviewTransportOperatorSettlement', 'admin', { ...review, bookingId: 'settlement-c', decision: 'rejected', reason: 'Receipt does not reconcile with the customer payment.', requestId: 'review-settlement-c' }, true);
   assert.equal((await db.doc('transport_operator_ledger/carrier-one/entries/settlement-c').get()).data().status, 'rejected');
   assert.equal((await db.doc('transport_operator_balances/carrier-one').get()).data().availableCents, 4000);
+});
+test('driver payouts reserve ledger funds once and require active drivers and finance administrators', async () => {
+  await db.doc('users/driver').set({ uid: 'driver', role: 'driver' });
+  await db.doc('users/customer').set({ uid: 'customer', role: 'customer' });
+  await db.doc('users/admin').set({ uid: 'admin', role: 'admin' });
+  await db.doc('users/claim-only-admin').set({ uid: 'claim-only-admin', role: 'customer' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', availableEarningsCents: 4500, reservedEarningsCents: 0 });
+
+  await db.doc('users/driver').update({ suspended: true });
+  await assert.rejects(callable('requestDriverPayout', 'driver', { requestId: 'driver-payout-a' }), error => error.code === 'permission-denied');
+  await db.doc('users/driver').update({ suspended: false });
+  await assert.rejects(callable('requestDriverPayout', 'customer', { requestId: 'driver-payout-a' }), error => error.code === 'permission-denied');
+
+  const first = await callable('requestDriverPayout', 'driver', { requestId: 'driver-payout-a' });
+  assert.deepEqual(first, { amount: 45, status: 'requested' });
+  assert.deepEqual(await callable('requestDriverPayout', 'driver', { requestId: 'driver-payout-a' }), first);
+  let profile = (await db.doc('driver_profiles/driver').get()).data();
+  assert.equal(profile.availableEarningsCents, 0); assert.equal(profile.reservedEarningsCents, 4500);
+  assert.equal((await db.collection('driver_ledger/driver/entries').get()).size, 1);
+
+  const paidInput = { requestId: 'driver_driver-payout-a', status: 'paid', reference: 'BANK-DRIVER-A' };
+  await assert.rejects(callable('recordDriverPayout', 'claim-only-admin', paidInput, true), error => error.code === 'permission-denied');
+  await db.doc('users/admin').update({ disabled: true });
+  await assert.rejects(callable('recordDriverPayout', 'admin', paidInput, true), error => error.code === 'permission-denied');
+  await db.doc('users/admin').update({ disabled: false });
+  assert.deepEqual(await callable('recordDriverPayout', 'admin', paidInput, true), { status: 'paid' });
+  assert.deepEqual(await callable('recordDriverPayout', 'admin', paidInput, true), { status: 'paid' });
+  const paid = (await db.doc('payout_requests/driver_driver-payout-a').get()).data();
+  assert.equal(paid.status, 'paid'); assert.equal(paid.transferReference, 'BANK-DRIVER-A');
+  profile = (await db.doc('driver_profiles/driver').get()).data();
+  assert.equal(profile.reservedEarningsCents, 0); assert.equal(profile.availableEarningsCents, 0);
+  assert.equal((await db.doc('financial_journals/payout_result_driver_driver-payout-a').get()).data().amountCents, 4500);
+
+  await db.doc('driver_profiles/driver').update({ availableEarningsCents: 2300 });
+  const second = await callable('requestDriverPayout', 'driver', { requestId: 'driver-payout-b' });
+  assert.equal(second.amount, 23);
+  const failedInput = { requestId: 'driver_driver-payout-b', status: 'failed', reference: 'Receiving bank rejected transfer.' };
+  assert.deepEqual(await callable('recordDriverPayout', 'admin', failedInput, true), { status: 'failed' });
+  assert.deepEqual(await callable('recordDriverPayout', 'admin', failedInput, true), { status: 'failed' });
+  profile = (await db.doc('driver_profiles/driver').get()).data();
+  assert.equal(profile.reservedEarningsCents, 0); assert.equal(profile.availableEarningsCents, 2300);
+  assert.equal((await db.doc('payout_requests/driver_driver-payout-b').get()).data().status, 'failed');
+  assert.equal((await db.doc('financial_journals/payout_result_driver_driver-payout-b').get()).data().amountCents, 2300);
+  assert.equal((await db.collection('driver_ledger/driver/entries').get()).size, 4);
 });
 test('food, grocery and parcel completion requires a private, consented recipient signature', async () => {
   await db.doc('users/driver').set({ role: 'driver', name: 'Delivery partner' });
