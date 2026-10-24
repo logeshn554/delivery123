@@ -21,9 +21,14 @@ function driverTransition(service, current, next) {
   if (!allowed[next]?.includes(current)) throw new HttpsError('failed-precondition', 'The order has changed. Refresh before continuing.');
   return { stage: next === 'preparing' ? 'arrived_at_pickup' : next === 'transit' ? (service === 'ride' || service === 'takeover' ? 'trip_started' : 'picked_up') : (service === 'ride' || service === 'takeover' ? 'trip_completed' : 'delivery_confirmed'), requiresPickupCode: next === 'transit' && contract.pickupProof };
 }
+function requireMerchantReady(service, readyEventExists) {
+  if (['food', 'grocery'].includes(service) && !readyEventExists) {
+    throw new HttpsError('failed-precondition', 'The merchant has not confirmed this order is ready for pickup.');
+  }
+}
 function merchantTransition(service, current, next) {
   contractFor(service);
   if (!['food', 'grocery'].includes(service) || !({ preparing: ['pending'], ready: ['preparing'] }[next]?.includes(current))) throw new HttpsError('failed-precondition', 'This merchant transition is not allowed.');
   return service === 'food' ? (next === 'preparing' ? 'restaurant_preparing' : 'restaurant_ready') : (next === 'preparing' ? 'store_picking' : 'store_packed');
 }
-module.exports = { contractFor, driverTransition, merchantTransition };
+module.exports = { contractFor, driverTransition, merchantTransition, requireMerchantReady };

@@ -41,7 +41,7 @@ const { merchantHasBusiness, merchantBusinessOutlets } = require('./merchantAcce
 const { scanBytes } = require('./clamScanner');
 const { getStorage } = require('firebase-admin/storage');
 const { catalogSearchFunctions } = require('./catalogSearch');
-const { contractFor, driverTransition, merchantTransition } = require('./fulfillmentPolicy');
+const { contractFor, driverTransition, merchantTransition, requireMerchantReady } = require('./fulfillmentPolicy');
 const { journal } = require('./journalPolicy');
 const { addCents } = require('./moneyPolicy');
 const { assertCodAmount, assertCodAttempt } = require('./codBookingPolicy');
@@ -898,7 +898,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
   const result = await db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
     const codeRef = db.doc(`booking_codes/${bookingId}`), proofRef = db.doc(`booking_delivery_proofs/${bookingId}`);
-    const [booking, driver, code, account, eligibility, proof] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`)), transaction.get(proofRef)]);
+    const [booking, driver, code, account, eligibility, proof, merchantReadyEvent] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`)), transaction.get(proofRef), transaction.get(bookingRef.collection('events').doc('merchant_ready'))]);
     const data = booking.data();
     const completedReplay = data?.driverId === uid && data.status === 'completed' && next === 'completed';
     if (!data || data.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.suspended === true || account.data()?.disabled === true || driver.data()?.status !== 'verified' && !completedReplay) throw new HttpsError('permission-denied', 'Verified driver access and assignment are required for this job.');
@@ -906,6 +906,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
     if (data.status === next) return { status: next };
+    if (next === 'transit') requireMerchantReady(data.serviceType, merchantReadyEvent.exists);
     const transition = driverTransition(data.serviceType, data.status, next);
     if (transition.requiresPickupCode) {
       const confirmation = code.data();
