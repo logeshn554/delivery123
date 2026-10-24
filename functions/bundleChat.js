@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { merchantHasBusiness } = require('./merchantAccess');
+const { merchantHasPermission } = require('./merchantAccess');
 const ACTIVE = new Set(['pending', 'accepted', 'preparing', 'ready', 'transit', 'at_merchant_stop']);
 
 function maySendBundleChat({ uid, token, account, driver, bundle, leg }) {
@@ -7,7 +7,7 @@ function maySendBundleChat({ uid, token, account, driver, bundle, leg }) {
   if (account.role === 'admin') return token?.admin === true;
   if (account.role === 'customer') return bundle?.customerId === uid;
   if (account.role === 'driver') return driver?.status === 'verified' && [uid, `${uid}_drv`].includes(leg.driverId);
-  return merchantHasBusiness(account, leg.merchantId, leg.type === 'food' ? 'restaurant' : leg.type === 'grocery' ? 'grocery' : null);
+  return merchantHasPermission(account, leg.merchantId, leg.type === 'food' ? 'restaurant' : leg.type === 'grocery' ? 'grocery' : null, 'orders');
 }
 
 function validChatText(value) {

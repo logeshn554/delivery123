@@ -1,9 +1,9 @@
 const crypto = require('node:crypto');
-const { merchantHasBusiness } = require('./merchantAccess');
+const { merchantHasPermission, merchantBusinessOutlets } = require('./merchantAccess');
 const { notificationId, claimNotification, bookingNotificationContent } = require('./notificationPolicy');
 
 const active = account => account && account.disabled !== true && account.suspended !== true;
-const merchantFor = (account, booking) => active(account) && merchantHasBusiness(account, booking.merchantId, booking.serviceType === 'food' ? 'restaurant' : booking.serviceType === 'grocery' ? 'grocery' : null);
+const merchantFor = (account, booking) => active(account) && merchantHasPermission(account, booking.merchantId, booking.serviceType === 'food' ? 'restaurant' : booking.serviceType === 'grocery' ? 'grocery' : null, 'orders');
 
 function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging, isOfferEligible }) {
   const deviceRef = token => db.doc(`push_devices/${crypto.createHash('sha256').update(token).digest('hex')}`);
@@ -18,7 +18,7 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
     const account = (await db.doc(`users/${uid}`).get()).data();
     if (!active(account)) throw new HttpsError('permission-denied', 'An active account is required.');
     if (audience === 'driver' && (account.role !== 'driver' || (await db.doc(`driver_profiles/${uid}`).get()).data()?.status !== 'verified')) throw new HttpsError('permission-denied', 'Verified driver access is required.');
-    if (audience === 'merchant' && (account.role !== 'merchant' || !account.merchantId || !['restaurant', 'grocery'].includes(account.merchantType))) throw new HttpsError('permission-denied', 'An assigned merchant account is required.');
+    if (audience === 'merchant' && (account.role !== 'merchant' || merchantBusinessOutlets(account).length === 0)) throw new HttpsError('permission-denied', 'An assigned merchant account is required.');
     await deviceRef(token).set({ uid, token, platform: request.data.platform, audience, updatedAt: Timestamp.now(), expiresAt: Timestamp.fromMillis(Date.now() + 90 * 86400000) });
     return { registered: true };
   });
@@ -64,13 +64,14 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
         }
       }
     }
-    if (booking.merchantId && ['food', 'grocery'].includes(booking.serviceType)) {
+    if (typeof booking.merchantId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(booking.merchantId) && ['food', 'grocery'].includes(booking.serviceType)) {
       const field = booking.serviceType === 'food' ? 'restaurant' : 'grocery';
-      const [primary, additional] = await Promise.all([
+      const [primary, additional, staff] = await Promise.all([
         db.collection('users').where('merchantId', '==', booking.merchantId).get(),
         db.collection('users').where(`merchantBusinessIds.${field}`, 'array-contains', booking.merchantId).get(),
+        db.collection('users').where(`merchantStaffAccess.${booking.merchantId}.merchantType`, '==', field === 'restaurant' ? 'restaurant' : 'grocery').get(),
       ]);
-      for (const merchant of [...new Map([...primary.docs, ...additional.docs].map(record => [record.id, record])).values()]) if (merchantFor(merchant.data(), booking)) add(merchant.id, 'merchant');
+      for (const merchant of [...new Map([...primary.docs, ...additional.docs, ...staff.docs].map(record => [record.id, record])).values()]) if (merchantFor(merchant.data(), booking)) add(merchant.id, 'merchant');
     }
     const content = bookingNotificationContent(changed, previous);
     for (const [uid, audiences] of recipients) {

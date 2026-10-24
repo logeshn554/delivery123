@@ -21,6 +21,7 @@ test('each app routes only its own role to a partner workspace', () => {
   assert.equal(workspaceFor('customer', profile('admin')), 'admin');
   assert.equal(workspaceFor('customer', profile('driver')), 'customer');
   assert.equal(workspaceFor('merchant', profile('merchant', { merchantId: 'shop', merchantType: 'restaurant' })), 'merchant');
+  assert.equal(workspaceFor('merchant', profile('merchant', { transportOperatorId: 'operator-1' })), 'merchant');
   assert.equal(workspaceFor('driver', profile('driver')), 'driver');
   assert.equal(workspaceFor('merchant', profile('driver')), 'denied');
   assert.equal(workspaceFor('driver', profile('merchant')), 'denied');

@@ -1,11 +1,11 @@
-const { merchantHasBusiness } = require('./merchantAccess');
+const { merchantHasPermission } = require('./merchantAccess');
 function bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }) {
   const terminal = status => ['completed', 'delivered', 'cancelled'].includes(status);
   const active = account => account && account.disabled !== true && account.suspended !== true;
   const participant = (uid, account, booking) => active(account) && (
     account.role === 'customer' && booking.customerId === uid ||
     account.role === 'driver' && booking.driverId === uid ||
-    merchantHasBusiness(account, booking.merchantId, booking.serviceType === 'food' ? 'restaurant' : booking.serviceType === 'grocery' ? 'grocery' : null)
+    merchantHasPermission(account, booking.merchantId, booking.serviceType === 'food' ? 'restaurant' : booking.serviceType === 'grocery' ? 'grocery' : null, 'orders')
   );
   return {
     reportBookingException: onCall({ operation: 'reportBookingException', region: REGION }, async request => {

@@ -11,7 +11,10 @@ beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
-    for (const [uid, role] of [['customer','customer'],['other','customer'],['driver','driver'],['merchant','merchant'],['admin','admin']]) await setDoc(doc(db, 'users', uid), { uid, name: uid, email: `${uid}@example.test`, role, createdAt: '2026-10-09', walletBalance: 0, ...(uid === 'merchant' ? { merchantId: 'shop', merchantType: 'restaurant' } : {}) });
+    for (const [uid, role] of [['customer','customer'],['other','customer'],['driver','driver'],['merchant','merchant'],['admin','admin']]) await setDoc(doc(db, 'users', uid), { uid, name: uid, email: `${uid}@example.test`, role, createdAt: '2026-10-09', walletBalance: 0, ...(uid === 'merchant' ? { merchantId: 'shop', merchantType: 'restaurant', transportOperatorId: 'carrier' } : {}) });
+    await setDoc(doc(db, 'users', 'staff-orders'), { uid: 'staff-orders', name: 'Order staff', email: 'orders@example.test', role: 'merchant', merchantStaffAccess: { shop: { merchantType: 'restaurant', ownerUid: 'merchant', permissions: ['orders'] } } });
+    await setDoc(doc(db, 'users', 'operator-impostor'), { uid: 'operator-impostor', name: 'Impostor', email: 'impostor@example.test', role: 'customer', transportOperatorId: 'carrier' });
+    await setDoc(doc(db, 'users', 'staff-catalog'), { uid: 'staff-catalog', name: 'Catalog staff', email: 'catalog@example.test', role: 'merchant', merchantStaffAccess: { market: { merchantType: 'grocery', ownerUid: 'merchant', permissions: ['catalog'] } } });
     await setDoc(doc(db, 'driver_profiles', 'driver'), { driverId: 'driver', vehicleType: 'bike', vehicleNo: 'REG1', licenseNo: 'LIC1', status: 'verified', online: true, todayEarnings: 0, completedJobs: 0, supportedServices: ['food','parcel'] });
     for (const [id, driverId] of [['available', null], ['assigned', 'driver']]) await setDoc(doc(db, 'bookings', id), { bookingId: id, customerId: 'customer', customerName: 'Private Customer', serviceType: 'food', merchantId: 'shop', status: 'ready', driverId, paymentStatus: 'paid', price: 100, pickupAddress: 'Private Street', createdAt: '2026-10-09' });
     await setDoc(doc(db, 'booking_contacts', 'assigned'), { customerId: 'customer', senderPhone: '+919876500001' });
@@ -46,6 +49,7 @@ test('merchant settlement records are visible only to their assigned business an
     await setDoc(doc(db, 'merchant_ledger/shop/entries/assigned'), { bookingId: 'assigned', merchantId: 'shop', serviceType: 'food', payableCents: 9900, createdAt: Timestamp.now() });
     await setDoc(doc(db, 'merchant_settlement_orders/assigned'), { bookingId: 'assigned', merchantId: 'shop', serviceType: 'food', contract: { commissionBps: 875, acceptedBy: 'merchant' } });
     await setDoc(doc(db, 'payout_requests/merchant-request'), { requestId: 'merchant-request', beneficiaryType: 'merchant', merchantId: 'shop', serviceType: 'food', amountCents: 9900, status: 'requested' });
+    await setDoc(doc(db, 'payout_requests/transport_carrier_request'), { requestId: 'transport_carrier_request', beneficiaryType: 'transport_operator', operatorId: 'carrier', amountCents: 12000, status: 'requested' });
   });
   const owner = dbFor('merchant');
   await assertSucceeds(getDoc(doc(owner, 'merchant_balances/shop')));
@@ -53,13 +57,37 @@ test('merchant settlement records are visible only to their assigned business an
   await assertFails(getDoc(doc(owner, 'merchant_settlement_orders/assigned')));
   await assertSucceeds(getDocs(query(collection(owner, 'merchant_ledger/shop/entries'), where('merchantId', '==', 'shop'), where('serviceType', '==', 'food'), orderBy('createdAt', 'desc'), limit(50))));
   await assertSucceeds(getDoc(doc(owner, 'payout_requests/merchant-request')));
+  await assertSucceeds(getDoc(doc(owner, 'payout_requests/transport_carrier_request')));
   for (const path of ['merchant_balances/shop', 'merchant_ledger/shop/entries/assigned', 'payout_requests/merchant-request']) {
     await assertFails(getDoc(doc(dbFor('other'), path)));
     await assertFails(deleteDoc(doc(owner, path)));
   }
+  await assertFails(getDoc(doc(dbFor('other'), 'payout_requests/transport_carrier_request')));
+  await assertFails(getDoc(doc(dbFor('operator-impostor'), 'payout_requests/transport_carrier_request')));
+  await assertFails(setDoc(doc(owner, 'payout_requests/forged-transport'), { beneficiaryType: 'transport_operator', operatorId: 'carrier', amountCents: 1, status: 'paid' }));
   await assertFails(setDoc(doc(owner, 'merchant_ledger/shop/entries/forged'), { merchantId: 'shop', serviceType: 'food', payableCents: 999999 }));
   await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), 'merchant_balances/shop')));
   await assertFails(getDoc(doc(dbFor('admin', { admin: true }), 'merchant_settlement_orders/assigned')));
+});
+
+test('merchant staff are scoped to granted outlets and permissions, and cannot edit their own grants', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'bookings/staff-order'), { bookingId: 'staff-order', customerId: 'customer', customerName: 'Private Customer', serviceType: 'food', merchantId: 'shop', status: 'ready', driverId: null, paymentStatus: 'paid', price: 100, pickupAddress: 'Private Street', createdAt: '2026-10-09' });
+    await setDoc(doc(db, 'bookings/staff-catalog-order'), { bookingId: 'staff-catalog-order', customerId: 'customer', customerName: 'Private Customer', serviceType: 'grocery', merchantId: 'market', status: 'ready', driverId: null, paymentStatus: 'paid', price: 100, pickupAddress: 'Private Street', createdAt: '2026-10-09' });
+    await setDoc(doc(db, 'merchant_balances/shop'), { merchantId: 'shop', serviceType: 'food', availableCents: 9900, reservedCents: 0 });
+    await setDoc(doc(db, 'merchant_ledger/shop/entries/staff'), { bookingId: 'staff-order', merchantId: 'shop', serviceType: 'food', payableCents: 9900, createdAt: Timestamp.now() });
+    await setDoc(doc(db, 'payout_requests/staff'), { requestId: 'staff', beneficiaryType: 'merchant', merchantId: 'shop', serviceType: 'food', amountCents: 9900, status: 'requested' });
+    await setDoc(doc(db, 'grocery_stores/market/products/item/stock_events/reservation'), { kind: 'reservation', delta: -1, createdAt: '2026-10-12T00:00:00.000Z' });
+  });
+  await assertSucceeds(getDoc(doc(dbFor('staff-orders'), 'bookings/staff-order')));
+  await assertFails(getDoc(doc(dbFor('staff-orders'), 'merchant_balances/shop')));
+  await assertFails(getDoc(doc(dbFor('staff-orders'), 'merchant_ledger/shop/entries/staff')));
+  await assertFails(getDoc(doc(dbFor('staff-orders'), 'payout_requests/staff')));
+  await assertSucceeds(getDoc(doc(dbFor('staff-catalog'), 'grocery_stores/market/products/item/stock_events/reservation')));
+  await assertFails(getDoc(doc(dbFor('staff-catalog'), 'bookings/staff-catalog-order')));
+  await assertFails(updateDoc(doc(dbFor('staff-orders'), 'users/staff-orders'), { merchantStaffAccess: {} }));
+  await assertFails(getDoc(doc(dbFor('staff-catalog'), 'grocery_stores/other/products/item/stock_events/reservation')));
 });
 
 test('address migration receipts cannot be read, forged or deleted by clients', async () => {
@@ -294,8 +322,18 @@ test('merchant scope and verified operations claims are enforced', async () => {
 });
 test('customers cannot change role or wallet balance and drivers cannot self-approve', async () => {
   await assertFails(updateDoc(doc(dbFor('customer'), 'users', 'customer'), { role: 'admin' }));
+  await assertFails(updateDoc(doc(dbFor('customer'), 'users', 'customer'), { transportOperatorId: 'operator-1' }));
   await assertFails(updateDoc(doc(dbFor('customer'), 'users', 'customer'), { walletBalance: 100000 }));
   await assertFails(updateDoc(doc(dbFor('driver'), 'driver_profiles', 'driver'), { status: 'verified', supportedServices: ['transport'] }));
+  await assertFails(updateDoc(doc(dbFor('driver'), 'driver_profiles', 'driver'), { transportOperatorId: 'operator-1' }));
+});
+test('transport fleet, vehicle review and quote request records are server-only', async () => {
+  const db = dbFor('customer');
+  await assertFails(getDoc(doc(db, 'transport_operators/carrier-one')));
+  await assertFails(getDoc(doc(db, 'transport_operators/carrier-one/vehicles/truck-one')));
+  await assertFails(getDoc(doc(db, 'transport_operators/carrier-one/quote_requests/request-one')));
+  await assertFails(getDoc(doc(db, 'transport_vehicle_reviews/truck-one')));
+  await assertFails(getDoc(doc(db, 'transport_quote_requests/request-one')));
 });
 test('bridged profile with phoneVerified and requestedRole permits client updates while denying forged field changes', async () => {
   await env.withSecurityRulesDisabled(async context => {
