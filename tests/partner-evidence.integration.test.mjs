@@ -161,8 +161,20 @@ test('merchant eligibility links the applicant, reviewed evidence and closed cat
   const business = (await db.doc('grocery_stores/merchant-shop').get()).data();
   assert.equal(business.ownerId, 'customer'); assert.equal(business.onboardingStatus, 'approved'); assert.equal(business.acceptingOrders, false);
   assert.equal((await db.doc('users/customer').get()).data().role, 'customer');
+  assert.deepEqual((await db.doc('users/customer').get()).data().merchantBusinessIds, { restaurant: [], grocery: ['merchant-shop'] });
   await assert.rejects(call('reviewMerchantEligibility', 'admin', { ...decision, reason: 'Changed decision' }, true), error => error.code === 'already-exists');
   assert.equal((await db.collection('grocery_stores/merchant-shop/eligibility_events').get()).size, 1);
+});
+
+test('an existing merchant may submit another outlet under independent eligibility review', async () => {
+  await db.doc('users/customer').update({ role: 'merchant', merchantId: 'primary-shop', merchantType: 'grocery' });
+  await db.doc('partner_applications/second-outlet').set({ applicationId: 'second-outlet', userId: 'customer', type: 'grocery', status: 'submitted', revision: 0, phone: identity.phoneNumber, phoneVerified: true, businessId: 'second-shop' });
+  await db.doc('grocery_stores/second-shop').set({ id: 'second-shop', ownerId: 'customer', applicationId: 'second-outlet', merchantType: 'grocery', onboardingStatus: 'draft', acceptingOrders: false });
+  const decision = { applicationId: 'second-outlet', merchantId: 'second-shop', merchantType: 'grocery', status: 'verified', requestId: 'second-review', expectedRevision: 0, expectedPolicyVersion: 1, policyReviewed: true, evidenceIds: [], reason: 'Review second outlet.' };
+  await assert.rejects(call('reviewMerchantEligibility', 'admin', decision, true), error => error.code === 'failed-precondition');
+  const account = (await db.doc('users/customer').get()).data();
+  assert.equal(account.role, 'merchant'); assert.equal(account.merchantId, 'primary-shop');
+  assert.equal((await db.doc('grocery_stores/second-shop').get()).data().onboardingStatus, 'draft');
 });
 
 test('corrupt retention blocks upload recovery, scan release and private download', async () => {

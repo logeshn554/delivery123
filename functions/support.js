@@ -1,3 +1,4 @@
+const { merchantHasBusiness } = require('./merchantAccess');
 function supportFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }) {
   const categories = ['general', 'payment', 'cancellation', 'missing_item', 'wrong_item', 'wrong_location', 'route_deviation', 'quality', 'damage', 'lost', 'safety', 'delay'];
   async function actor(request) {
@@ -13,7 +14,8 @@ function supportFunctions({ onCall, db, REGION, HttpsError, documentId, cleanTex
       const bookingId = data.bookingId ? documentId(data.bookingId, 'Booking ID') : null;
       return db.runTransaction(async tx => {
         const ref = db.doc(`support_tickets/${id}`), [existing, booking, profile, policy] = await Promise.all([tx.get(ref), bookingId ? tx.get(db.doc(`bookings/${bookingId}`)) : null, tx.get(db.doc(`users/${uid}`)), tx.get(db.doc('platform_config/support'))]);
-        if (bookingId && (!booking?.exists || !(booking.data().customerId === uid || booking.data().driverId === uid || profile.data()?.role === 'merchant' && profile.data()?.merchantId === booking.data().merchantId))) throw new HttpsError('permission-denied', 'You cannot open a case for this booking.');
+        const bookingData = booking?.data();
+        if (bookingId && (!booking?.exists || !(bookingData.customerId === uid || bookingData.driverId === uid || merchantHasBusiness(profile.data(), bookingData.merchantId, bookingData.serviceType === 'food' ? 'restaurant' : bookingData.serviceType === 'grocery' ? 'grocery' : null)))) throw new HttpsError('permission-denied', 'You cannot open a case for this booking.');
         if (existing.exists) {
           const current = existing.data();
           if (current.userId !== uid || current.subject !== subject || current.message !== message || (current.bookingId || null) !== bookingId || (current.category || 'general') !== category) throw new HttpsError('already-exists', 'This ticket identifier is already used.');

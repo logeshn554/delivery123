@@ -15,7 +15,7 @@ function harness() {
     listenToBookings: (cb: typeof emit) => listen('admin', [], cb),
     listenToCustomerBookings: (uid: string, cb: typeof emit) => listen('customer', [uid], cb),
     listenToDriverBookings: (uid: string, cb: typeof emit) => listen('driver', [uid], cb),
-    listenToMerchantBookings: (id: string, type: 'restaurant' | 'grocery', cb: typeof emit) => listen('merchant', [id, type], cb),
+    listenToMerchantBookings: (outlets: { merchantId: string; merchantType: 'restaurant' | 'grocery' }[], cb: typeof emit) => listen('merchant', [outlets], cb),
   };
   return { calls, received, listeners, receive: (rows: Booking[]) => received.push(rows), emit: (rows: Booking[]) => emit(rows), stopped: () => stopped };
 }
@@ -39,9 +39,12 @@ test('non-admin accounts in the customer app retain only their personal orders',
   }
 });
 
-test('partner feeds use assigned identity and incomplete merchant profiles subscribe to nothing', () => {
-  const cases: [Pick<UserProfile, 'role' | 'merchantId' | 'merchantType'>, unknown[][]][] = [
-    [{ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' }, [['merchant', 'shop', 'grocery']]],
+test('partner feeds subscribe to every assigned outlet and incomplete merchant profiles subscribe to nothing', () => {
+  const cases: [Pick<UserProfile, 'role' | 'merchantId' | 'merchantType' | 'merchantBusinessIds'>, unknown[][]][] = [
+    [{ role: 'merchant', merchantId: 'shop', merchantType: 'grocery', merchantBusinessIds: { restaurant: ['branch'], grocery: ['shop-2'] } }, [['merchant', [
+      { merchantId: 'shop', merchantType: 'grocery' }, { merchantId: 'branch', merchantType: 'restaurant' }, { merchantId: 'shop-2', merchantType: 'grocery' },
+    ]]]],
+    [{ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' }, [['merchant', [{ merchantId: 'shop', merchantType: 'grocery' }]]]],
     [{ role: 'merchant' }, []],
     [{ role: 'customer' }, []],
   ];

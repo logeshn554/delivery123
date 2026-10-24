@@ -245,6 +245,13 @@ test('unassigned drivers cannot get or query raw offers; assigned drivers can re
 });
 test('merchant scope and verified operations claims are enforced', async () => {
   await assertSucceeds(getDoc(doc(dbFor('merchant'), 'bookings', 'assigned')));
+  await env.withSecurityRulesDisabled(async context => {
+    await updateDoc(doc(context.firestore(), 'users', 'merchant'), { merchantBusinessIds: { restaurant: ['branch_2'], grocery: [] } });
+    await setDoc(doc(context.firestore(), 'bookings', 'branch_order'), { bookingId: 'branch_order', customerId: 'customer', merchantId: 'branch_2', serviceType: 'food', status: 'pending' });
+  });
+  await assertSucceeds(getDoc(doc(dbFor('merchant'), 'bookings', 'branch_order')));
+  await assertSucceeds(getDocs(query(collection(dbFor('merchant'), 'bookings'), where('merchantId', '==', 'branch_2'), where('serviceType', '==', 'food'))));
+  await assertFails(updateDoc(doc(dbFor('merchant'), 'users', 'merchant'), { merchantBusinessIds: { restaurant: ['other'], grocery: [] } }));
   await assertFails(getDocs(collection(dbFor('admin'), 'bookings')));
   await assertSucceeds(getDocs(collection(dbFor('admin', { admin: true }), 'bookings')));
 });

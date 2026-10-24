@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { expiryId } = require('./grocerySubstitutionExpiry');
+const { merchantHasBusiness } = require('./merchantAccess');
 
 function replacementTotal(booking, itemDeltaCents, HttpsError) {
   const b = booking.priceBreakdown;
@@ -42,7 +43,7 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
       return db.runTransaction(async tx => {
         const ref = db.doc(`bookings/${bookingId}`), eventRef = ref.collection('events').doc(`picking_${requestId}`);
         const [account, record, event] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(eventRef)]), booking = record.data(), merchant = account.data();
-        if (!booking || booking.serviceType !== 'grocery' || merchant?.role !== 'merchant' || merchant.merchantType !== 'grocery' || !merchant.merchantId || merchant.merchantId !== booking.merchantId) throw new HttpsError('permission-denied', 'This order is not assigned to your grocery business.');
+        if (!booking || booking.serviceType !== 'grocery' || !merchantHasBusiness(merchant, booking.merchantId, 'grocery')) throw new HttpsError('permission-denied', 'This order is not assigned to your grocery business.');
         if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || prior.lineIndex !== lineIndex || prior.quantity !== quantity || prior.expectedRevision !== expectedRevision) throw new HttpsError('already-exists', 'This picking request reference was already used.'); return { revision: prior.revision }; }
         if (booking.status !== 'preparing' || booking.driverId || !['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Picking is only allowed for an active store preparation.');
         const item = booking.details?.items?.[lineIndex];
@@ -66,7 +67,7 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         const ref = db.doc(`bookings/${bookingId}`), proposalEvent = ref.collection('events').doc(`substitute_propose_${requestId}`),
           [accountSnap, bookingSnap, eventSnap] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(proposalEvent)]);
         const booking = bookingSnap.data(), merchant = accountSnap.data();
-        if (!booking || booking.serviceType !== 'grocery' || merchant?.role !== 'merchant' || merchant.merchantType !== 'grocery' || merchant.merchantId !== booking.merchantId) throw new HttpsError('permission-denied', 'This order is not assigned to your grocery business.');
+        if (!booking || booking.serviceType !== 'grocery' || !merchantHasBusiness(merchant, booking.merchantId, 'grocery')) throw new HttpsError('permission-denied', 'This order is not assigned to your grocery business.');
         if (eventSnap.exists) { const prior = eventSnap.data(); if (prior.actorId !== uid || prior.lineIndex !== lineIndex || prior.replacementId !== replacementId || prior.expectedRevision !== expectedRevision) throw new HttpsError('already-exists', 'This request reference was used for another replacement.'); return { revision: prior.revision }; }
         if (booking.status !== 'preparing' || booking.driverId || booking.paymentStatus !== 'paid' || booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Replacements are only available during active paid grocery picking.');
         const items = booking.details?.items, item = items?.[lineIndex], currentRevision = booking.picking?.revision ?? 0;

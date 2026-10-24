@@ -43,7 +43,9 @@ import {
   advanceMerchantBooking,
   listenToMenuItems, 
   listenToGroceryProducts, 
-  updateMerchantCatalog
+  updateMerchantCatalog,
+  listMerchantBusinesses,
+  type MerchantBusinessSummary
 } from '../data/firestoreHelper';
 
 interface MerchantPortalProps {
@@ -59,35 +61,51 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [businesses, setBusinesses] = useState<MerchantBusinessSummary[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState(merchantId && merchantType ? `${merchantType}:${merchantId}` : '');
+  const outletOptions = businesses.length ? businesses : merchantId && merchantType ? [{ id: merchantId, merchantType, name: merchantId, address: '', acceptingOrders: false }] : [];
+  const activeOutlet = outletOptions.find(outlet => `${outlet.merchantType}:${outlet.id}` === selectedOutlet) || outletOptions[0];
+  const activeMerchantId = activeOutlet?.id;
+  const activeMerchantType = activeOutlet?.merchantType;
+
+  useEffect(() => {
+    let active = true;
+    void listMerchantBusinesses().then(value => { if (active) { setBusinesses(value); setError(''); } }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Business locations could not be loaded.'); });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (activeOutlet && `${activeOutlet.merchantType}:${activeOutlet.id}` !== selectedOutlet) setSelectedOutlet(`${activeOutlet.merchantType}:${activeOutlet.id}`);
+  }, [activeOutlet?.id, activeOutlet?.merchantType, selectedOutlet]);
 
   // Sync catalog dynamically from Firestore in real-time
   useEffect(() => {
-    setActiveMenu([]); setActiveStock([]); setError(''); setLoading(Boolean(merchantId));
-    if (!merchantId || !merchantType) return;
+    setActiveMenu([]); setActiveStock([]); setLoading(Boolean(activeMerchantId));
+    setError('');
+    if (!activeMerchantId || !activeMerchantType) return;
     const failed = () => { setError('Your catalog could not be loaded. Check the business assignment and connection.'); setLoading(false); };
-    return merchantType === 'restaurant'
-      ? listenToMenuItems(merchantId, items => { setActiveMenu(items.sort((a, b) => a.name.localeCompare(b.name))); setLoading(false); }, failed)
-      : listenToGroceryProducts(merchantId, items => { setActiveStock(items.sort((a, b) => a.name.localeCompare(b.name))); setLoading(false); }, failed);
-  }, [merchantId, merchantType]);
+    return activeMerchantType === 'restaurant'
+      ? listenToMenuItems(activeMerchantId, items => { setActiveMenu(items.sort((a, b) => a.name.localeCompare(b.name))); setLoading(false); }, failed)
+      : listenToGroceryProducts(activeMerchantId, items => { setActiveStock(items.sort((a, b) => a.name.localeCompare(b.name))); setLoading(false); }, failed);
+  }, [activeMerchantId, activeMerchantType]);
 
   // Filter relevant orders
-  const notification = useBookingNotification(activeBookings, { audience: 'merchant', merchantId, merchantType });
+  const notification = useBookingNotification(activeBookings, { audience: 'merchant', merchantId: activeMerchantId, merchantType: activeMerchantType });
   useEffect(() => { if (notification.booking) setPanel('orders'); }, [notification.booking?.bookingId]);
-  const merchantBookings = activeBookings.filter(b => b.merchantId === merchantId && (merchantType === 'restaurant' ? b.serviceType === 'food' : b.serviceType === 'grocery'));
+  const merchantBookings = activeBookings.filter(b => b.merchantId === activeMerchantId && (activeMerchantType === 'restaurant' ? b.serviceType === 'food' : b.serviceType === 'grocery'));
   const foodOrders = merchantBookings.filter(b => b.serviceType === 'food' && !['completed', 'delivered', 'cancelled'].includes(b.status));
   const groceryOrders = merchantBookings.filter(b => b.serviceType === 'grocery' && !['completed', 'delivered', 'cancelled'].includes(b.status));
-  const displayedOrders = (merchantType === 'restaurant' ? foodOrders : groceryOrders).filter(booking => !notification.booking || finishedBooking(notification.booking) || booking.bookingId === notification.booking.bookingId);
+  const displayedOrders = (activeMerchantType === 'restaurant' ? foodOrders : groceryOrders).filter(booking => !notification.booking || finishedBooking(notification.booking) || booking.bookingId === notification.booking.bookingId);
 
   // Audio notification for incoming orders
   const prevPendingCount = useRef<number | null>(null);
   useEffect(() => {
-    const currentOrders = merchantType === 'restaurant' ? foodOrders : groceryOrders;
+    const currentOrders = activeMerchantType === 'restaurant' ? foodOrders : groceryOrders;
     const pendingCount = currentOrders.filter(o => o.status === 'pending').length;
     if (prevPendingCount.current !== null && pendingCount > prevPendingCount.current) {
       playOrderChime();
     }
     prevPendingCount.current = pendingCount;
-  }, [foodOrders.length, groceryOrders.length, merchantType]);
+  }, [foodOrders.length, groceryOrders.length, activeMerchantType]);
 
   // Financial calculations
   const todayStart = new Date();
@@ -112,7 +130,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
     await performAction(bookingId, () => advanceMerchantBooking(bookingId, 'ready'));
   };
 
-  if (!merchantId || !merchantType) return (
+  if (!activeMerchantId || !activeMerchantType) return (
     <section className="p-6">
       <h1 className="text-lg font-bold">Connect your business</h1>
       <p className="mt-3 text-sm">AllGo operations must assign your restaurant or grocery catalog before orders and stock controls can be opened.</p>
@@ -129,22 +147,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
           <h2 className="text-sm font-extrabold tracking-tight">AllGo Merchant Hub</h2>
         </div>
 
-        <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
-          <span
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
-              merchantType === 'restaurant' ? 'bg-blue-600 text-white' : 'text-slate-400'
-            }`}
-          >
-            <Utensils className="w-3.5 h-3.5" /> Restaurant
-          </span>
-          <span
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
-              merchantType === 'grocery' ? 'bg-blue-600 text-white' : 'text-slate-400'
-            }`}
-          >
-            <ShoppingBag className="w-3.5 h-3.5" /> Grocery
-          </span>
-        </div>
+        {outletOptions.length > 1 ? <label className="text-xs font-semibold text-slate-200">Business location<select aria-label="Business location" value={selectedOutlet} onChange={event => setSelectedOutlet(event.target.value)} className="ml-2 min-h-11 max-w-56 rounded-lg border border-slate-700 bg-slate-900 px-2"><option value="" disabled>Choose location</option>{outletOptions.map(outlet => <option key={`${outlet.merchantType}:${outlet.id}`} value={`${outlet.merchantType}:${outlet.id}`}>{outlet.name} · {outlet.address || outlet.id} · {outlet.merchantType === 'restaurant' ? 'Restaurant' : 'Grocery'}</option>)}</select></label> : <span className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold">{activeMerchantType === 'restaurant' ? <><Utensils className="mr-1 inline h-3.5 w-3.5"/>Restaurant</> : <><ShoppingBag className="mr-1 inline h-3.5 w-3.5"/>Grocery</>}</span>}
       </div>
 
       {/* Content body */}
@@ -172,8 +175,8 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
 
         <BookingNotificationNotice {...notification} onDismiss={notification.dismiss}/>
         <div className="merchant-overview">
-          <strong>{merchantType === 'restaurant' ? 'Restaurant operations' : 'Grocery operations'}</strong>
-          <span>{(merchantType === 'restaurant' ? foodOrders : groceryOrders).length} active orders · {completedToday} completed today</span>
+          <strong>{activeOutlet?.name} · {activeMerchantType === 'restaurant' ? 'Restaurant operations' : 'Grocery operations'}</strong>
+          <span>{(activeMerchantType === 'restaurant' ? foodOrders : groceryOrders).length} active orders · {completedToday} completed today</span>
         </div>
 
         {error && <p role="alert" className="rounded-xl bg-rose-950 p-3 text-sm text-rose-100">{error}</p>}
@@ -346,23 +349,23 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                 <p className="text-xs text-slate-400">Loading catalog items...</p>
               </div>
             ) : (
-              <MerchantCatalogEditor 
-                id={merchantId} 
-                type={merchantType} 
-                items={merchantType === 'restaurant' ? activeMenu : activeStock} 
+              <MerchantCatalogEditor
+                id={activeMerchantId}
+                type={activeMerchantType}
+                items={activeMerchantType === 'restaurant' ? activeMenu : activeStock}
               />
             )}
           </section>
         )}
 
-        {panel === 'settlements' && <MerchantSettlements bookings={activeBookings} merchantId={merchantId} merchantType={merchantType}/>}
+        {panel === 'settlements' && <MerchantSettlements bookings={activeBookings} merchantId={activeMerchantId} merchantType={activeMerchantType}/>}
 
         {/* 5. BUSINESS SETTINGS PANEL */}
         {panel === 'business' && (
           <section data-panel="business" className="space-y-4">
             <h2 className="role-section-title">Business hours & closures</h2>
-            <MerchantHoursEditor id={merchantId} type={merchantType}/>
-            <MerchantClosuresEditor id={merchantId} type={merchantType}/>
+            <MerchantHoursEditor id={activeMerchantId} type={activeMerchantType}/>
+            <MerchantClosuresEditor id={activeMerchantId} type={activeMerchantType}/>
           </section>
         )}
 

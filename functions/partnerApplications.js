@@ -1,6 +1,9 @@
 function applicationCorrection(application, input) {
   return { ...input, phoneVerified: application.phone === input.phone && application.phoneVerified === true };
 }
+function canStartApplication(application) {
+  return !application || ['rejected', 'withdrawn', 'approved'].includes(application.status);
+}
 function partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }) {
   const kinds = ['driver', 'restaurant', 'grocery', 'transport'];
   const fields = data => {
@@ -48,7 +51,7 @@ function partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentI
         if (existing.exists) { const prior = existing.data(); if (prior.userId !== uid || !Object.entries(data).every(([key, value]) => prior[key] === value)) throw new HttpsError('already-exists', 'This application reference was already used.'); return { applicationId: id }; }
         if (claim.exists) {
           const current = (await tx.get(db.doc(`partner_applications/${claim.data().applicationId}`))).data();
-          if (current && !['rejected', 'withdrawn'].includes(current.status)) throw new HttpsError('failed-precondition', 'An application of this type is already active. Check its review status.');
+          if (!canStartApplication(current)) throw new HttpsError('failed-precondition', 'An application of this type is already active. Check its review status.');
         }
         const now = new Date().toISOString();
         tx.create(ref, { applicationId: id, userId: uid, ...data, status: 'submitted', revision: 0, createdAt: now, updatedAt: now, phoneVerified: false });
@@ -93,4 +96,4 @@ function partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentI
     })
   };
 }
-module.exports = { partnerApplicationFunctions, applicationCorrection };
+module.exports = { partnerApplicationFunctions, applicationCorrection, canStartApplication };

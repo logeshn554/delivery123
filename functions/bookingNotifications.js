@@ -1,8 +1,8 @@
 const crypto = require('node:crypto');
+const { merchantHasBusiness } = require('./merchantAccess');
 
 const active = account => account && account.disabled !== true && account.suspended !== true;
-const merchantFor = (account, booking) => active(account) && account.role === 'merchant' && account.merchantId === booking.merchantId &&
-  (account.merchantType === 'restaurant' && booking.serviceType === 'food' || account.merchantType === 'grocery' && booking.serviceType === 'grocery');
+const merchantFor = (account, booking) => active(account) && merchantHasBusiness(account, booking.merchantId, booking.serviceType === 'food' ? 'restaurant' : booking.serviceType === 'grocery' ? 'grocery' : null);
 
 function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, Timestamp, HttpsError, requireUser, cleanText, messaging, isOfferEligible }) {
   const deviceRef = token => db.doc(`push_devices/${crypto.createHash('sha256').update(token).digest('hex')}`);
@@ -64,8 +64,12 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
       }
     }
     if (booking.merchantId && ['food', 'grocery'].includes(booking.serviceType)) {
-      const merchants = await db.collection('users').where('merchantId', '==', booking.merchantId).get();
-      for (const merchant of merchants.docs) if (merchantFor(merchant.data(), booking)) add(merchant.id, 'merchant');
+      const field = booking.serviceType === 'food' ? 'restaurant' : 'grocery';
+      const [primary, additional] = await Promise.all([
+        db.collection('users').where('merchantId', '==', booking.merchantId).get(),
+        db.collection('users').where(`merchantBusinessIds.${field}`, 'array-contains', booking.merchantId).get(),
+      ]);
+      for (const merchant of [...new Map([...primary.docs, ...additional.docs].map(record => [record.id, record])).values()]) if (merchantFor(merchant.data(), booking)) add(merchant.id, 'merchant');
     }
     for (const [uid, audiences] of recipients) {
       const account = (await db.doc(`users/${uid}`).get()).data();

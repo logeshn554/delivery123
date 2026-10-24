@@ -16,6 +16,7 @@ export interface UserProfile {
   defaultAddress?: string;
   merchantId?: string;
   merchantType?: 'restaurant' | 'grocery';
+  merchantBusinessIds?: { restaurant?: string[]; grocery?: string[] };
   preferences?: {
     orderUpdates: boolean;
     promotions: boolean;

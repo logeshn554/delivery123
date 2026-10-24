@@ -1,4 +1,5 @@
 const { EVIDENCE_KINDS, activeRetention } = require('./evidencePolicy');
+const { addMerchantBusiness } = require('./merchantAccess');
 
 function merchantEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity }) {
   const policy = async () => (await db.doc('platform_config/merchant_eligibility').get()).data() || {};
@@ -33,12 +34,15 @@ function merchantEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsErr
         const [account, applicationSnapshot, businessSnapshot, event, deletion, applicantAccount] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(applicationRef), tx.get(businessRef), tx.get(eventRef), tx.get(db.doc(`account_deletions/${ownerIdBefore}`)), tx.get(db.doc(`users/${ownerIdBefore}`))]);
         const application = applicationSnapshot.data(), business = businessSnapshot.data(), ownerId = application?.userId;
         if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || JSON.stringify(prior.input) !== JSON.stringify(input)) throw new HttpsError('already-exists', 'This decision reference was already used.'); return { status: prior.input.status, revision: prior.revision }; }
-        if (account.data()?.role !== 'admin' || account.data()?.disabled === true || account.data()?.suspended === true || !application || !business || ownerId === uid || !ownerId || applicantAccount.data()?.role !== 'customer' || applicantAccount.data()?.disabled === true || applicantAccount.data()?.suspended === true || deletion.exists) throw new HttpsError('permission-denied', 'Active independent operations, an eligible applicant, business and account are required.');
+        const applicant = applicantAccount.data();
+        const eligibleApplicantRole = applicant?.role === 'customer' || applicant?.role === 'merchant' && !!applicant.merchantId && ['restaurant', 'grocery'].includes(applicant.merchantType);
+        if (account.data()?.role !== 'admin' || account.data()?.disabled === true || account.data()?.suspended === true || !application || !business || ownerId === uid || !ownerId || !eligibleApplicantRole || applicant?.disabled === true || applicant?.suspended === true || deletion.exists) throw new HttpsError('permission-denied', 'Active independent operations, an eligible applicant, business and account are required.');
         if (ownerId !== ownerIdBefore || application.phone !== applicationBefore.phone) throw new HttpsError('aborted', 'The applicant identity changed. Refresh and review again.');
         if (application.type !== merchantType || application.businessId !== merchantId || business.ownerId !== ownerId || business.applicationId !== applicationId || business.merchantType !== merchantType) throw new HttpsError('failed-precondition', 'The business, application and applicant must have a matching server-owned link.');
         if (!['submitted', 'needs_information'].includes(application.status) || application.revision !== data.expectedRevision) throw new HttpsError('aborted', 'The application is closed or changed. Refresh before review.');
         const now = new Date().toISOString();
         let policyVersion = null;
+        let merchantBusinessIds;
         if (data.status === 'verified') {
           const requirements = (await tx.get(db.doc('platform_config/merchant_eligibility'))).data();
           let policyUrl; try { policyUrl = new URL(requirements?.policyUrl); } catch {}
@@ -56,11 +60,14 @@ function merchantEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsErr
           }
           if (missing.size) throw new HttpsError('failed-precondition', 'Required business document categories are missing.');
           if (business.acceptingOrders === true) throw new HttpsError('failed-precondition', 'Close the catalog before reviewing eligibility.');
+          try { merchantBusinessIds = addMerchantBusiness(applicant, merchantId, merchantType); }
+          catch (error) { throw new HttpsError('failed-precondition', error.message); }
           policyVersion = requirements.version;
         } else if (evidenceIds.length) throw new HttpsError('invalid-argument', 'Evidence is only attached to an approval decision.');
         const revision = data.expectedRevision + 1, businessState = data.status === 'verified' ? 'approved' : 'rejected';
         tx.update(applicationRef, { status: businessState, feedback: reason, revision, updatedAt: now });
         tx.update(businessRef, { onboardingStatus: businessState, acceptingOrders: false, merchantEligibility: { status: data.status, applicationId, evidenceIds: input.evidenceIds, policyVersion, reviewedBy: uid, reviewedAt: now, revision }, eligibilityRevision: revision });
+        if (data.status === 'verified') tx.update(db.doc(`users/${ownerId}`), { merchantBusinessIds });
         tx.create(applicationRef.collection('events').doc(requestId), { action: `merchant_eligibility_${data.status}`, actorId: uid, reason, policyVersion, revision, createdAt: now });
         tx.create(eventRef, { actorId: uid, input, policyVersion, revision, createdAt: now });
         return { status: data.status, revision };

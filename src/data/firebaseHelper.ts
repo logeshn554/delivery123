@@ -25,6 +25,11 @@ export function listenToMerchantHours(id: string, type: 'restaurant' | 'grocery'
 export async function setMerchantHours(merchantId: string, merchantType: 'restaurant' | 'grocery', weeklyHours: Record<string, { open: string; close: string }[]>, timeZone: string, acceptingOrders: boolean) {
   return (await httpsCallable(functions, 'setMerchantHours')({ merchantId, merchantType, weeklyHours, timeZone, acceptingOrders })).data;
 }
+export type MerchantBusinessSummary = { id: string; merchantType: 'restaurant' | 'grocery'; name: string; address: string; acceptingOrders: boolean };
+export async function listMerchantBusinesses(): Promise<MerchantBusinessSummary[]> {
+  const result = (await httpsCallable<void, { businesses: MerchantBusinessSummary[] }>(functions, 'listMerchantBusinesses')()).data;
+  return result.businesses;
+}
 export async function saveCatalogItem(merchantId: string, merchantType: 'restaurant' | 'grocery', itemId: string, item: unknown) {
   return (await httpsCallable(functions, 'saveCatalogItem')({ merchantId, merchantType, itemId, item })).data;
 }
@@ -349,16 +354,18 @@ export function listenToCustomerBookings(userId: string, callback: (bookings: Bo
   return group.stop;
 }
 
-export function listenToMerchantBookings(merchantId: string, merchantType: 'restaurant' | 'grocery', callback: (bookings: Booking[]) => void, onError: (error: unknown) => void = console.error) {
-  return onSnapshot(
-    query(collection(db, 'bookings'), where('merchantId', '==', merchantId), where('serviceType', '==', merchantType === 'restaurant' ? 'food' : 'grocery')),
-    snapshot => callback(snapshot.docs.map(record => record.data() as Booking).sort((a, b) => b.createdAt.localeCompare(a.createdAt))),
-    error => {
-      // FIX-02: Clear stale merchant booking rows on error
-      callback([]);
-      onError(error);
-    }
-  );
+export type MerchantBookingOutlet = { merchantId: string; merchantType: 'restaurant' | 'grocery' };
+export function listenToMerchantBookings(outlets: MerchantBookingOutlet[], callback: (bookings: Booking[]) => void, onError: (error: unknown) => void = console.error) {
+  const unique = [...new Map(outlets.map(outlet => [`${outlet.merchantType}:${outlet.merchantId}`, outlet])).values()].slice(0, 50);
+  const snapshots = new Map<string, Booking[]>(); let failed = false;
+  const publish = () => callback([...new Map([...snapshots.values()].flat().map(booking => [booking.bookingId, booking])).values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+  if (!unique.length) { callback([]); return () => undefined; }
+  const stops = unique.map(outlet => onSnapshot(
+    query(collection(db, 'bookings'), where('merchantId', '==', outlet.merchantId), where('serviceType', '==', outlet.merchantType === 'restaurant' ? 'food' : 'grocery')),
+    snapshot => { if (failed) return; snapshots.set(`${outlet.merchantType}:${outlet.merchantId}`, snapshot.docs.map(record => record.data() as Booking)); publish(); },
+    error => { if (failed) return; failed = true; callback([]); for (const stop of stops) stop(); onError(error); }
+  ));
+  return () => { failed = true; for (const stop of stops) stop(); };
 }
 export function listenToBookingEvents(id: string, callback: (events: { id: string; stage: string; createdAt: string; proofMethod?: string }[]) => void, onError: (error: unknown) => void) {
   return onSnapshot(collection(db, 'bookings', id, 'events'), snapshot => callback(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as { id: string; stage: string; createdAt: string; proofMethod?: string })).sort((a,b) => a.createdAt.localeCompare(b.createdAt))), onError);

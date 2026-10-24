@@ -37,6 +37,7 @@ const { evidenceScanningFunctions } = require('./evidenceScanning');
 const { evidenceReviewFunctions } = require('./evidenceReview');
 const { driverEligibilityFunctions } = require('./driverEligibility');
 const { merchantEligibilityFunctions } = require('./merchantEligibility');
+const { merchantHasBusiness, merchantBusinessOutlets } = require('./merchantAccess');
 const { scanBytes } = require('./clamScanner');
 const { getStorage } = require('firebase-admin/storage');
 const { catalogSearchFunctions } = require('./catalogSearch');
@@ -172,7 +173,8 @@ exports.updateMerchantPreparation = onCall({ operation: 'updateMerchantPreparati
     const ref = db.doc(`bookings/${id}`), eventRef = ref.collection('events').doc(`preparation_${uid}_${command}`);
     const [profile, snapshot, prior] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(eventRef)]);
     const merchant = profile.data(), booking = snapshot.data();
-    if (merchant?.role !== 'merchant' || !merchant.merchantId || !['restaurant', 'grocery'].includes(merchant.merchantType) || booking?.merchantId !== merchant.merchantId || booking?.serviceType !== (merchant.merchantType === 'restaurant' ? 'food' : 'grocery')) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
+    const type = booking?.serviceType === 'food' ? 'restaurant' : booking?.serviceType === 'grocery' ? 'grocery' : null;
+    if (!booking || !type || !merchantHasBusiness(merchant, booking.merchantId, type)) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
     if (prior.exists) {
       if (prior.data().minutes !== minutes || prior.data().reason !== reason) throw new HttpsError('already-exists', 'This request was already used for a different preparation update.');
       return { saved: true, expectedReadyAt: prior.data().expectedReadyAt };
@@ -191,9 +193,8 @@ exports.advanceMerchantBooking = onCall({ operation: 'advanceMerchantBooking', r
   return db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`);
     const [account, snapshot] = await Promise.all([transaction.get(db.doc(`users/${uid}`)), transaction.get(bookingRef)]);
-    const merchant = account.data(), booking = snapshot.data();
-    const service = merchant?.merchantType === 'restaurant' ? 'food' : 'grocery';
-    if (!merchant || merchant.role !== 'merchant' || !merchant.merchantId || !['restaurant', 'grocery'].includes(merchant.merchantType) || !booking || booking.merchantId !== merchant.merchantId || booking.serviceType !== service) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
+    const merchant = account.data(), booking = snapshot.data(), type = booking?.serviceType === 'food' ? 'restaurant' : booking?.serviceType === 'grocery' ? 'grocery' : null;
+    if (!booking || !type || !merchantHasBusiness(merchant, booking.merchantId, type)) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
     if (booking.status === next) return { status: next };
     if (booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (!['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.driverId || booking.status !== (next === 'preparing' ? 'pending' : 'preparing')) throw new HttpsError('failed-precondition', 'The order changed. Refresh before continuing.');
@@ -215,7 +216,7 @@ exports.updateMerchantCatalog = onCall({ operation: 'updateMerchantCatalog', reg
     const parentPath = type === 'restaurant' ? `restaurants/${catalogId}` : `grocery_stores/${catalogId}`;
     const itemRef = db.doc(`${parentPath}/${type === 'restaurant' ? 'menu_items' : 'products'}/${itemId}`);
     const [account, parent, item] = await Promise.all([transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(parentPath)), transaction.get(itemRef)]);
-    if (!(request.auth.token.admin === true && account.data()?.role === 'admin' || account.data()?.role === 'merchant' && account.data().merchantId === catalogId && account.data().merchantType === type)) throw new HttpsError('permission-denied', 'This catalog is not assigned to your business.');
+    if (!(request.auth.token.admin === true && account.data()?.role === 'admin' || merchantHasBusiness(account.data(), catalogId, type))) throw new HttpsError('permission-denied', 'This catalog is not assigned to your business.');
     if (!parent.exists || !item.exists) throw new HttpsError('not-found', 'The catalog item is unavailable.');
     if (type === 'grocery') assertStockBaseline(item.data().stock, request.data.expectedStock, HttpsError);
     transaction.update(itemRef, changes);
@@ -1253,9 +1254,10 @@ exports.requestAccountDeletion = onCall({ operation: 'requestAccountDeletion', r
       transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)),
       transaction.get(db.collectionGroup('legs').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
     ]);
-    const merchantId = account.data()?.merchantId;
-    const merchantBookings = merchantId ? await transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)) : { empty: true };
-    if (!account.exists || !assignedBookings.empty || !assignedBundleLegs.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data().walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Resolve active bookings, refunds and account balances with support before deletion.');
+    const merchantOutlets = merchantBusinessOutlets(account.data() || {}), merchantIds = new Set(merchantOutlets.map(outlet => outlet.merchantId));
+    if (typeof account.data()?.merchantId === 'string' && account.data().merchantId) merchantIds.add(account.data().merchantId);
+    const merchantBookings = await Promise.all([...merchantIds].map(merchantId => transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))));
+    if (!account.exists || !assignedBookings.empty || !assignedBundleLegs.empty || merchantBookings.some(result => !result.empty) || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data().walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Resolve active bookings, refunds and account balances with support before deletion.');
     transaction.set(db.doc(`account_deletions/${uid}`), { uid, status: 'requested', requestedAt: Timestamp.now() }, { merge: true });
     return { status: 'requested' };
   });
@@ -1280,13 +1282,14 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
       transaction.get(db.collection('bookings').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)),
       transaction.get(db.collectionGroup('legs').where('driverId', '==', uid).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))
     ]);
-    const merchantId = account.data()?.merchantId;
-    const merchantBookings = merchantId ? await transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1)) : { empty: true };
+    const merchantOutlets = merchantBusinessOutlets(account.data() || {}), merchantIds = new Set(merchantOutlets.map(outlet => outlet.merchantId));
+    if (typeof account.data()?.merchantId === 'string' && account.data().merchantId) merchantIds.add(account.data().merchantId);
+    const merchantBookings = await Promise.all([...merchantIds].map(merchantId => transaction.get(db.collection('bookings').where('merchantId', '==', merchantId).where('status', 'not-in', ['completed', 'delivered', 'cancelled']).limit(1))));
     // Firestore retries competing transactions. Only requested/failed jobs may
     // be claimed; allowing "processing" here lets a second operator run the
     // destructive cross-store cleanup concurrently after a transaction retry.
     if (!deletion.exists || !['requested', 'failed'].includes(deletion.data().status)) throw new HttpsError('failed-precondition', 'No unclaimed deletion request is available.');
-    if (!assignedBookings.empty || !assignedBundleLegs.empty || !merchantBookings.empty || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
+    if (!assignedBookings.empty || !assignedBundleLegs.empty || merchantBookings.some(result => !result.empty) || !bookings.empty || !attempts.empty || !intents.empty || !bundles.empty || !bundleRefunds.empty || driver.data()?.activeLegId || driver.data()?.activeBookingId || (account.data()?.walletBalance || 0) !== 0 || driver.data()?.availableEarningsCents > 0 || driver.data()?.reservedEarningsCents > 0) throw new HttpsError('failed-precondition', 'Reconcile active journeys, checkout attempts and balances first.');
     transaction.update(deletionRef, { status: 'processing', startedAt: Timestamp.now(), operatorId: request.auth.uid, policyUrl: policy.policyUrl, neonAccountId: account.data()?.neonAccountId || deletion.data().neonAccountId || null });
   });
   try {
@@ -1601,7 +1604,7 @@ async function cancelPaidBooking(request, merchantRefusal = false) {
   const refusalReason = merchantRefusal ? cleanText(request.data?.reason, 'Rejection reason', 500) : null;
   const cancellationReason = !merchantRefusal && request.data?.reason !== undefined ? request.data.reason : null;
   if (cancellationReason !== null && !isCustomerCancellationReason(cancellationReason)) throw new HttpsError('invalid-argument', 'Choose a supported cancellation reason.');
-  const merchantOwns = (account, record) => account?.role === 'merchant' && !!account.merchantId && account.merchantId === record?.merchantId && (account.merchantType === 'restaurant' ? record.serviceType === 'food' : account.merchantType === 'grocery' && record.serviceType === 'grocery');
+  const merchantOwns = (account, record) => merchantHasBusiness(account, record?.merchantId, record?.serviceType === 'food' ? 'restaurant' : record?.serviceType === 'grocery' ? 'grocery' : null);
   const bookingId = documentId(request.data?.bookingId, 'Booking reference');
   const bookingRef = db.doc(`bookings/${bookingId}`);
   let booking;

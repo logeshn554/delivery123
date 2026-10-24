@@ -5,6 +5,7 @@ const { catalogItem } = require('./catalogPolicy');
 const { assertStockBaseline } = require('./stockBaseline');
 const { recordStockMovement } = require('./inventoryJournal');
 const { settlementPolicy } = require('./settlementPolicy');
+const { merchantHasBusiness, normalizeMerchantBusinessIds } = require('./merchantAccess');
 function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }) {
   const services = ['food','grocery','ride','parcel','takeover','transport'];
   const admin = async request => {
@@ -13,6 +14,22 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
   };
   const audit = (tx, uid, action, target) => tx.create(db.collection('operations_audit').doc(), { operatorId: uid, action, target, createdAt: Timestamp.now() });
   return {
+    listMerchantBusinesses: onCall({ operation: 'listMerchantBusinesses', region: REGION }, async request => {
+      const uid = request.auth?.uid;
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in.');
+      const account = (await db.doc(`users/${uid}`).get()).data();
+      if (account?.role !== 'merchant' || account.disabled === true || account.suspended === true) throw new HttpsError('permission-denied', 'An active merchant account is required.');
+      let assigned;
+      try { assigned = normalizeMerchantBusinessIds(account.merchantBusinessIds); } catch { throw new HttpsError('failed-precondition', 'Merchant business access needs operations review.'); }
+      for (const type of ['restaurant', 'grocery']) if (account.merchantType === type && account.merchantId && !assigned[type].includes(account.merchantId)) assigned[type].push(account.merchantId);
+      const entries = await Promise.all(['restaurant', 'grocery'].flatMap(type => assigned[type].map(async id => {
+        if (!merchantHasBusiness(account, id, type)) return null;
+        const snapshot = await db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`).get(), business = snapshot.data();
+        if (!snapshot.exists || business.merchantType !== type || business.onboardingStatus !== 'approved' || business.merchantEligibility?.status !== 'verified') return null;
+        return { id, merchantType: type, name: typeof business.name === 'string' && business.name.trim() ? business.name : id, address: typeof business.address === 'string' ? business.address : '', acceptingOrders: business.acceptingOrders === true };
+      })));
+      return { businesses: entries.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)) };
+    }),
     createMerchantBusiness: onCall({ operation: 'createMerchantBusiness', region: REGION }, async request => {
       const uid = await admin(request), data = request.data || {}, type = data.merchantType, id = documentId(data.merchantId, 'Business ID'), requestId = documentId(data.requestId, 'Request ID');
       if (!['restaurant', 'grocery'].includes(type)) throw new HttpsError('invalid-argument', 'Choose a business type.');
@@ -114,7 +131,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       await db.runTransaction(async tx => {
         const [user, business, existing] = await Promise.all([tx.get(db.doc(`users/${uid}`)),tx.get(parent),tx.get(ref)]);
         const owner = user.data();
-        if (!(request.auth.token.admin === true && owner?.role === 'admin' || owner?.role === 'merchant' && owner.merchantId === id && owner.merchantType === type)) throw new HttpsError('permission-denied','This catalog is not assigned to you.');
+        if (!(request.auth.token.admin === true && owner?.role === 'admin' || merchantHasBusiness(owner, id, type))) throw new HttpsError('permission-denied','This catalog is not assigned to you.');
         if (!business.exists) throw new HttpsError('not-found','Business unavailable.');
         if (type === 'grocery' && existing.exists) assertStockBaseline(existing.data().stock, data.item?.expectedStock, HttpsError);
         if (type === 'grocery' && !existing.exists && data.item?.expectedStock != null) throw new HttpsError('aborted', 'This product was removed. Refresh before creating a new inventory record.');
@@ -206,7 +223,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       let closedDates; try { closedDates = validateClosedDates(data.closedDates); } catch (error) { throw new HttpsError('invalid-argument', error.message); }
       return db.runTransaction(async tx => {
         const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), eventRef = ref.collection('closure_history').doc(requestId), [account, record, event] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(eventRef)]), merchant = account.data();
-        if (!(request.auth.token.admin === true && merchant?.role === 'admin' || merchant?.role === 'merchant' && merchant.merchantId === id && merchant.merchantType === type)) throw new HttpsError('permission-denied', 'This business is not assigned to you.');
+        if (!(request.auth.token.admin === true && merchant?.role === 'admin' || merchantHasBusiness(merchant, id, type))) throw new HttpsError('permission-denied', 'This business is not assigned to you.');
         if (!record.exists) throw new HttpsError('not-found', 'Business unavailable.');
         if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || JSON.stringify(prior.closedDates) !== JSON.stringify(closedDates) || prior.reason !== reason || prior.expectedRevision !== data.expectedRevision) throw new HttpsError('already-exists', 'This request reference was already used.'); return { revision: prior.revision }; }
         if ((record.data().closureRevision || 0) !== data.expectedRevision) throw new HttpsError('aborted', 'Closure dates changed. Refresh before saving.');
@@ -247,14 +264,14 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
     }),
     setMerchantHours: onCall({ operation: 'setMerchantHours', region: REGION }, async request => {
       if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in.');
-      const data = request.data, uid = request.auth.uid, merchant = (await db.doc(`users/${uid}`).get()).data();
+      const data = request.data, uid = request.auth.uid;
       const type = data.merchantType, id = documentId(data.merchantId, 'Merchant ID');
-      if (!['restaurant','grocery'].includes(type) || !(request.auth.token.admin === true && merchant?.role === 'admin' || merchant?.role === 'merchant' && merchant.merchantId === id && merchant.merchantType === type)) throw new HttpsError('permission-denied', 'This business is not assigned to you.');
+      if (!['restaurant','grocery'].includes(type)) throw new HttpsError('invalid-argument', 'Choose a valid business type.');
       let weeklyHours;
       try { weeklyHours = validateHours(data.weeklyHours); new Intl.DateTimeFormat('en', { timeZone: data.timeZone }).format(); }
       catch (error) { throw new HttpsError('invalid-argument', error.message); }
       if (typeof data.acceptingOrders !== 'boolean' || typeof data.timeZone !== 'string') throw new HttpsError('invalid-argument', 'Specify a time zone and accepting-orders state.');
-      await db.runTransaction(async tx => { const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`); if (!(await tx.get(ref)).exists) throw new HttpsError('not-found', 'Business unavailable.'); tx.update(ref, { weeklyHours, timeZone: data.timeZone, acceptingOrders: data.acceptingOrders }); audit(tx, uid, 'merchant_hours_updated', id); }); return { updated: true };
+      await db.runTransaction(async tx => { const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), [account, business] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref)]), owner = account.data(); if (!(request.auth.token.admin === true && owner?.role === 'admin' || merchantHasBusiness(owner, id, type))) throw new HttpsError('permission-denied', 'This business is not assigned to you.'); if (!business.exists) throw new HttpsError('not-found', 'Business unavailable.'); tx.update(ref, { weeklyHours, timeZone: data.timeZone, acceptingOrders: data.acceptingOrders }); audit(tx, uid, 'merchant_hours_updated', id); }); return { updated: true };
     })
   };
 }

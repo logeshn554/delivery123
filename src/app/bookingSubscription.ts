@@ -1,4 +1,5 @@
 import type { Booking, UserProfile } from '../types';
+import type { MerchantBookingOutlet } from '../data/firebaseHelper';
 import { subscriptionGroup } from '../data/subscriptionGroup';
 import { workspaceFor } from './workspace';
 
@@ -9,14 +10,14 @@ interface BookingListeners {
   listenToBookings: (receive: Receive, onError: Failure) => Stop;
   listenToCustomerBookings: (uid: string, receive: Receive, onError: Failure) => Stop;
   listenToDriverBookings: (uid: string, receive: Receive, onError: Failure) => Stop;
-  listenToMerchantBookings: (id: string, type: 'restaurant' | 'grocery', receive: Receive, onError: Failure) => Stop;
+  listenToMerchantBookings: (outlets: MerchantBookingOutlet[], receive: Receive, onError: Failure) => Stop;
 }
 
 // Choose the data scope of the rendered workspace. Authorization remains server-side.
 export function subscribeWorkspaceBookings(
   audience: 'customer' | 'merchant' | 'driver',
   uid: string,
-  profile: Pick<UserProfile, 'role' | 'merchantId' | 'merchantType'>,
+  profile: Pick<UserProfile, 'role' | 'merchantId' | 'merchantType' | 'merchantBusinessIds'>,
   listeners: BookingListeners,
   receive: Receive,
   onError: Failure = console.error,
@@ -33,7 +34,11 @@ export function subscribeWorkspaceBookings(
         : workspace === 'driver'
           ? listeners.listenToDriverBookings(uid, publish, group.fail)
           : workspace === 'merchant' && profile.merchantId && profile.merchantType
-            ? listeners.listenToMerchantBookings(profile.merchantId, profile.merchantType, publish, group.fail)
+            ? listeners.listenToMerchantBookings([
+              { merchantId: profile.merchantId, merchantType: profile.merchantType },
+              ...(profile.merchantBusinessIds?.restaurant || []).map(merchantId => ({ merchantId, merchantType: 'restaurant' as const })),
+              ...(profile.merchantBusinessIds?.grocery || []).map(merchantId => ({ merchantId, merchantType: 'grocery' as const })),
+            ], publish, group.fail)
             : () => undefined;
     group.add(stop);
   } catch (error) { group.fail(error); }

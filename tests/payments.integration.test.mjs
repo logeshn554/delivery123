@@ -300,12 +300,27 @@ test('push device removal is ownership scoped and permanent provider failures re
 });
 
 test('grocery picking changes notify customer and assigned store for substitution decisions', async () => {
-  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'primary-shop', merchantType: 'grocery', merchantBusinessIds: { restaurant: [], grocery: ['shop'] } });
   await callable('registerPushDevice', 'customer', { audience: 'customer', token: 'grocery-customer', platform: 'android' });
   await callable('registerPushDevice', 'merchant', { audience: 'merchant', token: 'grocery-store', platform: 'android' });
   const before = { bookingId: 'ALLGO_sub_push', customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', picking: { revision: 0 } }, after = { ...before, picking: { revision: 1, substitutions: { '0': { status: 'pending' } } } };
   await db.doc('bookings/ALLGO_sub_push').set(after);
   await notificationHarness(async sent => { await notify('ALLGO_sub_push', after, before); assert.deepEqual(sent.flatMap(message => message.tokens).sort(), ['grocery-customer', 'grocery-store']); });
+});
+
+test('additional merchant outlets receive the same scoped catalog and order controls as the primary business', async () => {
+  await db.doc('users/customer').update({ role: 'merchant', merchantId: 'primary-shop', merchantType: 'restaurant', merchantBusinessIds: { restaurant: ['branch-shop'], grocery: [] } });
+  await db.doc('restaurants/branch-shop').set({ id: 'branch-shop', name: 'North Branch', address: 'North Road', merchantType: 'restaurant', onboardingStatus: 'approved', acceptingOrders: true, merchantEligibility: { status: 'verified' } });
+  await db.doc('restaurants/branch-shop/menu_items/item').set({ name: 'Dish', available: true });
+  const businesses = await callable('listMerchantBusinesses', 'customer', {});
+  assert.deepEqual(businesses.businesses.map(item => item.id), ['branch-shop']);
+  await callable('updateMerchantCatalog', 'customer', { catalogId: 'branch-shop', merchantType: 'restaurant', itemId: 'item', available: false });
+  assert.equal((await db.doc('restaurants/branch-shop/menu_items/item').get()).data().available, false);
+  await db.doc('bookings/branch-order').set({ bookingId: 'branch-order', customerId: 'other-customer', merchantId: 'branch-shop', serviceType: 'food', status: 'pending', paymentStatus: 'paid', driverId: null });
+  await callable('advanceMerchantBooking', 'customer', { bookingId: 'branch-order', status: 'preparing' });
+  assert.equal((await db.doc('bookings/branch-order').get()).data().status, 'preparing');
+  const profile = (await db.doc('users/customer').get()).data();
+  assert.equal(profile.merchantId, 'primary-shop'); assert.equal(profile.merchantType, 'restaurant');
 });
 
 for (const serviceType of ['food', 'grocery']) for (const cash of [false, true]) {
@@ -496,6 +511,17 @@ test('partner intake prevents duplicate active applications and never grants rol
   assert.equal(rows.size, 1); assert.equal(rows.docs[0].data().phoneVerified, false);
   assert.equal((await db.doc('users/customer').get()).data().role, 'customer');
   await assert.rejects(callable('submitPartnerApplication', 'customer', { ...data, applicationId: id, name: 'Changed' }), error => error.code === 'already-exists');
+});
+
+test('an approved merchant may begin a second same-type business application without replacing the primary assignment', async () => {
+  await db.doc('users/customer').update({ role: 'merchant', merchantId: 'primary-shop', merchantType: 'restaurant' });
+  await db.doc('partner_applications/approved-shop').set({ applicationId: 'approved-shop', userId: 'customer', type: 'grocery', status: 'approved' });
+  await db.doc('partner_application_slots/customer_grocery').set({ applicationId: 'approved-shop', userId: 'customer' });
+  const result = await callable('submitPartnerApplication', 'customer', { applicationId: 'second-shop', type: 'grocery', name: 'Second shop', city: 'City', phone: '+919876543210', consent: true });
+  assert.deepEqual(result, { applicationId: 'second-shop' });
+  assert.equal((await db.doc('partner_application_slots/customer_grocery').get()).data().applicationId, 'second-shop');
+  const account = (await db.doc('users/customer').get()).data();
+  assert.equal(account.merchantId, 'primary-shop'); assert.equal(account.merchantType, 'restaurant');
 });
 
 test('partner reviews, corrections and withdrawal are scoped, revision checked and replay safe', async () => {
@@ -1509,7 +1535,7 @@ test('deletion checks assigned delivery records even when the driver profile has
   assert.deepEqual(await callable('requestAccountDeletion', 'customer', {}), { status: 'requested' });
 });
 test('merchant deletion is blocked while its restaurant or grocery orders remain active', async () => {
-  await db.doc('users/customer').update({ walletBalance: 0, role: 'merchant', merchantId: 'shop' });
+  await db.doc('users/customer').update({ walletBalance: 0, role: 'merchant', merchantId: 'shop', merchantType: 'restaurant', merchantBusinessIds: { restaurant: ['branch-shop'], grocery: [] } });
   await db.doc('bookings/merchant_open_order').set({ customerId: 'other', merchantId: 'shop', serviceType: 'food', status: 'preparing', paymentStatus: 'paid' });
   await assert.rejects(callable('requestAccountDeletion', 'customer', {}), error => error.code === 'failed-precondition');
   assert.equal((await db.doc('account_deletions/customer').get()).exists, false);
@@ -1520,6 +1546,10 @@ test('merchant deletion is blocked while its restaurant or grocery orders remain
   assert.equal((await db.doc('account_deletions/customer').get()).data().status, 'requested');
   assert.equal((await db.doc('bookings/merchant_open_order').get()).exists, true);
   await db.doc('bookings/merchant_open_order').update({ status: 'completed' });
+  await db.doc('bookings/merchant_branch_open_order').set({ customerId: 'other', merchantId: 'branch-shop', serviceType: 'food', status: 'preparing', paymentStatus: 'paid' });
+  await assert.rejects(callable('requestAccountDeletion', 'customer', {}), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('processAccountDeletion', 'admin', { uid: 'customer' }, true), error => error.code === 'failed-precondition');
+  await db.doc('bookings/merchant_branch_open_order').update({ status: 'completed' });
   assert.deepEqual(await callable('requestAccountDeletion', 'customer', {}), { status: 'requested' });
 });
 test('deletion retry preserves its SQL identity after the Firebase account document is removed', async () => {

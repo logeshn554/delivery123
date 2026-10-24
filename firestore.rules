@@ -75,10 +75,11 @@ service cloud.firestore {
 
     function isMerchantFor(data) {
       let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let businessType = data.get('serviceType', '') == 'food' ? 'restaurant' : data.get('serviceType', '') == 'grocery' ? 'grocery' : '';
       return isSignedIn() && account.role == 'merchant'
-        && account.get('merchantId', '') != ''
-        && data.get('merchantId', '') == account.get('merchantId', '')
-        && ((account.get('merchantType', '') == 'restaurant' && data.serviceType == 'food') || (account.get('merchantType', '') == 'grocery' && data.serviceType == 'grocery'));
+        && businessType != '' && data.get('merchantId', '') != ''
+        && (account.get('merchantId', '') == data.get('merchantId', '') && account.get('merchantType', '') == businessType
+          || account.get('merchantBusinessIds', {}).get(businessType, []).hasAny([data.get('merchantId', '')]));
     }
 
     function existing() {
@@ -108,10 +109,11 @@ service cloud.firestore {
 
     function isMerchantForLeg(data) {
       let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let businessType = data.get('type', '') == 'food' ? 'restaurant' : data.get('type', '') == 'grocery' ? 'grocery' : '';
       return isSignedIn() && account.role == 'merchant'
-        && account.get('merchantId', '') != ''
-        && data.get('merchantId', '') == account.get('merchantId', '')
-        && ((account.get('merchantType', '') == 'restaurant' && data.type == 'food') || (account.get('merchantType', '') == 'grocery' && data.type == 'grocery'));
+        && businessType != '' && data.get('merchantId', '') != ''
+        && (account.get('merchantId', '') == data.get('merchantId', '') && account.get('merchantType', '') == businessType
+          || account.get('merchantBusinessIds', {}).get(businessType, []).hasAny([data.get('merchantId', '')]));
     }
 
     function canReadLeg(bundleId, legData) {
@@ -140,7 +142,11 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'email', 'role']) 
-        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'phoneVerified', 'requestedRole', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType', 'accountAuthority', 'neonAccountId'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'phoneVerified', 'requestedRole', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType', 'merchantBusinessIds', 'accountAuthority', 'neonAccountId'])
+        && (!data.keys().hasAny(['merchantBusinessIds']) || (data.merchantBusinessIds is map
+          && data.merchantBusinessIds.keys().hasOnly(['restaurant', 'grocery'])
+          && (!data.merchantBusinessIds.keys().hasAny(['restaurant']) || data.merchantBusinessIds.restaurant is list && data.merchantBusinessIds.restaurant.size() <= 25)
+          && (!data.merchantBusinessIds.keys().hasAny(['grocery']) || data.merchantBusinessIds.grocery is list && data.merchantBusinessIds.grocery.size() <= 25)))
         && (!data.keys().hasAny(['favorites']) || (data.favorites is list && data.favorites.size() <= 200))
         && data.uid == request.auth.uid
         && data.name is string && data.name.size() <= 100
@@ -213,7 +219,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'accountAuthority', 'neonAccountId', 'phoneVerified']);
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'merchantBusinessIds', 'accountAuthority', 'neonAccountId', 'phoneVerified']);
       allow update: if isSignedIn() && (
         isOwner(userId) && isValidUser(incoming()) &&
         incoming().get('accountAuthority', null) == existing().get('accountAuthority', null) &&
@@ -222,6 +228,7 @@ service cloud.firestore {
         incoming().walletBalance == existing().walletBalance &&
         incoming().get('merchantId', null) == existing().get('merchantId', null) &&
         incoming().get('merchantType', null) == existing().get('merchantType', null) &&
+        incoming().get('merchantBusinessIds', null) == existing().get('merchantBusinessIds', null) &&
         incoming().get('phoneVerified', false) == existing().get('phoneVerified', false) &&
         incoming().get('requestedRole', null) == existing().get('requestedRole', null)
       );

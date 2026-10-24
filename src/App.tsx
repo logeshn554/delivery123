@@ -106,7 +106,7 @@ export default function App() {
     if (workspaceFor(appAudience, userProfile) === 'admin') group.add(listenToDriverProfiles(rows => { if (active) setDrivers(rows); }, group.fail));
     group.add(() => { active = false; });
     return group.stop;
-  }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, hasServiceIdentity, bookingRetry]);
+  }, [currentUser?.uid, userProfile?.role, userProfile?.merchantId, userProfile?.merchantType, userProfile?.merchantBusinessIds, hasServiceIdentity, bookingRetry]);
 
   if (authChecking) return <div className="auth-shell"><section className="auth-panel grid place-content-center text-center"><div className="auth-wordmark">All<span>Go</span></div><p role="status">Opening your account…</p></section></div>;
   if (profileError && (!currentUser || !userProfile)) return <div className="auth-shell"><section className="auth-panel grid content-center gap-4"><h1>Let’s reconnect.</h1><p role="alert">{profileError}</p><button className="auth-primary" onClick={() => setRetry(value => value + 1)}>Try again</button>{currentUser ? <button className="auth-switch" onClick={() => void nativeSignOut()}>Sign out</button>:<button className="auth-switch" onClick={()=>setProfileError('')}>Open sign-in options</button>}</section></div>;
