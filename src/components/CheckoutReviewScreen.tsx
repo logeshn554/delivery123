@@ -1,6 +1,6 @@
 import { ArrowLeft, MapPin, ShieldCheck, ShoppingBag, CreditCard, Wallet, Banknote, CheckCircle2, AlertCircle } from 'lucide-react';
 import type { PriceBreakdown } from '../types';
-import { business } from '../business';
+import CancellationPolicyNotice from './CancellationPolicyNotice';
 
 export type PaymentMethodOption = 'online' | 'wallet' | 'cod';
 
@@ -184,12 +184,7 @@ export default function CheckoutReviewScreen({
         </article>
       )}
 
-      <article className="allgo-card checkout-cancellation-policy">
-        <h2>Cancellation policy</h2>
-        {business.cancellation
-          ? <p>Review the operator’s cancellation terms before placing your order. Eligibility and any refund depend on the order status. <a href={business.cancellation} target="_blank" rel="noopener noreferrer">Read cancellation policy</a></p>
-          : <p>The published cancellation policy is not available yet. Cancellation eligibility and any refund depend on order status; contact support if you need clarification before ordering.</p>}
-      </article>
+      <CancellationPolicyNotice />
 
       {/* Payment Method Selector */}
       <article className="allgo-card">
