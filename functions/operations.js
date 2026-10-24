@@ -205,6 +205,22 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         return { status: data.decision };
       });
     }),
+    reviewParcelPickupTime: onCall({ operation: 'reviewParcelPickupTime', region: REGION }, async request => {
+      const uid = await admin(request), data = request.data || {}, id = documentId(data.bookingId, 'Booking ID');
+      if (!['confirmed', 'declined'].includes(data.decision) || data.reviewed !== true) throw new HttpsError('invalid-argument', 'Review the requested pickup time and choose a decision.');
+      const reason = cleanText(data.reason, 'Review note', 500), now = new Date().toISOString();
+      return db.runTransaction(async tx => {
+        const ref = db.doc(`bookings/${id}`), booking = await tx.get(ref), value = booking.data(), current = value?.details?.pickupTimeReview;
+        if (!value || value.serviceType !== 'parcel' || !Number.isFinite(Date.parse(value.details?.preferredDate || ''))) throw new HttpsError('failed-precondition', 'This booking has no valid requested parcel pickup time.');
+        if (!['pending', 'accepted'].includes(value.status) || value.driverId || !['paid', 'pending_cod'].includes(value.paymentStatus) || value.exception?.status === 'open') throw new HttpsError('failed-precondition', 'This parcel can no longer have its requested pickup time reviewed.');
+        if (current?.status === data.decision) return { status: current.status };
+        if (current?.status === 'confirmed' || current?.status === 'declined') throw new HttpsError('failed-precondition', 'This pickup request was already reviewed.');
+        tx.update(ref, { 'details.pickupTimeReview': { status: data.decision, reviewedBy: uid, reviewedAt: now, reason }, updatedAt: now });
+        tx.create(ref.collection('events').doc(`pickup_time_${data.decision}`), { stage: `pickup_time_${data.decision}`, actorId: uid, actorRole: 'admin', reason, createdAt: now });
+        audit(tx, uid, `parcel_pickup_time_${data.decision}`, id);
+        return { status: data.decision };
+      });
+    }),
     approveTransportEquipment: onCall({ operation: 'approveTransportEquipment', region: REGION }, async request => {
       const uid = await admin(request), data = request.data, driverId = documentId(data.driverId, 'Driver ID');
       const capabilities = { approved: data.approved === true, supportedVehicleTypes: data.supportedVehicleTypes, vehicleCapacity: data.vehicleCapacity, equipmentType: cleanText(data.equipmentType, 'Carrier equipment', 100), maxWeightKg: data.maxWeightKg, maxDimensions: data.maxDimensions, reviewedBy: uid, reviewedAt: new Date().toISOString() };

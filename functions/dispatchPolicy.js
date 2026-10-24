@@ -19,6 +19,7 @@ function publicOffer(id, booking) {
     pickupAddress: 'Pickup details available after acceptance',
     dropAddress: 'Delivery details available after acceptance',
     details: {
+      ...(booking.serviceType === 'parcel' && typeof booking.details?.preferredDate === 'string' ? { preferredDate: booking.details.preferredDate } : {}),
       ...(booking.details?.vehicleType ? { vehicleType: booking.details.vehicleType } : {}),
       ...(booking.details?.transportVehicleType ? { transportVehicleType: booking.details.transportVehicleType } : {}),
       ...(Number.isFinite(booking.details?.estimatedKm) ? { estimatedKm: booking.details.estimatedKm } : {})

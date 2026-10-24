@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PayoutRequests from './PayoutRequests';
 import DeletionRequests from './DeletionRequests';
 import OperationsConsole from './OperationsConsole';
+import ParcelPickupReviewQueue from './ParcelPickupReviewQueue';
 import FinanceJournalPanel from './FinanceJournalPanel';
 import SupportOperationsQueue from './SupportOperationsQueue';
 import BookingExceptionPanel from './BookingExceptionPanel';
@@ -303,6 +304,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
       </div>
 
       <OperationsConsole drivers={driverProfiles}/>
+      <ParcelPickupReviewQueue bookings={activeBookings}/>
       <section id="admin-finance"><FinanceJournalPanel/><RefundReviewQueue/></section>
       <section id="admin-policy"><DispatchPolicyEditor/><DeliveryProofPolicyEditor/></section>
       <section id="admin-business"><MerchantBusinessSetup/></section>

@@ -18,3 +18,8 @@ test('unassigned offers contain no customer contact, exact address, instructions
   for (const value of ['secret-id', 'private-name', 'private-address', '123456', 'private-note', 'private-phone']) assert.equal(JSON.stringify(offer).includes(value), false);
   assert.equal(offer.details.estimatedKm, 5);
 });
+test('parcel offers include only the requested pickup time needed for dispatch planning', () => {
+  const offer = publicOffer('job1', { serviceType: 'parcel', status: 'pending', paymentStatus: 'paid', price: 100, createdAt: 'today', details: { preferredDate: '2026-10-24T10:00:00.000Z', pickupTimeReview: { status: 'confirmed', reviewedBy: 'private-operator' } } });
+  assert.equal(offer.details.preferredDate, '2026-10-24T10:00:00.000Z');
+  assert.equal(JSON.stringify(offer).includes('private-operator'), false);
+});

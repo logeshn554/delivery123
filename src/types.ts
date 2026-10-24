@@ -188,6 +188,7 @@ export interface BookingDetails {
   takeoverOption?: string;
   takeoverTransmission?: 'manual' | 'automatic';
   preferredDate?: string;
+  pickupTimeReview?: { status: 'confirmed' | 'declined'; reviewedBy: string; reviewedAt: string; reason: string };
   deliveryMode?: string;
   weightKg?: number;
   dimensions?: { lengthCm: number; widthCm: number; heightCm: number };
