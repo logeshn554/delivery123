@@ -41,8 +41,8 @@ export async function getTransportOperatorDashboard() {
 export async function reviewTransportPickupTime(input: { bookingId: string; decision: 'confirmed' | 'declined'; reason: string; expectedRevision: number; requestId: string }) {
   return (await httpsCallable<typeof input, { status: string; revision: number }>(functions, 'reviewTransportPickupTime')(input)).data;
 }
-export async function listTransportOperators() {
-  return (await httpsCallable<void, { operators: import('../types').TransportOperatorOption[] }>(functions, 'listTransportOperators')()).data.operators;
+export async function listTransportOperators(needs?: { vehicleWeightKg: number; vehicleDimensions: { lengthCm: number; widthCm: number; heightCm: number } }) {
+  return (await httpsCallable<typeof needs, { operators: import('../types').TransportOperatorOption[] }>(functions, 'listTransportOperators')(needs)).data.operators;
 }
 export async function requestTransportQuote(input: { operatorId: string; requestId: string; booking: Pick<import('../types').Booking, 'serviceType' | 'customerName' | 'pickupAddress' | 'dropAddress' | 'details'> }) {
   return (await httpsCallable<typeof input, { requestId: string; status: string; revision: number }>(functions, 'requestTransportQuote')(input)).data;

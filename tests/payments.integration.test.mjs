@@ -166,10 +166,18 @@ test('customer accepts a versioned operator price and confirmed pickup slot befo
   try {
     await db.doc('users/operator-owner').set({ uid: 'operator-owner', role: 'merchant', transportOperatorId: 'carrier-one' });
     await db.doc('transport_operators/carrier-one').set({ ownerUid: 'operator-owner', status: 'approved', name: 'Carrier One' });
-    await db.doc('transport_operators/carrier-one/vehicles/approved-truck').set({ vehicleId: 'approved-truck', status: 'approved', maxLoadKg: 2000, maxLengthCm: 600, maxWidthCm: 250, maxHeightCm: 250 });
+    await db.doc('transport_operators/carrier-one/vehicles/approved-truck').set({ vehicleId: 'approved-truck', status: 'approved', carrierType: 'covered_carrier', maxLoadKg: 2000, maxLengthCm: 600, maxWidthCm: 250, maxHeightCm: 250 });
+    await db.doc('users/suspended-operator-owner').set({ uid: 'suspended-operator-owner', role: 'merchant', transportOperatorId: 'carrier-two', suspended: true });
+    await db.doc('transport_operators/carrier-two').set({ ownerUid: 'suspended-operator-owner', status: 'approved', name: 'Suspended Carrier' });
+    await db.doc('transport_operators/carrier-two/vehicles/approved-truck').set({ vehicleId: 'approved-truck', status: 'approved', carrierType: 'covered_carrier', maxLoadKg: 2000, maxLengthCm: 600, maxWidthCm: 250, maxHeightCm: 250 });
     await db.doc('service_pricing/transport').set({ enabled: true, version: 3, zoneIds: ['city'], options: { car: { price: 100, maxKm: 100 } }, settlement: { baseCents: 5000, maxPayoutCents: 5000 } });
     await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['transport'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
     const booking = { serviceType: 'transport', customerName: 'Test customer', pickupAddress: 'Pickup street', dropAddress: 'Drop street', details: { pickupPlaceId: 'pickup-place', dropPlaceId: 'drop-place', transportVehicleType: 'car', transportMakeModel: 'Test car', transportRegNo: 'TEST-1234', vehicleWeightKg: 800, vehicleDimensions: { lengthCm: 400, widthCm: 190, heightCm: 170 }, vehicleCondition: 'No visible damage.', vehiclePhotos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }], ownershipConfirmed: true, preferredDate: new Date(Date.now() + 3600000).toISOString() } };
+    assert.deepEqual((await callable('listTransportOperators', 'customer', { vehicleWeightKg: 800, vehicleDimensions: booking.details.vehicleDimensions })).operators.map(operator => operator.operatorId), ['carrier-one']);
+    await assert.rejects(callable('requestTransportQuote', 'customer', { operatorId: 'carrier-two', requestId: 'suspended-operator', booking }), error => error.code === 'failed-precondition');
+    assert.deepEqual(await callable('listTransportOperators', 'customer', { vehicleWeightKg: 800, vehicleDimensions: { ...booking.details.vehicleDimensions, lengthCm: 601 } }), { operators: [] });
+    await assert.rejects(callable('requestTransportQuote', 'customer', { operatorId: 'carrier-one', requestId: 'oversized-customer-vehicle', booking: { ...booking, details: { ...booking.details, vehicleDimensions: { ...booking.details.vehicleDimensions, lengthCm: 601 } } } }), error => error.code === 'failed-precondition');
+    assert.equal((await db.doc('transport_quote_requests/oversized-customer-vehicle').get()).exists, false);
     const requested = await callable('requestTransportQuote', 'customer', { operatorId: 'carrier-one', requestId: 'customer-quote-request', booking });
     assert.equal(requested.status, 'open');
     const dashboard = await callable('getTransportOperatorDashboard', 'operator-owner');
@@ -180,6 +188,9 @@ test('customer accepts a versioned operator price and confirmed pickup slot befo
     const offer = await callable('getTransportQuoteRequest', 'customer', { requestId: requested.requestId });
     assert.equal(offer.offer.amountCents, 15000);
     assert.equal(offer.offer.pickupTimeReview.status, 'confirmed');
+    await db.doc('users/operator-owner').update({ suspended: true });
+    await assert.rejects(callable('acceptTransportQuote', 'customer', { requestId: requested.requestId, expectedRevision: offer.revision }), error => error.code === 'failed-precondition');
+    await db.doc('users/operator-owner').update({ suspended: false });
     const accepted = await callable('acceptTransportQuote', 'customer', { requestId: requested.requestId, expectedRevision: offer.revision });
     assert.equal(accepted.amount, 15000);
     assert.equal((await callable('acceptTransportQuote', 'customer', { requestId: requested.requestId, expectedRevision: offer.revision })).quoteId, accepted.quoteId);

@@ -17,7 +17,7 @@ const { publicOffer, pickupEligibility, destinationEligibility } = require('./di
 const { cartCharges } = require('./cartPolicy');
 const { checkoutCatalogItem } = require('./checkoutCatalog');
 const { merchantOpen, validateHours } = require('./merchantPolicy');
-const { validateTransport, requireTransportPickupDate, carrierSuitable } = require('./transportPolicy');
+const { validateTransport, requireTransportPickupDate, carrierSuitable, transportFleetVehicleSuitable } = require('./transportPolicy');
 const { validateTakeoverDetails } = require('./takeoverPolicy');
 const { operationsFunctions } = require('./operations');
 const { supportFunctions } = require('./support');
@@ -835,21 +835,24 @@ exports.requestTransportQuote = onCall({ operation: 'requestTransportQuote', reg
   if (account?.role !== 'customer' || account.disabled === true || account.suspended === true) throw new HttpsError('permission-denied', 'An active customer account is required.');
   const operator = (await operatorRef.get()).data();
   if (!operator || operator.status !== 'approved' || typeof operator.ownerUid !== 'string') throw new HttpsError('failed-precondition', 'This transport operator is not available for new bookings.');
-  const vehicles = await db.collection(`transport_operators/${operatorId}/vehicles`).where('status', '==', 'approved').limit(1).get();
-  if (vehicles.empty) throw new HttpsError('failed-precondition', 'This operator has no approved transport vehicles available for quoting.');
+  const operatorOwnerRef = db.doc(`users/${operator.ownerUid}`), operatorOwner = (await operatorOwnerRef.get()).data();
+  if (operatorOwner?.role !== 'merchant' || operatorOwner.transportOperatorId !== operatorId || operatorOwner.disabled === true || operatorOwner.suspended === true) throw new HttpsError('failed-precondition', 'This transport operator is not currently available for new bookings.');
   const prepared = await priceAndPrepareBooking(uid, data.booking);
   if (prepared.booking.serviceType !== 'transport' || !prepared.booking.details?.pickupZoneId || !Number.isFinite(prepared.booking.details?.vehicleWeightKg)) throw new HttpsError('failed-precondition', 'Transport route or vehicle details need operations review.');
+  const vehicleQuery = db.collection(`transport_operators/${operatorId}/vehicles`).where('status', '==', 'approved').limit(100), vehicles = await vehicleQuery.get();
+  if (!vehicles.docs.some(vehicle => transportFleetVehicleSuitable(vehicle.data(), prepared.booking.details))) throw new HttpsError('failed-precondition', 'This operator has no approved fleet vehicle with enough load and size capacity for your vehicle. Choose another operator.');
   const { otp, ...bookingDraft } = prepared.booking;
   bookingDraft.price = 0;
   const expiresAt = Timestamp.fromMillis(Date.now() + 48 * 60 * 60 * 1000), now = Timestamp.now();
   const requestData = { requestId, operatorId, customerId: uid, requestFingerprint: fingerprint, bookingDraft, status: 'open', revision: 0, createdAt: now, expiresAt };
   await db.runTransaction(async tx => {
-    const [prior, operatorSnapshot, freshVehicles] = await Promise.all([tx.get(requestRef), tx.get(operatorRef), tx.get(db.collection(`transport_operators/${operatorId}/vehicles`).where('status', '==', 'approved').limit(1))]);
+    const [prior, operatorSnapshot, ownerSnapshot, freshVehicles] = await Promise.all([tx.get(requestRef), tx.get(operatorRef), tx.get(operatorOwnerRef), tx.get(vehicleQuery)]);
     if (prior.exists) {
       if (prior.data().customerId !== uid || prior.data().requestFingerprint !== fingerprint) throw new HttpsError('already-exists', 'This request reference is already in use.');
       return;
     }
-    if (operatorSnapshot.data()?.ownerUid !== operator.ownerUid || operatorSnapshot.data()?.status !== 'approved' || freshVehicles.empty) throw new HttpsError('failed-precondition', 'The operator or its approved fleet changed. Refresh and try again.');
+    const owner = ownerSnapshot.data();
+    if (operatorSnapshot.data()?.ownerUid !== operator.ownerUid || operatorSnapshot.data()?.status !== 'approved' || owner?.role !== 'merchant' || owner.transportOperatorId !== operatorId || owner.disabled === true || owner.suspended === true || !freshVehicles.docs.some(vehicle => transportFleetVehicleSuitable(vehicle.data(), prepared.booking.details))) throw new HttpsError('failed-precondition', 'The operator or its suitable approved fleet changed. Choose another operator and try again.');
     tx.create(requestRef, requestData);
     tx.create(mirrorRef, requestData);
     tx.create(requestRef.collection('events').doc('submitted'), { actorId: uid, actorRole: 'customer', action: 'transport_quote_requested', createdAt: now });
@@ -903,8 +906,9 @@ exports.acceptTransportQuote = onCall({ operation: 'acceptTransportQuote', regio
     if (!mirror.exists || !scoped.exists || current.customerId !== uid) throw new HttpsError('permission-denied', 'This transport quote is unavailable for your account.');
     if (current.status === 'accepted' && current.acceptedBy === uid && current.acceptedRevision === expectedRevision) return { quoteId: current.acceptedQuoteId, amount: current.acceptedAmountCents, price: current.acceptedAmountCents / 100, expiresAt: current.paymentQuoteExpiresAt.toDate().toISOString(), estimatedKm: current.bookingDraft.details.estimatedKm, estimatedMinutes: current.bookingDraft.details.estimatedMinutes };
     if (current.status !== 'offered' || current.revision !== expectedRevision || !offer || offer.expiresAt?.toMillis() <= Date.now() || current.expiresAt?.toMillis() <= Date.now()) throw new HttpsError('failed-precondition', 'This operator quote expired or changed. Refresh the request.');
-    const operatorRef = db.doc(`transport_operators/${current.operatorId}`), operator = await tx.get(operatorRef);
-    if (!operator.exists || operator.data().status !== 'approved') throw new HttpsError('failed-precondition', 'This operator is no longer approved. Request a new quote.');
+    const operatorRef = db.doc(`transport_operators/${current.operatorId}`), operator = await tx.get(operatorRef), operatorData = operator.data();
+    const operatorOwner = operatorData?.ownerUid ? await tx.get(db.doc(`users/${operatorData.ownerUid}`)) : null, ownerData = operatorOwner?.data();
+    if (!operator.exists || operatorData.status !== 'approved' || ownerData?.role !== 'merchant' || ownerData.transportOperatorId !== current.operatorId || ownerData.disabled === true || ownerData.suspended === true) throw new HttpsError('failed-precondition', 'This operator is no longer approved and active. Request a new quote.');
     const acceptedAt = new Date().toISOString(), paymentQuoteExpiresAt = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000), booking = { ...current.bookingDraft, bookingId: `ALLGO_${crypto.randomUUID()}`, status: 'pending', price: offer.amountCents / 100, createdAt: acceptedAt, updatedAt: acceptedAt, transportOperatorId: current.operatorId, otp: String(crypto.randomInt(1000, 10000)), details: { ...current.bookingDraft.details, pickupTimeReview: { status: 'confirmed', reviewedBy: offer.reviewedBy, reviewedByRole: 'transport_operator', reviewedAt: offer.reviewedAt.toDate().toISOString(), reason: offer.reason, revision: 1 }, transportOperatorQuote: { amountCents: offer.amountCents, terms: offer.reason, acceptedAt } } };
     const quote = { uid, amount: offer.amountCents, booking, items: [], storeId: null, restaurantId: null, expiresAt: paymentQuoteExpiresAt, createdAt: Timestamp.now(), claimed: false, couponLocked: true, originalAmount: offer.amountCents, transportRequestId: requestId, operatorId: current.operatorId };
     tx.create(quoteRef, quote);

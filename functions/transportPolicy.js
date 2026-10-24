@@ -14,4 +14,8 @@ function validateTransport(details) {
 function carrierSuitable(capabilities, details) {
   return capabilities?.approved === true && Array.isArray(capabilities.supportedVehicleTypes) && capabilities.supportedVehicleTypes.includes(details.transportVehicleType) && Number.isSafeInteger(capabilities.vehicleCapacity) && capabilities.vehicleCapacity >= 1 && typeof capabilities.equipmentType === 'string' && capabilities.equipmentType.trim().length > 0 && Number.isFinite(capabilities.maxWeightKg) && capabilities.maxWeightKg >= details.vehicleWeightKg && ['lengthCm','widthCm','heightCm'].every(key => Number.isFinite(capabilities.maxDimensions?.[key]) && capabilities.maxDimensions[key] >= details.vehicleDimensions?.[key]);
 }
-module.exports = { validateTransport, requireTransportPickupDate, carrierSuitable };
+function transportFleetVehicleSuitable(vehicle, details) {
+  const dimensions = details?.vehicleDimensions || {};
+  return vehicle?.status === 'approved' && ['open_carrier', 'covered_carrier', 'flatbed', 'trailer', 'other'].includes(vehicle.carrierType) && Number.isFinite(vehicle.maxLoadKg) && vehicle.maxLoadKg >= details?.vehicleWeightKg && ['lengthCm','widthCm','heightCm'].every(key => Number.isFinite(dimensions[key]) && Number.isFinite(vehicle[`max${key[0].toUpperCase()}${key.slice(1)}`]) && vehicle[`max${key[0].toUpperCase()}${key.slice(1)}`] >= dimensions[key]);
+}
+module.exports = { validateTransport, requireTransportPickupDate, carrierSuitable, transportFleetVehicleSuitable };

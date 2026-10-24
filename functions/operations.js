@@ -5,6 +5,7 @@ const { catalogItem } = require('./catalogPolicy');
 const { assertStockBaseline } = require('./stockBaseline');
 const { recordStockMovement } = require('./inventoryJournal');
 const { settlementPolicy } = require('./settlementPolicy');
+const { transportFleetVehicleSuitable } = require('./transportPolicy');
 const { merchantHasBusiness, merchantHasPermission, merchantStaffGrant, normalizeMerchantBusinessIds } = require('./merchantAccess');
 const { journal } = require('./journalPolicy');
 function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }) {
@@ -122,12 +123,15 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       if (!uid) throw new HttpsError('unauthenticated', 'Sign in to view available transport operators.');
       const account = (await db.doc(`users/${uid}`).get()).data();
       if (account?.role !== 'customer' || account.disabled === true || account.suspended === true) throw new HttpsError('permission-denied', 'An active customer account is required.');
+      const needs = request.data || {}, hasVehicleNeeds = needs.vehicleWeightKg !== undefined || needs.vehicleDimensions !== undefined;
+      if (hasVehicleNeeds && (!Number.isFinite(needs.vehicleWeightKg) || needs.vehicleWeightKg <= 0 || !needs.vehicleDimensions || ['lengthCm','widthCm','heightCm'].some(key => !Number.isFinite(needs.vehicleDimensions[key]) || needs.vehicleDimensions[key] <= 0))) throw new HttpsError('invalid-argument', 'Provide valid vehicle weight and dimensions to find a suitable transport operator.');
       const page = await db.collection('transport_operators').where('status', '==', 'approved').limit(100).get();
       const operators = await Promise.all(page.docs.map(async snapshot => {
         const value = snapshot.data();
         if (typeof value.ownerUid !== 'string') return null;
-        const [owner, vehicle] = await Promise.all([db.doc(`users/${value.ownerUid}`).get(), db.collection(`transport_operators/${snapshot.id}/vehicles`).where('status', '==', 'approved').limit(1).get()]);
-        if (owner.data()?.disabled === true || owner.data()?.suspended === true || vehicle.empty) return null;
+        const [owner, vehicles] = await Promise.all([db.doc(`users/${value.ownerUid}`).get(), db.collection(`transport_operators/${snapshot.id}/vehicles`).where('status', '==', 'approved').limit(100).get()]);
+        const ownerAccount = owner.data();
+        if (ownerAccount?.role !== 'merchant' || ownerAccount.transportOperatorId !== snapshot.id || ownerAccount.disabled === true || ownerAccount.suspended === true || !vehicles.docs.some(vehicle => !hasVehicleNeeds || transportFleetVehicleSuitable(vehicle.data(), needs))) return null;
         return { operatorId: snapshot.id, name: typeof value.name === 'string' && value.name.trim() ? value.name.trim() : 'Transport operator' };
       }));
       return { operators: operators.filter(Boolean) };
