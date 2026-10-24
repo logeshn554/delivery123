@@ -64,7 +64,7 @@ test('merchant owners grant and revoke outlet-scoped staff permissions enforced 
   assert.deepEqual(await callable('grantMerchantStaffAccess', 'merchant-owner', input), { granted: true });
   assert.deepEqual(await callable('grantMerchantStaffAccess', 'merchant-owner', input), { granted: true });
   assert.deepEqual(await callable('listMerchantStaff', 'merchant-owner', { merchantId: 'staff-shop', merchantType: 'restaurant' }), { members: [{ uid: 'merchant-staff', name: 'Staff', email: 'staff@example.test', permissions: ['orders'] }] });
-  assert.deepEqual(await callable('listMerchantBusinesses', 'merchant-staff'), { businesses: [{ id: 'staff-shop', merchantType: 'restaurant', name: 'staff-shop', address: '', acceptingOrders: false, permissions: ['orders'], canManageStaff: false }] });
+  assert.deepEqual(await callable('listMerchantBusinesses', 'merchant-staff'), { businesses: [{ id: 'staff-shop', merchantType: 'restaurant', name: 'staff-shop', address: '', timeZone: 'Asia/Kolkata', profileRevision: 0, acceptingOrders: false, permissions: ['orders'], canManageStaff: false }] });
 
   await assert.rejects(callable('updateMerchantCatalog', 'merchant-staff', { catalogId: 'staff-shop', merchantType: 'restaurant', itemId: 'dish', available: false }), error => error.code === 'permission-denied');
   assert.deepEqual(await callable('advanceMerchantBooking', 'merchant-staff', { bookingId: 'staff-order', status: 'preparing' }), { status: 'preparing' });
@@ -1333,7 +1333,10 @@ test('support cases enforce order ownership and preserve scoped reply and resolu
   await db.doc('users/admin').set({ role: 'admin' });
   await db.doc('users/other').set({ role: 'customer' });
   await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'support_shop', merchantType: 'restaurant' });
+  await db.doc('users/driver').set({ role: 'driver' });
   await db.doc('bookings/support_order').set({ customerId: 'customer', serviceType: 'food' });
+  await db.doc('bookings/merchant_support_order').set({ merchantId: 'support_shop', serviceType: 'food' });
+  await db.doc('bookings/driver_support_order').set({ driverId: 'driver', serviceType: 'parcel' });
   await db.doc('bookings/safety_ride').set({ customerId: 'customer', driverId: 'driver', serviceType: 'ride', status: 'transit' });
   await db.doc('platform_config/support').set({ firstResponseMinutes: 30 });
   const create = { ticketId: 'case1', subject: 'Missing item', message: 'One item is missing', category: 'missing_item', bookingId: 'support_order' };
@@ -1347,8 +1350,14 @@ test('support cases enforce order ownership and preserve scoped reply and resolu
   const merchantCase = (await db.doc('support_tickets/merchant_case').get()).data();
   assert.equal(merchantCase.requesterRole, 'merchant');
   assert.equal((await db.doc('support_tickets/merchant_case/events/created').get()).data().actorRole, 'merchant');
+  await callable('createSupportCase', 'merchant', { ticketId: 'merchant_order_case', subject: 'Order problem', message: 'Need help with my restaurant order', category: 'quality', bookingId: 'merchant_support_order' });
+  assert.equal((await db.doc('support_tickets/merchant_order_case').get()).data().requesterRole, 'merchant');
   await callable('postSupportMessage', 'merchant', { ticketId: 'merchant_case', requestId: 'merchant_reply', text: 'More context for support' });
   assert.equal((await db.doc('support_tickets/merchant_case/messages/merchant_merchant_reply').get()).data().actorRole, 'merchant');
+  await callable('createSupportCase', 'driver', { ticketId: 'driver_order_case', subject: 'Parcel problem', message: 'Need help with the assigned parcel', category: 'delay', bookingId: 'driver_support_order' });
+  assert.equal((await db.doc('support_tickets/driver_order_case').get()).data().requesterRole, 'driver');
+  await callable('postSupportMessage', 'driver', { ticketId: 'driver_order_case', requestId: 'driver_reply', text: 'The parcel pickup is delayed' });
+  assert.equal((await db.doc('support_tickets/driver_order_case/messages/driver_driver_reply').get()).data().actorRole, 'driver');
   assert.ok((await db.doc('support_tickets/case1').get()).data().firstResponseDueAt);
   await assert.rejects(callable('postSupportMessage', 'other', { ticketId: 'case1', requestId: 'reply', text: 'Private' }), error => error.code === 'permission-denied');
   await assert.rejects(callable('postSupportMessage', 'admin', { ticketId: 'case1', requestId: 'reply', text: 'Investigating' }, true), error => error.code === 'failed-precondition');

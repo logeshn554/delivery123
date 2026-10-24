@@ -4,7 +4,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase';
 import type { SupportTicket } from '../types';
 
-function CaseHistory({ id, kind, revision }: { id: string; kind: 'messages' | 'events'; revision: string }) {
+function CaseHistory({ id, kind, revision, requesterRole }: { id: string; kind: 'messages' | 'events'; revision: string; requesterRole?: SupportTicket['requesterRole'] }) {
   const [records, setRecords] = useState<{ id: string; [key: string]: unknown }[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false), [more, setMore] = useState(false);
   const cursor = useRef<QueryDocumentSnapshot<DocumentData> | null>(null), generation = useRef(0);
   const base = () => query(collection(db, 'support_tickets', id, kind), orderBy('createdAt', 'desc'));
@@ -33,8 +33,10 @@ function CaseHistory({ id, kind, revision }: { id: string; kind: 'messages' | 'e
       const createdAt = typeof record.createdAt === 'string' ? new Date(record.createdAt) : null;
       const timestamp = createdAt && Number.isFinite(createdAt.getTime()) ? createdAt.toLocaleString() : 'Time unavailable';
       const staffReply = record.actorRole === 'staff';
+      const actorRole = record.actorRole || requesterRole || 'customer';
+      const actorLabel = actorRole === 'merchant' ? 'Store partner' : actorRole === 'driver' ? 'Delivery partner' : 'Customer';
       return <article className={`max-w-[92%] rounded-2xl border p-3 ${staffReply ? 'bg-indigo-50' : 'ml-auto bg-white'}`} key={record.id}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2"><strong>{staffReply ? 'AllGo support · Staff' : 'You · Customer'}{kind === 'events' ? ` · ${String(record.action || '')}` : ''}</strong><time className="text-[10px] text-slate-500" dateTime={typeof record.createdAt === 'string' ? record.createdAt : undefined}>{timestamp}</time></div>
+        <div className="flex flex-wrap items-baseline justify-between gap-2"><strong>{staffReply ? 'AllGo support · Staff' : `You · ${actorLabel}`}{kind === 'events' ? ` · ${String(record.action || '')}` : ''}</strong><time className="text-[10px] text-slate-500" dateTime={typeof record.createdAt === 'string' ? record.createdAt : undefined}>{timestamp}</time></div>
         <p className="whitespace-pre-wrap break-words">{String(record.text || record.reason || '')}</p>
       </article>;
     })}
@@ -64,8 +66,8 @@ export default function SupportCasePanel({ ticketId, staff = false }: { ticketId
       <p>{ticket.category || 'general'}</p>
       {ticket.firstResponseAt ? <p>First response: {new Date(ticket.firstResponseAt).toLocaleString()}</p> : ticket.firstResponseDueAt ? <p>{Date.parse(ticket.firstResponseDueAt) < now ? 'Response target overdue · ' : 'Response target: '}{new Date(ticket.firstResponseDueAt).toLocaleString()}</p> : <p>A response target has not been configured by operations.</p>}
       {ticket.resolution && <p className="rounded bg-emerald-50 p-2">Resolution: {ticket.resolution}</p>}
-      <CaseHistory id={ticketId} kind="messages" revision={String(ticket.messageRevision || 0)}/>
-      <CaseHistory id={ticketId} kind="events" revision={String(ticket.revision || 0)}/>
+      <CaseHistory id={ticketId} kind="messages" revision={String(ticket.messageRevision || 0)} requesterRole={ticket.requesterRole}/>
+      <CaseHistory id={ticketId} kind="events" revision={String(ticket.revision || 0)} requesterRole={ticket.requesterRole}/>
       <p className="text-slate-600">Case replies are text-only. Attachments are not supported for this case.</p>
       {ticket.status !== 'resolved' && <><label className="block">Reply<textarea maxLength={2000} disabled={busy} value={text} onChange={event => setText(event.target.value)} className="mt-1 w-full rounded border p-2"/></label><button type="button" disabled={busy || !text.trim()} className="rounded bg-indigo-600 p-3 text-white" onClick={() => void perform('postSupportMessage', { text: text.trim() })}>Send reply</button></>}
       <label className="block">Case update reason<textarea maxLength={1000} disabled={busy} value={reason} onChange={event => setReason(event.target.value)} className="mt-1 w-full rounded border p-2"/></label>

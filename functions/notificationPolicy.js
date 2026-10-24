@@ -28,8 +28,10 @@ function bookingNotificationContent(booking, previous) {
   if (booking.pickupAddress !== previous.pickupAddress || booking.dropAddress !== previous.dropAddress) return { type: 'route_changed', title: `${service} route updated`, body: `The pickup or destination for ${service.toLowerCase()} ${booking.bookingId} changed. Review the updated order details.` };
   if (booking.exception?.status !== previous.exception?.status && booking.exception?.status) return { type: `booking_issue_${booking.exception.status}`, title: booking.exception.status === 'open' ? 'Order needs attention' : 'Order issue updated', body: `There is an update about ${service.toLowerCase()} ${booking.bookingId}.` };
   if (booking.status !== previous.status) {
-    const labels = { accepted: 'accepted', preparing: 'being prepared', ready: 'ready for pickup', transit: 'on the way', delivered: 'delivered', completed: 'completed', cancelled: 'cancelled' };
-    return { type: `booking_${booking.status}`, title: `${service} update`, body: `${service} ${booking.bookingId} is ${labels[booking.status] || booking.status.replaceAll('_', ' ')}.` };
+    const label = booking.status === 'arrived_at_destination'
+      ? booking.serviceType === 'transport' ? 'at the destination; vehicle inspection and handover are underway' : 'at the destination'
+      : ({ accepted: 'accepted', preparing: 'being prepared', ready: 'ready for pickup', transit: 'on the way', delivered: 'delivered', completed: 'completed', cancelled: 'cancelled' })[booking.status] || booking.status.replaceAll('_', ' ');
+    return { type: `booking_${booking.status}`, title: `${service} update`, body: `${service} ${booking.bookingId} is ${label}.` };
   }
   if (booking.preparation?.revision !== previous.preparation?.revision || booking.picking?.revision !== previous.picking?.revision) return { type: 'order_preparation', title: `${service} update`, body: `${service} ${booking.bookingId} has a preparation update.` };
   return { type: 'order_update', title: `${service} update`, body: `There is a new update for ${service.toLowerCase()} ${booking.bookingId}.` };

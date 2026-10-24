@@ -15,7 +15,8 @@ test('journey chat renders sender role, message bubbles and recorded timestamps'
 test('support history identifies customer and staff replies and explains text-only cases', () => {
   const support = readFileSync(new URL('../../src/components/SupportCasePanel.tsx', import.meta.url), 'utf8');
   assert.match(support, /AllGo support · Staff/);
-  assert.match(support, /You · Customer/);
+  assert.match(support, /actorLabel = actorRole === 'merchant' \? 'Store partner'/);
+  assert.match(support, /actorRole === 'driver' \? 'Delivery partner'/);
   assert.match(support, /Case replies are text-only/);
   assert.match(support, /Attachments are not supported/);
   assert.match(support, /Time unavailable/);

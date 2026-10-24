@@ -24,3 +24,9 @@ test('notification content reflects the first meaningful booking change', () => 
   assert.equal(bookingNotificationContent({ ...before, paymentStatus: 'refunded' }, before).title, 'Refund completed');
 });
 
+test('destination arrival notifications explain the ride and carrier handover state', () => {
+  const previous = { bookingId: 'ALLGO_2', serviceType: 'ride', status: 'transit', paymentStatus: 'paid' };
+  assert.equal(bookingNotificationContent({ ...previous, status: 'arrived_at_destination' }, previous).body, 'Ride ALLGO_2 is at the destination.');
+  assert.equal(bookingNotificationContent({ ...previous, serviceType: 'transport', status: 'arrived_at_destination' }, { ...previous, serviceType: 'transport' }).body, 'Vehicle transport ALLGO_2 is at the destination; vehicle inspection and handover are underway.');
+});
+
