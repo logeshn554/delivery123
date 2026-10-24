@@ -1,4 +1,9 @@
 const { validateTransportPhotos } = require('./transportPhotoPolicy');
+function requireTransportPickupDate(value, now = Date.now()) {
+  const timestamp = Date.parse(value || '');
+  if (!Number.isFinite(timestamp) || timestamp <= now) throw new Error('Choose a future requested vehicle pickup time.');
+  return new Date(timestamp).toISOString();
+}
 function validateTransport(details) {
   if (details.ownershipConfirmed !== true) throw new Error('Confirm that you own the vehicle or are authorised by its owner.');
   if (!Number.isFinite(details.vehicleWeightKg) || details.vehicleWeightKg <= 0 || details.vehicleWeightKg > 10000) throw new Error('Provide the vehicle weight in kilograms.');
@@ -9,4 +14,4 @@ function validateTransport(details) {
 function carrierSuitable(capabilities, details) {
   return capabilities?.approved === true && Array.isArray(capabilities.supportedVehicleTypes) && capabilities.supportedVehicleTypes.includes(details.transportVehicleType) && Number.isSafeInteger(capabilities.vehicleCapacity) && capabilities.vehicleCapacity >= 1 && typeof capabilities.equipmentType === 'string' && capabilities.equipmentType.trim().length > 0 && Number.isFinite(capabilities.maxWeightKg) && capabilities.maxWeightKg >= details.vehicleWeightKg && ['lengthCm','widthCm','heightCm'].every(key => Number.isFinite(capabilities.maxDimensions?.[key]) && capabilities.maxDimensions[key] >= details.vehicleDimensions?.[key]);
 }
-module.exports = { validateTransport, carrierSuitable };
+module.exports = { validateTransport, requireTransportPickupDate, carrierSuitable };

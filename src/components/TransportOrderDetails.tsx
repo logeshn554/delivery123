@@ -44,6 +44,7 @@ export default function TransportOrderDetails({ booking, onContactSupport }: { b
           {details?.transportVehicleType === 'car' ? 'Passenger Car' : 'Motorbike'} · {Number.isFinite(details?.vehicleWeightKg) ? `${details?.vehicleWeightKg} kg` : 'Weight unavailable'}
         </p>
         <div className="mt-2 flex flex-wrap gap-2">{(details?.vehiclePhotos || []).map((photo: { contentType: string; base64: string }, index: number) => <img key={index} src={`data:${photo.contentType};base64,${photo.base64}`} alt={`Submitted vehicle condition ${index + 1}`} className="max-h-40 max-w-full rounded border" loading="lazy"/>)}</div>
+        {details?.preferredDate && <p className="text-xs text-slate-600"><strong>Requested pickup:</strong> {Number.isFinite(Date.parse(details.preferredDate)) ? new Date(details.preferredDate).toLocaleString() : 'Time unavailable'} · {details.pickupTimeReview?.status === 'confirmed' ? 'confirmed by operations; carrier offers begin no earlier than this time.' : details.pickupTimeReview?.status === 'declined' ? 'declined by operations; contact support to reschedule or cancel.' : 'awaiting operations confirmation.'}</p>}
         {dimensions && (
           <p className="text-xs text-slate-500">
             Dimensions: {dimensions.lengthCm} × {dimensions.widthCm} × {dimensions.heightCm} cm

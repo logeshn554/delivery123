@@ -211,13 +211,13 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       const reason = cleanText(data.reason, 'Review note', 500), now = new Date().toISOString();
       return db.runTransaction(async tx => {
         const ref = db.doc(`bookings/${id}`), booking = await tx.get(ref), value = booking.data(), current = value?.details?.pickupTimeReview;
-        if (!value || value.serviceType !== 'parcel' || !Number.isFinite(Date.parse(value.details?.preferredDate || ''))) throw new HttpsError('failed-precondition', 'This booking has no valid requested parcel pickup time.');
-        if (!['pending', 'accepted'].includes(value.status) || value.driverId || !['paid', 'pending_cod'].includes(value.paymentStatus) || value.exception?.status === 'open') throw new HttpsError('failed-precondition', 'This parcel can no longer have its requested pickup time reviewed.');
+        if (!value || !['parcel', 'transport'].includes(value.serviceType) || !Number.isFinite(Date.parse(value.details?.preferredDate || ''))) throw new HttpsError('failed-precondition', 'This booking has no valid requested pickup time.');
+        if (!['pending', 'accepted'].includes(value.status) || value.driverId || !['paid', 'pending_cod'].includes(value.paymentStatus) || value.exception?.status === 'open') throw new HttpsError('failed-precondition', 'This booking can no longer have its requested pickup time reviewed.');
         if (current?.status === data.decision) return { status: current.status };
         if (current?.status === 'confirmed' || current?.status === 'declined') throw new HttpsError('failed-precondition', 'This pickup request was already reviewed.');
         tx.update(ref, { 'details.pickupTimeReview': { status: data.decision, reviewedBy: uid, reviewedAt: now, reason }, updatedAt: now });
         tx.create(ref.collection('events').doc(`pickup_time_${data.decision}`), { stage: `pickup_time_${data.decision}`, actorId: uid, actorRole: 'admin', reason, createdAt: now });
-        audit(tx, uid, `parcel_pickup_time_${data.decision}`, id);
+        audit(tx, uid, `${value.serviceType}_pickup_time_${data.decision}`, id);
         return { status: data.decision };
       });
     }),
