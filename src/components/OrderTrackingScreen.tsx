@@ -10,6 +10,7 @@ import { getParcelTrackingPresentation } from '../design-system/parcelTracking';
 import { isFreshTrackingRoute, isFreshTrackingTimestamp } from '../design-system/trackingFreshness';
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 import { getGroceryPickingProgress, getGroceryTrackingStage, GROCERY_TRACKING_STAGES } from '../design-system/groceryTracking';
+import { FOOD_TRACKING_STAGES, getFoodTrackingStage } from '../design-system/foodTracking';
 import HandoverCode from './HandoverCode';
 import DeliverySignatureReceipt from './DeliverySignatureReceipt';
 import RideSafetyActions from './RideSafetyActions';
@@ -71,8 +72,9 @@ export default function OrderTrackingScreen({ booking, onChat, onReview, onSafet
   const isTransport = booking.serviceType === 'transport';
   const isTakeover = booking.serviceType === 'takeover';
   const stage = complete ? (isTransport || isRide ? 4 : 3) : booking.status === 'arrived_at_destination' ? 3 : booking.status === 'transit' ? 2 : ['accepted', 'preparing', 'ready'].includes(booking.status) ? 1 : 0;
-  const foodStage = complete ? 4 : booking.status === 'transit' ? 3 : ['preparing', 'ready'].includes(booking.status) ? 2 : booking.status === 'accepted' ? 1 : 0;
-  const groceryStage = getGroceryTrackingStage(booking.status);
+  const driverAtPickup = Boolean(booking.driverId && booking.arrivedAtPickup);
+  const foodStage = getFoodTrackingStage(booking);
+  const groceryStage = getGroceryTrackingStage(booking.status, driverAtPickup);
   const cancelled = booking.status === 'cancelled';
   const isCod = booking.paymentMethod === 'cash' || booking.paymentStatus === 'pending_cod';
   
@@ -89,12 +91,12 @@ export default function OrderTrackingScreen({ booking, onChat, onReview, onSafet
       ? ['Carrier requested', 'Carrier assigned', 'In transit on carrier', 'Destination inspection', 'Vehicle delivered']
         : isParcel 
           ? parcelTracking!.steps 
-          : isFood ? ['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'] 
+          : isFood ? FOOD_TRACKING_STAGES
           : isGrocery 
             ? GROCERY_TRACKING_STAGES 
             : ['Confirmed', 'Preparing', 'On the way', 'Completed'];
-  const foodStatusTitle = cancelled ? 'Food order cancelled' : complete ? 'Your order has arrived' : booking.status === 'transit' ? 'Your order is out for delivery' : booking.status === 'ready' ? 'Your order is ready for pickup' : booking.status === 'preparing' ? 'The restaurant is preparing your order' : booking.status === 'accepted' ? 'The restaurant confirmed your order' : 'Your order was placed';
-  const groceryStatusTitle = cancelled ? 'Grocery order cancelled' : complete ? 'Your groceries have arrived' : booking.status === 'transit' ? 'Your groceries are on the way' : booking.status === 'ready' ? 'Your groceries are ready for pickup' : booking.status === 'preparing' ? 'The store is picking your items' : booking.status === 'accepted' ? 'The store confirmed your order' : 'Your grocery order was placed';
+  const foodStatusTitle = cancelled ? 'Food order cancelled' : complete ? 'Your order has arrived' : booking.status === 'transit' ? 'Your order is out for delivery' : driverAtPickup ? 'Your delivery partner has arrived at the restaurant' : booking.status === 'ready' ? 'Your order is ready for pickup' : booking.status === 'preparing' ? 'The restaurant is preparing your order' : booking.status === 'accepted' ? 'The restaurant confirmed your order' : 'Your order was placed';
+  const groceryStatusTitle = cancelled ? 'Grocery order cancelled' : complete ? 'Your groceries have arrived' : booking.status === 'transit' ? 'Your groceries are on the way' : driverAtPickup ? 'Your delivery partner has arrived at the store' : booking.status === 'ready' ? 'Your groceries are ready for pickup' : booking.status === 'preparing' ? 'The store is picking your items' : booking.status === 'accepted' ? 'The store confirmed your order' : 'Your grocery order was placed';
   const takeoverStatusTitle = cancelled ? 'Driver hire cancelled' : complete ? 'Trip complete · Vehicle returned' : stage === 2 ? 'Driver is operating your vehicle' : booking.status === 'preparing' ? 'Driver arrived at your vehicle' : stage === 1 ? 'Personal driver assigned' : 'Finding a professional driver';
   const transportStatusTitle = cancelled ? 'Vehicle transport cancelled' : complete ? 'Vehicle delivered safely' : booking.status === 'arrived_at_destination' ? 'Carrier arrived; destination inspection underway' : stage === 2 ? 'Vehicle in transit on carrier' : booking.status === 'preparing' ? 'Carrier arrived for loading' : stage === 1 ? 'Carrier truck assigned' : 'Assigning an authorized carrier';
   const serviceStatusTitle = isRide 
@@ -317,7 +319,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview, onSafet
                 </span>
                 <div>
                   <p className="text-[11px] font-bold text-white flex items-center gap-1">
-                    <span>{stage === 2 ? (isRide ? 'Ride in progress' : isTakeover ? 'Driving your vehicle' : isTransport ? 'Carrier in transit' : 'On the way') : isRide ? (booking.status === 'preparing' ? 'Driver arrived at pickup' : 'Driver heading to pickup') : isTakeover ? (booking.status === 'preparing' ? 'Driver arrived at vehicle' : 'Driver heading to vehicle') : isParcel ? (booking.status === 'preparing' ? 'Partner arrived at pickup' : 'Partner heading to pickup') : isTransport ? (booking.status === 'preparing' ? 'Carrier arrived for loading' : 'Carrier heading to pickup') : 'Driver heading to store'}</span>
+                    <span>{stage === 2 ? (isRide ? 'Ride in progress' : isTakeover ? 'Driving your vehicle' : isTransport ? 'Carrier in transit' : 'On the way') : isRide ? (booking.status === 'preparing' ? 'Driver arrived at pickup' : 'Driver heading to pickup') : isTakeover ? (booking.status === 'preparing' ? 'Driver arrived at vehicle' : 'Driver heading to vehicle') : isParcel ? (booking.status === 'preparing' ? 'Partner arrived at pickup' : 'Partner heading to pickup') : isTransport ? (booking.status === 'preparing' ? 'Carrier arrived for loading' : 'Carrier heading to pickup') : driverAtPickup ? 'Driver arrived at store' : 'Driver heading to store'}</span>
                     {freshRoute && route && (
                       <span className="text-emerald-400 font-extrabold font-mono">
                         · ~{route.estimatedMinutes} mins
@@ -403,7 +405,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview, onSafet
                             ? (booking.status === 'preparing' ? 'Partner has arrived at sender pickup location.' : 'Partner is heading to sender pickup location.') 
                             : isTransport 
                               ? (booking.status === 'preparing' ? 'Carrier has arrived for vehicle loading.' : 'Carrier is heading to vehicle collection location.') 
-                              : 'Partner is picking up your order from the store.') 
+                              : driverAtPickup ? 'Partner has arrived at the store for your order.' : 'Partner is picking up your order from the store.')
                     : 'Waiting for partner GPS coordinates...') 
                 : (isRide ? 'A nearby driver is being matched to your ride.' : isTakeover ? 'A certified driver is being matched.' : isTransport ? 'An authorized carrier truck is being assigned.' : 'A nearby delivery partner is being matched to your order.'))
               }

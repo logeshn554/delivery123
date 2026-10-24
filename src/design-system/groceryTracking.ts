@@ -9,10 +9,10 @@ export const GROCERY_TRACKING_STAGES = [
   'Delivered',
 ] as const;
 
-export function getGroceryTrackingStage(status: Booking['status']): number {
+export function getGroceryTrackingStage(status: Booking['status'], driverArrivedAtPickup = false): number {
   if (status === 'completed' || status === 'delivered') return 5;
   if (status === 'transit') return 4;
-  if (status === 'ready') return 3;
+  if (status === 'ready' || (status === 'preparing' && driverArrivedAtPickup)) return 3;
   if (status === 'preparing') return 2;
   if (status === 'accepted') return 1;
   return 0;
