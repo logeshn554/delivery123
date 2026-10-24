@@ -837,7 +837,9 @@ exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGIO
     const booking = document.data();
     const offer = priorOffers.get(document.id);
     const dispatchable = ['food', 'grocery'].includes(booking.serviceType) ? booking.status === 'ready' : booking.status === 'pending';
-    return dispatchable && !booking.driverId && booking.exception?.status !== 'open' && ['paid', 'pending_cod'].includes(booking.paymentStatus) && pickupEligibility(driver, booking) !== null && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities, booking.details)) && (!offer || offer.bookingVersion === (booking.updatedAt || booking.createdAt));
+    const requestedParcelTime = booking.serviceType === 'parcel' ? Date.parse(booking.details?.preferredDate || '') : NaN;
+    const parcelTimeReached = !Number.isFinite(requestedParcelTime) || requestedParcelTime <= Date.now();
+    return dispatchable && parcelTimeReached && !booking.driverId && booking.exception?.status !== 'open' && ['paid', 'pending_cod'].includes(booking.paymentStatus) && pickupEligibility(driver, booking) !== null && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities, booking.details)) && (!offer || offer.bookingVersion === (booking.updatedAt || booking.createdAt));
   }).sort((a, b) => {
     const aLease = priorOffers.get(a.id), bLease = priorOffers.get(b.id);
     const aActive = aLease?.expiresAt?.toMillis() > offerEvaluationTime, bActive = bLease?.expiresAt?.toMillis() > offerEvaluationTime;
@@ -873,7 +875,8 @@ exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region:
     const data = booking.data();
     if (!offer.exists || offer.data().expiresAt.toMillis() <= Date.now() || offer.data().bookingVersion !== (data?.updatedAt || data?.createdAt) || !data || pickupEligibility(driver.data(), data) === null) throw new HttpsError('failed-precondition', 'This pickup offer expired or your location is stale. Refresh offers.');
     const dispatchable = data && (['food', 'grocery'].includes(data.serviceType) ? data.status === 'ready' : data.status === 'pending');
-    if (!dispatchable || data.driverId || data.exception?.status === 'open' || !['paid', 'pending_cod'].includes(data.paymentStatus) || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available.');
+    const requestedParcelTime = data?.serviceType === 'parcel' ? Date.parse(data.details?.preferredDate || '') : NaN;
+    if (!dispatchable || Number.isFinite(requestedParcelTime) && requestedParcelTime > Date.now() || data.driverId || data.exception?.status === 'open' || !['paid', 'pending_cod'].includes(data.paymentStatus) || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available or its requested pickup time has not arrived.');
     if (data.serviceType === 'ride' && data.details?.vehicleType !== driver.data().vehicleType) throw new HttpsError('failed-precondition', 'Your verified vehicle does not match this ride.');
     // A customer's vehicle class is not the carrier's equipment class.
     // Operations must approve transport equipment separately from ordinary ride vehicles.

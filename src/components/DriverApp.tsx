@@ -818,6 +818,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                     </div>
 
                     <p className="text-[11px] text-slate-600 font-medium">Pickup area: <span className="text-slate-900">{job.pickupAddress || 'Area unavailable'}</span></p>
+                    {job.serviceType === 'parcel' && job.details?.preferredDate && <p className="text-[11px] font-semibold text-indigo-800">Requested pickup: {Number.isNaN(Date.parse(job.details.preferredDate)) ? 'Time unavailable' : new Date(job.details.preferredDate).toLocaleString()} · subject to operations confirmation</p>}
                     <p className="text-xs text-slate-700">{job.offerExpiresAt && Date.parse(job.offerExpiresAt) > offerNow ? `Offer expires in ${Math.ceil((Date.parse(job.offerExpiresAt) - offerNow) / 1000)} seconds` : 'Offer expired. Waiting for refreshed availability.'}</p>
 
                     <div className="flex gap-2 pt-2 border-t border-slate-700/50">
