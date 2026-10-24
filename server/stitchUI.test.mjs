@@ -278,8 +278,13 @@ test('food order receipt uses the recorded server breakdown and avoids claiming 
 });
 test('food tracking maps canonical booking states to restaurant-specific milestones',()=>{
   const tracking=readFileSync(new URL('../src/components/OrderTrackingScreen.tsx',import.meta.url),'utf8');
-  assert.match(tracking,/isFood \? \['Order placed', 'Restaurant confirmed', 'Preparing', 'Out for delivery', 'Arrived'\]/);
-  assert.match(tracking,/booking\.status === 'transit' \? 3/);
+  const helper=readFileSync(new URL('../src/design-system/foodTracking.ts',import.meta.url),'utf8');
+  assert.match(tracking,/isFood \? FOOD_TRACKING_STAGES/);
+  assert.match(helper,/FOOD_TRACKING_STAGES = \[/);
+  assert.match(helper,/'Ready for pickup'/);
+  assert.match(helper,/booking\.status === 'transit'\) return 4/);
+  assert.match(helper,/booking\.status === 'preparing' && booking\.driverId && booking\.arrivedAtPickup\)\) return 3/);
+  assert.match(tracking,/Your delivery partner has arrived at the restaurant/);
   assert.match(tracking,/booking\.status === 'ready' \? 'Your order is ready for pickup'/);
   assert.match(tracking,/booking\.status === 'preparing' \? 'The restaurant is preparing your order'/);
   assert.match(tracking,/isFood \? foodStage : stage/);
