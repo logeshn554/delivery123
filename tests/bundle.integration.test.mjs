@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import Module, { createRequire } from 'node:module';
 import { createHmac, createHash } from 'node:crypto';
 
-if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080') {
+if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || !/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) {
   throw new Error('Bundle integration tests require the isolated demo emulator.');
 }
 process.env.FIRESTORE_DATABASE_ID = '(default)';
@@ -127,7 +127,7 @@ test('bundle messages enforce participant access, bounded content, replay and th
 
 beforeEach(async () => {
   refundReceipts.clear(); refundMode = 'processed'; refundPosts = 0;
-  const response = await fetch('http://127.0.0.1:8080/emulator/v1/projects/demo-allgo/databases/(default)/documents', { method: 'DELETE' });
+  const response = await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/demo-allgo/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(response.ok, true);
 
   // Seed base operator platform config

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import Module, { createRequire } from 'node:module';
 import { createHmac } from 'node:crypto';
 import { mockJourneyMaps } from './helpers/isolatedMaps.mjs';
-if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080') throw new Error('Payment integration tests require the isolated demo emulator.');
+if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || !/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) throw new Error('Payment integration tests require the isolated demo emulator.');
 process.env.FIRESTORE_DATABASE_ID = '(default)';
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 const filename = fileURLToPath(new URL('../functions/index.js', import.meta.url));
@@ -21,7 +21,7 @@ const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestor
 const { getApp } = require('firebase-admin/app');
 const db = getFirestore(getApp(), '(default)');
 beforeEach(async () => {
-  const response = await fetch('http://127.0.0.1:8080/emulator/v1/projects/demo-allgo/databases/(default)/documents', { method: 'DELETE' });
+  const response = await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/demo-allgo/databases/(default)/documents`, { method: 'DELETE' });
   assert.equal(response.ok, true);
   await db.doc('users/customer').set({ uid: 'customer', name: 'Test customer', role: 'customer', walletBalance: 1000 });
   await db.doc('grocery_stores/shop/products/item').set({ name: 'Test item', stock: 10, price: 100 });

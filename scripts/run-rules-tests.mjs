@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -15,9 +16,14 @@ if (!(await access(jar).then(() => true, () => false))) {
     await mkdir(path.dirname(jar), { recursive: true }); await writeFile(jar, new Uint8Array(await response.arrayBuffer()));
   }
 }
-const port = 8080;
-try { await fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(500) }); throw new Error('Port 8080 is in use. Stop the existing emulator before running these isolated tests.'); }
-catch (error) { if (!['TimeoutError', 'TypeError'].includes(error.name)) throw error; }
+const port = await new Promise((resolve, reject) => {
+  const server = createServer();
+  server.once('error', reject);
+  server.listen(0, '127.0.0.1', () => {
+    const address = server.address();
+    server.close(error => error ? reject(error) : resolve(address.port));
+  });
+});
 const java = findJava21();
 const emulator = spawn(java, ['-Duser.language=en', '-jar', jar, '--host=127.0.0.1', `--port=${port}`, '--project_id=demo-allgo', '--single_project_mode=true'], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
 let exited = false, startupError, startupLog = '';

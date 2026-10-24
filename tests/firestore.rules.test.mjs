@@ -4,7 +4,8 @@ import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebas
 import { doc, getDoc, getDocs, collection, query, where, orderBy, limit, setDoc, updateDoc, deleteDoc, Timestamp, setLogLevel } from 'firebase/firestore';
 setLogLevel('silent');
 let env;
-before(async () => { env = await initializeTestEnvironment({ projectId: 'demo-allgo', firestore: { host: '127.0.0.1', port: 8080, rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } }); });
+const emulatorPort = Number((process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':').at(-1));
+before(async () => { env = await initializeTestEnvironment({ projectId: 'demo-allgo', firestore: { host: '127.0.0.1', port: emulatorPort, rules: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') } }); });
 after(async () => { await env?.cleanup(); });
 beforeEach(async () => {
   await env.clearFirestore();

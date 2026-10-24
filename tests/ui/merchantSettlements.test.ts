@@ -14,7 +14,8 @@ test('merchant settlement view shows only assigned completed booking values', ()
   assert.match(html, /123\.45/);
   assert.doesNotMatch(html, /wrong-shop|wrong-business|pending-order/);
   assert.match(html, /Merchant payouts are unavailable/);
-  assert.match(html, /can include delivery charges and taxes/);
+  assert.match(html, /Customer booking totals can include delivery charges and taxes/);
+  assert.match(html, /Recorded seller earnings/);
   assert.doesNotMatch(html, /<button|HDFC|NEFT|15%|Transferred|Cleared|verified bank account/i);
 });
 

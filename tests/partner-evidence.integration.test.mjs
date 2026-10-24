@@ -1,7 +1,7 @@
 import { beforeEach, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:8080') throw new Error('Evidence tests require the isolated demo emulator.');
+if (process.env.GCLOUD_PROJECT !== 'demo-allgo' || !/^127\.0\.0\.1:\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST || '')) throw new Error('Evidence tests require the isolated demo emulator.');
 const require = createRequire(new URL('../functions/package.json', import.meta.url));
 const { initializeApp } = require('firebase-admin/app'), { getFirestore, Timestamp } = require('firebase-admin/firestore');
 const app = initializeApp({ projectId: 'demo-allgo' }), db = getFirestore(app);
@@ -30,7 +30,7 @@ const bucket = { name: 'fixture-private', async getMetadata() { return [bucketPo
 const checkedId = value => { if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw new HttpsError('invalid-argument', 'Invalid ID'); return value; };
 const checkedText = (value, label, maximum) => { if (typeof value !== 'string' || !value.trim() || value.length > maximum) throw new HttpsError('invalid-argument', `Invalid ${label}`); return value.trim(); };
 beforeEach(async () => {
-  const response = await fetch('http://127.0.0.1:8080/emulator/v1/projects/demo-allgo/databases/(default)/documents', { method: 'DELETE' }); assert.equal(response.ok, true);
+  const response = await fetch(`http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/demo-allgo/databases/(default)/documents`, { method: 'DELETE' }); assert.equal(response.ok, true);
   objects = new Map(); saveHook = null; scanHook = null; failedDeletes = new Set();
   bucketPolicy = { iamConfiguration: { publicAccessPrevention: 'enforced', uniformBucketLevelAccess: { enabled: true } } };
   services = partnerEvidenceFunctions({ db, REGION: 'asia-south1', HttpsError, documentId: checkedId, cleanText: checkedText, getBucket: name => { assert.ok(!name || name === bucket.name); return bucket; }, onCall: (_, handler) => ({ run: handler }), onSchedule: (_, handler) => ({ run: handler }) }); commands = services.exports;

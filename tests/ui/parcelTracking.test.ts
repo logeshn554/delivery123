@@ -46,7 +46,8 @@ test('parcel handover codes stay concealed until explicitly revealed and evidenc
   assert.match(secureCode, /visible \? code : '••••'/);
   assert.match(secureCode, /aria-label=\{`\$\{visible \? 'Hide' : 'Show'\}/);
   assert.match(details, /<HandoverCode label="Sender pickup code"/);
-  assert.match(details, /AllGo does not collect a handover signature or photo/);
+  assert.match(details, /Delivery requires the recipient code and electronic signature/);
+  assert.match(details, /No handover photo is collected/);
 });
 
 test('vehicle transport tracking separates the moved vehicle from the carrier and uses real GPS/chat state', () => {

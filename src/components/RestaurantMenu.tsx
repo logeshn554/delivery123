@@ -3,11 +3,11 @@ import type { MenuItem, Restaurant } from '../types';
 import { CatalogImage } from '../design-system/CatalogImage';
 import { CatalogState } from '../design-system/CatalogState';
 
-export default function RestaurantMenu({ restaurant, items, categories, category, onCategory, loading, error, onRetry, onClear, onAbout, favoriteIds, onFavorite, onDetails, quantities, selectedVariants, selectedAddOns, onVariant, onAddOnToggle, onAdd, onRemove }: {
+export default function RestaurantMenu({ restaurant, items, categories, category, onCategory, loading, error, onRetry, onClear, onAbout, favoriteIds, onFavorite, onDetails, quantities, selectedVariants, selectedAddOns = {}, onVariant, onAddOnToggle, onAdd, onRemove }: {
   restaurant: Restaurant; items: MenuItem[]; categories: string[]; category: string; onCategory: (category: string) => void;
   loading: boolean; error: string; onRetry: () => void; onClear: () => void; onAbout: () => void;
   favoriteIds: string[]; onFavorite: (id: string) => void; onDetails: (id: string) => void;
-  quantities: (id: string, variantId?: string, addOnIds?: string[]) => number; selectedVariants: Record<string,string>; selectedAddOns: Record<string,string[]>;
+  quantities: (id: string, variantId?: string, addOnIds?: string[]) => number; selectedVariants: Record<string,string>; selectedAddOns?: Record<string,string[]>;
   onVariant: (id: string, variant: string) => void; onAddOnToggle: (id: string, optionId: string) => void; onAdd: (item: MenuItem, variant?: {id:string;label:string}, addOnIds?: string[]) => void; onRemove: (item: MenuItem, variantId?: string, addOnIds?: string[]) => void;
 }) {
   return <section className="stitch-menu">

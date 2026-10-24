@@ -1,4 +1,8 @@
-const { addCents } = require('./moneyPolicy');
+function addCents(balance, change) {
+  const result = balance + change;
+  if (![balance, change, result].every(Number.isSafeInteger)) throw new Error('The merchant settlement amount exceeds safe integer precision.');
+  return result;
+}
 
 function merchantSettlementPolicy(input, merchantId, serviceType) {
   if (!input || input.merchantId !== merchantId || input.serviceType !== serviceType || !Number.isSafeInteger(input.version) || input.version < 1 || typeof input.acceptedBy !== 'string' || !input.acceptedBy || typeof input.agreementReference !== 'string' || !input.agreementReference) {

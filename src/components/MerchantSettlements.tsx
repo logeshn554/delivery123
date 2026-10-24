@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Booking } from '../types';
-import { acceptMerchantSettlementAgreement, getMerchantSettlementAgreement, listenToMerchantSettlementBalance, listenToMerchantSettlementEntries, type MerchantSettlementAgreement, type MerchantSettlementBalance, type MerchantSettlementEntry } from '../data/firestoreHelper';
+import type { MerchantSettlementAgreement, MerchantSettlementBalance, MerchantSettlementEntry } from '../data/firebaseHelper';
 
 export default function MerchantSettlements({ bookings, merchantId, merchantType }: { bookings: Booking[]; merchantId: string; merchantType: 'restaurant' | 'grocery' }) {
   const completed = bookings.filter(booking => booking.merchantId === merchantId && booking.serviceType === (merchantType === 'restaurant' ? 'food' : 'grocery') && ['completed', 'delivered'].includes(booking.status));
@@ -8,23 +8,29 @@ export default function MerchantSettlements({ bookings, merchantId, merchantType
   const [agreement, setAgreement] = useState<MerchantSettlementAgreement | null>(null), [agreementLoading, setAgreementLoading] = useState(true), [acceptance, setAcceptance] = useState(false), [agreementBusy, setAgreementBusy] = useState(false), [agreementMessage, setAgreementMessage] = useState('');
   const reloadAgreement = async () => {
     setAgreementLoading(true);
-    try { setAgreement(await getMerchantSettlementAgreement(merchantId, merchantType)); }
+    try { const { getMerchantSettlementAgreement } = await import('../data/firestoreHelper'); setAgreement(await getMerchantSettlementAgreement(merchantId, merchantType)); }
     catch (cause) { setAgreementMessage(cause instanceof Error ? cause.message : 'Settlement terms could not be loaded.'); }
     finally { setAgreementLoading(false); }
   };
   useEffect(() => {
+    let active = true;
+    let stopBalance = () => {}, stopEntries = () => {};
     void reloadAgreement();
     let pending = 2;
     const settle = () => { pending -= 1; if (!pending) setLoading(false); };
     const failed = (cause: unknown) => { setError(cause instanceof Error ? cause.message : 'Merchant settlement records could not be loaded.'); settle(); };
-    const stopBalance = listenToMerchantSettlementBalance(merchantId, merchantType, value => { setBalance(value); setError(''); settle(); }, failed);
-    const stopEntries = listenToMerchantSettlementEntries(merchantId, merchantType, value => { setEntries(value); setError(''); settle(); }, failed);
-    return () => { stopBalance(); stopEntries(); };
+    void import('../data/firestoreHelper').then(({ listenToMerchantSettlementBalance, listenToMerchantSettlementEntries }) => {
+      if (!active) return;
+      stopBalance = listenToMerchantSettlementBalance(merchantId, merchantType, value => { setBalance(value); setError(''); settle(); }, failed);
+      stopEntries = listenToMerchantSettlementEntries(merchantId, merchantType, value => { setEntries(value); setError(''); settle(); }, failed);
+    }).catch(cause => { if (active) { failed(cause); setLoading(false); } });
+    return () => { active = false; stopBalance(); stopEntries(); };
   }, [merchantId, merchantType]);
   const acceptAgreement = async () => {
     if (!agreement || agreement.status !== 'pending_acceptance' || !acceptance || agreementBusy) return;
     setAgreementBusy(true); setAgreementMessage('');
     try {
+      const { acceptMerchantSettlementAgreement } = await import('../data/firestoreHelper');
       await acceptMerchantSettlementAgreement({ merchantId, merchantType, expectedVersion: agreement.version, requestId: crypto.randomUUID(), accepted: true });
       setAgreementMessage('Settlement agreement accepted and recorded.'); setAcceptance(false); await reloadAgreement();
     } catch (cause) { setAgreementMessage(cause instanceof Error ? cause.message : 'The agreement could not be accepted.'); }

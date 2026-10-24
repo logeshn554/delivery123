@@ -108,8 +108,8 @@ test("merchant closures editor supports date-level closures with reason and conf
 test("merchant settlements panel warns setup requirement and summarizes completed bookings", () => {
   assert.match(settlements, /Merchant payouts are unavailable/);
   assert.match(settlements, /Completed bookings/);
-  assert.match(settlements, /AllGo operations must configure your settlement agreement/);
-  assert.match(settlements, /Booking values below come from your loaded orders/);
+  assert.match(settlements, /Withdrawals require operations to verify a payout destination/);
+  assert.match(settlements, /Customer booking totals can include delivery charges and taxes/);
 });
 
 // TASK-114: Merchant support & exception workflows
