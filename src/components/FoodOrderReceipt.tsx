@@ -16,7 +16,7 @@ function receiptText(booking: Booking) {
     `Status: ${booking.status}`,
     '',
     'Items:',
-    ...(booking.details?.items || []).map(item => `${item.quantity} x ${item.name}${item.variantName ? ` (${item.variantName})` : ''} — ${inr(item.price * item.quantity)}`),
+    ...(booking.details?.items || []).map(item => `${item.quantity} x ${item.name}${item.variantName ? ` (${item.variantName})` : ''}${item.addOns?.length ? ` + ${item.addOns.map(addOn => addOn.name).join(', ')}` : ''} — ${inr(item.price * item.quantity)}`),
   ];
   const breakdown = booking.priceBreakdown;
   if (breakdown) {

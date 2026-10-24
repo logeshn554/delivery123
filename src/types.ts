@@ -84,6 +84,7 @@ export interface MenuItem {
   description: string;
   image: string;
   variants?: { id: string; label: string; price: number; available?: boolean }[];
+  addOnGroups?: { id: string; label: string; required: boolean; maxSelections: number; options: { id: string; label: string; price: number; available: boolean }[] }[];
 }
 
 export interface GroceryStore {
@@ -206,6 +207,7 @@ export interface BookingDetails {
     quantity: number;
     variantId?: string;
     variantName?: string;
+    addOns?: { id: string; name: string; price: number }[];
     removed?: boolean;
   }[];
   notes?: string;

@@ -483,7 +483,7 @@ function tripBundleFunctions({
           const ref = db.doc(`${catalog}/${item.id}`);
           const snapshot = await tx.get(ref);
           const product = snapshot.data();
-          try { checkoutCatalogItem(product, item.variantId, leg.type, item.quantity); }
+          try { checkoutCatalogItem(product, item.variantId, leg.type, item.quantity, Date.now(), item.addOnIds || []); }
           catch (error) { throw new HttpsError('failed-precondition', error.message); }
           if (leg.type === 'grocery') {
             const reserved = groceryStockWrites.get(ref.path);

@@ -82,7 +82,8 @@ interface CustomerAppProps {
   onSignOut: () => void;
 }
 
-type CartLine = { item: MenuItem | GroceryProduct; quantity: number; partnerName?: string; variant?: { id: string; label: string } };
+type CartLine = { item: MenuItem | GroceryProduct; quantity: number; partnerName?: string; variant?: { id: string; label: string }; addOnIds?: string[] };
+const sameAddOns = (left: string[] = [], right: string[] = []) => left.length === right.length && [...left].sort().every((id, index) => id === [...right].sort()[index]);
 
 function readCart(userId: string): { items: CartLine[]; service: 'food' | 'grocery' | null } {
   try {
@@ -189,6 +190,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
   const [foodSearch, setFoodSearch] = useState('');
   const [selectedFoodCuisine, setSelectedFoodCuisine] = useState('');
   const [selectedFoodVariants, setSelectedFoodVariants] = useState<Record<string, string>>({});
+  const [selectedFoodAddOns, setSelectedFoodAddOns] = useState<Record<string, string[]>>({});
   const [grocerySearch, setGrocerySearch] = useState('');
   const [selectedGroceryCategory, setSelectedGroceryCategory] = useState('All');
   const [excludedGroceryAllergens, setExcludedGroceryAllergens] = useState<string[]>([]);
@@ -327,7 +329,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     if (!showCheckoutReview || !cartService || !cart.length || !deliveryAddress.trim()) return;
     if (contactlessDelivery && orderNotes.trim().length > MAX_CONTACTLESS_INSTRUCTIONS_LENGTH) { setCartQuoteBusy(false); setCartQuoteError('Shorten delivery instructions to leave room for the contactless request.'); return; }
     let active = true; setCartQuoteBusy(true);
-    const details = { restaurantId: cartService === 'food' ? cartSourceId : undefined, storeId: cartService === 'grocery' ? cartSourceId : undefined, notes: buildCheckoutNotes(orderNotes, cartService === 'grocery' && contactlessDelivery), items: cart.map(line => ({ id: line.item.id, quantity: line.quantity, ...(line.variant ? { variantId: line.variant.id } : {}) })) };
+    const details = { restaurantId: cartService === 'food' ? cartSourceId : undefined, storeId: cartService === 'grocery' ? cartSourceId : undefined, notes: buildCheckoutNotes(orderNotes, cartService === 'grocery' && contactlessDelivery), items: cart.map(line => ({ id: line.item.id, quantity: line.quantity, ...(line.variant ? { variantId: line.variant.id } : {}), ...(line.addOnIds?.length ? { addOnIds: line.addOnIds } : {}) })) };
     void getCartQuote({ serviceType: cartService, pickupAddress: deliveryAddress, details }, coupon?.code).then(quote => { if (active) setCartQuote(quote); }).catch(error => { if (active) setCartQuoteError(error instanceof Error ? error.message : 'Could not confirm delivery coverage and charges.'); }).finally(() => { if (active) setCartQuoteBusy(false); });
     return () => { active = false; };
   }, [showCheckoutReview, cartService, cart, cartSourceId, deliveryAddress, coupon?.code, orderNotes, contactlessDelivery]);
@@ -464,11 +466,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         ? (current as MenuItem | undefined)?.variants?.find((variant) => variant.id === c.variant?.id)?.price
         : undefined;
       // Match server line arithmetic: accumulate integer paise, then display rupees.
-      return total + Math.round((liveVariantPrice ?? current?.price ?? c.item.price) * 100) * c.quantity;
+      const liveAddOnCents = cartService === 'food' && c.addOnIds?.length
+        ? c.addOnIds.reduce((sum, id) => sum + Math.round((((current as MenuItem | undefined)?.addOnGroups || []).flatMap(group => group.options).find(option => option.id === id)?.price || 0) * 100), 0)
+        : 0;
+      return total + (Math.round((liveVariantPrice ?? current?.price ?? c.item.price) * 100) + liveAddOnCents) * c.quantity;
     }, 0) / 100;
   };
 
-  const handleAddToCart = (item: MenuItem | GroceryProduct, service: 'food' | 'grocery', variant?: { id: string; label: string }, units = 1): boolean => {
+  const handleAddToCart = (item: MenuItem | GroceryProduct, service: 'food' | 'grocery', variant?: { id: string; label: string }, units = 1, addOnIds: string[] = []): boolean => {
     const stock = (item as GroceryProduct).stock;
     const cap = service === 'grocery' ? Number.isSafeInteger(stock) && stock >= 0 ? Math.min(30, stock) : 0 : 30;
     const partner = service === 'food' ? restaurantsList.find(entry => entry.id === (item as MenuItem).restaurantId) : groceryStoresList.find(entry => entry.id === (item as GroceryProduct).storeId);
@@ -476,14 +481,14 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
     const selectedVariant = variant ? (item as MenuItem).variants?.find(entry => entry.id === variant.id && entry.available !== false) : undefined;
     if (service === 'food' && (item as MenuItem).variants?.length && !selectedVariant) { alert('Choose an available menu option.'); return false; }
     const cartItem = selectedVariant ? { ...item, price: selectedVariant.price } : item;
-    const existingQuantity = cartService === service ? cart.find(line => line.item.id === item.id && line.variant?.id === variant?.id)?.quantity || 0 : 0;
+    const existingQuantity = cartService === service ? cart.find(line => line.item.id === item.id && line.variant?.id === variant?.id && sameAddOns(line.addOnIds, addOnIds))?.quantity || 0 : 0;
     if (!Number.isInteger(units) || units < 1 || existingQuantity + units > cap || (service === 'food' && (item as MenuItem).available === false)) { alert('The requested quantity is unavailable. Check current stock or choose fewer items.'); return false; }
     if (cartService !== service) {
       if (cart.length > 0) {
         alert('Your cart has items from another service. Empty your cart before switching between food and groceries.');
         return false;
       }
-      setCart([{ item: cartItem, quantity: units, partnerName: partner?.name, ...(variant ? { variant } : {}) }]);
+      setCart([{ item: cartItem, quantity: units, partnerName: partner?.name, ...(variant ? { variant } : {}), ...(addOnIds.length ? { addOnIds: [...addOnIds].sort() } : {}) }]);
       setCartService(service);
       return true;
     }
@@ -493,17 +498,17 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       alert('A cart can only contain items from one restaurant or store. Empty your cart before choosing another.');
       return false;
     }
-    const existing = cart.find(c => c.item.id === item.id && c.variant?.id === variant?.id);
+    const existing = cart.find(c => c.item.id === item.id && c.variant?.id === variant?.id && sameAddOns(c.addOnIds, addOnIds));
     if (existing) {
       setCart(cart.map(c => c === existing ? { ...c, quantity: c.quantity + units } : c));
     } else {
-      setCart([...cart, { item: cartItem, quantity: units, partnerName: partner?.name, ...(variant ? { variant } : {}) }]);
+      setCart([...cart, { item: cartItem, quantity: units, partnerName: partner?.name, ...(variant ? { variant } : {}), ...(addOnIds.length ? { addOnIds: [...addOnIds].sort() } : {}) }]);
     }
     return true;
   };
 
-  const handleRemoveFromCart = (item: MenuItem | GroceryProduct, variantId?: string) => {
-    const existing = cart.find(c => c.item.id === item.id && c.variant?.id === variantId);
+  const handleRemoveFromCart = (item: MenuItem | GroceryProduct, variantId?: string, addOnIds: string[] = []) => {
+    const existing = cart.find(c => c.item.id === item.id && c.variant?.id === variantId && sameAddOns(c.addOnIds, addOnIds));
     if (existing && existing.quantity > 1) {
       setCart(cart.map(c => c === existing ? { ...c, quantity: c.quantity - 1 } : c));
     } else {
@@ -511,6 +516,20 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       setCart(next);
       if (!next.length) setCartService(null);
     }
+  };
+
+  const toggleFoodAddOn = (itemId: string, optionId: string) => {
+    const item = menuItemsList.find(entry => entry.id === itemId);
+    const group = item?.addOnGroups?.find(row => row.options.some(option => option.id === optionId));
+    const option = group?.options.find(row => row.id === optionId);
+    if (!group || !option || option.available === false) return;
+    setSelectedFoodAddOns(current => {
+      const selected = current[itemId] || [];
+      const next = selected.includes(optionId)
+        ? selected.filter(id => id !== optionId)
+        : group.options.filter(row => selected.includes(row.id)).length < group.maxSelections ? [...selected, optionId] : selected;
+      return { ...current, [itemId]: next };
+    });
   };
 
   const toggleFavorite = (catalogId: string) => {
@@ -720,18 +739,18 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
         return;
       }
       if (restaurant.acceptingOrders === false) { alert('This restaurant is not accepting orders.'); return; }
-      const currentItems = cart.map(({ item, quantity, variant: chosenVariant }) => {
+      const currentItems = cart.map(({ item, quantity, variant: chosenVariant, addOnIds = [] }) => {
         const current = (cartCatalog as MenuItem[]).find((entry) => entry.id === item.id && entry.restaurantId === restaurantId && entry.available !== false);
         if (!current) return null;
         const variant = chosenVariant ? current.variants?.find((entry) => entry.id === chosenVariant.id && entry.available !== false) : undefined;
         if (current.variants?.length && !variant) return null;
-        return { id: current.id, name: current.name, price: variant?.price ?? current.price, quantity, ...(variant ? { variantId: variant.id, variantName: variant.label } : {}) };
+        return { id: current.id, name: current.name, price: variant?.price ?? current.price, quantity, ...(variant ? { variantId: variant.id, variantName: variant.label } : {}), ...(addOnIds.length ? { addOnIds } : {}) };
       });
       if (currentItems.some((item) => !item)) {
         alert('One or more items are no longer available. Remove them from your cart and refresh the menu.');
         return;
       }
-      const items = currentItems as { id: string; name: string; price: number; quantity: number; variantId?: string; variantName?: string }[];
+      const items = currentItems as { id: string; name: string; price: number; quantity: number; variantId?: string; variantName?: string; addOnIds?: string[] }[];
       const quotePrice = cartQuote?.amount ? cartQuote.amount / 100 : items.reduce((total, item) => total + item.price * item.quantity, 0);
       void handleCheckout('food', quotePrice, {
         restaurantId,
@@ -1055,7 +1074,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
                 )}
               </section>
             ) : (
-              <RestaurantMenu restaurant={selectedRestaurant} items={visibleFoodItems} categories={['All',...new Set(menuItemsList.filter(item=>item.restaurantId===selectedRestaurant.id).map(item=>item.category).filter(Boolean))]} category={selectedFoodCategory} onCategory={setSelectedFoodCategory} loading={menuLoading} error={menuCatalogError} onRetry={()=>{setMenuCatalogError('');setCatalogRetry(value=>value+1);}} onClear={()=>{setFoodSearch('');setSelectedFoodCategory('All');setVegetarianOnly(false);setShowFavoritesOnly(false);}} onAbout={()=>setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})} favoriteIds={favoriteCatalogIds} onFavorite={toggleFavorite} onDetails={id=>setCatalogPage({kind:'dish',id})} quantities={(id,variantId)=>cart.find(line=>line.item.id===id&&line.variant?.id===variantId)?.quantity||0} selectedVariants={selectedFoodVariants} onVariant={(id,variant)=>setSelectedFoodVariants(current=>({...current,[id]:variant}))} onAdd={(item,variant)=>{handleAddToCart(item,'food',variant);}} onRemove={handleRemoveFromCart}/>
+              <RestaurantMenu restaurant={selectedRestaurant} items={visibleFoodItems} categories={['All',...new Set(menuItemsList.filter(item=>item.restaurantId===selectedRestaurant.id).map(item=>item.category).filter(Boolean))]} category={selectedFoodCategory} onCategory={setSelectedFoodCategory} loading={menuLoading} error={menuCatalogError} onRetry={()=>{setMenuCatalogError('');setCatalogRetry(value=>value+1);}} onClear={()=>{setFoodSearch('');setSelectedFoodCategory('All');setVegetarianOnly(false);setShowFavoritesOnly(false);}} onAbout={()=>setCatalogPage({kind:'restaurant',id:selectedRestaurant.id})} favoriteIds={favoriteCatalogIds} onFavorite={toggleFavorite} onDetails={id=>setCatalogPage({kind:'dish',id})} quantities={(id,variantId,addOnIds)=>cart.find(line=>line.item.id===id&&line.variant?.id===variantId&&sameAddOns(line.addOnIds,addOnIds))?.quantity||0} selectedVariants={selectedFoodVariants} selectedAddOns={selectedFoodAddOns} onAddOnToggle={toggleFoodAddOn} onVariant={(id,variant)=>setSelectedFoodVariants(current=>({...current,[id]:variant}))} onAdd={(item,variant,addOnIds)=>{handleAddToCart(item,'food',variant,1,addOnIds);}} onRemove={handleRemoveFromCart}/>
             )}
             {cart.length > 0 && cartService === 'food' && <div className="food-cart-dock"><div><strong>₹{getCartTotal()}</strong><p>{cart.reduce((sum, line) => sum + line.quantity, 0)} items · from {restaurantsList.find(rest => rest.id === cartSourceId)?.name || 'selected restaurant'}</p></div><button onClick={() => { setActiveWorkflow('none'); setCurrentTab('cart'); }}>View cart</button></div>}
           </div>
@@ -1158,14 +1177,16 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
               <>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4">
                   <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-3"><span className="text-xs font-extrabold uppercase text-slate-500">{cartService === 'food' ? 'Restaurant order' : 'Grocery order'}</span><button onClick={() => { setCurrentTab('home'); setActiveWorkflow(cartService || 'food'); }} className="text-[11px] font-bold text-indigo-600">Add more</button></div>
-                  <div className="divide-y divide-slate-100">{cart.map(({ item, quantity, variant }) => {
+                  <div className="divide-y divide-slate-100">{cart.map(({ item, quantity, variant, addOnIds = [] }) => {
                     const current = cartCatalog.find(entry => entry.id === item.id);
-                    const livePrice = (variant && (current as MenuItem | undefined)?.variants?.find(option => option.id === variant.id)?.price) ?? current?.price ?? item.price;
+                    const basePrice = (variant && (current as MenuItem | undefined)?.variants?.find(option => option.id === variant.id)?.price) ?? current?.price ?? item.price;
+                    const liveAddOns = cartService === 'food' ? (current as MenuItem | undefined)?.addOnGroups?.flatMap(group => group.options).filter(option => addOnIds.includes(option.id)) || [] : [];
+                    const livePrice = basePrice + liveAddOns.reduce((sum, option) => sum + option.price, 0);
                     const staleGroceryLine = cartService === 'grocery' && hasGroceryCartConflicts([{ item: item as GroceryProduct, quantity }], cartCatalog as GroceryProduct[]);
-                    return <div key={`${item.id}:${variant?.id || ''}`} className="flex items-center gap-3 py-3">
+                    return <div key={`${item.id}:${variant?.id || ''}:${addOnIds.join(',')}`} className="flex items-center gap-3 py-3">
                       <CatalogImage src={item.image} alt="" className="cart-line-image" fallback={<ShoppingBag size={20} />} />
-                      <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{item.name}</p>{variant && <p className="text-[10px] text-slate-500">{variant.label}</p>}<p className="text-[10px] text-slate-500">₹{livePrice} each</p>{staleGroceryLine && <div className="grocery-cart-line-warning" role="status"><p>Current stock or expiry no longer supports this quantity.</p><button type="button" onClick={() => { setCurrentTab('home'); setActiveWorkflow('grocery'); setSelectedStoreId((item as GroceryProduct).storeId); setSelectedGroceryCategory('All'); setGrocerySearch(''); }}>Browse replacements</button></div>}</div>
-                      <div className="food-cart-stepper"><button type="button" aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id)}><Minus size={16} /></button><output aria-label={`Quantity of ${item.name}`}>{quantity}</output><button type="button" aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleAddToCart(item, cartService!, variant)}><Plus size={16} /></button></div>
+                      <div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-slate-800">{item.name}</p>{variant && <p className="text-[10px] text-slate-500">{variant.label}</p>}{liveAddOns.map(option => <p key={option.id} className="text-[10px] text-slate-500">+ {option.label}</p>)}<p className="text-[10px] text-slate-500">₹{livePrice} each</p>{staleGroceryLine && <div className="grocery-cart-line-warning" role="status"><p>Current stock or expiry no longer supports this quantity.</p><button type="button" onClick={() => { setCurrentTab('home'); setActiveWorkflow('grocery'); setSelectedStoreId((item as GroceryProduct).storeId); setSelectedGroceryCategory('All'); setGrocerySearch(''); }}>Browse replacements</button></div>}</div>
+                      <div className="food-cart-stepper"><button type="button" aria-label={`Remove one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleRemoveFromCart(item, variant?.id, addOnIds)}><Minus size={16} /></button><output aria-label={`Quantity of ${item.name}`}>{quantity}</output><button type="button" aria-label={`Add one ${item.name}${variant ? ` ${variant.label}` : ''}`} onClick={() => handleAddToCart(item, cartService!, variant, 1, addOnIds)}><Plus size={16} /></button></div>
                       <span className="w-14 text-right text-xs font-black text-slate-900">₹{livePrice * quantity}</span>
                     </div>;
                   })}</div>
@@ -1311,7 +1332,7 @@ export default function CustomerApp({ userId, userName, activeBookings, userProf
       </div>
 
       {catalogPage && <CatalogDetails key={catalogPage.kind+catalogPage.id} kind={catalogPage.kind} partner={catalogPage.kind === 'restaurant' || catalogPage.kind === 'dish' ? selectedRestaurant || restaurantsList.find(item => item.id === catalogPage.id) : groceryStoresList.find(item => item.id === selectedStoreId)} item={catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : catalogPage.kind === 'product' ? productsList.find(item => item.id === catalogPage.id) : undefined} saved={favoriteCatalogIds.includes((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onSave={() => toggleFavorite((catalogPage.kind === 'restaurant' ? 'restaurant:' : catalogPage.kind === 'store' ? 'store:' : catalogPage.kind === 'dish' ? 'dish:' : 'product:')+catalogPage.id)} onBack={() => setCatalogPage(null)} quantityInCart={variantId => cart.find(line => line.item.id === catalogPage.id && line.variant?.id === variantId)?.quantity || 0} onBrowse={() => setCatalogPage(null)} onAdd={(quantity,variant) => { const item = catalogPage.kind === 'dish' ? menuItemsList.find(item => item.id === catalogPage.id) : productsList.find(item => item.id === catalogPage.id); if (!item) return false; return handleAddToCart(item,catalogPage.kind === 'dish' ? 'food' : 'grocery',variant,quantity); }} />}
-      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || ''} address={deliveryAddress} notes={orderNotes} contactlessDelivery={contactlessDelivery} onContactlessChange={setContactlessDelivery} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); return {id:line.item.id+':' +(line.variant?.id || ''), name:line.item.name, quantity:line.quantity, option:line.variant?.label, price:(line.variant ? (current as MenuItem | undefined)?.variants?.find(item => item.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} paymentMethod={paymentMethodChoice} walletBalance={userProfile?.walletBalance ?? 0} onSelectPaymentMethod={setPaymentMethodChoice} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
+      {showCheckoutReview && cartService && currentTab === 'cart' && <CheckoutReviewScreen service={cartService} partner={cartService === 'food' ? restaurantsList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || '' : groceryStoresList.find(item => item.id === cartSourceId)?.name || cart[0]?.partnerName || ''} address={deliveryAddress} notes={orderNotes} contactlessDelivery={contactlessDelivery} onContactlessChange={setContactlessDelivery} lines={cart.map(line => { const current = cartCatalog.find(item => item.id === line.item.id); const menu = current as MenuItem | undefined; const addOns = menu?.addOnGroups?.flatMap(group => group.options).filter(option => line.addOnIds?.includes(option.id)) || []; const basePrice = (line.variant ? menu?.variants?.find(option => option.id === line.variant?.id)?.price : undefined) ?? current?.price ?? line.item.price; return {id:line.item.id+':' +(line.variant?.id || '')+':'+(line.addOnIds || []).join(','), name:line.item.name, quantity:line.quantity, option:line.variant?.label, addOns:addOns.map(option => option.label), price:basePrice+addOns.reduce((sum, option) => sum + option.price, 0)}; })} subtotal={getCartTotal()} discount={(coupon?.discountCents || 0)/100} wallet={useWallet} busy={paymentBusy} ready={!couponBusy && !cartCatalogLoading && !cartCatalogError} breakdown={cartQuote?.priceBreakdown} quoteBusy={cartQuoteBusy} quoteError={cartQuoteError} error={cartCatalogError} paymentMethod={paymentMethodChoice} walletBalance={userProfile?.walletBalance ?? 0} onSelectPaymentMethod={setPaymentMethodChoice} onBack={() => setShowCheckoutReview(false)} onAddress={() => setShowAddressModal(true)} onConfirm={handleCartCheckout}/>}
       {successBookingId && <OrderConfirmationScreen bookingId={successBookingId} cashOnDelivery={successCashOnDelivery} onTrack={() => setSuccessBookingId(null)} onContinue={() => { setSuccessBookingId(null); setSelectedOrderId(null); setCurrentTab('home'); setActiveWorkflow('none'); }} />}
 
       {shopAgain && <ShopAgainScreen service={shopAgain} bookings={activeBookings} products={productsList} selectedStoreId={selectedStoreId} canAdd={!cart.length || (cartService === 'grocery' && cartSourceId === selectedStoreId)} onQuickAdd={handleQuickGroceryReorder} onBack={()=>setShopAgain(null)} onDetails={id=>{setShopAgain(null);setActiveWorkflow('none');setCurrentTab('orders');setSelectedOrderId(id);}} onBrowse={booking=>{if(shopAgain==='food'){const partner=restaurantsList.find(item=>item.id===booking.details?.restaurantId);if(!partner){alert('This restaurant is not currently listed. Browse the available partners.');return;}setSelectedRestaurant(partner);setFoodSearch('');setSelectedFoodCategory('All');}else{const store=groceryStoresList.find(item=>item.id===booking.details?.storeId);if(!store){alert('This store is not currently listed. Browse the available stores.');return;}if(cart.length&&cartService==='grocery'&&cartSourceId!==store.id){alert('Empty your current cart before choosing a different store.');return;}setSelectedStoreId(store.id);setGrocerySearch('');setSelectedGroceryCategory('All');}setShowFavoritesOnly(false);setCurrentTab('home');setActiveWorkflow(shopAgain);setShopAgain(null);}}/>}

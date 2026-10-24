@@ -232,15 +232,16 @@ function normalizeItems(input) {
   }
   const merged = new Map();
   for (const item of input) {
-    if (typeof item?.id !== 'string' || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 30 || (item.variantId !== undefined && (typeof item.variantId !== 'string' || item.variantId.length > 128))) {
+    if (typeof item?.id !== 'string' || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 30 || (item.variantId !== undefined && (typeof item.variantId !== 'string' || item.variantId.length > 128)) || (item.addOnIds !== undefined && (!Array.isArray(item.addOnIds) || item.addOnIds.length > 100 || item.addOnIds.some(id => typeof id !== 'string' || id.length > 128) || new Set(item.addOnIds).size !== item.addOnIds.length))) {
       throw new HttpsError('invalid-argument', 'The cart contains an invalid item or quantity.');
     }
     documentId(item.id, 'Item ID');
-    const key = `${item.id}\u0000${item.variantId || ''}`;
+    const addOnIds = [...(item.addOnIds || [])].sort();
+    const key = `${item.id}\u0000${item.variantId || ''}\u0000${addOnIds.join('\u0000')}`;
     const existing = merged.get(key);
     const quantity = (existing?.quantity || 0) + item.quantity;
     if (quantity > 30) throw new HttpsError('invalid-argument', 'An item quantity cannot exceed 30.');
-    merged.set(key, { id: item.id, quantity, ...(item.variantId ? { variantId: item.variantId } : {}) });
+    merged.set(key, { id: item.id, quantity, ...(item.variantId ? { variantId: item.variantId } : {}), ...(addOnIds.length ? { addOnIds } : {}) });
   }
   return [...merged.values()];
 }
@@ -279,9 +280,9 @@ async function priceLeg(uid, input) {
       if (!doc.exists) throw new HttpsError('failed-precondition', 'An item in your cart is no longer available.');
       const catalogItem = doc.data();
       let resolved;
-      try { resolved = checkoutCatalogItem(catalogItem, requested.variantId, serviceType, requested.quantity); }
+      try { resolved = checkoutCatalogItem(catalogItem, requested.variantId, serviceType, requested.quantity, Date.now(), requested.addOnIds || []); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
-      const canonical = { id: doc.id, name: cleanText(catalogItem.name, 'Item name', 120), price: resolved.price, quantity: requested.quantity, ...(requested.variantId ? { variantId: requested.variantId, variantName: resolved.variantName } : {}) };
+      const canonical = { id: doc.id, name: cleanText(catalogItem.name, 'Item name', 120), price: resolved.price, quantity: requested.quantity, ...(requested.variantId ? { variantId: requested.variantId, variantName: resolved.variantName } : {}), ...(requested.addOnIds?.length ? { addOnIds: requested.addOnIds } : {}), ...(resolved.addOns ? { addOns: resolved.addOns } : {}) };
       canonicalItems.push(canonical);
       price += resolved.unitCents * canonical.quantity;
     }
@@ -624,7 +625,7 @@ async function settleCapturedPayment(orderId, paymentId, providerPayment, wallet
         const menuSnaps = await Promise.all(menuRefs.map((ref) => transaction.get(ref)));
         for (let index = 0; index < attempt.items.length; index += 1) {
           const item = attempt.items[index];
-          try { checkoutCatalogItem(menuSnaps[index].data(), item.variantId, 'food', item.quantity); }
+          try { checkoutCatalogItem(menuSnaps[index].data(), item.variantId, 'food', item.quantity, Date.now(), item.addOnIds || []); }
           catch (error) { throw new HttpsError('failed-precondition', error.message); }
         }
       }

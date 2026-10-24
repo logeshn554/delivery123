@@ -256,7 +256,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                             {it.removed ? (
                               <span className="text-rose-400 line-through">{it.name} (Removed)</span>
                             ) : (
-                              <span>{it.name}{it.variantName && <span className="text-slate-400"> · {it.variantName}</span>} <span className="text-slate-400">× {it.quantity}</span></span>
+                              <span>{it.name}{it.variantName && <span className="text-slate-400"> · {it.variantName}</span>}{it.addOns?.map((addOn: { id: string; name: string }) => <span key={addOn.id} className="block pl-2 text-slate-400">+ {addOn.name}</span>)} <span className="text-slate-400">× {it.quantity}</span></span>
                             )}
                           </span>
                           <span>{it.removed ? '₹0' : `₹${it.price * it.quantity}`}</span>

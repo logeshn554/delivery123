@@ -25,6 +25,7 @@ export default function MerchantCatalogEditor({ id, type, items }: MerchantCatal
   const [expectedStock, setExpectedStock] = useState<number | null>(null);
   const [draft, setDraft] = useState<Record<string, any>>({});
   const [variants, setVariants] = useState<NonNullable<MenuItem['variants']>>([]);
+  const [addOnGroups, setAddOnGroups] = useState<NonNullable<MenuItem['addOnGroups']>>([]);
   const [busy, setBusy] = useState(false);
   const [quickTogglingId, setQuickTogglingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -98,6 +99,7 @@ export default function MerchantCatalogEditor({ id, type, items }: MerchantCatal
       expiresAt: 'expiresAt' in item ? (item as GroceryProduct).expiresAt || null : null
     });
     setVariants('variants' in item && Array.isArray((item as MenuItem).variants) ? (item as MenuItem).variants || [] : []);
+    setAddOnGroups('addOnGroups' in item && Array.isArray((item as MenuItem).addOnGroups) ? (item as MenuItem).addOnGroups || [] : []);
     setIsModalOpen(true);
   };
 
@@ -126,6 +128,7 @@ export default function MerchantCatalogEditor({ id, type, items }: MerchantCatal
       expiresAt: null
     });
     setVariants([]);
+    setAddOnGroups([]);
     setIsModalOpen(true);
   };
 
@@ -186,6 +189,11 @@ export default function MerchantCatalogEditor({ id, type, items }: MerchantCatal
       }
     }
 
+    if (type === 'restaurant' && addOnGroups.some(group => !group.label.trim() || !group.options.length || group.maxSelections < 1 || group.maxSelections > group.options.length || group.required && !group.options.some(option => option.available && option.label.trim()))) {
+      setMessage({ text: 'Complete every add-on group, its options, and selection limits before saving.', type: 'error' });
+      return;
+    }
+
     setBusy(true);
     try {
       const payload: Record<string, any> = {
@@ -215,6 +223,7 @@ export default function MerchantCatalogEditor({ id, type, items }: MerchantCatal
             available: v.available !== false
           }));
         }
+        payload.addOnGroups = addOnGroups.map(group => ({ ...group, label: group.label.trim(), options: group.options.map(option => ({ ...option, label: option.label.trim(), price: Math.round(Number(option.price) * 100) / 100 })) }));
       } else {
         const stockNum = parseInt(draft.stock, 10);
         if (isNaN(stockNum) || stockNum < 0) {
@@ -711,6 +720,17 @@ export default function MerchantCatalogEditor({ id, type, items }: MerchantCatal
                         </button>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950 p-3">
+                    <div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-300">Add-on groups ({addOnGroups.length}/10)</span><button type="button" disabled={addOnGroups.length >= 10} onClick={() => setAddOnGroups(groups => [...groups, { id: crypto.randomUUID().slice(0, 8), label: '', required: false, maxSelections: 1, options: [] }])} className="flex items-center gap-1 text-[10px] font-bold text-blue-400"><Plus className="h-3 w-3"/>Add group</button></div>
+                    {addOnGroups.map((group, groupIndex) => <section key={group.id} className="space-y-2 rounded-lg border border-slate-800 p-2" aria-label={`Add-on group ${groupIndex + 1}`}>
+                      <div className="flex gap-2"><input required maxLength={80} value={group.label} onChange={event => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, label: event.target.value } : row))} placeholder="Group name, e.g. Extra toppings" className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1 text-xs text-white"/><button type="button" aria-label={`Remove ${group.label || 'add-on group'}`} onClick={() => setAddOnGroups(groups => groups.filter((_, index) => index !== groupIndex))} className="p-1 text-rose-400"><X size={14}/></button></div>
+                      <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-300"><label className="flex items-center gap-1"><input type="checkbox" checked={group.required} onChange={event => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, required: event.target.checked } : row))}/>Required</label><label className="flex items-center gap-2">Maximum selections<input aria-label={`Maximum selections for ${group.label || 'add-on group'}`} type="number" min="1" max={Math.max(1, group.options.length)} value={group.maxSelections} onChange={event => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, maxSelections: Number(event.target.value) } : row))} className="w-14 rounded bg-slate-800 px-2 py-1 text-white"/></label></div>
+                      {group.options.map((option, optionIndex) => <div key={option.id} className="flex items-center gap-2"><input required maxLength={80} value={option.label} onChange={event => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, options: row.options.map((entry, itemIndex) => itemIndex === optionIndex ? { ...entry, label: event.target.value } : entry) } : row))} placeholder="Extra name" className="min-w-0 flex-1 rounded bg-slate-800 px-2 py-1 text-xs text-white"/><label className="flex w-24 items-center gap-1 text-xs"><span>₹</span><input aria-label={`Price for ${option.label || 'add-on'}`} type="number" min="0" step="0.01" value={option.price} onChange={event => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, options: row.options.map((entry, itemIndex) => itemIndex === optionIndex ? { ...entry, price: Number(event.target.value) } : entry) } : row))} className="w-full rounded bg-slate-800 px-1 py-1 text-white"/></label><label className="flex items-center gap-1 text-[10px] text-slate-300"><input type="checkbox" checked={option.available} onChange={event => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, options: row.options.map((entry, itemIndex) => itemIndex === optionIndex ? { ...entry, available: event.target.checked } : entry) } : row))}/>Available</label><button type="button" aria-label={`Remove ${option.label || 'add-on'}`} onClick={() => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, options: row.options.filter((_, itemIndex) => itemIndex !== optionIndex), maxSelections: Math.min(row.maxSelections, Math.max(1, row.options.length - 1)) } : row))} className="p-1 text-rose-400"><X size={13}/></button></div>)}
+                      <button type="button" disabled={group.options.length >= 20} onClick={() => setAddOnGroups(groups => groups.map((row, index) => index === groupIndex ? { ...row, options: [...row.options, { id: crypto.randomUUID().slice(0, 8), label: '', price: 0, available: true }] } : row))} className="text-[10px] font-bold text-blue-400">+ Add option</button>
+                    </section>)}
+                    <p className="text-[10px] text-slate-400">Customers choose extras at menu time. Required groups must have at least one available option.</p>
                   </div>
                 </div>
               ) : (

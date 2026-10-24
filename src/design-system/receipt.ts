@@ -17,7 +17,7 @@ export function buildOrderReceiptText(booking: Booking): string {
   ];
   const items = booking.details?.items || [];
   lines.push(...(items.length
-    ? items.map(item => `${item.quantity} × ${item.name}${item.variantName ? ` (${item.variantName})` : ''} — ${rupees(item.price * item.quantity)}`)
+    ? items.map(item => `${item.quantity} × ${item.name}${item.variantName ? ` (${item.variantName})` : ''}${item.addOns?.length ? ` + ${item.addOns.map(addOn => addOn.name).join(', ')}` : ''} — ${rupees(item.price * item.quantity)}`)
     : ['Itemized product data was not recorded for this order.']));
   const breakdown = booking.priceBreakdown;
   if (breakdown) {

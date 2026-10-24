@@ -30,7 +30,7 @@ export default function CheckoutReviewScreen({
   partner: string;
   address: string;
   notes: string;
-  lines: { id: string; name: string; quantity: number; price: number; option?: string }[];
+  lines: { id: string; name: string; quantity: number; price: number; option?: string; addOns?: string[] }[];
   subtotal: number;
   discount: number;
   wallet: boolean;
@@ -127,6 +127,7 @@ export default function CheckoutReviewScreen({
             <span>
               {line.quantity} × {line.name}
               {line.option && <small>{line.option}</small>}
+              {line.addOns?.map(addOn => <small key={addOn}>+ {addOn}</small>)}
             </span>
             <strong>{currency(Math.round(line.price * line.quantity * 100))}</strong>
           </div>

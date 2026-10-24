@@ -28,3 +28,12 @@ test('grocery revalidation rejects expired products, fractions and depleted inve
   assert.throws(() => checkoutCatalogItem(product, undefined, 'grocery', 3, now - 1));
   assert.throws(() => checkoutCatalogItem(product, 'large', 'grocery', 1, now - 1));
 });
+
+test('food checkout resolves required add-on groups and authoritative paise pricing', () => {
+  const groups = [{ id: 'toppings', label: 'Extra toppings', required: true, maxSelections: 2, options: [{ id: 'cheese', label: 'Cheese', price: 10.25, available: true }, { id: 'onion', label: 'Onion', price: 0, available: true }] }];
+  assert.deepEqual(checkoutCatalogItem({ ...dish, addOnGroups: groups }, undefined, 'food', 2, Date.now(), ['cheese', 'onion']), { price: 22.59, unitCents: 2259, addOns: [{ id: 'cheese', name: 'Cheese', price: 10.25 }, { id: 'onion', name: 'Onion', price: 0 }] });
+  assert.throws(() => checkoutCatalogItem({ ...dish, addOnGroups: groups }, undefined, 'food', 1), /required dish add-ons/i);
+  assert.throws(() => checkoutCatalogItem({ ...dish, addOnGroups: groups }, undefined, 'food', 1, Date.now(), ['cheese', 'onion', 'unknown']));
+  assert.throws(() => checkoutCatalogItem({ ...dish, addOnGroups: groups.map(group => ({ ...group, options: group.options.map(option => ({ ...option, available: false })) })) }, undefined, 'food', 1, Date.now(), ['cheese']));
+  assert.throws(() => checkoutCatalogItem({ price: 10, stock: 2, expiresAt: '2026-12-01T00:00:00.000Z' }, undefined, 'grocery', 1, Date.now(), ['cheese']), /do not support menu options/);
+});
