@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ShoppingBag, CheckCircle2, Clock, Store, Utensils, DollarSign,
-  PackageCheck, Bike, ChevronRight
+  ShoppingBag, CheckCircle2, Clock, Store, Utensils, DollarSign, LifeBuoy,
+  PackageCheck, Bike, ChevronRight, Star
 } from 'lucide-react';
 import { Booking, MenuItem, GroceryProduct } from '../types';
 
@@ -34,6 +34,11 @@ import { finishedBooking } from '../app/bookingNotification';
 import MerchantClosuresEditor from './MerchantClosuresEditor';
 import MerchantCatalogEditor from './MerchantCatalogEditor';
 import MerchantThermalPrint, { MerchantPrinterSettings } from './MerchantThermalPrint';
+import MerchantStaffManager from './MerchantStaffManager';
+import MerchantSupport from './MerchantSupport';
+import MerchantReviews from './MerchantReviews';
+import MerchantBusinessProfileEditor from './MerchantBusinessProfileEditor';
+import PartnerEvidencePanel from './PartnerEvidencePanel';
 import StockMovementHistory from './StockMovementHistory';
 import MerchantPreparationEditor from './MerchantPreparationEditor';
 import BookingExceptionPanel from './BookingExceptionPanel';
@@ -51,12 +56,13 @@ import {
 
 interface MerchantPortalProps {
   activeBookings: Booking[];
+  userId: string;
   merchantId?: string;
   merchantType?: 'restaurant' | 'grocery';
 }
 
-export default function MerchantPortal({ activeBookings, merchantId, merchantType }: MerchantPortalProps) {
-  const [panel, setPanel] = useState<'overview' | 'orders' | 'catalog' | 'settlements' | 'business'>('overview');
+export default function MerchantPortal({ activeBookings, userId, merchantId, merchantType }: MerchantPortalProps) {
+  const [panel, setPanel] = useState<'overview' | 'orders' | 'reviews' | 'catalog' | 'settlements' | 'business' | 'support' | 'compliance'>('overview');
   const [activeMenu, setActiveMenu] = useState<MenuItem[]>([]);
   const [activeStock, setActiveStock] = useState<GroceryProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +74,11 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   const activeOutlet = outletOptions.find(outlet => `${outlet.merchantType}:${outlet.id}` === selectedOutlet) || outletOptions[0];
   const activeMerchantId = activeOutlet?.id;
   const activeMerchantType = activeOutlet?.merchantType;
+  const activePermissions = activeOutlet?.permissions || ['orders', 'catalog', 'business'];
+  const canManageOrders = activePermissions.includes('orders');
+  const canManageCatalog = activePermissions.includes('catalog');
+  const canManageBusiness = activePermissions.includes('business');
+  const canManageSettlements = !activeOutlet?.permissions;
 
   useEffect(() => {
     let active = true;
@@ -77,17 +88,18 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
   useEffect(() => {
     if (activeOutlet && `${activeOutlet.merchantType}:${activeOutlet.id}` !== selectedOutlet) setSelectedOutlet(`${activeOutlet.merchantType}:${activeOutlet.id}`);
   }, [activeOutlet?.id, activeOutlet?.merchantType, selectedOutlet]);
+  useEffect(() => { setPanel('overview'); }, [selectedOutlet]);
 
   // Sync catalog dynamically from Firestore in real-time
   useEffect(() => {
     setActiveMenu([]); setActiveStock([]); setLoading(Boolean(activeMerchantId));
     setError('');
-    if (!activeMerchantId || !activeMerchantType) return;
+    if (!activeMerchantId || !activeMerchantType || !canManageCatalog) return;
     const failed = () => { setError('Your catalog could not be loaded. Check the business assignment and connection.'); setLoading(false); };
     return activeMerchantType === 'restaurant'
       ? listenToMenuItems(activeMerchantId, items => { setActiveMenu(items.sort((a, b) => a.name.localeCompare(b.name))); setLoading(false); }, failed)
       : listenToGroceryProducts(activeMerchantId, items => { setActiveStock(items.sort((a, b) => a.name.localeCompare(b.name))); setLoading(false); }, failed);
-  }, [activeMerchantId, activeMerchantType]);
+  }, [activeMerchantId, activeMerchantType, canManageCatalog]);
 
   // Filter relevant orders
   const notification = useBookingNotification(activeBookings, { audience: 'merchant', merchantId: activeMerchantId, merchantType: activeMerchantType });
@@ -145,7 +157,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
       <div className="merchant-header p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2">
           <Store className="w-5 h-5 text-blue-400" />
-          <h2 className="text-sm font-extrabold tracking-tight">AllGo Merchant Hub</h2>
+          <div><h2 className="text-sm font-extrabold tracking-tight">AllGo Merchant Hub</h2><p className="text-[10px] text-slate-400">Account ID: <code>{userId}</code> · Share this ID with your business owner for staff access.</p></div>
         </div>
 
         {outletOptions.length > 1 ? <label className="text-xs font-semibold text-slate-200">Business location<select aria-label="Business location" value={selectedOutlet} onChange={event => setSelectedOutlet(event.target.value)} className="ml-2 min-h-11 max-w-56 rounded-lg border border-slate-700 bg-slate-900 px-2"><option value="" disabled>Choose location</option>{outletOptions.map(outlet => <option key={`${outlet.merchantType}:${outlet.id}`} value={`${outlet.merchantType}:${outlet.id}`}>{outlet.name} · {outlet.address || outlet.id} · {outlet.merchantType === 'restaurant' ? 'Restaurant' : 'Grocery'}</option>)}</select></label> : <span className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold">{activeMerchantType === 'restaurant' ? <><Utensils className="mr-1 inline h-3.5 w-3.5"/>Restaurant</> : <><ShoppingBag className="mr-1 inline h-3.5 w-3.5"/>Grocery</>}</span>}
@@ -159,16 +171,22 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
               {{
                 overview: 'Your business today',
                 orders: 'Manage orders',
+                reviews: 'Customer ratings & feedback',
                 catalog: 'Catalog & inventory',
                 settlements: 'Settlements & payouts',
-                business: 'Business settings'
+                business: 'Business settings',
+                support: 'Partner support',
+                compliance: 'Compliance & documents'
               }[panel]}
             </h1>
             <p>
               {panel === 'orders' ? 'Prepare paid orders and keep customers updated.' :
+               panel === 'reviews' ? 'Read ratings and feedback left for completed orders.' :
                panel === 'catalog' ? 'Add, edit and manage availability for your dishes and products.' :
                panel === 'settlements' ? 'View completed booking values and settlement availability.' :
                panel === 'business' ? 'Manage opening hours and planned closures.' :
+               panel === 'support' ? 'Contact AllGo and follow replies to your support cases.' :
+               panel === 'compliance' ? 'Review private business documents and resolve outstanding compliance requests.' :
                'Your live order activity at a glance.'}
             </p>
           </div>
@@ -177,14 +195,14 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
         <BookingNotificationNotice {...notification} onDismiss={notification.dismiss}/>
         <div className="merchant-overview">
           <strong>{activeOutlet?.name} · {activeMerchantType === 'restaurant' ? 'Restaurant operations' : 'Grocery operations'}</strong>
-          <span>{(activeMerchantType === 'restaurant' ? foodOrders : groceryOrders).length} active orders · {completedToday} completed today</span>
+          {canManageOrders && <span>{(activeMerchantType === 'restaurant' ? foodOrders : groceryOrders).length} active orders · {completedToday} completed today</span>}
         </div>
 
         {error && <p role="alert" className="rounded-xl bg-rose-950 p-3 text-sm text-rose-100">{error}</p>}
         {/* 1. OVERVIEW PANEL */}
         {panel === 'overview' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            {canManageSettlements && <div className="grid grid-cols-2 gap-3">
               <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Completed booking value today</p>
                 <h4 className="text-lg font-black text-emerald-400 mt-1">₹{grossRevenueToday.toLocaleString('en-IN')}</h4>
@@ -196,9 +214,9 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                 <h4 className="text-lg font-black text-white mt-1">{completedToday}</h4>
                 <span className="text-[9px] text-slate-400">Confirmed order deliveries</span>
               </div>
-            </div>
+            </div>}
 
-            <div className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-700/50 rounded-2xl p-4 flex items-center justify-between">
+            {canManageSettlements && <div className="bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-700/50 rounded-2xl p-4 flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase font-bold text-blue-300 tracking-wider">Settlement availability</p>
                 <h3 className="text-xl font-black text-white mt-0.5">Setup required</h3>
@@ -211,12 +229,13 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                 <span>View Payouts</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
-            </div>
+            </div>}
+            {!canManageOrders && !canManageCatalog && !canManageBusiness && !canManageSettlements && <p className="rounded-xl border border-slate-700 p-4 text-sm text-slate-300">Your account has no permissions for this business location. Contact its owner.</p>}
           </div>
         )}
 
         {/* 2. ORDERS PANEL (Active Incoming & In-Progress) */}
-        {(panel === 'overview' || panel === 'orders') && (
+        {canManageOrders && (panel === 'overview' || panel === 'orders') && (
           <div className="space-y-3">
             <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">
               Incoming Orders ({displayedOrders.length})
@@ -343,8 +362,10 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
           </div>
         )}
 
+        {canManageOrders && panel === 'reviews' && activeMerchantId && activeMerchantType && <MerchantReviews key={`${activeMerchantType}:${activeMerchantId}`} merchantId={activeMerchantId} merchantType={activeMerchantType}/>}
+
         {/* 3. CATALOG & INVENTORY PANEL */}
-        {panel === 'catalog' && (
+        {canManageCatalog && panel === 'catalog' && (
           <section data-panel="catalog">
             {loading ? (
               <div className="text-center py-12">
@@ -361,15 +382,20 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
           </section>
         )}
 
-        {panel === 'settlements' && <MerchantSettlements bookings={activeBookings} merchantId={activeMerchantId} merchantType={activeMerchantType}/>}
+        {canManageSettlements && panel === 'settlements' && <MerchantSettlements bookings={activeBookings} merchantId={activeMerchantId} merchantType={activeMerchantType}/>}
+        {panel === 'support' && <MerchantSupport userId={userId} activeBookings={merchantBookings}/>}
+        {panel === 'compliance' && activeOutlet?.applicationId && <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-900 p-4" data-panel="compliance"><h2 className="font-bold">Compliance & business documents</h2>{activeOutlet.applicationNeedsInformation && <p role="status" className="text-sm text-amber-300">Operations needs current information. Upload the requested documents here, then contact support to request review.</p>}<p className="text-xs text-slate-400">Documents are private, scanned before review, and retained under AllGo’s published privacy policy.</p><PartnerEvidencePanel applicationId={activeOutlet.applicationId} staff={false} active={activeOutlet.applicationNeedsInformation === true}/></section>}
 
         {/* 5. BUSINESS SETTINGS PANEL */}
-        {panel === 'business' && (
+        {canManageBusiness && panel === 'business' && (
           <section data-panel="business" className="space-y-4">
             <h2 className="role-section-title">Business hours & closures</h2>
+            {activeOutlet?.canManageStaff && <MerchantBusinessProfileEditor key={activeOutlet.id} business={activeOutlet}/>}
             <MerchantHoursEditor id={activeMerchantId} type={activeMerchantType}/>
             <MerchantClosuresEditor id={activeMerchantId} type={activeMerchantType}/>
+            {activeOutlet?.canManageStaff && <MerchantStaffManager merchantId={activeMerchantId} merchantType={activeMerchantType}/>}
             <MerchantPrinterSettings/>
+            {activeOutlet?.canManageStaff && activeOutlet.applicationId && <section className="space-y-2 rounded-xl border border-slate-700 bg-slate-900 p-4" data-panel="compliance"><h2 className="font-bold">Compliance & business documents</h2><p className="text-xs text-slate-400">Private application records, scan status and verified document expiry. Approved records are read-only here.</p><PartnerEvidencePanel applicationId={activeOutlet.applicationId} staff={false} active={false}/></section>}
           </section>
         )}
 
@@ -380,10 +406,13 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
         {([
           { id: 'overview', label: 'Home', Icon: Store },
           { id: 'orders', label: 'Orders', Icon: PackageCheck },
+          { id: 'reviews', label: 'Reviews', Icon: Star },
           { id: 'catalog', label: 'Catalog', Icon: Utensils },
           { id: 'settlements', label: 'Payouts', Icon: DollarSign },
-          { id: 'business', label: 'Business', Icon: Clock }
-        ] as const).map(({ id, label, Icon }) => (
+          { id: 'business', label: 'Business', Icon: Clock },
+          { id: 'support', label: 'Support', Icon: LifeBuoy },
+          { id: 'compliance', label: 'Documents', Icon: Store }
+        ] as const).filter(({ id }) => id === 'overview' || id === 'support' || id === 'compliance' && Boolean(activeOutlet?.applicationId) || (id === 'orders' || id === 'reviews') && canManageOrders || id === 'catalog' && canManageCatalog || id === 'settlements' && canManageSettlements || id === 'business' && canManageBusiness).map(({ id, label, Icon }) => (
           <button 
             type="button" 
             key={id} 

@@ -77,6 +77,31 @@ test('merchant owners grant and revoke outlet-scoped staff permissions enforced 
   await assert.rejects(callable('advanceMerchantBooking', 'merchant-staff', { bookingId: 'staff-order', status: 'ready' }), error => error.code === 'permission-denied');
   assert.equal((await db.collection('operations_audit').where('operatorId', '==', 'merchant-owner').get()).size, 4);
 });
+test('merchant feedback is available only to order-authorized staff for the matching business and service', async () => {
+  await db.doc('users/merchant-owner').set({ uid: 'merchant-owner', role: 'merchant', merchantId: 'shared-id', merchantType: 'restaurant' });
+  await db.doc('users/order-staff').set({ uid: 'order-staff', role: 'merchant', merchantStaffAccess: { 'shared-id': { merchantType: 'restaurant', ownerUid: 'merchant-owner', permissions: ['orders'] } } });
+  await db.doc('users/catalog-staff').set({ uid: 'catalog-staff', role: 'merchant', merchantStaffAccess: { 'shared-id': { merchantType: 'restaurant', ownerUid: 'merchant-owner', permissions: ['catalog'] } } });
+  await db.doc('users/other-merchant').set({ uid: 'other-merchant', role: 'merchant', merchantId: 'other-id', merchantType: 'restaurant' });
+  await Promise.all(Array.from({ length: 51 }, (_, index) => {
+    const bookingId = `review-food-${String(index).padStart(2, '0')}`;
+    return db.doc(`order_reviews/${bookingId}`).set({ userId: 'customer', bookingId, merchantId: 'shared-id', serviceType: 'food', rating: 5, comment: 'Great meal.', createdAt: new Date(Date.UTC(2026, 9, 24, 10, index)).toISOString() });
+  }));
+  await db.doc('order_reviews/review-grocery').set({ userId: 'customer', bookingId: 'review-grocery', merchantId: 'shared-id', serviceType: 'grocery', rating: 2, comment: 'Wrong outlet.', createdAt: '2026-10-24T11:00:00.000Z' });
+  await db.doc('order_reviews/review-other').set({ userId: 'customer', bookingId: 'review-other', merchantId: 'other-id', serviceType: 'food', rating: 1, comment: 'Private to another outlet.', createdAt: '2026-10-24T12:00:00.000Z' });
+  const request = { merchantId: 'shared-id', merchantType: 'restaurant' };
+  const result = await callable('listMerchantOrderReviews', 'order-staff', request);
+  assert.equal(result.reviews.length, 50);
+  assert.ok(result.nextCursor);
+  assert.equal(result.reviews[0].reviewId, 'review-food-50');
+  assert.equal('userId' in result.reviews[0], false);
+  const nextPage = await callable('listMerchantOrderReviews', 'order-staff', { ...request, cursor: result.nextCursor });
+  assert.equal(nextPage.reviews.length, 1);
+  assert.equal(nextPage.reviews[0].reviewId, 'review-food-00');
+  assert.equal(nextPage.nextCursor, null);
+  await assert.rejects(callable('listMerchantOrderReviews', 'catalog-staff', request), error => error.code === 'permission-denied');
+  await assert.rejects(callable('listMerchantOrderReviews', 'other-merchant', request), error => error.code === 'permission-denied');
+  await assert.rejects(callable('listMerchantOrderReviews', 'customer', request), error => error.code === 'permission-denied');
+});
 test('verified merchant owners update public business details with revision checks and immutable history', async () => {
   await db.doc('users/merchant-owner').set({ uid: 'merchant-owner', role: 'merchant', merchantId: 'profile-shop', merchantType: 'restaurant' });
   await db.doc('users/merchant-staff').set({ uid: 'merchant-staff', role: 'merchant', merchantStaffAccess: { 'profile-shop': { merchantType: 'restaurant', ownerUid: 'merchant-owner', permissions: ['business'] } } });

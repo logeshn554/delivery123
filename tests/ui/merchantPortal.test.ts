@@ -15,6 +15,7 @@ const closures = readFileSync(new URL("../../src/components/MerchantClosuresEdit
 const settlements = readFileSync(new URL("../../src/components/MerchantSettlements.tsx", import.meta.url), "utf8");
 const rejection = readFileSync(new URL("../../src/components/MerchantRejection.tsx", import.meta.url), "utf8");
 const exception = readFileSync(new URL("../../src/components/BookingExceptionPanel.tsx", import.meta.url), "utf8");
+const merchantReviews = readFileSync(new URL("../../src/components/MerchantReviews.tsx", import.meta.url), "utf8");
 
 // TASK-104: Merchant onboarding / business setup
 test("merchant business setup collects type, ID, address, timezone and reason for draft creation", () => {
@@ -34,6 +35,15 @@ test("merchant portal overview summarizes today completed revenue, count and nav
   assert.match(portal, /role-navigation/);
   assert.match(portal, /Merchant navigation/);
   assert.match(portal, /Restaurant operations|Grocery operations/);
+});
+
+test("merchant ratings show verified order feedback inside the order-authorized outlet workspace", () => {
+  assert.match(portal, /panel === 'reviews'/);
+  assert.match(portal, /id: 'reviews', label: 'Reviews'/);
+  assert.match(portal, /canManageOrders/);
+  assert.match(merchantReviews, /listMerchantOrderReviews/);
+  assert.match(merchantReviews, /Load more reviews/);
+  assert.match(merchantReviews, /No customer reviews have been submitted/);
 });
 
 // TASK-106: Incoming orders queue

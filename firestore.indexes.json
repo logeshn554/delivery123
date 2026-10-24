@@ -416,6 +416,23 @@
         { "fieldPath": "serviceType", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "transportOperatorId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "order_reviews",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "merchantId", "order": "ASCENDING" },
+        { "fieldPath": "serviceType", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -92,6 +92,10 @@ export async function saveCatalogItem(merchantId: string, merchantType: 'restaur
 export async function submitOrderReview(bookingId: string, rating: number, comment: string) {
   return (await httpsCallable(functions,'submitOrderReview')({bookingId,rating,comment})).data;
 }
+export type MerchantOrderReview = { reviewId: string; bookingId: string; rating: number; comment: string; createdAt: string };
+export async function listMerchantOrderReviews(input: { merchantId: string; merchantType: 'restaurant' | 'grocery'; cursor?: string | null }): Promise<{ reviews: MerchantOrderReview[]; nextCursor: string | null }> {
+  return (await httpsCallable<typeof input, { reviews: MerchantOrderReview[]; nextCursor: string | null }>(functions, 'listMerchantOrderReviews')(input)).data;
+}
 export async function exportAccountPage(section: string, cursor: string | null = null, parentId?: string): Promise<{items:unknown[];nextCursor:string|null}> {
   return (await httpsCallable(functions,'exportAccountPage')({section,cursor,...(parentId ? { parentId } : {})})).data as {items:unknown[];nextCursor:string|null};
 }

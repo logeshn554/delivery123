@@ -367,6 +367,23 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         tx.create(ref,{ userId:uid, bookingId:id, rating:data.rating, comment:data.comment.trim(), serviceType:booking.data().serviceType, merchantId:booking.data().merchantId || null, createdAt:new Date().toISOString() });
       }); return { saved:true };
     }),
+    listMerchantOrderReviews: onCall({ operation: 'listMerchantOrderReviews', region: REGION }, async request => {
+      const uid = request.auth?.uid, data = request.data || {};
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to view customer feedback.');
+      const merchantId = documentId(data.merchantId, 'Business ID'), merchantType = data.merchantType;
+      if (!['restaurant', 'grocery'].includes(merchantType)) throw new HttpsError('invalid-argument', 'Choose a restaurant or grocery business.');
+      const account = (await db.doc(`users/${uid}`).get()).data();
+      if (!merchantHasPermission(account, merchantId, merchantType, 'orders')) throw new HttpsError('permission-denied', 'You do not have order access to this business.');
+      const serviceType = merchantType === 'restaurant' ? 'food' : 'grocery';
+      let query = db.collection('order_reviews').where('merchantId', '==', merchantId).where('serviceType', '==', serviceType).orderBy('createdAt', 'desc').limit(51);
+      if (data.cursor) {
+        const cursorId = documentId(data.cursor, 'Review cursor'), cursor = await db.doc(`order_reviews/${cursorId}`).get();
+        if (!cursor.exists || cursor.data()?.merchantId !== merchantId || cursor.data()?.serviceType !== serviceType) throw new HttpsError('invalid-argument', 'Refresh the feedback list before loading more.');
+        query = query.startAfter(cursor);
+      }
+      const page = await query.get(), hasMore = page.size > 50, docs = page.docs.slice(0, 50);
+      return { reviews: docs.map(snapshot => { const value = snapshot.data(), createdAt = typeof value.createdAt === 'string' ? value.createdAt : value.createdAt?.toDate?.().toISOString() || ''; return { reviewId: snapshot.id, bookingId: snapshot.id, rating: Number.isSafeInteger(value.rating) && value.rating >= 1 && value.rating <= 5 ? value.rating : 0, comment: typeof value.comment === 'string' ? value.comment.slice(0, 1000) : '', createdAt }; }), nextCursor: hasMore ? docs.at(-1).id : null };
+    }),
     saveCatalogItem: onCall({ operation: 'saveCatalogItem', region: REGION }, async request => {
       const uid = request.auth?.uid;
       if (!uid) throw new HttpsError('unauthenticated', 'Sign in.');
