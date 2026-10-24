@@ -7,6 +7,7 @@ import SupportOperationsQueue from './SupportOperationsQueue';
 import BookingExceptionPanel from './BookingExceptionPanel';
 import RefundReviewQueue from './RefundReviewQueue';
 import DispatchPolicyEditor from './DispatchPolicyEditor';
+import DeliveryProofPolicyEditor from './DeliveryProofPolicyEditor';
 import MerchantBusinessSetup from './MerchantBusinessSetup';
 import PartnerApplicationPanel from './PartnerApplicationPanel';
 import DriverEligibilityReview from './DriverEligibilityReview';
@@ -303,7 +304,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
 
       <OperationsConsole drivers={driverProfiles}/>
       <section id="admin-finance"><FinanceJournalPanel/><RefundReviewQueue/></section>
-      <section id="admin-policy"><DispatchPolicyEditor/></section>
+      <section id="admin-policy"><DispatchPolicyEditor/><DeliveryProofPolicyEditor/></section>
       <section id="admin-business"><MerchantBusinessSetup/></section>
       <PartnerApplicationPanel staff/>
       <section id="admin-support"><SupportOperationsQueue/></section>

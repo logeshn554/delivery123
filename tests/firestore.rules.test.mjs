@@ -298,6 +298,13 @@ test('private contacts, OTPs and payment attempts have separate access controls'
   await assertSucceeds(getDoc(doc(dbFor('customer'), 'booking_codes', 'assigned')));
   await assertFails(getDoc(doc(dbFor('customer'), 'payment_attempts', 'order1')));
 });
+test('recipient signature records are inaccessible to clients and administrators outside scoped callables', async () => {
+  await env.withSecurityRulesDisabled(async context => setDoc(doc(context.firestore(), 'booking_delivery_proofs', 'assigned'), { customerId: 'customer', driverId: 'driver', signatureSvg: '<svg/>' }));
+  for (const uid of ['customer', 'driver', 'other', 'admin']) {
+    await assertFails(getDoc(doc(dbFor(uid), 'booking_delivery_proofs', 'assigned')));
+    await assertFails(setDoc(doc(dbFor(uid), 'booking_delivery_proofs', 'forged'), { signatureSvg: '<svg/>' }));
+  }
+});
 test('expired and revoked Neon-linked sessions are denied even with an otherwise valid Firebase token', async () => {
   await assertFails(getDoc(doc(dbFor('customer', { allgoSession: 'missing' }), 'bookings', 'assigned')));
   await env.withSecurityRulesDisabled(async context => {

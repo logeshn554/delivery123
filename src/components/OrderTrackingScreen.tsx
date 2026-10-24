@@ -11,6 +11,7 @@ import { isFreshTrackingRoute, isFreshTrackingTimestamp } from '../design-system
 import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority';
 import { getGroceryPickingProgress, getGroceryTrackingStage, GROCERY_TRACKING_STAGES } from '../design-system/groceryTracking';
 import HandoverCode from './HandoverCode';
+import DeliverySignatureReceipt from './DeliverySignatureReceipt';
 
 export default function OrderTrackingScreen({ booking, onChat, onReview }: { booking: Booking; onChat: () => void; onReview?: () => void }) {
   const authority = bookingAuthorityCapabilities(booking);
@@ -487,6 +488,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
             ? <HandoverCode label="Vehicle handover start code" code={booking.pickupOtp} guidance="Share with carrier driver after joint pre-loading inspection." />
             : <div className="tracking-otp"><ShieldCheck size={20} /><div><strong>Trip start code</strong><small>Share at pickup after checking the assigned partner and vehicle.</small></div><b>{booking.pickupOtp}</b></div>
       )}
+      <DeliverySignatureReceipt booking={booking}/>
     </section>
   );
 }

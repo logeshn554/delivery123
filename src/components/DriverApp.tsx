@@ -11,7 +11,7 @@ import {
   Phone, Banknote
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
-import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages } from '../data/firestoreHelper';
+import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages, getDeliverySignature } from '../data/firestoreHelper';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import PayoutRequests from './PayoutRequests';
 import DriverEarningEstimate from './DriverEarningEstimate';
@@ -19,6 +19,7 @@ import BookingExceptionPanel from './BookingExceptionPanel';
 import AccountDataExport from './AccountDataExport';
 import { useFeedbackDialog } from './useFeedbackDialog';
 import { usesAndroidLocation, usesNativeLocation, locationConsent, startNativeDriverLocation, stopNativeDriverLocation, nativeDriverLocationStatus } from '../driverLocation';
+import DeliverySignaturePad from './DeliverySignaturePad';
 
 interface DriverAppProps {
   userId: string;
@@ -42,6 +43,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   const supportRequest = useRef<{ key: string; id: string } | null>(null);
   const [otpInput, setOtpInput] = useState("");
   const [pickupCode, setPickupCode] = useState('');
+  const [signatureProofId, setSignatureProofId] = useState('');
   const [offerNow, setOfferNow] = useState(Date.now());
   useEffect(() => {
     const timer = setInterval(() => setOfferNow(Date.now()), 1000);
@@ -157,6 +159,12 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
   // Find if we already have an assigned active job
   const currentAssignedJob = (notification.booking && !finishedBooking(notification.booking) ? notification.booking : undefined) || activeBookings.find(b => b.driverId === userId && b.status !== 'completed' && b.status !== 'delivered' && b.status !== 'cancelled');
   useEffect(() => { setPickupCode('');setOtpInput(''); },[currentAssignedJob?.bookingId]);
+  useEffect(() => {
+    let active = true; setSignatureProofId('');
+    if (!currentAssignedJob || currentAssignedJob.status !== 'transit' || !['food', 'grocery', 'parcel'].includes(currentAssignedJob.serviceType)) return () => { active = false; };
+    void getDeliverySignature(currentAssignedJob.bookingId).then(value => { if (active) setSignatureProofId(value.proofId); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [currentAssignedJob?.bookingId, currentAssignedJob?.status]);
 
   // Real-time Chat synchronization
   useEffect(() => {
@@ -645,6 +653,10 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                             ? 'Ask the passenger for the 4-digit trip completion code at the destination.'
                             : 'Ask the recipient for the delivery code at the destination.'}
                     </p>
+                    {['food', 'grocery', 'parcel'].includes(currentAssignedJob.serviceType) && (signatureProofId
+                      ? <p className="allgo-feedback success" role="status">Recipient signature recorded and stored privately.</p>
+                      : <DeliverySignaturePad bookingId={currentAssignedJob.bookingId} onSaved={(proofId, code) => { setSignatureProofId(proofId); setOtpInput(code); }}/>
+                    )}
                     <label className="sr-only" htmlFor="recipient-delivery-code">
                       {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip completion code' : currentAssignedJob.serviceType === 'transport' ? 'Vehicle delivery code' : 'Recipient delivery code'}
                     </label>
@@ -660,7 +672,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                       className="w-full border rounded-xl p-3 mb-2 text-base text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" 
                     />
                     <button 
-                      disabled={actionBusy || otpInput.trim().length !== 4}
+                      disabled={actionBusy || otpInput.trim().length !== 4 || (['food', 'grocery', 'parcel'].includes(currentAssignedJob.serviceType) && !signatureProofId)}
                       onClick={() => handleCompleteJob(currentAssignedJob)}
                       className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15"
                     >

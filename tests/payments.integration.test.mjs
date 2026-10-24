@@ -25,9 +25,14 @@ beforeEach(async () => {
   assert.equal(response.ok, true);
   await db.doc('users/customer').set({ uid: 'customer', name: 'Test customer', role: 'customer', walletBalance: 1000 });
   await db.doc('grocery_stores/shop/products/item').set({ name: 'Test item', stock: 10, price: 100 });
+  await db.doc('platform_config/delivery_proof').set({ enabled: true, version: 1, retentionDays: 30, privacyPolicyUrl: 'https://example.test/privacy' });
 });
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
+const collectSignature = async (bookingId, requestId = `signature_${bookingId}`) => {
+  const code = (await db.doc(`booking_codes/${bookingId}`).get()).data()?.code;
+  return callable('saveDeliverySignature', 'driver', { bookingId, requestId, consent: true, otp: code, policyVersion: 1, privacyPolicyUrl: 'https://example.test/privacy', strokes: [[{ x: 0.1, y: 0.6 }, { x: 0.3, y: 0.4 }, { x: 0.6, y: 0.7 }, { x: 0.9, y: 0.3 }]] });
+};
 
 async function savedCashIntent(id = 'cash_retry', amount = 12000) {
   const booking = { bookingId: id, customerId: 'customer', customerName: 'Test customer', merchantId: 'shop', serviceType: 'grocery', status: 'pending', price: amount / 100, otp: '1234', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), settlementContract: { version: 1, serviceType: 'grocery', baseCents: 4000, maxPayoutCents: 4000 }, details: { storeId: 'shop', items: [{ id: 'item', name: 'Test item', quantity: 1, price: 100 }] } };
@@ -363,6 +368,7 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
       await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'completed', otp: 'invalid' }), error => error.code === 'permission-denied');
       const code = (await db.doc(`booking_codes/${id}`).get()).data().code;
       const completion = { bookingId: id, status: 'completed', otp: code };
+      if (['food', 'grocery'].includes(serviceType)) await collectSignature(id);
       await callable('advanceDriverBooking', 'driver', completion);
       await callable('advanceDriverBooking', 'driver', completion);
       const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
@@ -448,6 +454,7 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
       await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'transit', otp: codes.pickupCode });
       assert.equal((await db.doc(`booking_codes/${ref.id}`).get()).data().pickupCode, undefined);
       const finish = { bookingId: ref.id, status: 'completed', otp: codes.code };
+      if (serviceType === 'parcel') await collectSignature(ref.id);
       await callable('advanceDriverBooking', 'driver', finish);
       await callable('advanceDriverBooking', 'driver', finish);
       const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
@@ -1417,9 +1424,46 @@ test('pickup and recipient codes protect custody; concurrent completion settles 
   await callable('advanceDriverBooking','driver',{bookingId:'handover',status:'transit',otp:'1234'});
   assert.equal((await db.doc('booking_codes/handover').get()).data().pickupCode,undefined);
   await assert.rejects(callable('advanceDriverBooking','driver',{bookingId:'handover',status:'completed',otp:'1234'}),error=>error.code==='permission-denied');
+  await collectSignature('handover');
   await Promise.all([callable('advanceDriverBooking','driver',{bookingId:'handover',status:'completed',otp:'5678'}),callable('advanceDriverBooking','driver',{bookingId:'handover',status:'completed',otp:'5678'})]);
   const driver=(await db.doc('driver_profiles/driver').get()).data();
   assert.equal(driver.availableEarningsCents,8000);assert.equal(driver.completedJobs,1);assert.equal(driver.activeBookingId,null);assert.equal((await db.collection('driver_ledger/driver/entries').get()).size,1);
+});
+test('food, grocery and parcel completion requires a private, consented recipient signature', async () => {
+  await db.doc('users/driver').set({ role: 'driver', name: 'Delivery partner' });
+  await db.doc('users/other').set({ role: 'customer' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'proof_order', availableEarningsCents: 0, completedJobs: 0 });
+  await db.doc('bookings/proof_order').set({ bookingId: 'proof_order', customerId: 'customer', driverId: 'driver', serviceType: 'parcel', status: 'transit', paymentStatus: 'paid', price: 100, settlementContract: { serviceType: 'parcel', version: 1, baseCents: 4000, maxPayoutCents: 10000 } });
+  await db.doc('booking_codes/proof_order').set({ customerId: 'customer', code: '5678', attempts: 0 });
+  await db.doc('operations/settlement').set({ driverShareBps: 8000 });
+  await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: 'proof_order', status: 'completed', otp: '5678' }), error => error.code === 'failed-precondition');
+  await assert.rejects(callable('saveDeliverySignature', 'other', { bookingId: 'proof_order', requestId: 'proof1', consent: true, policyVersion: 1, privacyPolicyUrl: 'https://example.test/privacy', strokes: [[{x:0,y:0},{x:1,y:1},{x:0.5,y:0.5},{x:0.2,y:0.8}]] }), error => error.code === 'permission-denied');
+  await assert.rejects(callable('saveDeliverySignature', 'driver', { bookingId: 'proof_order', requestId: 'proof1', consent: false, policyVersion: 1, privacyPolicyUrl: 'https://example.test/privacy', strokes: [[{x:0,y:0},{x:1,y:1},{x:0.5,y:0.5},{x:0.2,y:0.8}]] }), error => error.code === 'failed-precondition');
+  const saved = await collectSignature('proof_order', 'proof1');
+  assert.equal(saved.status, 'ready');
+  assert.equal((await db.doc('booking_delivery_proofs/proof_order').get()).data().signatureSvg.includes('<svg'), true);
+  await assert.rejects(callable('getDeliverySignature', 'other', { bookingId: 'proof_order' }), error => error.code === 'permission-denied');
+  assert.equal((await callable('getDeliverySignature', 'customer', { bookingId: 'proof_order' })).proofId, 'proof1');
+  const exportPage = await callable('exportAccountPage', 'customer', { section: 'delivery_proofs' });
+  assert.equal(exportPage.items[0].signatureSvg.includes('<svg'), true);
+  assert.equal((await callable('exportAccountPage', 'other', { section: 'delivery_proofs' })).items.length, 0);
+  await assert.rejects(collectSignature('proof_order', 'different_retry'), error => error.code === 'already-exists');
+  await callable('advanceDriverBooking', 'driver', { bookingId: 'proof_order', status: 'completed', otp: '5678' });
+  const event = (await db.doc('bookings/proof_order/events/completed_driver').get()).data();
+  assert.equal(event.proofMethod, 'recipient_code_and_signature'); assert.equal(event.deliveryProofId, 'proof1');
+  await assert.rejects(callable('getDeliverySignature', 'other', { bookingId: 'proof_order' }), error => error.code === 'permission-denied');
+});
+test('delivery signature policy changes require operations, current versions, and a published privacy policy', async () => {
+  await db.doc('users/admin').set({ role: 'admin' });
+  await db.doc('platform_config/privacy').set({ deletionEnabled: true, policyUrl: 'https://example.test/privacy' });
+  const request = { requestId: 'proof_policy_1', expectedVersion: 1, enabled: true, retentionDays: 180, reason: 'Require recipient signature for goods delivery.', reviewed: true };
+  await assert.rejects(callable('setDeliveryProofPolicy', 'customer', request, true), error => error.code === 'permission-denied');
+  assert.deepEqual(await callable('setDeliveryProofPolicy', 'admin', request, true), { version: 2, enabled: true });
+  assert.deepEqual(await callable('setDeliveryProofPolicy', 'admin', request, true), { version: 2, enabled: true });
+  assert.equal((await db.doc('platform_config/delivery_proof').get()).data().retentionDays, 180);
+  await assert.rejects(callable('setDeliveryProofPolicy', 'admin', { ...request, requestId: 'stale', expectedVersion: 1 }, true), error => error.code === 'aborted');
+  await db.doc('platform_config/privacy').set({ deletionEnabled: false, policyUrl: 'https://example.test/privacy' });
+  await assert.rejects(callable('setDeliveryProofPolicy', 'admin', { ...request, requestId: 'privacy_missing', expectedVersion: 2 }, true), error => error.code === 'failed-precondition');
 });
 test('deletion requires recent authentication and blocks unresolved provider intents', async () => {
   await db.doc('users/customer').update({ walletBalance: 0 });

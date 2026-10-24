@@ -32,6 +32,7 @@ const { assertStockBaseline } = require('./stockBaseline');
 const { recordStockMovement, groceryReservations } = require('./inventoryJournal');
 const { partnerApplicationFunctions } = require('./partnerApplications');
 const { partnerEvidenceFunctions } = require('./partnerEvidence');
+const { deliveryProofFunctions, SERVICES_REQUIRING_DELIVERY_SIGNATURE, activeRetention: activeDeliveryProofRetention } = require('./deliveryProof');
 const { evidenceScanningFunctions } = require('./evidenceScanning');
 const { evidenceReviewFunctions } = require('./evidenceReview');
 const { driverEligibilityFunctions } = require('./driverEligibility');
@@ -76,6 +77,8 @@ function evidenceBucket(name) {
 }
 const evidenceServices = partnerEvidenceFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getBucket: evidenceBucket });
 Object.assign(exports, evidenceServices.exports);
+const deliveryProofServices = deliveryProofFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, getPolicy: async () => (await db.doc('platform_config/delivery_proof').get()).data() });
+Object.assign(exports, deliveryProofServices.exports);
 Object.assign(exports, evidenceReviewFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, evidenceScanningFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, getBucket: evidenceBucket, scannerSecrets: [EVIDENCE_SCANNER_CA, EVIDENCE_SCANNER_CLIENT_CERT, EVIDENCE_SCANNER_CLIENT_KEY], scan: bytes => scanBytes(bytes, { host: process.env.EVIDENCE_SCANNER_HOST, port: Number(process.env.EVIDENCE_SCANNER_PORT), ca: EVIDENCE_SCANNER_CA.value(), cert: EVIDENCE_SCANNER_CLIENT_CERT.value(), key: EVIDENCE_SCANNER_CLIENT_KEY.value() }) }));
 Object.assign(exports, catalogSearchFunctions({ onCall, onDocumentWritten, db, REGION, databaseId, HttpsError, documentId, cleanText }));
@@ -886,8 +889,8 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
   if (!['preparing', 'transit', 'completed'].includes(next)) throw new HttpsError('invalid-argument', 'Invalid job transition.');
   const result = await db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
-    const codeRef = db.doc(`booking_codes/${bookingId}`);
-    const [booking, driver, code, account, eligibility] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`))]);
+    const codeRef = db.doc(`booking_codes/${bookingId}`), proofRef = db.doc(`booking_delivery_proofs/${bookingId}`);
+    const [booking, driver, code, account, eligibility, proof] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`)), transaction.get(proofRef)]);
     const data = booking.data();
     const completedReplay = data?.driverId === uid && data.status === 'completed' && next === 'completed';
     if (!data || data.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.suspended === true || account.data()?.disabled === true || driver.data()?.status !== 'verified' && !completedReplay) throw new HttpsError('permission-denied', 'Verified driver access and assignment are required for this job.');
@@ -915,6 +918,10 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
         transaction.update(codeRef, { attempts, ...(attempts >= 5 ? { lockedUntil: Timestamp.fromMillis(Date.now() + 5 * 60 * 1000) } : { lockedUntil: FieldValue.delete() }) });
         return { error: 'wrong-code' };
       }
+      if (SERVICES_REQUIRING_DELIVERY_SIGNATURE.has(data.serviceType)) {
+        const signature = proof.data();
+        if (!signature || signature.status !== 'ready' || signature.bookingId !== bookingId || signature.driverId !== uid || !activeDeliveryProofRetention(signature.retentionUntil)) throw new HttpsError('failed-precondition', 'Collect the recipient’s signature before completing this delivery.');
+      }
       let settlement;
       try { settlement = calculateDriverSettlement(data); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
@@ -940,7 +947,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
       transaction.update(bookingRef, { status: next, ...(wasCod ? { paymentStatus: 'paid', cashCollectedAt: new Date().toISOString() } : {}), driverPayout: payout, driverSettlement: settlement, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       transaction.delete(codeRef);
     } else transaction.update(bookingRef, { status: next, ...(next === 'preparing' ? { arrivedAtPickup: new Date().toISOString() } : next === 'transit' ? { pickupCompletedAt: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
-    transaction.create(db.doc(`bookings/${bookingId}/events/${next}_${uid}`), { stage: transition.stage, actorRole: 'driver', actorId: uid, ...(next === 'completed' ? { proofMethod: 'recipient_code' } : transition.requiresPickupCode ? { proofMethod: 'pickup_code' } : {}), createdAt: new Date().toISOString() });
+    transaction.create(db.doc(`bookings/${bookingId}/events/${next}_${uid}`), { stage: transition.stage, actorRole: 'driver', actorId: uid, ...(next === 'completed' ? { proofMethod: SERVICES_REQUIRING_DELIVERY_SIGNATURE.has(data.serviceType) ? 'recipient_code_and_signature' : 'recipient_code', ...(SERVICES_REQUIRING_DELIVERY_SIGNATURE.has(data.serviceType) ? { deliveryProofId: proof.data().proofId } : {}) } : transition.requiresPickupCode ? { proofMethod: 'pickup_code' } : {}), createdAt: new Date().toISOString() });
     return { status: next };
   });
   if (result.error) throw new HttpsError('permission-denied', result.error === 'wrong-pickup-code' ? 'Enter the sender’s pickup code before loading and starting delivery.' : 'Enter the recipient’s delivery code to complete this booking.');
@@ -1293,6 +1300,7 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
         const records = await query.get(); if (records.empty) break;
         for (const record of records.docs) {
           await db.recursiveDelete(record.ref.collection('chats'));
+          await db.doc(`booking_delivery_proofs/${record.id}`).delete();
           await redactBookingHistory(db, record.ref, uid, field === 'customerId', FieldValue);
           await Promise.all([db.doc(`booking_codes/${record.id}`).delete(), db.doc(`booking_tracking/${record.id}`).delete(), ...(field === 'customerId' ? [db.doc(`booking_contacts/${record.id}`).delete()] : [])]);
           await record.ref.update(field === 'customerId' ? { customerName: 'Deleted account', pickupAddress: FieldValue.delete(), dropAddress: FieldValue.delete(), details: FieldValue.delete(), personalDataDeletedAt: Timestamp.now() } : { driverName: 'Deleted account', personalDataDeletedAt: Timestamp.now() });

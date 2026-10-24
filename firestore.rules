@@ -373,6 +373,11 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
+    // Recipient signatures are private personal data and are exposed only through scoped callables.
+    match /booking_delivery_proofs/{bookingId} {
+      allow read, write: if false;
+    }
+
     match /booking_contacts/{bookingId} {
       // Sender/recipient phones are private, including while a job is offered to partners.
       allow get: if canAccessDeliveryDetails(bookingId);

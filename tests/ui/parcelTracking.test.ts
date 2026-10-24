@@ -30,6 +30,16 @@ test('parcel tracking exposes sender pickup proof, custody events and recipient 
   assert.match(timeline, /Parcel picked up/);
 });
 
+test('completed commerce and parcel orders let the owner view the private recipient signature', () => {
+  const tracking = readFileSync(new URL('../../src/components/OrderTrackingScreen.tsx', import.meta.url), 'utf8');
+  const receipt = readFileSync(new URL('../../src/components/DeliverySignatureReceipt.tsx', import.meta.url), 'utf8');
+  assert.match(tracking, /<DeliverySignatureReceipt booking={booking}/);
+  assert.match(receipt, /View recipient signature/);
+  assert.match(receipt, /getDeliverySignature/);
+  assert.match(receipt, /Recipient electronic delivery signature/);
+  assert.match(receipt, /retentionUntil/);
+});
+
 test('parcel handover codes stay concealed until explicitly revealed and evidence limits are clear', () => {
   const secureCode = readFileSync(new URL('../../src/components/HandoverCode.tsx', import.meta.url), 'utf8');
   const details = readFileSync(new URL('../../src/components/ParcelOrderDetails.tsx', import.meta.url), 'utf8');

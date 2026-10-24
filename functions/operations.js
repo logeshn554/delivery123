@@ -49,6 +49,11 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         return { items: docs.map(event => ({ ...event.data(), id: event.id })), nextCursor: page.size > 100 ? docs.at(-1).id : null };
       }
       const targets = { addresses:db.collection(`users/${uid}/addresses`), bookings:db.collection('bookings').where('customerId','==',uid), driver_jobs:db.collection('bookings').where('driverId','==',uid), bundles:db.collection('bundles').where('customerId','==',uid), driver_bundle_legs:db.collectionGroup('legs').where('driverId','==',uid), driver_ledger:db.collection(`driver_ledger/${uid}/entries`), payouts:db.collection('payout_requests').where('driverId','==',uid), payments:db.collection('payment_attempts').where('uid','==',uid), wallet:db.collection(`wallet_ledger/${uid}/entries`), reviews:db.collection('order_reviews').where('userId','==',uid), evidence:db.collection('partner_evidence').where('userId','==',uid), partners:db.collection('partner_applications').where('userId','==',uid), support:db.collection('support_tickets').where('userId','==',uid) };
+      if (section === 'delivery_proofs') {
+        const account = (await db.doc(`users/${uid}`).get()).data();
+        if (!['customer', 'driver'].includes(account?.role)) throw new HttpsError('permission-denied', 'Only your own delivery signatures can be exported.');
+        targets.delivery_proofs = db.collection('booking_delivery_proofs').where(account.role === 'driver' ? 'driverId' : 'customerId', '==', uid);
+      }
       if (section === 'bundle_legs') {
         const bundleId = documentId(data.parentId, 'Bundle ID'), parent = db.doc(`bundles/${bundleId}`), bundle = (await parent.get()).data();
         if (!bundle || bundle.customerId !== uid) throw new HttpsError('permission-denied', 'Only your own bundle history can be exported.');
@@ -82,6 +87,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
           return { ...customerRecord, id: doc.id };
         }
         if (section === 'payments') return { id: doc.id, amountCents: record.amount, currency: record.currency || 'INR', status: record.status, kind: record.kind || 'booking', bookingId: record.bookingId || null, refundedAmountCents: record.refundedAmountCents || 0, createdAt: record.createdAt?.toDate().toISOString() || null };
+        if (section === 'delivery_proofs' && !(Date.parse(record.retentionUntil) > Date.now())) return { id: doc.id, bookingId: record.bookingId, status: 'expired', capturedAt: record.capturedAt, retentionUntil: record.retentionUntil };
         return { ...record, id: doc.id };
       }), nextCursor:snapshot.size>100?(section === 'driver_bundle_legs' ? docs.at(-1).ref.path : docs.at(-1).id):null };
     }),
@@ -208,6 +214,35 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
         tx.update(ref, { closedDates, closureRevision: revision });
         tx.create(eventRef, { actorId: uid, closedDates, previous: record.data().closedDates || [], expectedRevision: data.expectedRevision, revision, reason, createdAt: Timestamp.now() });
         audit(tx, uid, 'merchant_closures_updated', id); return { revision };
+      });
+    }),
+    getDeliveryProofOperationsPolicy: onCall({ operation: 'getDeliveryProofOperationsPolicy', region: REGION }, async request => {
+      await admin(request);
+      const [policy, privacy] = await Promise.all([db.doc('platform_config/delivery_proof').get(), db.doc('platform_config/privacy').get()]);
+      const value = policy.data() || {}, legal = privacy.data() || {};
+      let privacyPolicyUrl = '', privacyPolicyPublished = false;
+      try { const url = new URL(legal.policyUrl); privacyPolicyUrl = url.href; privacyPolicyPublished = legal.deletionEnabled === true && url.protocol === 'https:' && !url.username && !url.password && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname); } catch { /* The operator must publish a valid HTTPS policy before enabling signatures. */ }
+      return { enabled: value.enabled === true, version: Number.isSafeInteger(value.version) ? value.version : 0, retentionDays: Number.isSafeInteger(value.retentionDays) ? value.retentionDays : 90, privacyPolicyUrl, privacyPolicyPublished };
+    }),
+    setDeliveryProofPolicy: onCall({ operation: 'setDeliveryProofPolicy', region: REGION }, async request => {
+      const uid = await admin(request), data = request.data || {}, id = documentId(data.requestId, 'Request ID'), expectedVersion = data.expectedVersion;
+      if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 0 || typeof data.enabled !== 'boolean' || !Number.isInteger(data.retentionDays) || data.retentionDays < 1 || data.retentionDays > 3650 || data.reviewed !== true) throw new HttpsError('invalid-argument', 'Review the signature collection, retention and privacy policy before publishing.');
+      const reason = cleanText(data.reason, 'Reason for change', 500), ref = db.doc('platform_config/delivery_proof'), commandRef = db.doc(`operations_commands/delivery_proof_policy_${id}`), privacyRef = db.doc('platform_config/privacy');
+      return db.runTransaction(async tx => {
+        const [current, command, privacy] = await Promise.all([tx.get(ref), tx.get(commandRef), tx.get(privacyRef)]), policy = current.data() || {}, prior = command.data(), legal = privacy.data() || {};
+        if (prior) {
+          if (prior.actorId !== uid || prior.enabled !== data.enabled || prior.retentionDays !== data.retentionDays || prior.reason !== reason || prior.expectedVersion !== expectedVersion) throw new HttpsError('already-exists', 'This policy change reference was already used.');
+          return { version: prior.version, enabled: prior.enabled };
+        }
+        if ((policy.version || 0) !== expectedVersion) throw new HttpsError('aborted', 'The delivery signature policy changed. Reload and review the latest version.');
+        let privacyPolicyUrl = '';
+        try { const url = new URL(legal.policyUrl); if (url.protocol !== 'https:' || url.username || url.password || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) throw new Error('invalid'); privacyPolicyUrl = url.href; } catch { if (data.enabled) throw new HttpsError('failed-precondition', 'Publish the platform privacy and retention policy before enabling delivery signatures.'); }
+        if (data.enabled && legal.deletionEnabled !== true) throw new HttpsError('failed-precondition', 'Publish the platform privacy and retention policy before enabling delivery signatures.');
+        const next = { enabled: data.enabled, retentionDays: data.retentionDays, version: expectedVersion + 1, privacyPolicyUrl, updatedBy: uid, updatedAt: Timestamp.now(), changeId: id };
+        tx.set(ref, next);
+        tx.create(commandRef, { actorId: uid, enabled: data.enabled, retentionDays: data.retentionDays, reason, expectedVersion, version: next.version, createdAt: Timestamp.now() });
+        audit(tx, uid, 'delivery_proof_policy_updated', `version_${next.version}`);
+        return { version: next.version, enabled: next.enabled };
       });
     }),
     setMerchantHours: onCall({ operation: 'setMerchantHours', region: REGION }, async request => {

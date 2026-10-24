@@ -1,0 +1,21 @@
+import { useEffect, useRef, useState } from 'react';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
+
+type Policy = { enabled: boolean; version: number; retentionDays: number; privacyPolicyUrl: string; privacyPolicyPublished: boolean };
+export default function DeliveryProofPolicyEditor() {
+  const [policy, setPolicy] = useState<Policy | null>(null), [enabled, setEnabled] = useState(false), [days, setDays] = useState('90'), [reason, setReason] = useState(''), [reviewed, setReviewed] = useState(false), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
+  const command = useRef<{ key: string; id: string } | null>(null);
+  const load = async () => { setBusy(true); try { const value = (await httpsCallable<void, Policy>(functions, 'getDeliveryProofOperationsPolicy')()).data; setPolicy(value); setEnabled(value.enabled); setDays(String(value.retentionDays)); setMessage(''); } catch (error) { setMessage(error instanceof Error ? error.message : 'Delivery signature policy unavailable.'); } finally { setBusy(false); } };
+  useEffect(() => { void load(); }, []);
+  const save = async () => {
+    if (!policy || busy || !reason.trim() || !reviewed || !Number.isInteger(Number(days)) || Number(days) < 1 || Number(days) > 3650 || enabled && !policy.privacyPolicyPublished) return;
+    const data = { enabled, retentionDays: Number(days), expectedVersion: policy.version, reason: reason.trim(), reviewed: true }, key = JSON.stringify(data);
+    if (command.current?.key !== key) command.current = { key, id: crypto.randomUUID() };
+    setBusy(true); setMessage('');
+    try { await httpsCallable(functions, 'setDeliveryProofPolicy')({ ...data, requestId: command.current.id }); setMessage('Delivery signature policy published.'); setReason(''); setReviewed(false); await load(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : 'Policy update could not be confirmed.'); }
+    finally { setBusy(false); }
+  };
+  return <section className="space-y-3 rounded-xl border p-4"><h2 className="font-bold">Delivery signature and retention</h2><p className="text-xs">Food, grocery and parcel deliveries require a recipient signature before completion. Signatures are private, available to the customer and assigned driver, and automatically deleted after the selected retention period.</p><button disabled={busy} type="button" className="min-h-11 rounded border px-3 text-xs" onClick={() => void load()}>Refresh policy</button>{policy && <><p className="text-xs">Current version {policy.version} · {policy.enabled ? 'Enabled' : 'Disabled'}</p><label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={enabled} disabled={busy || (!policy.privacyPolicyPublished && !enabled)} onChange={event => setEnabled(event.target.checked)}/> Enable recipient signatures for food, grocery and parcel delivery.</label><label className="block text-xs">Signature retention days<input type="number" min="1" max="3650" step="1" value={days} disabled={busy} onChange={event => setDays(event.target.value)} className="mt-1 block rounded border p-3"/></label>{policy.privacyPolicyPublished ? <a className="text-xs underline" href={policy.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Review published privacy policy</a> : <p role="alert" className="text-xs">Publish the platform privacy policy before enabling signatures.</p>}<label className="block text-xs">Reason for policy change<textarea maxLength={500} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} className="mt-1 block w-full rounded border p-3"/></label><label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={reviewed} disabled={busy} onChange={event => setReviewed(event.target.checked)}/> I reviewed the collection purpose, access scope, retention period and published privacy policy.</label><button type="button" disabled={busy || !reason.trim() || !reviewed || enabled && !policy.privacyPolicyPublished} onClick={() => void save()} className="min-h-11 rounded bg-indigo-700 px-3 text-xs font-bold text-white disabled:opacity-50">Publish policy version {policy.version + 1}</button></>}{message && <p role="status" className="text-xs">{message}</p>}</section>;
+}

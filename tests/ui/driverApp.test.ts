@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const src = readFileSync(new URL("../../src/components/DriverApp.tsx", import.meta.url), "utf8");
 const estimate = readFileSync(new URL("../../src/components/DriverEarningEstimate.tsx", import.meta.url), "utf8");
 const payouts = readFileSync(new URL("../../src/components/PayoutRequests.tsx", import.meta.url), "utf8");
+const deliverySignature = readFileSync(new URL("../../src/components/DeliverySignaturePad.tsx", import.meta.url), "utf8");
 
 // TASK-91: Driver onboarding / verification form
 test("driver onboarding collects vehicle type, registration and licence for review", () => {
@@ -146,5 +147,15 @@ test("driver app identifies bundle legs in incoming offers and active job banner
   assert.match(src, /currentAssignedJob\.bundleId/);
   assert.match(src, /job\.bundleId/);
   assert.match(src, /Bundle Leg/);
+});
+
+test("food, grocery and parcel completion requires recipient signature plus delivery code", () => {
+  assert.match(src, /DeliverySignaturePad/);
+  assert.match(src, /!signatureProofId/);
+  assert.match(src, /&& !signatureProofId/);
+  assert.match(deliverySignature, /Recipient signature canvas/);
+  assert.match(deliverySignature, /Recipient delivery code/);
+  assert.match(deliverySignature, /saveDeliverySignature/);
+  assert.match(deliverySignature, /privacy policy/);
 });
 

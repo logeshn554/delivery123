@@ -256,6 +256,17 @@ export async function advanceDriverBooking(bookingId: string, status: 'preparing
   return (await httpsCallable<{ bookingId: string; status: string; otp?: string }, { status: string }>(functions, 'advanceDriverBooking')({ bookingId, status, ...(otp ? { otp } : {}) })).data;
 }
 
+export type DeliveryProofPolicy = { enabled: boolean; version: number; retentionDays: number; privacyPolicyUrl: string };
+export async function getDeliveryProofPolicy() {
+  return (await httpsCallable<void, DeliveryProofPolicy>(functions, 'getDeliveryProofPolicy')()).data;
+}
+export async function saveDeliverySignature(data: { bookingId: string; requestId: string; strokes: { x: number; y: number }[][]; consent: true; otp: string; policyVersion: number; privacyPolicyUrl: string }) {
+  return (await httpsCallable<typeof data, { proofId: string; status: string; retentionUntil: string }>(functions, 'saveDeliverySignature')(data)).data;
+}
+export async function getDeliverySignature(bookingId: string) {
+  return (await httpsCallable<{ bookingId: string }, { proofId: string; bookingId: string; method: string; signatureSvg: string; capturedAt: string; retentionUntil: string }>(functions, 'getDeliverySignature')({ bookingId })).data;
+}
+
 export async function confirmOnlinePayment(payment: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) {
   const verifyPayment = httpsCallable<typeof payment, { bookingId: string; status: 'paid' | 'processing' }>(functions, 'verifyPayment');
   const result = await verifyPayment(payment);
