@@ -1987,10 +1987,12 @@ test('account exports are owner scoped and reject arbitrary collection names',as
   await assert.rejects(callable('exportAccountPage','customer',{section:'payment_attempts'}),error=>error.code==='invalid-argument');
 });
 test('reviews require the completed order owner and are immutable', async () => {
-  await db.doc('bookings/review_order').set({ customerId:'customer',status:'pending',serviceType:'food' });
+  await db.doc('bookings/review_order').set({ customerId:'customer',status:'pending',paymentStatus:'pending_cod',serviceType:'food' });
   await assert.rejects(callable('submitOrderReview','customer',{bookingId:'review_order',rating:5,comment:'Good'}),error=>error.code==='permission-denied');
   await db.doc('bookings/review_order').update({status:'completed'});
   await assert.rejects(callable('submitOrderReview','other',{bookingId:'review_order',rating:5,comment:'Good'}),error=>error.code==='permission-denied');
+  await assert.rejects(callable('submitOrderReview','customer',{bookingId:'review_order',rating:5,comment:'Good'}),error=>error.code==='permission-denied');
+  await db.doc('bookings/review_order').update({paymentStatus:'paid'});
   await callable('submitOrderReview','customer',{bookingId:'review_order',rating:5,comment:'Good'});
   await assert.rejects(callable('submitOrderReview','customer',{bookingId:'review_order',rating:1,comment:'Again'}),error=>error.code==='already-exists');
   assert.equal((await db.doc('order_reviews/review_order').get()).data().rating,5);

@@ -362,7 +362,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       if (!Number.isInteger(data.rating) || data.rating < 1 || data.rating > 5 || typeof data.comment !== 'string' || data.comment.length > 1000) throw new HttpsError('invalid-argument','Choose a rating and a comment of at most 1000 characters.');
       await db.runTransaction(async tx => {
         const ref = db.doc(`order_reviews/${id}`), [booking,review] = await Promise.all([tx.get(db.doc(`bookings/${id}`)),tx.get(ref)]);
-        if (booking.data()?.customerId !== uid || !['completed','delivered'].includes(booking.data()?.status)) throw new HttpsError('permission-denied','Only your completed orders can be reviewed.');
+        if (booking.data()?.customerId !== uid || !['completed','delivered'].includes(booking.data()?.status) || booking.data()?.paymentStatus !== 'paid') throw new HttpsError('permission-denied','Only your completed, paid orders can be reviewed.');
         if (review.exists) throw new HttpsError('already-exists','You already reviewed this order.');
         tx.create(ref,{ userId:uid, bookingId:id, rating:data.rating, comment:data.comment.trim(), serviceType:booking.data().serviceType, merchantId:booking.data().merchantId || null, createdAt:new Date().toISOString() });
       }); return { saved:true };
