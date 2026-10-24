@@ -199,6 +199,7 @@ export interface BookingDetails {
   vehicleWeightKg?: number;
   vehicleDimensions?: { lengthCm: number; widthCm: number; heightCm: number };
   vehicleCondition?: string;
+  vehiclePhotos?: { contentType: string; base64: string }[];
   parcelType?: string;
   // Food & Grocery orders details
   items?: {

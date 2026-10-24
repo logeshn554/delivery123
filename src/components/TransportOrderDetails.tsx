@@ -43,6 +43,7 @@ export default function TransportOrderDetails({ booking, onContactSupport }: { b
         <p className="text-xs text-slate-600">
           {details?.transportVehicleType === 'car' ? 'Passenger Car' : 'Motorbike'} · {Number.isFinite(details?.vehicleWeightKg) ? `${details?.vehicleWeightKg} kg` : 'Weight unavailable'}
         </p>
+        <div className="mt-2 flex flex-wrap gap-2">{(details?.vehiclePhotos || []).map((photo: { contentType: string; base64: string }, index: number) => <img key={index} src={`data:${photo.contentType};base64,${photo.base64}`} alt={`Submitted vehicle condition ${index + 1}`} className="max-h-40 max-w-full rounded border" loading="lazy"/>)}</div>
         {dimensions && (
           <p className="text-xs text-slate-500">
             Dimensions: {dimensions.lengthCm} × {dimensions.widthCm} × {dimensions.heightCm} cm
