@@ -18,6 +18,17 @@ function replacementTotal(booking, itemDeltaCents, HttpsError) {
   return { itemCents, taxCents, discountCents, grossCents: gross, totalCents };
 }
 
+function pickedQuantityAdjustment(booking, lineIndex, quantity, HttpsError) {
+  const item = booking?.details?.items?.[lineIndex];
+  if (!item || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || !Number.isFinite(item.price) || !Number.isSafeInteger(Math.round(item.price * 100)) || item.price < 0 || !Number.isSafeInteger(quantity) || quantity < 0 || quantity >= item.quantity) return null;
+  const returnedQuantity = item.quantity - quantity;
+  const deltaCents = -Math.round(item.price * 100) * returnedQuantity;
+  if (!Number.isSafeInteger(deltaCents)) throw new HttpsError('failed-precondition', 'The grocery short-pick amount needs operations review.');
+  const price = replacementTotal(booking, deltaCents, HttpsError), oldTotalCents = Math.round(booking.price * 100), totalDeltaCents = price.totalCents - oldTotalCents;
+  if (!Number.isSafeInteger(totalDeltaCents)) throw new HttpsError('failed-precondition', 'The adjusted grocery total needs operations review.');
+  return { returnedQuantity, deltaCents, totalDeltaCents, price };
+}
+
 function fullyPicked(booking) {
   const items = booking?.details?.items;
   return Array.isArray(items) && items.length > 0 && items.every((item, index) => {
@@ -50,10 +61,52 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         if (!item || typeof item.id !== 'string' || !item.id.trim()) throw new HttpsError('failed-precondition', 'This order line needs a valid product reference. Ask operations to review the order.');
         if (!item || item.removed === true || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || quantity > item.quantity) throw new HttpsError('invalid-argument', 'Packed quantity cannot exceed the reserved order quantity.');
         if (booking.picking?.substitutions?.[String(lineIndex)]?.status === 'pending') throw new HttpsError('failed-precondition', 'Wait for the customer to decide on the proposed replacement.');
+        const adjustment = pickedQuantityAdjustment(booking, lineIndex, quantity, HttpsError);
+        let productRef, product, customerRef, customer, walletNext, codAttemptRef, codAttempt;
+        if (adjustment) {
+          productRef = db.doc(`grocery_stores/${booking.merchantId}/products/${item.id}`);
+          const reads = [tx.get(productRef)];
+          if (booking.paymentStatus === 'paid') { customerRef = db.doc(`users/${booking.customerId}`); reads.push(tx.get(customerRef)); }
+          if (booking.paymentStatus === 'pending_cod') {
+            if (typeof booking.paymentOrderId !== 'string' || !booking.paymentOrderId) throw new HttpsError('failed-precondition', 'The cash order reference needs operations review before applying the short pick.');
+            codAttemptRef = db.doc(`payment_attempts/${booking.paymentOrderId}`);
+            reads.push(tx.get(codAttemptRef));
+          }
+          const snapshots = await Promise.all(reads);
+          product = snapshots[0].data();
+          if (!snapshots[0].exists || !Number.isSafeInteger(product?.stock) || product.stock < 0 || !Number.isSafeInteger(product.stock + adjustment.returnedQuantity)) throw new HttpsError('failed-precondition', 'The original product stock needs operations review before applying the short pick.');
+          if (customerRef) {
+            customer = snapshots[1].data();
+            const walletCents = Math.round(Number(customer?.walletBalance) * 100);
+            walletNext = walletCents - adjustment.totalDeltaCents;
+            if (!customer || !Number.isSafeInteger(walletCents) || walletCents < 0 || !Number.isSafeInteger(walletNext) || walletNext < 0) throw new HttpsError('failed-precondition', 'The customer wallet needs enough funds to apply the adjusted grocery total.');
+          }
+          if (codAttemptRef) {
+            codAttempt = snapshots[snapshots.length - 1].data();
+            if (!codAttempt || codAttempt.kind !== 'cod_booking' || codAttempt.status !== 'pending_cod' || codAttempt.bookingId !== bookingId || codAttempt.uid !== booking.customerId || codAttempt.amount !== Math.round(booking.price * 100) || codAttempt.booking?.customerId !== booking.customerId || codAttempt.booking?.serviceType !== 'grocery') throw new HttpsError('failed-precondition', 'The cash order amount needs operations review before applying the short pick.');
+          }
+        }
         const revision = nextPickingRevision(booking.picking?.revision, expectedRevision, HttpsError), now = new Date().toISOString(), lines = { ...(booking.picking?.lines || {}), [String(lineIndex)]: { itemId: item.id, quantity } };
-        tx.update(ref, { picking: { ...(booking.picking || {}), revision, lines, updatedAt: now }, updatedAt: now });
-        tx.create(eventRef, { stage: 'grocery_picking_confirmed', actorId: uid, actorRole: 'merchant', itemId: item.id, lineIndex, quantity, expectedRevision, revision, createdAt: now });
-        return { revision };
+        const updates = { picking: { ...(booking.picking || {}), revision, lines, updatedAt: now }, updatedAt: now };
+        if (adjustment) {
+          const items = [...booking.details.items];
+          items[lineIndex] = { ...item, quantity, ...(quantity === 0 ? { price: 0, removed: true } : {}) };
+          Object.assign(updates, { details: { ...booking.details, items }, price: adjustment.price.totalCents / 100, originalPrice: adjustment.price.grossCents / 100, couponDiscountCents: adjustment.price.discountCents, priceBreakdown: { ...booking.priceBreakdown, itemCents: adjustment.price.itemCents, taxCents: adjustment.price.taxCents, discountCents: adjustment.price.discountCents, totalCents: adjustment.price.totalCents } });
+          tx.update(productRef, { stock: product.stock + adjustment.returnedQuantity });
+          recordStockMovement(tx, productRef, `picking_short_return_${bookingId}_${requestId}`, 'return', product.stock, product.stock + adjustment.returnedQuantity, { bookingId, lineIndex });
+          if (customerRef && adjustment.totalDeltaCents !== 0) {
+            tx.update(customerRef, { walletBalance: walletNext / 100 });
+            const debit = adjustment.totalDeltaCents > 0 ? 'wallet_liability' : 'booking_funds_unallocated';
+            const credit = adjustment.totalDeltaCents > 0 ? 'booking_funds_unallocated' : 'wallet_liability';
+            tx.create(db.doc(`financial_journals/grocery_short_pick_${crypto.createHash('sha256').update(`${bookingId}:${requestId}`).digest('hex')}`), journal('grocery_short_pick_adjustment', debit, credit, Math.abs(adjustment.totalDeltaCents), { bookingId, customerId: booking.customerId, orderId: booking.paymentOrderId || bookingId }));
+          }
+          if (codAttemptRef) {
+            tx.update(codAttemptRef, { amount: adjustment.price.totalCents, items, booking: { ...codAttempt.booking, details: { ...codAttempt.booking.details, items }, price: adjustment.price.totalCents / 100, originalPrice: adjustment.price.grossCents / 100, couponDiscountCents: adjustment.price.discountCents, priceBreakdown: { ...booking.priceBreakdown, itemCents: adjustment.price.itemCents, taxCents: adjustment.price.taxCents, discountCents: adjustment.price.discountCents, totalCents: adjustment.price.totalCents } } });
+          }
+        }
+        tx.update(ref, updates);
+        tx.create(eventRef, { stage: 'grocery_picking_confirmed', actorId: uid, actorRole: 'merchant', itemId: item.id, lineIndex, quantity, ...(adjustment ? { returnedQuantity: adjustment.returnedQuantity, priceCents: adjustment.price.totalCents, walletDeltaCents: customerRef ? -adjustment.totalDeltaCents : 0 } : {}), expectedRevision, revision, createdAt: now });
+        return { revision, ...(adjustment ? { price: adjustment.price.totalCents / 100, walletDelta: customerRef ? -adjustment.totalDeltaCents / 100 : 0 } : {}) };
       });
     }),
     proposeGrocerySubstitution: onCall({ operation: 'proposeGrocerySubstitution', region: REGION }, async request => {
@@ -150,4 +203,4 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
     })
   };
 }
-module.exports = { fullyPicked, groceryPickingFunctions, nextPickingRevision };
+module.exports = { fullyPicked, groceryPickingFunctions, nextPickingRevision, pickedQuantityAdjustment, replacementTotal };
