@@ -641,6 +641,7 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
       const quoteDetails = { ...details, ...(serviceType === 'transport' ? { preferredDate: new Date(Date.now() + 3000).toISOString() } : {}), pickupPlaceId: 'pickup-place', dropPlaceId: 'drop-place' };
       const quote = await callable('getServiceQuote', 'customer', { serviceType, pickupAddress: 'Merchant pickup street', dropAddress: 'Customer delivery street', details: quoteDetails });
       assert.equal(quote.amount, 10000); assert.equal(quote.currency, 'INR');
+      if (serviceType === 'ride') assert.deepEqual(quote.fareBreakdown, { baseCents: 10000, distanceCents: 0, timeCents: 0, weightCents: 0, minimumAdjustmentCents: 0, insuranceCents: 0, subtotalCents: 10000, discountCents: 0, totalCents: 10000 });
       const checkout = { requestId: `${serviceType}_journey`, expectedAmountCents: quote.amount, booking: { serviceType, details: { quoteId: quote.quoteId } } };
       const checkoutMethod = cash ? 'createCodBooking' : 'payWithWallet';
       const result = await callable(checkoutMethod, 'customer', checkout);
@@ -648,6 +649,7 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
       const ref = db.doc(`bookings/${result.bookingId}`), confirmed = (await ref.get()).data();
       assert.equal(confirmed.status, 'pending'); assert.equal(confirmed.serviceType, serviceType);
       assert.equal(confirmed.price, 100); assert.equal(confirmed.otp, undefined);
+      if (serviceType === 'ride') assert.equal(confirmed.fareBreakdown.totalCents, 10000);
       assert.equal((await db.doc('users/customer').get()).data().walletBalance, cash ? 1000 : 900);
       assert.equal((await db.doc(`service_quotes/${quote.quoteId}`).get()).data().claimed, true);
       if (serviceType === 'transport') {
@@ -2050,6 +2052,10 @@ test('coupon discount is immutable and its redemption limit survives concurrent 
   assert.equal(quote.amount, 8000);
   assert.equal((await applyCoupon('customer', quote, 'SAVE')).amount, 8000);
   assert.equal(original.amount, 10000);
+  await db.doc('coupons/RIDESAVE').set({ enabled: true, expiresAt: Timestamp.fromMillis(Date.now() + 600000), type: 'fixed', discountCents: 2000, minAmountCents: 100, maxRedemptions: 1, redeemedCount: 0, serviceTypes: ['ride'] });
+  const rideQuote = await applyCoupon('customer', { amount: 10000, booking: { serviceType: 'ride', price: 100, fareBreakdown: { baseCents: 6000, distanceCents: 3000, timeCents: 1000, weightCents: 0, minimumAdjustmentCents: 0, insuranceCents: 0, subtotalCents: 10000, discountCents: 0, totalCents: 10000 } } }, 'RIDESAVE');
+  assert.equal(rideQuote.booking.fareBreakdown.discountCents, 2000);
+  assert.equal(rideQuote.booking.fareBreakdown.totalCents, 8000);
   await assert.rejects(applyCoupon('customer', quote, 'OTHER'));
   await db.doc('users/other').set({ uid: 'other', name: 'Other', walletBalance: 1000 });
   await Promise.all([walletAttempt('coupon1', 'customer', 'SAVE'), walletAttempt('coupon2', 'other', 'SAVE')]);

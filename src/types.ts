@@ -132,6 +132,7 @@ export interface Booking {
   arrivedAtPickup?: string;
   pickupCompletedAt?: string;
   priceBreakdown?: PriceBreakdown;
+  fareBreakdown?: { baseCents: number; distanceCents: number; timeCents: number; weightCents: number; minimumAdjustmentCents: number; insuranceCents: number; subtotalCents: number; discountCents: number; totalCents: number };
   driverPayout?: number;
   bookingId: string;
   customerId: string;

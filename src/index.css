@@ -478,6 +478,12 @@ button:disabled { opacity: .6; cursor: not-allowed; }
 .ride-quote-route span { display: flex; min-width: 0; align-items: flex-start; gap: 8px; color: #30384a; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 .ride-quote-route svg { flex: 0 0 16px; color: var(--allgo-ride); }
 .ride-quote-summary > p { margin: 0; color: #606b83; font-size: 12px; line-height: 1.45; }
+.ride-fare-breakdown { display: grid; gap: 7px; margin: 0; padding: 14px 16px; border: 1px solid #e1e8f7; border-radius: 16px; background: #fff; }
+.ride-fare-breakdown > div { display: flex; justify-content: space-between; gap: 12px; color: #606b83; font-size: 12px; }
+.ride-fare-breakdown dt, .ride-fare-breakdown dd { margin: 0; }
+.ride-fare-breakdown dd { color: #26324b; font-weight: 700; text-align: right; }
+.ride-fare-breakdown .ride-fare-total { border-top: 1px solid #e1e8f7; padding-top: 9px; color: #1b2c55; font-weight: 800; }
+.ride-fare-breakdown .ride-fare-total dd { color: #1b2c55; font-size: 14px; }
 .ride-booking-screen .quote-review { align-items: flex-start; margin: 0; border: 1px solid #dce4f8; background: #edf2ff; color: #3556ad; }
 .ride-booking-screen .quote-review > svg { flex: 0 0 22px; margin-top: 2px; }
 .ride-booking-screen .quote-review span { color: #3d4c70; }

@@ -19,6 +19,8 @@ test('active ride safety actions connect emergency calling, trip sharing and boo
 test('completed ride receipt shows the recorded fare and verified payment state', () => {
   assert.match(receipt, /booking\.serviceType !== 'ride' \|\| !\['completed', 'delivered'\]/);
   assert.match(receipt, /Fare recorded on booking/);
+  assert.match(receipt, /booking\.fareBreakdown\.distanceCents/);
+  assert.match(receipt, /booking\.fareBreakdown\.discountCents/);
   assert.match(receipt, /booking\.paymentStatus/);
   assert.match(receipt, /booking\.paymentId/);
   assert.match(receipt, /Download receipt/);

@@ -401,7 +401,7 @@ async function priceLeg(uid, input) {
     }
     const route = await routeBetween(MAPS_API_KEY.value(), origin, destination, optionConfig.travelMode || 'DRIVE');
     price = calculateFare(optionConfig, route, serviceType === 'parcel' ? details.billableWeightKg : 0);
-    if (serviceType === 'parcel') fareBreakdown = calculateFareBreakdown(optionConfig, route, details.billableWeightKg);
+    if (serviceType === 'parcel' || serviceType === 'ride') fareBreakdown = { ...calculateFareBreakdown(optionConfig, route, serviceType === 'parcel' ? details.billableWeightKg : 0), discountCents: 0 };
     pickupAddress = origin.address;
     dropAddress = destination.address;
     details = { ...details, pickupPlaceId, dropPlaceId, pickupLocation: origin.location, dropLocation: destination.location, ...coverage, estimatedKm: route.distanceMeters / 1000, estimatedMinutes: Math.ceil(route.durationSeconds / 60), routeProvider: 'google' };
@@ -485,6 +485,7 @@ async function priceAndPrepareBooking(uid, input) {
     details: priced.leg.details
   };
   if (priced.leg.priceBreakdown) booking.priceBreakdown = priced.leg.priceBreakdown;
+  if (priced.fareBreakdown) booking.fareBreakdown = priced.fareBreakdown;
   return { amount: priced.amount, booking, items: priced.items, storeId: priced.storeId, restaurantId: priced.restaurantId, ...(priced.fareBreakdown ? { fareBreakdown: priced.fareBreakdown } : {}) };
 }
 
@@ -531,7 +532,7 @@ async function applyCoupon(uid, quote, rawCode) {
   const discount = coupon.type === 'fixed' ? coupon.discountCents : coupon.type === 'percent' && Number.isInteger(coupon.percentBps) && coupon.percentBps > 0 && coupon.percentBps <= 10000 ? Math.min(Math.floor(quote.amount * coupon.percentBps / 10000), coupon.maxDiscountCents) : NaN;
   if (!Number.isSafeInteger(discount) || discount <= 0 || discount >= quote.amount || quote.amount - discount < 100) throw new HttpsError('failed-precondition', 'This offer has an invalid discount configuration.');
   const couponTerms = coupon.type === 'fixed' ? { type: 'fixed', discountCents: coupon.discountCents, minAmountCents: coupon.minAmountCents } : { type: 'percent', percentBps: coupon.percentBps, maxDiscountCents: coupon.maxDiscountCents, minAmountCents: coupon.minAmountCents };
-  return { ...quote, amount: quote.amount - discount, booking: { ...quote.booking, price: (quote.amount - discount) / 100, originalPrice: quote.amount / 100, couponCode: code, couponDiscountCents: discount, couponTerms, ...(quote.booking.priceBreakdown ? { priceBreakdown: { ...quote.booking.priceBreakdown, discountCents: discount, totalCents: quote.amount - discount } } : {}) } };
+  return { ...quote, amount: quote.amount - discount, booking: { ...quote.booking, price: (quote.amount - discount) / 100, originalPrice: quote.amount / 100, couponCode: code, couponDiscountCents: discount, couponTerms, ...(quote.booking.priceBreakdown ? { priceBreakdown: { ...quote.booking.priceBreakdown, discountCents: discount, totalCents: quote.amount - discount } } : {}), ...(quote.booking.fareBreakdown ? { fareBreakdown: { ...quote.booking.fareBreakdown, discountCents: discount, totalCents: quote.amount - discount } } : {}) } };
 }
 
 Object.assign(exports, tripBundleFunctions({

@@ -13,6 +13,9 @@ test('service quote accepts finite server fare and route estimates only', () => 
   assert.equal(isValidServiceQuote({ ...validQuote, quoteId: '' }), false);
   assert.equal(isValidServiceQuote({ ...validQuote, price: 60, fareBreakdown: parcelBreakdown }), true);
   assert.equal(isValidServiceQuote({ ...validQuote, price: 60, fareBreakdown: { ...parcelBreakdown, totalCents: 5900 } }), false);
+  const rideBreakdown = { ...parcelBreakdown, weightCents: 0, minimumAdjustmentCents: -200, subtotalCents: 6000, discountCents: 500, totalCents: 5500 };
+  assert.equal(isValidServiceQuote({ ...validQuote, price: 55, fareBreakdown: rideBreakdown }), true);
+  assert.equal(isValidServiceQuote({ ...validQuote, price: 56, fareBreakdown: rideBreakdown }), false);
 });
 
 test('service quote expires at the server deadline and invalid timestamps fail closed', () => {

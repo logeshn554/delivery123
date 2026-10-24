@@ -7,6 +7,7 @@ const paymentLabel = (booking: Booking) => {
 };
 
 function receiptText(booking: Booking) {
+  const fare = booking.fareBreakdown;
   return [
     'AllGo ride receipt',
     `Trip: ${booking.bookingId}`,
@@ -15,6 +16,7 @@ function receiptText(booking: Booking) {
     `Destination: ${booking.dropAddress || 'Unavailable'}`,
     `Vehicle: ${booking.details?.vehicleType || 'Not recorded'}`,
     `Fare recorded on booking: ₹${booking.price.toFixed(2)}`,
+    ...(fare ? [`Base fare: ₹${(fare.baseCents / 100).toFixed(2)}`, `Distance charge: ₹${(fare.distanceCents / 100).toFixed(2)}`, `Time charge: ₹${(fare.timeCents / 100).toFixed(2)}`, ...(fare.minimumAdjustmentCents ? [`Minimum fare adjustment: ₹${(fare.minimumAdjustmentCents / 100).toFixed(2)}`] : []), ...(fare.discountCents ? [`Offer discount: −₹${(fare.discountCents / 100).toFixed(2)}`] : [])] : []),
     `Payment: ${paymentLabel(booking)}`,
     ...(booking.paymentId ? [`Payment reference: ${booking.paymentId}`] : []),
     '',
@@ -36,7 +38,7 @@ export default function RideReceipt({ booking }: { booking: Booking }) {
   return <section aria-labelledby="ride-receipt-heading" className="allgo-card">
     <div className="allgo-row"><h2 id="ride-receipt-heading">Ride receipt</h2><button type="button" className="allgo-action" onClick={() => download(booking)}>Download receipt</button></div>
     <p>Trip {booking.bookingId} · {booking.completedAt ? new Date(booking.completedAt).toLocaleString() : new Date(booking.updatedAt || booking.createdAt).toLocaleString()}</p>
-    <dl className="mt-3 space-y-2"><div><dt>Route</dt><dd>{booking.pickupAddress || 'Pickup unavailable'} → {booking.dropAddress || 'Destination unavailable'}</dd></div><div><dt>Vehicle</dt><dd>{booking.details?.vehicleType || 'Not recorded'}</dd></div><div><dt>Fare recorded on booking</dt><dd>₹{booking.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</dd></div><div><dt>Payment</dt><dd>{paymentLabel(booking)}</dd></div>{booking.paymentId && <div><dt>Payment reference</dt><dd className="break-all">{booking.paymentId}</dd></div>}</dl>
+    <dl className="mt-3 space-y-2"><div><dt>Route</dt><dd>{booking.pickupAddress || 'Pickup unavailable'} → {booking.dropAddress || 'Destination unavailable'}</dd></div><div><dt>Vehicle</dt><dd>{booking.details?.vehicleType || 'Not recorded'}</dd></div>{booking.fareBreakdown && <><div><dt>Base fare</dt><dd>₹{(booking.fareBreakdown.baseCents / 100).toFixed(2)}</dd></div><div><dt>Distance charge</dt><dd>₹{(booking.fareBreakdown.distanceCents / 100).toFixed(2)}</dd></div><div><dt>Time charge</dt><dd>₹{(booking.fareBreakdown.timeCents / 100).toFixed(2)}</dd></div>{booking.fareBreakdown.minimumAdjustmentCents !== 0 && <div><dt>Minimum fare adjustment</dt><dd>₹{(booking.fareBreakdown.minimumAdjustmentCents / 100).toFixed(2)}</dd></div>}{booking.fareBreakdown.discountCents > 0 && <div><dt>Offer discount</dt><dd>−₹{(booking.fareBreakdown.discountCents / 100).toFixed(2)}</dd></div>}</>}<div><dt>Fare recorded on booking</dt><dd>₹{booking.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</dd></div><div><dt>Payment</dt><dd>{paymentLabel(booking)}</dd></div>{booking.paymentId && <div><dt>Payment reference</dt><dd className="break-all">{booking.paymentId}</dd></div>}</dl>
     <p className="mt-3 text-xs text-slate-500">This is a ride receipt, not a tax invoice. Payment status reflects the booking’s current verified payment record.</p>
   </section>;
 }

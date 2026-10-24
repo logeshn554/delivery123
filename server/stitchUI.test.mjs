@@ -498,10 +498,11 @@ test('ride and vehicle transport quote cards show server route estimates and acc
   const ride=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');
   const transport=readFileSync(new URL('../src/components/TransportBookingScreen.tsx',import.meta.url),'utf8');
   assert.match(ride,/role="progressbar" aria-label="Quote time remaining"/);
-  assert.match(ride,/This quote has no separate toll or tax breakdown/);
-  assert.match(transport,/estimatedKm: result\.estimatedKm, estimatedMinutes: result\.estimatedMinutes/);
+  assert.match(ride,/Fare uses the configured base, distance and time rates/);
+  assert.match(ride,/ride-fare-breakdown/);
+  assert.match(transport,/estimatedKm: Number\(pendingDraft\.details\?\.estimatedKm \|\| 0\), estimatedMinutes: Number\(pendingDraft\.details\?\.estimatedMinutes \|\| 0\)/);
   assert.match(transport,/\{quote\.estimatedKm\.toFixed\(1\)\} km · \{quote\.estimatedMinutes\} min estimated route travel/);
-  assert.match(transport,/This quote does not show separate toll or tax amounts/);
+  assert.match(transport,/Payment starts only after acceptance/);
 });
 test('vehicle transport review includes route specs and a before-handover inspection checklist',()=>{
   const screen=readFileSync(new URL('../src/components/TransportBookingScreen.tsx',import.meta.url),'utf8');

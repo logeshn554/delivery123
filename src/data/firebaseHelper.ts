@@ -18,7 +18,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
 import { Booking, UserProfile, DriverProfile, SavedAddress, SupportTicket } from '../types';
-import type { ParcelFareBreakdown } from '../design-system/serviceQuote';
+import type { ServiceFareBreakdown } from '../design-system/serviceQuote';
 import { subscriptionGroup } from './subscriptionGroup';
 
 export function listenToMerchantHours(id: string, type: 'restaurant' | 'grocery', callback: (value: { weeklyHours?: Record<string, { open: string; close: string }[]>; timeZone?: string; acceptingOrders?: boolean }) => void, onError: (error: unknown) => void) {
@@ -300,7 +300,7 @@ export async function createCodBooking(data: { booking: Pick<Booking, 'serviceTy
 }
 
 export async function getServiceQuote(booking: Pick<Booking, 'serviceType' | 'customerName' | 'pickupAddress' | 'dropAddress' | 'details'> & { couponCode?: string }) {
-  const quote = httpsCallable<typeof booking, { quoteId: string; amount: number; currency: string; price: number; expiresAt: string; estimatedKm: number; estimatedMinutes: number; fareBreakdown?: ParcelFareBreakdown }>(functions, 'getServiceQuote');
+  const quote = httpsCallable<typeof booking, { quoteId: string; amount: number; currency: string; price: number; expiresAt: string; estimatedKm: number; estimatedMinutes: number; fareBreakdown?: ServiceFareBreakdown }>(functions, 'getServiceQuote');
   return (await quote(booking)).data;
 }
 
