@@ -73,6 +73,12 @@ test("pickup workflow shows arrived-at-pickup button and step instructions", () 
   assert.match(src, /Step 2/);
 });
 
+test('food and grocery drivers wait for merchant confirmation before starting delivery', () => {
+  assert.match(src, /Waiting for the merchant to confirm the packed order handoff/);
+  assert.match(src, /currentAssignedJob\.merchantPickupConfirmedAt/);
+  assert.match(src, /Confirm pickup and start delivery/);
+});
+
 // TASK-97: Pickup code entry
 test("pickup code entry uses OTP autofill and is scoped to ride/takeover/parcel/transport", () => {
   assert.match(src, /autoComplete="one-time-code"/);

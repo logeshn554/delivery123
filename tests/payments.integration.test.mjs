@@ -608,6 +608,11 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
       assert.equal((await ref.get()).data().driverId, 'driver');
       await db.doc('driver_eligibility/driver').set({ driverId: 'driver', status: 'expired', revision: 1 });
       await callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'preparing' });
+      await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'transit' }), error => error.code === 'failed-precondition');
+      await assert.rejects(callable('confirmMerchantPickup', 'other', { bookingId: id }), error => error.code === 'permission-denied');
+      assert.deepEqual(await callable('confirmMerchantPickup', 'merchant', { bookingId: id }), { confirmed: true });
+      assert.deepEqual(await callable('confirmMerchantPickup', 'merchant', { bookingId: id }), { confirmed: true });
+      assert.ok((await ref.get()).data().merchantPickupConfirmedAt);
       await callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'transit' });
       await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: id, status: 'completed', otp: 'invalid' }), error => error.code === 'permission-denied');
       const code = (await db.doc(`booking_codes/${id}`).get()).data().code;
@@ -643,6 +648,18 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
     }
   });
 }
+
+test('releasing a food pickup clears the prior driver arrival and merchant handoff confirmation', async () => {
+  await db.doc('users/driver').set({ uid: 'driver', role: 'driver' });
+  await db.doc('driver_profiles/driver').set({ driverId: 'driver', status: 'verified', activeBookingId: 'handoff-release' });
+  await db.doc('bookings/handoff-release').set({ bookingId: 'handoff-release', customerId: 'customer', merchantId: 'shop', serviceType: 'food', status: 'preparing', paymentStatus: 'paid', driverId: 'driver', arrivedAtPickup: '2026-10-24T10:00:00.000Z', merchantPickupConfirmedAt: '2026-10-24T10:01:00.000Z' });
+  await callable('rejectDriverBooking', 'driver', { bookingId: 'handoff-release' });
+  const released = (await db.doc('bookings/handoff-release').get()).data();
+  assert.equal(released.status, 'ready');
+  assert.equal(released.driverId, null);
+  assert.equal(released.arrivedAtPickup, undefined);
+  assert.equal(released.merchantPickupConfirmedAt, undefined);
+});
 
 const quotedJourneys = [
   { serviceType: 'ride', option: 'car', details: { vehicleType: 'car' } },

@@ -478,6 +478,9 @@ export function listenToBookingEvents(id: string, callback: (events: { id: strin
 export async function advanceMerchantBooking(bookingId: string, status: 'preparing' | 'ready') {
   return (await httpsCallable(functions, 'advanceMerchantBooking')({ bookingId, status })).data;
 }
+export async function confirmMerchantPickup(bookingId: string) {
+  return (await httpsCallable(functions, 'confirmMerchantPickup')({ bookingId })).data;
+}
 export async function updateMerchantCatalog(catalogId: string, merchantType: 'restaurant' | 'grocery', itemId: string, changes: { available?: boolean; stock?: number; expectedStock?: number }) {
   return (await httpsCallable(functions, 'updateMerchantCatalog')({ catalogId, merchantType, itemId, ...changes })).data;
 }

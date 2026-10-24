@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { contractFor, driverTransition, merchantTransition, requireMerchantReady } = require('./fulfillmentPolicy');
+const { contractFor, driverTransition, merchantTransition, requireMerchantReady, requireMerchantPickup } = require('./fulfillmentPolicy');
 test('service transitions enforce pickup, trip start, destination arrival and completion order', () => {
   for (const service of ['food', 'grocery', 'ride', 'takeover', 'parcel', 'transport']) {
     assert.throws(() => driverTransition(service, 'accepted', 'transit'));
@@ -29,4 +29,11 @@ test('food and grocery pickup requires a merchant readiness event', () => {
     assert.doesNotThrow(() => requireMerchantReady(service, true));
   }
   assert.doesNotThrow(() => requireMerchantReady('parcel', false));
+});
+test('food and grocery delivery cannot start until merchant handoff is confirmed', () => {
+  for (const service of ['food', 'grocery']) {
+    assert.throws(() => requireMerchantPickup(service, false), /merchant must confirm/);
+    assert.doesNotThrow(() => requireMerchantPickup(service, true));
+  }
+  assert.doesNotThrow(() => requireMerchantPickup('parcel', false));
 });

@@ -662,6 +662,9 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                           ? 'Step 2: Verify passenger start code and begin trip.'
                           : 'Step 2: Confirm pickup and start delivery.'}
                   </p>
+                  {['food', 'grocery'].includes(currentAssignedJob.serviceType) && !currentAssignedJob.merchantPickupConfirmedAt && (
+                    <p role="status" className="mb-2 rounded-lg bg-amber-50 p-2 text-[10px] font-semibold text-amber-900">Waiting for the merchant to confirm the packed order handoff.</p>
+                  )}
                   {['ride','takeover','parcel','transport'].includes(currentAssignedJob.serviceType) && (
                     <label className="block text-xs text-slate-700">
                       {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Passenger trip start code' : currentAssignedJob.serviceType === 'transport' ? 'Vehicle handover start code' : 'Customer pickup/start code'}
@@ -682,12 +685,12 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                   
                   <div className="flex gap-2">
                     <button 
-                      disabled={actionBusy || (['ride', 'takeover', 'parcel', 'transport'].includes(currentAssignedJob.serviceType) && pickupCode.trim().length !== 4) || currentAssignedJob.serviceType === 'transport' && transportPickupInspectionId !== currentAssignedJob.bookingId}
+                      disabled={actionBusy || (['food', 'grocery'].includes(currentAssignedJob.serviceType) && !currentAssignedJob.merchantPickupConfirmedAt) || (['ride', 'takeover', 'parcel', 'transport'].includes(currentAssignedJob.serviceType) && pickupCode.trim().length !== 4) || currentAssignedJob.serviceType === 'transport' && transportPickupInspectionId !== currentAssignedJob.bookingId}
                       onClick={() => handleVerifyOTP(currentAssignedJob)}
                       className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5"
                     >
                       <Check className="w-4 h-4" />
-                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Start Trip' : 'Start delivery'}
+                      {['ride', 'takeover'].includes(currentAssignedJob.serviceType) ? 'Start Trip' : ['food', 'grocery'].includes(currentAssignedJob.serviceType) ? 'Confirm pickup and start delivery' : 'Start delivery'}
                     </button>
                   </div>
 

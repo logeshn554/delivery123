@@ -42,7 +42,7 @@ const { merchantHasPermission, merchantBusinessOutlets } = require('./merchantAc
 const { scanBytes } = require('./clamScanner');
 const { getStorage } = require('firebase-admin/storage');
 const { catalogSearchFunctions } = require('./catalogSearch');
-const { contractFor, driverTransition, merchantTransition, requireMerchantReady } = require('./fulfillmentPolicy');
+const { contractFor, driverTransition, merchantTransition, requireMerchantReady, requireMerchantPickup } = require('./fulfillmentPolicy');
 const { journal } = require('./journalPolicy');
 const { addCents } = require('./moneyPolicy');
 const { assertCodAmount, assertCodAttempt } = require('./codBookingPolicy');
@@ -214,6 +214,22 @@ exports.advanceMerchantBooking = onCall({ operation: 'advanceMerchantBooking', r
     transaction.update(bookingRef, { status: next, ...(next === 'ready' ? { dispatchStartedAt: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
     transaction.create(db.doc(`bookings/${bookingId}/events/merchant_${next}`), { stage, actorRole: 'merchant', actorId: uid, createdAt: new Date().toISOString() });
     return { status: next };
+  });
+});
+
+exports.confirmMerchantPickup = onCall({ operation: 'confirmMerchantPickup', region: REGION }, async request => {
+  const uid = requireUser(request), bookingId = documentId(request.data?.bookingId, 'Booking ID');
+  return db.runTransaction(async transaction => {
+    const bookingRef = db.doc(`bookings/${bookingId}`), booking = await transaction.get(bookingRef), account = await transaction.get(db.doc(`users/${uid}`));
+    const data = booking.data(), type = data?.serviceType === 'food' ? 'restaurant' : data?.serviceType === 'grocery' ? 'grocery' : null;
+    if (!data || !type || !merchantHasPermission(account.data(), data.merchantId, type, 'orders')) throw new HttpsError('permission-denied', 'This order is not assigned to your business or your account cannot manage orders.');
+    if (data.status !== 'preparing' || !data.driverId || !data.arrivedAtPickup || data.exception?.status === 'open' || !['paid', 'pending_cod'].includes(data.paymentStatus)) throw new HttpsError('failed-precondition', 'A delivery partner must arrive and the order must be clear for handoff before you can confirm pickup.');
+    const eventRef = bookingRef.collection('events').doc(`merchant_pickup_${data.driverId}`), event = await transaction.get(eventRef);
+    if (event.exists) return { confirmed: true };
+    const now = new Date().toISOString();
+    transaction.update(bookingRef, { merchantPickupConfirmedAt: now, updatedAt: now });
+    transaction.create(eventRef, { stage: 'merchant_pickup_confirmed', actorRole: 'merchant', actorId: uid, driverId: data.driverId, createdAt: now });
+    return { confirmed: true };
   });
 });
 
@@ -1039,7 +1055,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
     const codeRef = db.doc(`booking_codes/${bookingId}`), proofRef = db.doc(`booking_delivery_proofs/${bookingId}`), pickupInspectionRef = bookingRef.collection('events').doc('transport_inspection_pickup'), deliveryInspectionRef = bookingRef.collection('events').doc('transport_inspection_delivery');
     const settlementOrderRef = db.doc(`merchant_settlement_orders/${bookingId}`);
-    const [booking, driver, code, account, eligibility, proof, merchantReadyEvent, pickupInspection, deliveryInspection, settlementOrder] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`)), transaction.get(proofRef), transaction.get(bookingRef.collection('events').doc('merchant_ready')), transaction.get(pickupInspectionRef), transaction.get(deliveryInspectionRef), transaction.get(settlementOrderRef)]);
+    const [booking, driver, code, account, eligibility, proof, merchantReadyEvent, merchantPickupEvent, pickupInspection, deliveryInspection, settlementOrder] = await Promise.all([transaction.get(bookingRef), transaction.get(driverRef), transaction.get(codeRef), transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(`driver_eligibility/${uid}`)), transaction.get(proofRef), transaction.get(bookingRef.collection('events').doc('merchant_ready')), transaction.get(bookingRef.collection('events').doc(`merchant_pickup_${uid}`)), transaction.get(pickupInspectionRef), transaction.get(deliveryInspectionRef), transaction.get(settlementOrderRef)]);
     const data = booking.data();
     const completedReplay = data?.driverId === uid && data.status === 'completed' && next === 'completed';
     if (!data || data.driverId !== uid || account.data()?.role !== 'driver' || account.data()?.suspended === true || account.data()?.disabled === true || driver.data()?.status !== 'verified' && !completedReplay) throw new HttpsError('permission-denied', 'Verified driver access and assignment are required for this job.');
@@ -1053,7 +1069,10 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
       try { requireTransportInspection(next === 'transit' ? 'pickup' : 'delivery', (next === 'transit' ? pickupInspection : deliveryInspection).data()); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
     }
-    if (next === 'transit') requireMerchantReady(data.serviceType, merchantReadyEvent.exists);
+    if (next === 'transit') {
+      requireMerchantReady(data.serviceType, merchantReadyEvent.exists);
+      requireMerchantPickup(data.serviceType, merchantPickupEvent.exists);
+    }
     const transition = driverTransition(data.serviceType, data.status, next);
     if (transition.requiresPickupCode) {
       const confirmation = code.data();
@@ -1167,7 +1186,7 @@ exports.rejectDriverBooking = onCall({ operation: 'rejectDriverBooking', region:
     if (!['pending', 'ready', 'accepted', 'preparing'].includes(data.status) || !['paid', 'pending_cod'].includes(data.paymentStatus)) throw new HttpsError('failed-precondition', 'This job cannot be rejected at its current stage. Contact operations.');
     const rejectedBookingIds = [...new Set([...(driver.data().rejectedBookingIds || []), bookingId])].slice(-100);
     transaction.update(driverRef, { rejectedBookingIds, ...(data.driverId === uid ? { activeBookingId: null } : {}) });
-    if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), arrivedAtPickup: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', dispatchStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...(data.serviceType === 'transport' && data.transportOperatorId ? { transportVehicleId: FieldValue.delete(), 'transportAssignment.status': 'rejected', 'transportAssignment.rejectedAt': new Date().toISOString() } : {}) });
+    if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), arrivedAtPickup: FieldValue.delete(), merchantPickupConfirmedAt: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', dispatchStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...(data.serviceType === 'transport' && data.transportOperatorId ? { transportVehicleId: FieldValue.delete(), 'transportAssignment.status': 'rejected', 'transportAssignment.rejectedAt': new Date().toISOString() } : {}) });
     else if (data.serviceType === 'transport' && data.transportAssignment?.status === 'offered' && data.transportAssignment.driverId === uid) transaction.update(bookingRef, { 'transportAssignment.status': 'rejected', 'transportAssignment.rejectedAt': new Date().toISOString(), updatedAt: new Date().toISOString() });
     transaction.set(db.doc(`dispatch_events/${crypto.randomUUID()}`), { bookingId, driverId: uid, action: 'rejected', createdAt: Timestamp.now() });
     return { status: 'rejected' };

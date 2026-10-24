@@ -25,6 +25,7 @@ function bookingNotificationContent(booking, previous) {
     const place = booking.serviceType === 'food' ? 'restaurant' : booking.serviceType === 'grocery' ? 'store' : 'pickup location';
     return { type: 'driver_arrived_at_pickup', title: 'Delivery partner at pickup', body: `Your delivery partner has arrived at the ${place} for ${service.toLowerCase()} ${booking.bookingId}.` };
   }
+  if (booking.merchantPickupConfirmedAt && booking.merchantPickupConfirmedAt !== previous.merchantPickupConfirmedAt) return { type: 'merchant_pickup_confirmed', title: 'Pickup confirmed', body: `${service} ${booking.bookingId} has been handed to the delivery partner.` };
   if (booking.details?.pickupTimeReview?.status !== previous.details?.pickupTimeReview?.status && booking.details?.pickupTimeReview?.status) {
     const confirmed = booking.details.pickupTimeReview.status === 'confirmed';
     return { type: `pickup_time_${booking.details.pickupTimeReview.status}`, title: confirmed ? 'Pickup time confirmed' : 'Pickup time declined', body: `${service} ${booking.bookingId}: operations ${confirmed ? 'confirmed' : 'declined'} the requested pickup time.` };

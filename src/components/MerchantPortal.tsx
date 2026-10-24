@@ -47,6 +47,7 @@ import GroceryPickingEditor from './GroceryPickingEditor';
 import { isGroceryOrderFullyPicked } from '../design-system/groceryTracking';
 import { 
   advanceMerchantBooking,
+  confirmMerchantPickup,
   listenToMenuItems, 
   listenToGroceryProducts, 
   updateMerchantCatalog,
@@ -141,6 +142,10 @@ export default function MerchantPortal({ activeBookings, userId, merchantId, mer
 
   const handleMarkOrderReady = async (bookingId: string) => {
     await performAction(bookingId, () => advanceMerchantBooking(bookingId, 'ready'));
+  };
+
+  const handleConfirmMerchantPickup = async (bookingId: string) => {
+    await performAction(bookingId, () => confirmMerchantPickup(bookingId));
   };
 
   if (!activeMerchantId || !activeMerchantType) return (
@@ -340,9 +345,12 @@ export default function MerchantPortal({ activeBookings, userId, merchantId, mer
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                             <div>
                               <p className="font-bold text-white">Rider at store: {ord.driverName || 'Delivery Partner'}</p>
-                              <p className="text-[10px] text-emerald-300/80">Rider has arrived. Please hand over the packed order.</p>
+                              <p className="text-[10px] text-emerald-300/80">Rider has arrived. Hand over the packed order, then confirm the handoff.</p>
                             </div>
                           </div>
+                          {!ord.merchantPickupConfirmedAt ? (
+                            <button type="button" disabled={Boolean(busy)} onClick={() => void handleConfirmMerchantPickup(ord.bookingId)} className="mt-2 w-full rounded-lg bg-emerald-600 px-3 py-2 font-bold text-white disabled:opacity-50">Confirm order handed to rider</button>
+                          ) : <p role="status" className="mt-2 text-center text-[10px] font-bold text-emerald-200">Pickup handoff confirmed</p>}
                         </div>
                       )}
 

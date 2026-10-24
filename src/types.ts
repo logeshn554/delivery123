@@ -130,6 +130,7 @@ export interface Booking {
   settlementContract?: PartnerSettlementContract;
   driverSettlement?: { version: number; serviceType: Booking['serviceType']; baseCents: number; distanceCents: number; plannedDurationCents: number; waitingCents: number; waitMinutes: number; totalCents: number; capApplied: boolean };
   arrivedAtPickup?: string;
+  merchantPickupConfirmedAt?: string;
   arrivedAtDestination?: string;
   pickupCompletedAt?: string;
   priceBreakdown?: PriceBreakdown;

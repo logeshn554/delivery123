@@ -42,3 +42,11 @@ test('food and grocery notifications report the delivery partner arrival locatio
   }
 });
 
+test('merchant handoff confirmation produces a pickup notification', () => {
+  const previous = { bookingId: 'ALLGO_HANDOFF', serviceType: 'food', status: 'preparing', paymentStatus: 'paid', driverId: 'driver-1' };
+  assert.deepEqual(bookingNotificationContent({ ...previous, merchantPickupConfirmedAt: '2026-10-24T10:01:00.000Z' }, previous), {
+    type: 'merchant_pickup_confirmed', title: 'Pickup confirmed',
+    body: 'Food order ALLGO_HANDOFF has been handed to the delivery partner.',
+  });
+});
+

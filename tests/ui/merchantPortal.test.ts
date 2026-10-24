@@ -55,6 +55,12 @@ test("incoming orders queue plays chime for new orders and displays client, item
   assert.match(portal, /Accept & Start Preparation/);
 });
 
+test('merchant portal confirms packed-order handoff after the rider arrives', () => {
+  assert.match(portal, /confirmMerchantPickup/);
+  assert.match(portal, /Confirm order handed to rider/);
+  assert.match(portal, /Pickup handoff confirmed/);
+});
+
 // TASK-107: Preparation & grocery picking
 test("preparation editor submits ready-in minutes with customer-visible reason", () => {
   assert.match(prep, /updateMerchantPreparation/);
