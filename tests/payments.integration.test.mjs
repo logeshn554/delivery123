@@ -29,6 +29,26 @@ beforeEach(async () => {
 });
 after(async () => { await db.terminate(); await getApp().delete(); });
 const callable = (name, uid, data, admin = false) => compiled.exports[name].run({ data, auth: { uid, token: { admin, auth_time: Math.floor(Date.now() / 1000) } }, rawRequest: { ip:'127.0.0.1' } });
+test('merchant settlement terms require reviewed business, owner acceptance and replay-safe versioned agreement', async () => {
+  await db.doc('users/admin').set({ uid: 'admin', role: 'admin' });
+  await db.doc('users/merchant').set({ uid: 'merchant', role: 'merchant', merchantId: 'restaurant_1', merchantType: 'restaurant' });
+  await db.doc('restaurants/restaurant_1').set({ ownerId: 'merchant', onboardingStatus: 'approved', merchantEligibility: { status: 'verified' } });
+  const terms = { merchantId: 'restaurant_1', merchantType: 'restaurant', commissionBps: 875, expectedVersion: 0, agreementReference: 'EXECUTED-AGREEMENT-1', reason: 'Verified signed agreement against business record.', reviewed: true };
+  await assert.rejects(callable('setMerchantSettlementTerms', 'customer', terms, true), error => error.code === 'permission-denied');
+  await assert.rejects(callable('setMerchantSettlementTerms', 'admin', { ...terms, commissionBps: 10001 }, true), error => error.code === 'invalid-argument');
+  assert.deepEqual(await callable('setMerchantSettlementTerms', 'admin', terms, true), { status: 'pending_acceptance', version: 1 });
+  const agreement = await callable('getMerchantSettlementAgreement', 'merchant', { merchantId: 'restaurant_1', merchantType: 'restaurant' });
+  assert.equal(agreement.status, 'pending_acceptance');
+  assert.equal(agreement.commissionBps, 875);
+  const acceptance = { merchantId: 'restaurant_1', merchantType: 'restaurant', expectedVersion: 1, requestId: 'accept_restaurant_1_v1', accepted: true };
+  await assert.rejects(callable('acceptMerchantSettlementAgreement', 'customer', acceptance), error => error.code === 'permission-denied');
+  assert.deepEqual(await callable('acceptMerchantSettlementAgreement', 'merchant', acceptance), { status: 'active', version: 1 });
+  assert.deepEqual(await callable('acceptMerchantSettlementAgreement', 'merchant', acceptance), { status: 'active', version: 1 });
+  const active = (await db.doc('merchant_settlement_contracts/restaurant_1').get()).data();
+  assert.equal(active.status, 'active');
+  assert.equal(active.acceptedBy, 'merchant');
+  assert.equal((await db.collection('merchant_settlement_contracts/restaurant_1/events').get()).size, 2);
+});
 const collectSignature = async (bookingId, requestId = `signature_${bookingId}`) => {
   const code = (await db.doc(`booking_codes/${bookingId}`).get()).data()?.code;
   return callable('saveDeliverySignature', 'driver', { bookingId, requestId, consent: true, otp: code, policyVersion: 1, privacyPolicyUrl: 'https://example.test/privacy', strokes: [[{ x: 0.1, y: 0.6 }, { x: 0.3, y: 0.4 }, { x: 0.6, y: 0.7 }, { x: 0.9, y: 0.3 }]] });

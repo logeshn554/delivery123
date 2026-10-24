@@ -29,3 +29,9 @@ test('merchant settlement fails closed on missing, mismatched, malformed or unre
   assert.throws(() => calculateMerchantSettlement(booking({ priceBreakdown: { ...booking().priceBreakdown, totalCents: 9 } })));
   assert.throws(() => calculateMerchantSettlement(booking({ price: 99 })));
 });
+
+test('a pending agreement is valid only for the explicit owner-acceptance transition', () => {
+  const pending = { merchantId: 'store1', serviceType: 'grocery', version: 3, commissionBps: 1200, agreementReference: 'AGREEMENT-1' };
+  assert.throws(() => merchantSettlementPolicy(pending, 'store1', 'grocery'));
+  assert.deepEqual(merchantSettlementPolicy(pending, 'store1', 'grocery', { requireAccepted: false }), pending);
+});

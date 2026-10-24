@@ -42,7 +42,7 @@ function merchantSettlementFunctions({ onCall, db, REGION, HttpsError, documentI
         }
         if (!accountSnap.exists || accountSnap.data().role !== 'merchant' || accountSnap.data().disabled === true || accountSnap.data().suspended === true || !merchantHasBusiness(accountSnap.data(), merchantId, merchantType) || !business || business.ownerId !== uid || business.merchantEligibility?.status !== 'verified' || business.onboardingStatus !== 'approved' || agreement?.serviceType !== serviceType || agreement.version !== data.expectedVersion || agreement.status !== 'pending_acceptance') throw new HttpsError('failed-precondition', 'This business or agreement is not eligible for acceptance. Reload the current terms.');
         let accepted;
-        try { accepted = merchantSettlementPolicy(agreement, merchantId, serviceType); }
+        try { accepted = merchantSettlementPolicy(agreement, merchantId, serviceType, { requireAccepted: false }); }
         catch (error) { throw new HttpsError('failed-precondition', error.message); }
         const now = Timestamp.now();
         tx.update(agreementRef, { ...accepted, status: 'active', acceptedBy: uid, acceptedAt: now, updatedAt: now });

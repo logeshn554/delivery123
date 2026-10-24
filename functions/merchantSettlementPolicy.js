@@ -4,14 +4,14 @@ function addCents(balance, change) {
   return result;
 }
 
-function merchantSettlementPolicy(input, merchantId, serviceType) {
-  if (!input || input.merchantId !== merchantId || input.serviceType !== serviceType || !Number.isSafeInteger(input.version) || input.version < 1 || typeof input.acceptedBy !== 'string' || !input.acceptedBy || typeof input.agreementReference !== 'string' || !input.agreementReference) {
+function merchantSettlementPolicy(input, merchantId, serviceType, { requireAccepted = true } = {}) {
+  if (!input || input.merchantId !== merchantId || input.serviceType !== serviceType || !Number.isSafeInteger(input.version) || input.version < 1 || requireAccepted && (typeof input.acceptedBy !== 'string' || !input.acceptedBy) || typeof input.agreementReference !== 'string' || !input.agreementReference) {
     throw new Error('This order has no matching, versioned merchant settlement agreement.');
   }
   if (!['food', 'grocery'].includes(serviceType) || !Number.isSafeInteger(input.commissionBps) || input.commissionBps < 0 || input.commissionBps > 10000) {
     throw new Error('The merchant commission agreement needs operations review.');
   }
-  return { merchantId, serviceType, version: input.version, commissionBps: input.commissionBps, acceptedBy: input.acceptedBy, agreementReference: input.agreementReference };
+  return { merchantId, serviceType, version: input.version, commissionBps: input.commissionBps, ...(input.acceptedBy ? { acceptedBy: input.acceptedBy } : {}), agreementReference: input.agreementReference };
 }
 
 function calculateMerchantSettlement(booking) {
