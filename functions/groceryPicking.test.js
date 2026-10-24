@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { fullyPicked, nextPickingRevision, pickedQuantityAdjustment } = require('./groceryPicking');
+const { fullyPicked, nextPickingRevision, pickedQuantityAdjustment, buildShortageRecord } = require('./groceryPicking');
 class HttpsError extends Error { constructor(code, message) { super(message); this.code = code; } }
 
 test('picking revisions advance safely, reject stale commands and cannot overflow or normalize corruption', () => {
@@ -32,4 +32,14 @@ test('short picks adjust the authoritative total and reject malformed quantity r
   assert.equal(pickedQuantityAdjustment(booking, 0, -1, HttpsError), null);
   const couponBooking = { price: 1, couponTerms: { type: 'fixed', minAmountCents: 1000, discountCents: 1000 }, details: { items: [{ id: 'apple', price: 3, quantity: 2 }] }, priceBreakdown: { itemCents: 600, deliveryCents: 500, packagingCents: 0, platformCents: 0, taxCents: 0, taxBps: 0, discountCents: 1000, totalCents: 100 } };
   assert.equal(pickedQuantityAdjustment(couponBooking, 0, 1, HttpsError).totalDeltaCents, 700);
+});
+test('short-pick history keeps original quantities and cumulative wallet changes', () => {
+  const first = buildShortageRecord(null, { id: 'milk', name: 'Milk', quantity: 3 }, 2, -1000, 1000, 'now', HttpsError);
+  assert.deepEqual(first, { itemId: 'milk', itemName: 'Milk', orderedQuantity: 3, packedQuantity: 2, missingQuantity: 1, orderTotalDeltaCents: -1000, walletDeltaCents: 1000, updatedAt: 'now' });
+  const second = buildShortageRecord(first, { id: 'milk', name: 'Milk', quantity: 2 }, 1, -1000, 1000, 'later', HttpsError);
+  assert.equal(second.orderedQuantity, 3);
+  assert.equal(second.missingQuantity, 2);
+  assert.equal(second.orderTotalDeltaCents, -2000);
+  assert.equal(second.walletDeltaCents, 2000);
+  assert.throws(() => buildShortageRecord(first, { id: 'milk', name: 'Milk', quantity: 1 }, 0, 0, 0, 'later', HttpsError), error => error.code === 'failed-precondition');
 });

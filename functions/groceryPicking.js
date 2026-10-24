@@ -29,6 +29,14 @@ function pickedQuantityAdjustment(booking, lineIndex, quantity, HttpsError) {
   return { returnedQuantity, deltaCents, totalDeltaCents, price };
 }
 
+function buildShortageRecord(previous, item, quantity, orderTotalDeltaCents, walletDeltaCents, updatedAt, HttpsError) {
+  if (!item || typeof item.id !== 'string' || typeof item.name !== 'string' || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || !Number.isSafeInteger(quantity) || quantity < 0 || quantity >= item.quantity || !Number.isSafeInteger(orderTotalDeltaCents) || !Number.isSafeInteger(walletDeltaCents)) throw new HttpsError('failed-precondition', 'The grocery short-pick record needs operations review.');
+  if (previous && (!Number.isSafeInteger(previous.orderedQuantity) || previous.orderedQuantity < item.quantity || previous.packedQuantity !== item.quantity || previous.missingQuantity !== previous.orderedQuantity - item.quantity || !Number.isSafeInteger(previous.orderTotalDeltaCents) || !Number.isSafeInteger(previous.walletDeltaCents))) throw new HttpsError('failed-precondition', 'The prior grocery short-pick record needs operations review.');
+  const orderTotalCents = (previous?.orderTotalDeltaCents || 0) + orderTotalDeltaCents, walletCents = (previous?.walletDeltaCents || 0) + walletDeltaCents;
+  if (!Number.isSafeInteger(orderTotalCents) || !Number.isSafeInteger(walletCents)) throw new HttpsError('failed-precondition', 'The cumulative grocery adjustment needs operations review.');
+  return { itemId: item.id, itemName: item.name, orderedQuantity: previous?.orderedQuantity ?? item.quantity, packedQuantity: quantity, missingQuantity: (previous?.orderedQuantity ?? item.quantity) - quantity, orderTotalDeltaCents: orderTotalCents, walletDeltaCents: walletCents, updatedAt };
+}
+
 function fullyPicked(booking) {
   const items = booking?.details?.items;
   return Array.isArray(items) && items.length > 0 && items.every((item, index) => {
@@ -87,11 +95,14 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
           }
         }
         const revision = nextPickingRevision(booking.picking?.revision, expectedRevision, HttpsError), now = new Date().toISOString(), lines = { ...(booking.picking?.lines || {}), [String(lineIndex)]: { itemId: item.id, quantity } };
-        const updates = { picking: { ...(booking.picking || {}), revision, lines, updatedAt: now }, updatedAt: now };
+        const picking = { ...(booking.picking || {}), revision, lines, updatedAt: now };
         if (adjustment) {
           const items = [...booking.details.items];
           items[lineIndex] = { ...item, quantity, ...(quantity === 0 ? { price: 0, removed: true } : {}) };
-          Object.assign(updates, { details: { ...booking.details, items }, price: adjustment.price.totalCents / 100, originalPrice: adjustment.price.grossCents / 100, couponDiscountCents: adjustment.price.discountCents, priceBreakdown: { ...booking.priceBreakdown, itemCents: adjustment.price.itemCents, taxCents: adjustment.price.taxCents, discountCents: adjustment.price.discountCents, totalCents: adjustment.price.totalCents } });
+          const key = String(lineIndex), priorShortage = picking.shortages?.[key];
+          const walletDeltaCents = customerRef ? -adjustment.totalDeltaCents : 0;
+          picking.shortages = { ...(picking.shortages || {}), [key]: buildShortageRecord(priorShortage, item, quantity, adjustment.totalDeltaCents, walletDeltaCents, now, HttpsError) };
+          const updates = { details: { ...booking.details, items }, price: adjustment.price.totalCents / 100, originalPrice: adjustment.price.grossCents / 100, couponDiscountCents: adjustment.price.discountCents, priceBreakdown: { ...booking.priceBreakdown, itemCents: adjustment.price.itemCents, taxCents: adjustment.price.taxCents, discountCents: adjustment.price.discountCents, totalCents: adjustment.price.totalCents } };
           tx.update(productRef, { stock: product.stock + adjustment.returnedQuantity });
           recordStockMovement(tx, productRef, `picking_short_return_${bookingId}_${requestId}`, 'return', product.stock, product.stock + adjustment.returnedQuantity, { bookingId, lineIndex });
           if (customerRef && adjustment.totalDeltaCents !== 0) {
@@ -103,8 +114,10 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
           if (codAttemptRef) {
             tx.update(codAttemptRef, { amount: adjustment.price.totalCents, items, booking: { ...codAttempt.booking, details: { ...codAttempt.booking.details, items }, price: adjustment.price.totalCents / 100, originalPrice: adjustment.price.grossCents / 100, couponDiscountCents: adjustment.price.discountCents, priceBreakdown: { ...booking.priceBreakdown, itemCents: adjustment.price.itemCents, taxCents: adjustment.price.taxCents, discountCents: adjustment.price.discountCents, totalCents: adjustment.price.totalCents } } });
           }
+          tx.update(ref, { ...updates, picking, updatedAt: now });
+        } else {
+          tx.update(ref, { picking, updatedAt: now });
         }
-        tx.update(ref, updates);
         tx.create(eventRef, { stage: 'grocery_picking_confirmed', actorId: uid, actorRole: 'merchant', itemId: item.id, lineIndex, quantity, ...(adjustment ? { returnedQuantity: adjustment.returnedQuantity, priceCents: adjustment.price.totalCents, walletDeltaCents: customerRef ? -adjustment.totalDeltaCents : 0 } : {}), expectedRevision, revision, createdAt: now });
         return { revision, ...(adjustment ? { price: adjustment.price.totalCents / 100, walletDelta: customerRef ? -adjustment.totalDeltaCents / 100 : 0 } : {}) };
       });
@@ -126,6 +139,7 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         const items = booking.details?.items, item = items?.[lineIndex], currentRevision = booking.picking?.revision ?? 0;
         if (!Number.isSafeInteger(currentRevision) || currentRevision !== expectedRevision) throw new HttpsError(currentRevision === expectedRevision ? 'failed-precondition' : 'aborted', 'Picking changed. Refresh the order and review it.');
         if (!item || item.removed || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || !Number.isFinite(item.price) || item.id === replacementId) throw new HttpsError('failed-precondition', 'This order line cannot be replaced.');
+        if (booking.picking?.shortages?.[String(lineIndex)]) throw new HttpsError('failed-precondition', 'This line already has a confirmed short pick. Refresh the order before making another adjustment.');
         if (Object.values(booking.picking?.substitutions || {}).some(entry => entry.status === 'pending')) throw new HttpsError('failed-precondition', 'Another grocery item is already awaiting the customer. Finish that decision first.');
         const productRef = db.doc(`grocery_stores/${booking.merchantId}/products/${replacementId}`), productSnap = await tx.get(productRef), product = productSnap.data();
         if (!productSnap.exists || !productWithinExpiry(product) || !Number.isSafeInteger(product.stock) || product.stock < item.quantity || typeof product.name !== 'string' || !product.name.trim() || !Number.isFinite(product.price) || !Number.isSafeInteger(Math.round(product.price * 100)) || product.price <= 0) throw new HttpsError('failed-precondition', 'The replacement is unavailable or its catalog details need review.');
@@ -203,4 +217,4 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
     })
   };
 }
-module.exports = { fullyPicked, groceryPickingFunctions, nextPickingRevision, pickedQuantityAdjustment, replacementTotal };
+module.exports = { fullyPicked, groceryPickingFunctions, nextPickingRevision, pickedQuantityAdjustment, replacementTotal, buildShortageRecord };

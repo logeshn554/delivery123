@@ -127,9 +127,17 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
           {(() => {
             const progress = getGroceryPickingProgress(booking);
             const hasPendingSub = Object.values(booking.picking?.substitutions || {}).some(s => s.status === 'pending');
+            const shortages = Object.entries(booking.picking?.shortages || {}).filter(([, shortage]) => shortage.missingQuantity > 0);
             return (
               <>
                 <p>{progress.total ? `${progress.packed} of ${progress.total} order lines fully packed.` : 'Packing details have not been shared yet.'}</p>
+                {shortages.map(([lineIndex, shortage]) => (
+                  <p key={lineIndex} className="mt-1 text-amber-200">
+                    {shortage.itemName}: {shortage.packedQuantity} of {shortage.orderedQuantity} packed; {shortage.missingQuantity} unavailable.
+                    {shortage.orderTotalDeltaCents !== 0 ? ` Total ${shortage.orderTotalDeltaCents < 0 ? 'decreased' : 'increased'} by ₹${(Math.abs(shortage.orderTotalDeltaCents) / 100).toFixed(2)}.` : ''}
+                    {shortage.walletDeltaCents > 0 ? ` ₹${(shortage.walletDeltaCents / 100).toFixed(2)} was credited to your AllGo wallet.` : shortage.walletDeltaCents < 0 ? ` ₹${(Math.abs(shortage.walletDeltaCents) / 100).toFixed(2)} was applied from your AllGo wallet to the adjusted total.` : ''}
+                  </p>
+                ))}
                 {hasPendingSub && (
                   <p className="text-amber-300 font-bold mt-1">
                     An item replacement requires your review below.
