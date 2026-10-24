@@ -27,6 +27,7 @@ function tripBundleFunctions({
   recordStockMovement,
   productWithinExpiry,
   calculateDriverSettlement,
+  calculateMerchantSettlement,
   addCents,
   journal,
   CURRENCY,
@@ -541,6 +542,7 @@ function tripBundleFunctions({
           details: leg.details || null,
           priceBreakdown: leg.priceBreakdown,
           settlementContract: leg.settlementContract || null,
+          merchantSettlementContract: leg.merchantSettlementContract || null,
           createdAt: now,
           updatedAt: now,
         });
@@ -739,6 +741,19 @@ function tripBundleFunctions({
       if (nextStatus === 'completed' || nextStatus === 'delivered') {
         updates.completedAt = now;
 
+        let merchantSettlement, merchantBalanceRef, merchantBalanceSnap, merchantEntryRef, merchantEntrySnap;
+        if (leg.merchantSettlementContract) {
+          try { merchantSettlement = calculateMerchantSettlement({ ...leg, bookingId: leg.legId || legId, serviceType: leg.type, status: 'completed', completedAt: now }); }
+          catch (error) { throw new HttpsError('failed-precondition', error.message); }
+          merchantBalanceRef = db.doc(`merchant_balances/${leg.merchantId}`);
+          merchantEntryRef = db.doc(`merchant_ledger/${leg.merchantId}/entries/${leg.legId || legId}`);
+          [merchantBalanceSnap, merchantEntrySnap] = await Promise.all([tx.get(merchantBalanceRef), tx.get(merchantEntryRef)]);
+          if (merchantEntrySnap.exists) throw new HttpsError('failed-precondition', 'This order already has a merchant settlement entry. Contact operations to reconcile the duplicate completion.');
+          const available = merchantBalanceSnap.data()?.availableCents ?? 0, reserved = merchantBalanceSnap.data()?.reservedCents ?? 0;
+          if (!Number.isSafeInteger(available) || available < 0 || !Number.isSafeInteger(reserved) || reserved < 0 || !Number.isSafeInteger(available + merchantSettlement.payableCents)) throw new HttpsError('failed-precondition', 'The merchant balance needs operations reconciliation.');
+          updates.merchantSettlement = merchantSettlement;
+        }
+
         // Calculate partner settlement
         let payoutCents = 0;
         if (leg.settlementContract) {
@@ -771,6 +786,12 @@ function tripBundleFunctions({
             payoutCents,
             { bundleId, legId, driverId: uid }
           ));
+        }
+        if (merchantSettlement) {
+          const available = merchantBalanceSnap.data()?.availableCents ?? 0, reserved = merchantBalanceSnap.data()?.reservedCents ?? 0;
+          tx.set(merchantBalanceRef, { merchantId: leg.merchantId, serviceType: leg.type, currency: CURRENCY, availableCents: addCents(available, merchantSettlement.payableCents), reservedCents: reserved, updatedAt: Timestamp.now() }, { merge: true });
+          tx.create(merchantEntryRef, { ...merchantSettlement, kind: 'order_earning', amountCents: merchantSettlement.payableCents, createdAt: Timestamp.now() });
+          if (merchantSettlement.payableCents > 0) tx.create(db.doc(`financial_journals/merchant_earning_${leg.legId || legId}`), journal('merchant_earning', 'booking_funds_unallocated', 'merchant_payable', merchantSettlement.payableCents, { bundleId, legId: leg.legId || legId, merchantId: leg.merchantId, commissionCents: merchantSettlement.commissionCents, contractVersion: merchantSettlement.contractVersion }));
         }
       }
 

@@ -45,6 +45,23 @@ export function listenToOrderReviews(uid: string, callback: (reviews: { id:strin
   return onSnapshot(query(collection(db,'order_reviews'),where('userId','==',uid)),snapshot=>callback(snapshot.docs.map(item=>({id:item.id,...item.data()} as { id:string; bookingId:string; rating:number; comment:string; createdAt:string }))),onError);
 }
 export type UserNotification = { id: string; eventId: string; bookingId?: string; audience: string[]; type: string; title: string; body: string; createdAt: { toDate: () => Date }; readAt: unknown | null; deliveryStatus: 'sending' | 'sent' | 'partial' | 'failed' | 'in_app'; deliveryError?: string };
+export type MerchantSettlementEntry = { bookingId: string; merchantId: string; serviceType: 'food' | 'grocery'; contractVersion: number; commissionBps: number; itemValueCents: number; discountCents: number; commissionCents: number; payableCents: number; createdAt: { toDate: () => Date } };
+export type MerchantSettlementBalance = { merchantId: string; serviceType: 'food' | 'grocery'; currency: string; availableCents: number; reservedCents: number; updatedAt: { toDate: () => Date } };
+export type MerchantSettlementAgreement = { status: 'not_configured' | 'pending_acceptance' | 'active'; version: number; serviceType?: 'food' | 'grocery'; commissionBps?: number; agreementReference?: string; acceptedAt?: unknown };
+export async function getMerchantSettlementAgreement(merchantId: string, merchantType: 'restaurant' | 'grocery') {
+  return (await httpsCallable(functions, 'getMerchantSettlementAgreement')({ merchantId, merchantType })).data as MerchantSettlementAgreement;
+}
+export async function acceptMerchantSettlementAgreement(input: { merchantId: string; merchantType: 'restaurant' | 'grocery'; expectedVersion: number; requestId: string; accepted: true }) {
+  return (await httpsCallable(functions, 'acceptMerchantSettlementAgreement')(input)).data as { status: string; version: number };
+}
+export function listenToMerchantSettlementBalance(merchantId: string, merchantType: 'restaurant' | 'grocery', callback: (balance: MerchantSettlementBalance | null) => void, onError: (error: unknown) => void) {
+  return onSnapshot(doc(db, 'merchant_balances', merchantId), snapshot => callback(snapshot.exists() ? snapshot.data() as MerchantSettlementBalance : null), onError);
+}
+export function listenToMerchantSettlementEntries(merchantId: string, merchantType: 'restaurant' | 'grocery', callback: (entries: MerchantSettlementEntry[]) => void, onError: (error: unknown) => void) {
+  const serviceType = merchantType === 'restaurant' ? 'food' : 'grocery';
+  const records = collection(db, `merchant_ledger/${merchantId}/entries`);
+  return onSnapshot(query(records, where('merchantId', '==', merchantId), where('serviceType', '==', serviceType), orderBy('createdAt', 'desc'), limit(50)), snapshot => callback(snapshot.docs.map(item => item.data() as MerchantSettlementEntry)), onError);
+}
 export function listenToUserNotifications(uid: string, callback: (items: UserNotification[]) => void, onError: (error: unknown) => void) {
   return onSnapshot(query(collection(db, `user_notifications/${uid}/items`), orderBy('createdAt', 'desc'), limit(50)), snapshot => callback(snapshot.docs.map(item => ({ id: item.id, ...item.data() }) as UserNotification)), onError);
 }

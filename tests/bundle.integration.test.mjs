@@ -194,7 +194,11 @@ beforeEach(async () => {
     name: 'Test Restaurant',
     address: '100 Food Street, Central Zone',
     acceptingOrders: true,
+    ownerId: 'merchant_1',
+    onboardingStatus: 'approved',
+    merchantEligibility: { status: 'verified' },
   });
+  await db.doc('merchant_settlement_contracts/rest_1').set({ merchantId: 'rest_1', merchantType: 'restaurant', serviceType: 'food', version: 1, commissionBps: 1000, acceptedBy: 'merchant_1', agreementReference: 'signed-test-agreement-1', status: 'active' });
   await db.doc('restaurants/rest_1/menu_items/dish_1').set({
     name: 'Special Biryani',
     price: 250,
@@ -216,6 +220,7 @@ beforeEach(async () => {
   // Seed users
   await db.doc('users/customer_1').set({ uid: 'customer_1', name: 'Alice Customer', role: 'customer' });
   await db.doc('users/customer_2').set({ uid: 'customer_2', name: 'Bob Customer', role: 'customer' });
+  await db.doc('users/merchant_1').set({ uid: 'merchant_1', name: 'Test Restaurant Owner', role: 'merchant', merchantId: 'rest_1', merchantType: 'restaurant' });
   await db.doc('users/driver_ride').set({ uid: 'driver_ride', name: 'Dave RideDriver', role: 'driver' });
   await db.doc('driver_profiles/driver_ride').set({
     driverId: 'driver_ride',
@@ -551,6 +556,22 @@ test('driverDetourPickup - ride driver picks up detour food leg using merchant O
   assert.equal(detourRes.status, 'transit');
   const updatedFoodLeg = await db.doc(`bundles/${checkout.bundleId}/legs/${foodLeg.id}`).get();
   assert.equal(updatedFoodLeg.data().status, 'transit');
+});
+
+test('completed bundled food legs accrue seller earnings from their locked commission contract', async () => {
+  await db.doc('bundles/merchant_earning_bundle').set({ bundleId: 'merchant_earning_bundle', customerId: 'customer_1', status: 'active', paymentStatus: 'paid', legCount: 1 });
+  await db.doc('bundles/merchant_earning_bundle/legs/LEG_1').set({
+    legId: 'LEG_1', type: 'food', merchantId: 'rest_1', driverId: 'driver_ride', status: 'transit',
+    priceBreakdown: { itemCents: 25000, deliveryCents: 1000, rideFareCents: 0, detourCents: 0, packagingCents: 100, platformCents: 100, taxCents: 1000, discountCents: 1000, totalCents: 26200 },
+    merchantSettlementContract: { merchantId: 'rest_1', serviceType: 'food', version: 4, commissionBps: 2000, acceptedBy: 'merchant_1', agreementReference: 'signed-test-agreement-4' },
+    settlementContract: { serviceType: 'food', version: 1, baseCents: 1000, maxPayoutCents: 1000 },
+  });
+  await db.doc('bundle_codes/merchant_earning_bundle').set({ legs: { LEG_1: { code: '4242' } } });
+  await callable('advanceBundleLegDriver', 'driver_ride', { bundleId: 'merchant_earning_bundle', legId: 'LEG_1', status: 'completed', otp: '4242' });
+  const leg = (await db.doc('bundles/merchant_earning_bundle/legs/LEG_1').get()).data();
+  assert.equal(leg.merchantSettlement.payableCents, 19200);
+  assert.equal((await db.doc('merchant_balances/rest_1').get()).data().availableCents, 19200);
+  assert.equal((await db.doc('merchant_ledger/rest_1/entries/LEG_1').get()).data().commissionCents, 4800);
 });
 
 // 7. separatePartnerDispatch: food leg gets separate driver when ride driver unavailable

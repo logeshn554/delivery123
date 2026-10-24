@@ -46,6 +46,8 @@ const { journal } = require('./journalPolicy');
 const { addCents } = require('./moneyPolicy');
 const { assertCodAmount, assertCodAttempt } = require('./codBookingPolicy');
 const { settlementPolicy, calculateDriverSettlement } = require('./settlementPolicy');
+const { merchantSettlementPolicy, calculateMerchantSettlement } = require('./merchantSettlementPolicy');
+const { merchantSettlementFunctions } = require('./merchantSettlement');
 const { tripBundleFunctions } = require('./tripBundleFunctions');
 const { firestoreDatabaseId } = require('./databaseConfig');
 const { parcelPickupTimeAvailable } = require('./parcelPickupPolicy');
@@ -66,6 +68,7 @@ const REGION = 'asia-south1';
 const CURRENCY = 'INR';
 Object.assign(exports, bundleChatFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, requireUser }));
 Object.assign(exports, operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }));
+Object.assign(exports, merchantSettlementFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText, Timestamp }));
 Object.assign(exports, supportFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, bookingExceptionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, HttpsError, documentId, cleanText }));
@@ -261,6 +264,7 @@ async function priceLeg(uid, input) {
   const detailsInput = input.details || {};
   let price = 0;
   let details = {};
+  let merchantOwnerId;
   let pickupAddress = '';
   let dropAddress = '';
   let priceBreakdown;
@@ -273,6 +277,7 @@ async function priceLeg(uid, input) {
     const parentPath = serviceType === 'food' ? `restaurants/${catalogId}` : `grocery_stores/${catalogId}`;
     const parent = await db.doc(parentPath).get();
     if (!parent.exists) throw new HttpsError('failed-precondition', 'This store is no longer available.');
+    merchantOwnerId = parent.data().ownerId;
     try { if (!merchantOpen(parent.data())) throw new HttpsError('failed-precondition', 'This partner is closed or not accepting orders.'); }
     catch (error) { if (error instanceof HttpsError) throw error; throw new HttpsError('failed-precondition', 'Partner opening hours need operations review.'); }
     const catalogPath = serviceType === 'food' ? 'menu_items' : 'products';
@@ -418,6 +423,13 @@ async function priceLeg(uid, input) {
     ...(['food', 'grocery'].includes(serviceType) ? { merchantId: serviceType === 'food' ? details.restaurantId : details.storeId } : {}),
     details
   };
+  if (['food', 'grocery'].includes(serviceType)) {
+    const agreement = (await db.doc(`merchant_settlement_contracts/${leg.merchantId}`).get()).data();
+    if (agreement?.status === 'active' && agreement.acceptedBy === merchantOwnerId && agreement.agreementReference) {
+      try { leg.merchantSettlementContract = merchantSettlementPolicy(agreement, leg.merchantId, serviceType); }
+      catch (error) { throw new HttpsError('failed-precondition', error.message); }
+    }
+  }
   if (priceBreakdown) leg.priceBreakdown = priceBreakdown;
 
   const legBreakdown = {
@@ -460,6 +472,7 @@ async function priceAndPrepareBooking(uid, input) {
     dropAddress: priced.leg.dropAddress,
     driverId: null,
     settlementContract: priced.leg.settlementContract,
+    ...(priced.leg.merchantSettlementContract ? { merchantSettlementContract: priced.leg.merchantSettlementContract } : {}),
     otp: priced.leg.otp,
     paymentStatus: 'paid',
     paymentOrderId: '',
@@ -539,6 +552,7 @@ Object.assign(exports, tripBundleFunctions({
   recordStockMovement,
   productWithinExpiry,
   calculateDriverSettlement,
+  calculateMerchantSettlement,
   addCents,
   journal,
   CURRENCY,
@@ -948,6 +962,17 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
       let settlement;
       try { settlement = calculateDriverSettlement(data); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
+      let merchantSettlement, merchantBalanceRef, merchantBalance, merchantEntryRef, merchantEntry;
+      if (data.merchantSettlementContract) {
+        try { merchantSettlement = calculateMerchantSettlement({ ...data, status: 'completed', completedAt: new Date().toISOString() }); }
+        catch (error) { throw new HttpsError('failed-precondition', error.message); }
+        merchantBalanceRef = db.doc(`merchant_balances/${data.merchantId}`);
+        merchantEntryRef = db.doc(`merchant_ledger/${data.merchantId}/entries/${bookingId}`);
+        [merchantBalance, merchantEntry] = await Promise.all([transaction.get(merchantBalanceRef), transaction.get(merchantEntryRef)]);
+        if (merchantEntry.exists) throw new HttpsError('failed-precondition', 'This order already has a merchant settlement entry. Contact operations to reconcile the duplicate completion.');
+        const available = merchantBalance.data()?.availableCents ?? 0, reserved = merchantBalance.data()?.reservedCents ?? 0;
+        if (!Number.isSafeInteger(available) || available < 0 || !Number.isSafeInteger(reserved) || reserved < 0 || !Number.isSafeInteger(available + merchantSettlement.payableCents)) throw new HttpsError('failed-precondition', 'The merchant balance needs operations reconciliation.');
+      }
       const wasCod = data.paymentStatus === 'pending_cod';
       const cashAttemptRef = wasCod ? db.doc(`payment_attempts/${documentId(data.paymentOrderId, 'Cash order')}`) : null;
       const cashAttempt = cashAttemptRef ? (await transaction.get(cashAttemptRef)).data() : null;
@@ -967,7 +992,13 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
       transaction.update(driverRef, { activeBookingId: null, ...(eligibility.data()?.status === 'expired' ? { status: 'pending', online: false, supportedServices: [] } : {}), earningsDate: today, todayEarnings: addCents(current.earningsDate === today ? Math.round(Number(current.todayEarnings || 0) * 100) : 0, payoutCents) / 100, availableEarningsCents: addCents(Number(current.availableEarningsCents || 0), payoutCents), completedJobs: Number(current.completedJobs || 0) + 1 });
       transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}`), { bookingId, amountCents: payoutCents, type: 'delivery_earning', createdAt: Timestamp.now() });
       if (payoutCents > 0) transaction.create(db.doc(`financial_journals/driver_earning_${bookingId}`), journal('driver_earning', 'driver_expense_pending_allocation', 'driver_payable', payoutCents, { bookingId, driverId: uid }));
-      transaction.update(bookingRef, { status: next, ...(wasCod ? { paymentStatus: 'paid', cashCollectedAt: new Date().toISOString() } : {}), driverPayout: payout, driverSettlement: settlement, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      transaction.update(bookingRef, { status: next, ...(wasCod ? { paymentStatus: 'paid', cashCollectedAt: new Date().toISOString() } : {}), driverPayout: payout, driverSettlement: settlement, ...(merchantSettlement ? { merchantSettlement } : {}), completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      if (merchantSettlement) {
+        const available = merchantBalance.data()?.availableCents ?? 0, reserved = merchantBalance.data()?.reservedCents ?? 0;
+        transaction.set(merchantBalanceRef, { merchantId: data.merchantId, merchantType: data.serviceType === 'food' ? 'restaurant' : 'grocery', currency: CURRENCY, availableCents: addCents(available, merchantSettlement.payableCents), reservedCents: reserved, updatedAt: Timestamp.now() }, { merge: true });
+        transaction.create(merchantEntryRef, { ...merchantSettlement, kind: 'order_earning', amountCents: merchantSettlement.payableCents, createdAt: Timestamp.now() });
+        if (merchantSettlement.payableCents > 0) transaction.create(db.doc(`financial_journals/merchant_earning_${bookingId}`), journal('merchant_earning', 'booking_funds_unallocated', 'merchant_payable', merchantSettlement.payableCents, { bookingId, merchantId: data.merchantId, commissionCents: merchantSettlement.commissionCents, contractVersion: merchantSettlement.contractVersion }));
+      }
       transaction.delete(codeRef);
     } else transaction.update(bookingRef, { status: next, ...(next === 'preparing' ? { arrivedAtPickup: new Date().toISOString() } : next === 'transit' ? { pickupCompletedAt: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
     transaction.create(db.doc(`bookings/${bookingId}/events/${next}_${uid}`), { stage: transition.stage, actorRole: 'driver', actorId: uid, ...(next === 'completed' ? { proofMethod: SERVICES_REQUIRING_DELIVERY_SIGNATURE.has(data.serviceType) ? 'recipient_code_and_signature' : 'recipient_code', ...(SERVICES_REQUIRING_DELIVERY_SIGNATURE.has(data.serviceType) ? { deliveryProofId: proof.data().proofId } : {}) } : transition.requiresPickupCode ? { proofMethod: 'pickup_code' } : {}), createdAt: new Date().toISOString() });

@@ -327,6 +327,11 @@ service cloud.firestore {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if false;
     }
+    match /merchant_settlement_contracts/{merchantId} {
+      allow get, list: if isAdmin();
+      allow write: if false;
+      match /events/{eventId} { allow read: if isAdmin(); allow write: if false; }
+    }
     match /evidence_audit/{entryId} { allow read: if isAdmin(); allow write: if false; }
     match /service_zones/{zoneId} { allow read: if isAdmin(); allow write: if false; }
     match /service_pricing/{serviceId} { allow read: if isAdmin(); allow write: if false; }
@@ -485,12 +490,20 @@ service cloud.firestore {
 
     match /payout_requests/{requestId} {
       allow create: if false;
-      allow get, list: if isSignedIn() && (resource.data.driverId == request.auth.uid || isAdmin());
+      allow get, list: if isSignedIn() && (resource.data.driverId == request.auth.uid || resource.data.beneficiaryType == 'merchant' && isMerchantFor({'merchantId': resource.data.merchantId, 'serviceType': resource.data.serviceType}) || isAdmin());
       allow update, delete: if false;
     }
 
     match /driver_ledger/{driverId}/entries/{entryId} {
       allow read: if isOwner(driverId) || isAdmin();
+      allow write: if false;
+    }
+    match /merchant_balances/{merchantId} {
+      allow get: if isSignedIn() && (isAdmin() || isMerchantFor({'merchantId': merchantId, 'serviceType': 'food'}) || isMerchantFor({'merchantId': merchantId, 'serviceType': 'grocery'}));
+      allow list, write: if false;
+    }
+    match /merchant_ledger/{merchantId}/entries/{entryId} {
+      allow get, list: if isSignedIn() && (isAdmin() || isMerchantFor(resource.data));
       allow write: if false;
     }
     match /financial_journals/{entryId} {

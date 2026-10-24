@@ -334,7 +334,7 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
     try {
       const parent = serviceType === 'food' ? 'restaurants/shop' : 'grocery_stores/shop';
       const itemPath = `${parent}/${serviceType === 'food' ? 'menu_items' : 'products'}/item`;
-      await db.doc(parent).set({ name: 'Test partner', address: 'Merchant pickup street', acceptingOrders: true, onboardingStatus: 'approved' });
+      await db.doc(parent).set({ name: 'Test partner', address: 'Merchant pickup street', acceptingOrders: true, onboardingStatus: 'approved', ownerId: 'merchant', merchantEligibility: { status: 'verified' } });
       await db.doc(itemPath).set({ name: 'Test item', price: 100, available: true, stock: 10 });
       await db.doc('platform_config/wallet').set({ enabled: true, maxTopupCents: 100000 });
       await db.doc(`service_pricing/${serviceType}`).set({
@@ -344,6 +344,7 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
       });
       await db.doc('service_zones/city').set({ enabled: true, serviceTypes: [serviceType], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
       await db.doc('users/merchant').set({ role: 'merchant', name: 'Test merchant', merchantId: 'shop', merchantType: serviceType === 'food' ? 'restaurant' : 'grocery' });
+      await db.doc('merchant_settlement_contracts/shop').set({ merchantId: 'shop', merchantType: serviceType === 'food' ? 'restaurant' : 'grocery', serviceType, version: 1, commissionBps: 1000, acceptedBy: 'merchant', agreementReference: 'signed-test-agreement-1', status: 'active' });
       await db.doc('users/driver').set({ role: 'driver', name: 'Test driver' });
       await db.doc('users/other').set({ role: 'customer' });
       await db.doc('driver_profiles/driver').set({ status: 'verified', online: true, locationConsent: true, supportedServices: [serviceType], vehicleType: 'bike', currentLat: 13.081, currentLng: 80.271, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10, availableEarningsCents: 0, completedJobs: 0 });
@@ -392,6 +393,9 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
       const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
       assert.equal(completed.status, 'completed'); assert.equal(completed.driverPayout, 40);
       assert.equal(completed.paymentStatus, 'paid');
+      assert.equal(completed.merchantSettlement.payableCents, 9000);
+      assert.equal((await db.doc('merchant_balances/shop').get()).data().availableCents, 9000);
+      assert.equal((await db.doc(`merchant_ledger/shop/entries/${id}`).get()).data().commissionCents, 1000);
       if (cash) {
         assert.ok(completed.cashCollectedAt);
         assert.equal((await db.doc(`payment_attempts/${completed.paymentOrderId}`).get()).data().status, 'paid');
