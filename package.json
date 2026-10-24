@@ -9,6 +9,7 @@
     "build:app": "node scripts/build-app.mjs",
     "build:merchant": "node scripts/build-app.mjs --audience=merchant --platform=web",
     "build:driver": "node scripts/build-app.mjs --audience=driver --platform=web",
+    "android:customer": "node scripts/build-app.mjs --audience=customer --platform=android",
     "android:merchant": "node scripts/build-app.mjs --audience=merchant --platform=android",
     "android:driver": "node scripts/build-app.mjs --audience=driver --platform=android",
     "ios:customer": "node scripts/build-app.mjs --audience=customer --platform=ios",

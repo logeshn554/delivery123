@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { resolveAudience } from '../../scripts/app-audiences.mjs';
 import { workspaceFor } from '../../src/app/workspace';
 import type { UserProfile } from '../../src/types';
@@ -15,6 +16,13 @@ test('build audiences have distinct names, Android identities, and deep-link sch
   assert.notEqual(merchant.appId, driver.appId);
   assert.notEqual(merchant.scheme, driver.scheme);
   assert.throws(() => resolveAudience('admin'), /Choose customer, merchant or driver/);
+});
+
+test('Android build commands are exposed for all three installable app audiences', () => {
+  const scripts = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).scripts as Record<string, string>;
+  for (const audience of ['customer', 'merchant', 'driver']) {
+    assert.match(scripts[`android:${audience}`], new RegExp(`--audience=${audience} --platform=android`));
+  }
 });
 
 test('each app routes only its own role to a partner workspace', () => {
