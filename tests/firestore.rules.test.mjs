@@ -44,11 +44,13 @@ test('merchant settlement records are visible only to their assigned business an
     const db = context.firestore();
     await setDoc(doc(db, 'merchant_balances/shop'), { merchantId: 'shop', serviceType: 'food', availableCents: 9900, reservedCents: 0 });
     await setDoc(doc(db, 'merchant_ledger/shop/entries/assigned'), { bookingId: 'assigned', merchantId: 'shop', serviceType: 'food', payableCents: 9900, createdAt: Timestamp.now() });
+    await setDoc(doc(db, 'merchant_settlement_orders/assigned'), { bookingId: 'assigned', merchantId: 'shop', serviceType: 'food', contract: { commissionBps: 875, acceptedBy: 'merchant' } });
     await setDoc(doc(db, 'payout_requests/merchant-request'), { requestId: 'merchant-request', beneficiaryType: 'merchant', merchantId: 'shop', serviceType: 'food', amountCents: 9900, status: 'requested' });
   });
   const owner = dbFor('merchant');
   await assertSucceeds(getDoc(doc(owner, 'merchant_balances/shop')));
   await assertSucceeds(getDoc(doc(owner, 'merchant_ledger/shop/entries/assigned')));
+  await assertFails(getDoc(doc(owner, 'merchant_settlement_orders/assigned')));
   await assertSucceeds(getDocs(query(collection(owner, 'merchant_ledger/shop/entries'), where('merchantId', '==', 'shop'), where('serviceType', '==', 'food'), orderBy('createdAt', 'desc'), limit(50))));
   await assertSucceeds(getDoc(doc(owner, 'payout_requests/merchant-request')));
   for (const path of ['merchant_balances/shop', 'merchant_ledger/shop/entries/assigned', 'payout_requests/merchant-request']) {
@@ -57,6 +59,7 @@ test('merchant settlement records are visible only to their assigned business an
   }
   await assertFails(setDoc(doc(owner, 'merchant_ledger/shop/entries/forged'), { merchantId: 'shop', serviceType: 'food', payableCents: 999999 }));
   await assertSucceeds(getDoc(doc(dbFor('admin', { admin: true }), 'merchant_balances/shop')));
+  await assertFails(getDoc(doc(dbFor('admin', { admin: true }), 'merchant_settlement_orders/assigned')));
 });
 
 test('address migration receipts cannot be read, forged or deleted by clients', async () => {

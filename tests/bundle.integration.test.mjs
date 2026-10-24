@@ -563,15 +563,19 @@ test('completed bundled food legs accrue seller earnings from their locked commi
   await db.doc('bundles/merchant_earning_bundle/legs/LEG_1').set({
     legId: 'LEG_1', type: 'food', merchantId: 'rest_1', driverId: 'driver_ride', status: 'transit',
     priceBreakdown: { itemCents: 25000, deliveryCents: 1000, rideFareCents: 0, detourCents: 0, packagingCents: 100, platformCents: 100, taxCents: 1000, discountCents: 1000, totalCents: 26200 },
-    merchantSettlementContract: { merchantId: 'rest_1', serviceType: 'food', version: 4, commissionBps: 2000, acceptedBy: 'merchant_1', agreementReference: 'signed-test-agreement-4' },
     settlementContract: { serviceType: 'food', version: 1, baseCents: 1000, maxPayoutCents: 1000 },
   });
+  await db.doc('merchant_settlement_orders/merchant_earning_bundle_LEG_1').set({ bookingId: 'merchant_earning_bundle_LEG_1', bundleId: 'merchant_earning_bundle', legId: 'LEG_1', merchantId: 'rest_1', serviceType: 'food', contract: { merchantId: 'rest_1', serviceType: 'food', version: 4, commissionBps: 2000, acceptedBy: 'merchant_1', agreementReference: 'signed-test-agreement-4' } });
   await db.doc('bundle_codes/merchant_earning_bundle').set({ legs: { LEG_1: { code: '4242' } } });
   await callable('advanceBundleLegDriver', 'driver_ride', { bundleId: 'merchant_earning_bundle', legId: 'LEG_1', status: 'completed', otp: '4242' });
   const leg = (await db.doc('bundles/merchant_earning_bundle/legs/LEG_1').get()).data();
-  assert.equal(leg.merchantSettlement.payableCents, 19200);
+  assert.equal('merchantSettlement' in leg, false);
+  assert.equal('merchantSettlementContract' in leg, false);
   assert.equal((await db.doc('merchant_balances/rest_1').get()).data().availableCents, 19200);
-  assert.equal((await db.doc('merchant_ledger/rest_1/entries/LEG_1').get()).data().commissionCents, 4800);
+  const entry = (await db.doc('merchant_ledger/rest_1/entries/merchant_earning_bundle_LEG_1').get()).data();
+  assert.equal(entry.commissionCents, 4800);
+  assert.equal(entry.bookingId, 'merchant_earning_bundle_LEG_1');
+  assert.equal((await db.doc('merchant_settlement_orders/merchant_earning_bundle_LEG_1').get()).exists, true);
 });
 
 // 7. separatePartnerDispatch: food leg gets separate driver when ride driver unavailable

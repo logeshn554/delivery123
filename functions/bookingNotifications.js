@@ -83,7 +83,9 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
       const dispatchOffer = audiences.has('dispatch') && !booking.driverId;
       const message = dispatchOffer
         ? { type: 'dispatch_offer', title: 'Delivery request available', body: 'A nearby delivery request is available. Open AllGo to review it.' }
-        : content;
+        : audiences.has('merchant') && changed.status === 'completed' && ['food', 'grocery'].includes(changed.serviceType)
+          ? { type: 'merchant_order_completed', title: 'Order completed', body: `Order ${bookingId} completed. Check Earnings for any applicable settlement record.` }
+          : content;
       const id = notificationId(event.id, uid), historyRef = db.doc(`user_notifications/${uid}/items/${id}`);
       const claimed = await claimNotification(db, historyRef, { id, eventId: event.id, bookingId, audience: [...audiences], type: message.type, title: message.title, body: message.body, createdAt: Timestamp.now(), readAt: null, deliveryStatus: 'sending' });
       if (!claimed) continue;

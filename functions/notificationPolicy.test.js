@@ -23,3 +23,4 @@ test('notification content reflects the first meaningful booking change', () => 
   assert.equal(bookingNotificationContent({ ...before, details: { pickupTimeReview: { status: 'confirmed' } } }, before).type, 'pickup_time_confirmed');
   assert.equal(bookingNotificationContent({ ...before, paymentStatus: 'refunded' }, before).title, 'Refund completed');
 });
+

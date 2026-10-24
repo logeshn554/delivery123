@@ -163,6 +163,29 @@ for (const serviceType of ['food', 'grocery']) test(`${serviceType} pushes reach
   });
 });
 
+test('completed seller order notification directs only the merchant to private earnings records', async () => {
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'restaurant' });
+  await callable('registerPushDevice', 'customer', { audience: 'customer', token: 'settlement-customer', platform: 'android' });
+  await callable('registerPushDevice', 'merchant', { audience: 'merchant', token: 'settlement-merchant', platform: 'android' });
+  const previous = { bookingId: 'ALLGO_settlement_notice', customerId: 'customer', merchantId: 'shop', serviceType: 'food', status: 'transit', paymentStatus: 'paid' };
+  const changed = { ...previous, status: 'completed' };
+  await db.doc(`bookings/${changed.bookingId}`).set(changed);
+  await notificationHarness(async sent => {
+    await notify(changed.bookingId, changed, previous, 'settlement-notice-event');
+    const [customer, merchant] = await Promise.all([
+      db.collection('user_notifications/customer/items').where('eventId', '==', 'settlement-notice-event').get(),
+      db.collection('user_notifications/merchant/items').where('eventId', '==', 'settlement-notice-event').get(),
+    ]);
+    assert.deepEqual([customer.size, merchant.size], [1, 1], 'completed-order notification history should be created for customer and assigned merchant');
+    assert.match(merchant.docs[0].data().body, /Check Earnings for any applicable settlement record/);
+    assert.doesNotMatch(customer.docs[0].data().body, /settlement record/);
+    const merchantPush = sent.find(message => message.tokens.includes('settlement-merchant'));
+    const customerPush = sent.find(message => message.tokens.includes('settlement-customer'));
+    assert.match(merchantPush.notification.body, /Check Earnings for any applicable settlement record/);
+    assert.doesNotMatch(customerPush.notification.body, /settlement record/);
+  });
+});
+
 test('dispatch offer pushes wake only fresh, consented, in-zone eligible drivers without exposing customer details', async () => {
   const now = new Date().toISOString();
   await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['parcel'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
@@ -413,9 +436,12 @@ for (const serviceType of ['food', 'grocery']) for (const cash of [false, true])
       const completed = (await ref.get()).data(), driver = (await db.doc('driver_profiles/driver').get()).data();
       assert.equal(completed.status, 'completed'); assert.equal(completed.driverPayout, 40);
       assert.equal(completed.paymentStatus, 'paid');
-      assert.equal(completed.merchantSettlement.payableCents, 9000);
+      assert.equal(completed.merchantSettlement, undefined);
+      assert.equal((await db.doc(`merchant_settlement_orders/${id}`).get()).data().contract.commissionBps, 1000);
       assert.equal((await db.doc('merchant_balances/shop').get()).data().availableCents, 9000);
-      assert.equal((await db.doc(`merchant_ledger/shop/entries/${id}`).get()).data().commissionCents, 1000);
+      const merchantEntry = (await db.doc(`merchant_ledger/shop/entries/${id}`).get()).data();
+      assert.equal(merchantEntry.commissionCents, 1000);
+      assert.equal(merchantEntry.payableCents, 9000);
       if (cash) {
         assert.ok(completed.cashCollectedAt);
         assert.equal((await db.doc(`payment_attempts/${completed.paymentOrderId}`).get()).data().status, 'paid');

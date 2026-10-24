@@ -40,6 +40,9 @@ try {
   }
   if (!ready) { process.stderr.write(startupLog); throw startupError || new Error('Firestore emulator could not start. Install Java 21 and check local port access.'); }
   console.log('Running isolated Firestore authorization tests against demo-allgo.');
-  const tests = spawn(process.execPath, ['--test', '--test-concurrency=1', 'tests/firestore.rules.test.mjs', 'tests/bundle.integration.test.mjs', 'tests/payments.integration.test.mjs', 'tests/partner-evidence.integration.test.mjs'], { stdio: 'inherit', windowsHide: true, env: { ...process.env, FIRESTORE_EMULATOR_HOST: `127.0.0.1:${port}`, GCLOUD_PROJECT: 'demo-allgo' } });
+  const args = process.argv.slice(2), testOptions = args.filter(argument => argument.startsWith('--'));
+  const testFiles = args.filter(argument => !argument.startsWith('--'));
+  if (!testFiles.length) testFiles.push('tests/firestore.rules.test.mjs', 'tests/bundle.integration.test.mjs', 'tests/payments.integration.test.mjs', 'tests/partner-evidence.integration.test.mjs');
+  const tests = spawn(process.execPath, ['--test', '--test-concurrency=1', ...testOptions, ...testFiles], { stdio: 'inherit', windowsHide: true, env: { ...process.env, FIRESTORE_EMULATOR_HOST: `127.0.0.1:${port}`, GCLOUD_PROJECT: 'demo-allgo' } });
   process.exitCode = await new Promise((resolve, reject) => { tests.on('error', reject); tests.on('exit', code => resolve(code ?? 1)); });
 } finally { stop(); process.removeListener('SIGINT', stop); process.removeListener('SIGTERM', stop); }

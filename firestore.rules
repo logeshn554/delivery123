@@ -332,6 +332,9 @@ service cloud.firestore {
       allow write: if false;
       match /events/{eventId} { allow read: if isAdmin(); allow write: if false; }
     }
+    match /merchant_settlement_orders/{bookingId} {
+      allow read, write: if false;
+    }
     match /evidence_audit/{entryId} { allow read: if isAdmin(); allow write: if false; }
     match /service_zones/{zoneId} { allow read: if isAdmin(); allow write: if false; }
     match /service_pricing/{serviceId} { allow read: if isAdmin(); allow write: if false; }
