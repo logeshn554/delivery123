@@ -118,7 +118,7 @@ async function notificationHarness(run) {
   messaging.sendEachForMulticast = async message => { sent.push(message); return { responses: message.tokens.map(() => ({ success: true })) }; };
   try { await run(sent, messaging); } finally { messaging.sendEachForMulticast = original; }
 }
-const notify = (bookingId, changed, previous) => compiled.exports.notifyBookingChange.run({ id: 'event-test', params: { bookingId }, data: { after: { data: () => changed }, before: { data: () => previous } } });
+const notify = (bookingId, changed, previous, eventId = 'event-test') => compiled.exports.notifyBookingChange.run({ id: eventId, params: { bookingId }, data: { after: { data: () => changed }, before: { data: () => previous } } });
 
 for (const serviceType of ['food', 'grocery']) test(`${serviceType} pushes reach only the matching customer, verified driver and assigned merchant app devices`, async () => {
   await db.doc('users/driver').set({ role: 'driver' });
@@ -137,7 +137,7 @@ for (const serviceType of ['food', 'grocery']) test(`${serviceType} pushes reach
     await notify('ALLGO_push', booking);
     assert.deepEqual(sent.flatMap(message => message.tokens).sort(), ['customer-phone', 'driver-app', 'legacy-customer', 'merchant-app']);
     for (const message of sent) {
-      assert.deepEqual(message.data, { bookingId: 'ALLGO_push', eventId: 'event-test' });
+      assert.deepEqual(message.data, { bookingId: 'ALLGO_push', eventId: 'event-test', type: 'order_confirmed' });
       assert.equal(JSON.stringify(message).includes('private phone'), false);
     }
   });
@@ -292,7 +292,10 @@ test('push device removal is ownership scoped and permanent provider failures re
     assert.equal((await db.collection('push_devices').get()).size, 0);
     await callable('registerPushDevice', 'customer', { token: 'retry-device', platform: 'android' });
     messaging.sendEachForMulticast = async () => ({ responses: [{ error: { code: 'messaging/server-unavailable' } }] });
-    await assert.rejects(notify('ALLGO_invalid_push', booking), /require retry/);
+    await notify('ALLGO_invalid_push', booking, undefined, 'event-server-unavailable');
+    const histories = await db.collection('user_notifications/customer/items').get();
+    assert.equal(histories.size, 2);
+    assert.ok(histories.docs.some(item => item.data().deliveryStatus === 'failed' && item.data().deliveryError === 'push_delivery_failed'));
     assert.equal((await db.collection('push_devices').get()).size, 1);
     await callable('unregisterPushDevice', 'customer', { token: 'retry-device' });
     assert.equal((await db.collection('push_devices').get()).size, 0);
@@ -418,7 +421,7 @@ const quotedJourneys = [
     parcelContacts: { senderName: 'Test sender', senderPhone: '+919876500001', recipientName: 'Test recipient', recipientPhone: '+919876500002' },
   } },
   { serviceType: 'takeover', option: 'hourly', details: { takeoverOption: 'hourly', takeoverTransmission: 'manual', takeoverVehicleModel: 'Test owner vehicle', takeoverVehicleNo: 'TEST-OWNER' } },
-  { serviceType: 'transport', option: 'bike', details: { transportVehicleType: 'bike', transportMakeModel: 'Test motorcycle', transportRegNo: 'TEST-BIKE', ownershipConfirmed: true, vehicleWeightKg: 150, vehicleDimensions: { lengthCm: 200, widthCm: 80, heightCm: 110 } } },
+  { serviceType: 'transport', option: 'bike', details: { transportVehicleType: 'bike', transportMakeModel: 'Test motorcycle', transportRegNo: 'TEST-BIKE', ownershipConfirmed: true, vehicleWeightKg: 150, vehicleDimensions: { lengthCm: 200, widthCm: 80, heightCm: 110 }, vehiclePhotos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] } },
 ];
 
 for (const { serviceType, option, details } of quotedJourneys) for (const cash of [false, true]) {
@@ -439,7 +442,8 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
         availableEarningsCents: 0, completedJobs: 0,
         ...(serviceType === 'transport' ? { transportCapabilities: { approved: true, supportedVehicleTypes: ['bike'], vehicleCapacity: 1, equipmentType: 'flatbed', maxWeightKg: 500, maxDimensions: { lengthCm: 300, widthCm: 200, heightCm: 200 } } } : {}),
       });
-      const quote = await callable('getServiceQuote', 'customer', { serviceType, pickupAddress: 'Merchant pickup street', dropAddress: 'Customer delivery street', details: { ...details, pickupPlaceId: 'pickup-place', dropPlaceId: 'drop-place' } });
+      const quoteDetails = { ...details, ...(serviceType === 'transport' ? { preferredDate: new Date(Date.now() + 3000).toISOString() } : {}), pickupPlaceId: 'pickup-place', dropPlaceId: 'drop-place' };
+      const quote = await callable('getServiceQuote', 'customer', { serviceType, pickupAddress: 'Merchant pickup street', dropAddress: 'Customer delivery street', details: quoteDetails });
       assert.equal(quote.amount, 10000); assert.equal(quote.currency, 'INR');
       const checkout = { requestId: `${serviceType}_journey`, expectedAmountCents: quote.amount, booking: { serviceType, details: { quoteId: quote.quoteId } } };
       const checkoutMethod = cash ? 'createCodBooking' : 'payWithWallet';
@@ -450,6 +454,12 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
       assert.equal(confirmed.price, 100); assert.equal(confirmed.otp, undefined);
       assert.equal((await db.doc('users/customer').get()).data().walletBalance, cash ? 1000 : 900);
       assert.equal((await db.doc(`service_quotes/${quote.quoteId}`).get()).data().claimed, true);
+      if (serviceType === 'transport') {
+        await db.doc('users/admin').set({ role: 'admin' });
+        await callable('reviewParcelPickupTime', 'admin', { bookingId: ref.id, decision: 'confirmed', reason: 'Pickup slot and approved carrier availability confirmed.', reviewed: true }, true);
+        const delay = Date.parse(confirmed.details.preferredDate) - Date.now();
+        if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay));
+      }
       if (serviceType === 'parcel') {
         assert.equal(confirmed.details.parcelContacts, undefined);
         assert.equal((await db.doc(`booking_contacts/${ref.id}`).get()).data().recipientPhone, details.parcelContacts.recipientPhone);
@@ -463,12 +473,14 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
       assert.equal(offers[0].otp, undefined); assert.equal(offers[0].details.parcelContacts, undefined);
       await callable('acceptDriverBooking', 'driver', { bookingId: ref.id });
       await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'preparing' });
+      if (serviceType === 'transport') await callable('recordTransportInspection', 'driver', { bookingId: ref.id, stage: 'pickup', checklist: { conditionRecorded: true, odometerAndFuelChecked: true, personalItemsRemoved: true, loadingSecured: true }, conditionNotes: 'No visible damage; loading secured.', photos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] });
       await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'transit', otp: 'invalid' }), error => error.code === 'permission-denied');
       const codes = (await db.doc(`booking_codes/${ref.id}`).get()).data();
       assert.notEqual(codes.pickupCode, undefined);
       await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'transit', otp: codes.pickupCode });
       assert.equal((await db.doc(`booking_codes/${ref.id}`).get()).data().pickupCode, undefined);
       const finish = { bookingId: ref.id, status: 'completed', otp: codes.code };
+      if (serviceType === 'transport') await callable('recordTransportInspection', 'driver', { bookingId: ref.id, stage: 'delivery', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true }, conditionNotes: 'Condition unchanged; vehicle handed over.', photos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] });
       if (serviceType === 'parcel') await collectSignature(ref.id);
       await callable('advanceDriverBooking', 'driver', finish);
       await callable('advanceDriverBooking', 'driver', finish);
@@ -652,7 +664,8 @@ test('malformed grocery lines cannot be confirmed or declared ready', async () =
 test('grocery readiness requires scoped full picking with revision checks and replay-safe history', async () => {
   await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: 'grocery' });
   await db.doc('users/otherStore').set({ role: 'merchant', merchantId: 'other', merchantType: 'grocery' });
-  await db.doc('bookings/picking').set({ customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 60, details: { items: [{ id: 'milk', name: 'Milk', quantity: 2, price: 30 }] } });
+  await db.doc('grocery_stores/shop/products/milk').set({ name: 'Milk', price: 30, stock: 0 });
+  await db.doc('bookings/picking').set({ customerId: 'customer', merchantId: 'shop', serviceType: 'grocery', status: 'preparing', paymentStatus: 'paid', driverId: null, price: 60, priceBreakdown: { itemCents: 6000, deliveryCents: 0, packagingCents: 0, platformCents: 0, taxCents: 0, taxBps: 0, discountCents: 0, totalCents: 6000 }, details: { items: [{ id: 'milk', name: 'Milk', quantity: 2, price: 30 }] } });
   const data = { bookingId: 'picking', lineIndex: 0, quantity: 1, expectedRevision: 0, requestId: 'pick1' };
   await assert.rejects(callable('confirmGroceryPicking', 'otherStore', data), error => error.code === 'permission-denied');
   await assert.rejects(callable('advanceMerchantBooking', 'merchant', { bookingId: 'picking', status: 'ready' }), error => error.code === 'failed-precondition');

@@ -9,6 +9,8 @@ import {
   writeBatch,
   query, 
   where, 
+  orderBy,
+  limit,
   onSnapshot,
   runTransaction
 } from 'firebase/firestore';
@@ -41,6 +43,17 @@ export async function exportAccountPage(section: string, cursor: string | null =
 }
 export function listenToOrderReviews(uid: string, callback: (reviews: { id:string; bookingId:string; rating:number; comment:string; createdAt:string }[]) => void, onError: (error:unknown)=>void) {
   return onSnapshot(query(collection(db,'order_reviews'),where('userId','==',uid)),snapshot=>callback(snapshot.docs.map(item=>({id:item.id,...item.data()} as { id:string; bookingId:string; rating:number; comment:string; createdAt:string }))),onError);
+}
+export type UserNotification = { id: string; eventId: string; bookingId?: string; audience: string[]; type: string; title: string; body: string; createdAt: { toDate: () => Date }; readAt: unknown | null; deliveryStatus: 'sending' | 'sent' | 'partial' | 'failed' | 'in_app'; deliveryError?: string };
+export function listenToUserNotifications(uid: string, callback: (items: UserNotification[]) => void, onError: (error: unknown) => void) {
+  return onSnapshot(query(collection(db, `user_notifications/${uid}/items`), orderBy('createdAt', 'desc'), limit(50)), snapshot => callback(snapshot.docs.map(item => ({ id: item.id, ...item.data() }) as UserNotification)), onError);
+}
+export async function markUserNotificationsRead(uid: string, ids: string[]) {
+  const unique = [...new Set(ids)].filter(id => /^[a-f0-9]{64}$/.test(id)).slice(0, 100);
+  if (!unique.length) return;
+  const batch = writeBatch(db);
+  unique.forEach(id => batch.update(doc(db, `user_notifications/${uid}/items/${id}`), { readAt: new Date() }));
+  await batch.commit();
 }
 
 /**

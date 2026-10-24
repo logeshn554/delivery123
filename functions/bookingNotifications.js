@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { merchantHasBusiness } = require('./merchantAccess');
+const { notificationId, claimNotification, bookingNotificationContent } = require('./notificationPolicy');
 
 const active = account => account && account.disabled !== true && account.suspended !== true;
 const merchantFor = (account, booking) => active(account) && merchantHasBusiness(account, booking.merchantId, booking.serviceType === 'food' ? 'restaurant' : booking.serviceType === 'grocery' ? 'grocery' : null);
@@ -28,7 +29,7 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
   });
   const notifyBookingChange = onDocumentWritten({ region: REGION, database: databaseId, document: 'bookings/{bookingId}', retry: true, timeoutSeconds: 120 }, async event => {
     const changed = event.data?.after.data(), previous = event.data?.before.data();
-    if (!changed || previous && previous.status === changed.status && previous.driverId === changed.driverId && previous.merchantId === changed.merchantId && previous.paymentStatus === changed.paymentStatus && previous.preparation?.revision === changed.preparation?.revision && previous.picking?.revision === changed.picking?.revision && previous.exception?.revision === changed.exception?.revision) return;
+    if (!changed || previous && previous.status === changed.status && previous.driverId === changed.driverId && previous.merchantId === changed.merchantId && previous.paymentStatus === changed.paymentStatus && previous.pickupAddress === changed.pickupAddress && previous.dropAddress === changed.dropAddress && previous.preparation?.revision === changed.preparation?.revision && previous.picking?.revision === changed.picking?.revision && previous.exception?.revision === changed.exception?.revision && previous.details?.pickupTimeReview?.status === changed.details?.pickupTimeReview?.status) return;
     // A delayed trigger must not notify a former assignee from an old snapshot.
     const bookingId = event.params.bookingId;
     const booking = (await db.doc(`bookings/${bookingId}`).get()).data();
@@ -71,24 +72,42 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
       ]);
       for (const merchant of [...new Map([...primary.docs, ...additional.docs].map(record => [record.id, record])).values()]) if (merchantFor(merchant.data(), booking)) add(merchant.id, 'merchant');
     }
+    const content = bookingNotificationContent(changed, previous);
     for (const [uid, audiences] of recipients) {
       const account = (await db.doc(`users/${uid}`).get()).data();
       if (!active(account) || account.preferences?.orderUpdates === false) continue;
       // Recheck partner access when sending, including revocation after registration.
       if (!merchantFor(account, booking)) audiences.delete('merchant');
       if (account.role !== 'driver') { audiences.delete('driver'); audiences.delete('dispatch'); }
-      const devices = await db.collection('push_devices').where('uid', '==', uid).get();
+      if (!audiences.size) continue;
+      const dispatchOffer = audiences.has('dispatch') && !booking.driverId;
+      const message = dispatchOffer
+        ? { type: 'dispatch_offer', title: 'Delivery request available', body: 'A nearby delivery request is available. Open AllGo to review it.' }
+        : content;
+      const id = notificationId(event.id, uid), historyRef = db.doc(`user_notifications/${uid}/items/${id}`);
+      const claimed = await claimNotification(db, historyRef, { id, eventId: event.id, bookingId, audience: [...audiences], type: message.type, title: message.title, body: message.body, createdAt: Timestamp.now(), readAt: null, deliveryStatus: 'sending' });
+      if (!claimed) continue;
+      let devices;
+      try { devices = await db.collection('push_devices').where('uid', '==', uid).get(); }
+      catch { await historyRef.update({ deliveryStatus: 'failed', deliveryError: 'push_device_lookup_failed', deliveryAttemptedAt: Timestamp.now() }); continue; }
       const targets = devices.docs.filter(record => {
         const device = record.data();
         const expiresAt = typeof device.expiresAt?.toMillis === 'function' ? device.expiresAt.toMillis() : NaN;
         return Number.isFinite(expiresAt) && expiresAt > Date.now() && typeof device.token === 'string' && device.token.length > 0 && (audiences.has(device.audience ?? 'customer') || audiences.has('dispatch') && device.audience === 'driver');
       });
-      for (let offset = 0; offset < targets.length; offset += 500) {
-        const chunk = targets.slice(offset, offset + 500);
-        const dispatchOffer = audiences.has('dispatch') && !booking.driverId;
-        const result = await messaging().sendEachForMulticast({ tokens: chunk.map(record => record.data().token), notification: { title: dispatchOffer ? 'Delivery request available' : 'AllGo order update', body: dispatchOffer ? 'A nearby delivery request is available. Open AllGo to review it.' : 'An order has an update. Open AllGo for details.' }, data: { bookingId, eventId: event.id, ...(dispatchOffer ? { type: 'dispatch_offer' } : {}) }, android: { collapseKey: bookingId }, apns: { headers: { 'apns-collapse-id': bookingId } } });
-        await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
-        if (result.responses.some(response => response.error && !['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error.code))) throw new Error('One or more booking notifications require retry.');
+      if (!targets.length) { await historyRef.update({ deliveryStatus: 'in_app' }); continue; }
+      let successCount = 0, failureCount = 0;
+      try {
+        for (let offset = 0; offset < targets.length; offset += 500) {
+          const chunk = targets.slice(offset, offset + 500);
+          const result = await messaging().sendEachForMulticast({ tokens: chunk.map(record => record.data().token), notification: { title: message.title, body: message.body }, data: { bookingId, eventId: event.id, type: message.type }, android: { collapseKey: bookingId }, apns: { headers: { 'apns-collapse-id': bookingId } } });
+          successCount += Number.isFinite(result.successCount) ? result.successCount : result.responses.filter(response => !response.error).length;
+          failureCount += Number.isFinite(result.failureCount) ? result.failureCount : result.responses.filter(response => Boolean(response.error)).length;
+          await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
+        }
+        await historyRef.update({ deliveryStatus: failureCount ? successCount ? 'partial' : 'failed' : 'sent', successCount, failureCount, deliveredAt: Timestamp.now(), ...(failureCount ? { deliveryError: 'push_delivery_failed' } : {}) });
+      } catch {
+        await historyRef.update({ deliveryStatus: 'failed', successCount, failureCount: Math.max(1, failureCount), deliveryError: 'push_service_unavailable', deliveryAttemptedAt: Timestamp.now() });
       }
     }
   });
@@ -133,22 +152,35 @@ function bookingNotificationFunctions({ onCall, onDocumentWritten, db, REGION, d
     }
     if (!hasOffer) return;
 
-    const devices = await db.collection('push_devices').where('uid', '==', uid).get();
+    const id = notificationId(event.id, uid), historyRef = db.doc(`user_notifications/${uid}/items/${id}`);
+    const claimed = await claimNotification(db, historyRef, { id, eventId: event.id, audience: ['dispatch'], type: 'dispatch_offer', title: 'Delivery requests available', body: 'Open AllGo to review nearby delivery requests.', createdAt: Timestamp.now(), readAt: null, deliveryStatus: 'sending' });
+    if (!claimed) return;
+    let devices;
+    try { devices = await db.collection('push_devices').where('uid', '==', uid).get(); }
+    catch { await historyRef.update({ deliveryStatus: 'failed', deliveryError: 'push_device_lookup_failed', deliveryAttemptedAt: Timestamp.now() }); return; }
     const targets = devices.docs.filter(record => {
       const device = record.data(), expiresAt = typeof device.expiresAt?.toMillis === 'function' ? device.expiresAt.toMillis() : NaN;
       return device.audience === 'driver' && Number.isFinite(expiresAt) && expiresAt > Date.now() && typeof device.token === 'string' && device.token.length > 0;
     });
+    if (!targets.length) { await historyRef.update({ deliveryStatus: 'in_app' }); return; }
+    let successCount = 0, failureCount = 0;
     for (let offset = 0; offset < targets.length; offset += 500) {
       const chunk = targets.slice(offset, offset + 500);
-      const result = await messaging().sendEachForMulticast({
-        tokens: chunk.map(record => record.data().token),
-        notification: { title: 'Delivery requests available', body: 'Open AllGo to review nearby delivery requests.' },
-        data: { type: 'dispatch_offer', eventId: event.id },
-        android: { collapseKey: 'allgo_dispatch' }, apns: { headers: { 'apns-collapse-id': 'allgo_dispatch' } }
-      });
-      await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
-      if (result.responses.some(response => response.error && !['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error.code))) throw new Error('One or more driver availability notifications require retry.');
+      try {
+        const result = await messaging().sendEachForMulticast({
+          tokens: chunk.map(record => record.data().token),
+          notification: { title: 'Delivery requests available', body: 'Open AllGo to review nearby delivery requests.' },
+          data: { type: 'dispatch_offer', eventId: event.id },
+          android: { collapseKey: 'allgo_dispatch' }, apns: { headers: { 'apns-collapse-id': 'allgo_dispatch' } }
+        });
+        successCount += Number.isFinite(result.successCount) ? result.successCount : result.responses.filter(response => !response.error).length;
+        failureCount += Number.isFinite(result.failureCount) ? result.failureCount : result.responses.filter(response => Boolean(response.error)).length;
+        await Promise.all(result.responses.map((response, index) => ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(response.error?.code) ? chunk[index].ref.delete() : Promise.resolve()));
+      } catch {
+        failureCount += chunk.length;
+      }
     }
+    await historyRef.update({ deliveryStatus: failureCount ? successCount ? 'partial' : 'failed' : 'sent', successCount, failureCount, deliveredAt: Timestamp.now(), ...(failureCount ? { deliveryError: 'push_delivery_failed' } : {}) });
   });
   return { registerPushDevice, unregisterPushDevice, notifyBookingChange, notifyDriverAvailability };
 }

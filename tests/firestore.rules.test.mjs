@@ -26,6 +26,18 @@ test('clients and admins cannot delete user records outside the account-deletion
   }
   await assertSucceeds(getDoc(doc(dbFor('customer'), 'users/customer')));
 });
+test('notification history is private and users can change only its read marker', async () => {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'user_notifications/customer/items/event-1'), { id: 'event-1', title: 'Order update', body: 'Status changed', createdAt: Timestamp.now(), readAt: null, deliveryStatus: 'sent' });
+  });
+  const owned = doc(dbFor('customer'), 'user_notifications/customer/items/event-1');
+  await assertSucceeds(getDoc(owned));
+  await assertFails(getDoc(doc(dbFor('other'), 'user_notifications/customer/items/event-1')));
+  await assertSucceeds(updateDoc(owned, { readAt: Timestamp.now() }));
+  await assertFails(updateDoc(owned, { title: 'Forged notification' }));
+  await assertFails(setDoc(doc(dbFor('customer'), 'user_notifications/customer/items/forged'), { title: 'Forged notification' }));
+  await assertFails(deleteDoc(owned));
+});
 
 test('address migration receipts cannot be read, forged or deleted by clients', async () => {
   const path = 'users/customer/address_migration_receipts/source';

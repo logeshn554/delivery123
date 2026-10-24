@@ -20,17 +20,18 @@ function replacementTotal(booking, itemDeltaCents, HttpsError) {
 
 function pickedQuantityAdjustment(booking, lineIndex, quantity, HttpsError) {
   const item = booking?.details?.items?.[lineIndex];
-  if (!item || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || !Number.isFinite(item.price) || !Number.isSafeInteger(Math.round(item.price * 100)) || item.price < 0 || !Number.isSafeInteger(quantity) || quantity < 0 || quantity >= item.quantity) return null;
-  const returnedQuantity = item.quantity - quantity;
-  const deltaCents = -Math.round(item.price * 100) * returnedQuantity;
+  const previous = booking?.picking?.shortages?.[String(lineIndex)], orderedQuantity = previous?.orderedQuantity ?? item?.quantity;
+  if (!item || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || !Number.isFinite(item.price) || !Number.isSafeInteger(Math.round(item.price * 100)) || item.price < 0 || !Number.isSafeInteger(quantity) || quantity < 0 || quantity > orderedQuantity || quantity === item.quantity) return null;
+  const returnedQuantity = Math.max(0, item.quantity - quantity), reservedQuantity = Math.max(0, quantity - item.quantity);
+  const deltaCents = -Math.round(item.price * 100) * (item.quantity - quantity);
   if (!Number.isSafeInteger(deltaCents)) throw new HttpsError('failed-precondition', 'The grocery short-pick amount needs operations review.');
   const price = replacementTotal(booking, deltaCents, HttpsError), oldTotalCents = Math.round(booking.price * 100), totalDeltaCents = price.totalCents - oldTotalCents;
   if (!Number.isSafeInteger(totalDeltaCents)) throw new HttpsError('failed-precondition', 'The adjusted grocery total needs operations review.');
-  return { returnedQuantity, deltaCents, totalDeltaCents, price };
+  return { returnedQuantity, reservedQuantity, deltaCents, totalDeltaCents, price };
 }
 
 function buildShortageRecord(previous, item, quantity, orderTotalDeltaCents, walletDeltaCents, updatedAt, HttpsError) {
-  if (!item || typeof item.id !== 'string' || typeof item.name !== 'string' || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || !Number.isSafeInteger(quantity) || quantity < 0 || quantity >= item.quantity || !Number.isSafeInteger(orderTotalDeltaCents) || !Number.isSafeInteger(walletDeltaCents)) throw new HttpsError('failed-precondition', 'The grocery short-pick record needs operations review.');
+  if (!item || typeof item.id !== 'string' || typeof item.name !== 'string' || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || !Number.isSafeInteger(quantity) || quantity < 0 || quantity > (previous?.orderedQuantity ?? item.quantity) || quantity === item.quantity || !Number.isSafeInteger(orderTotalDeltaCents) || !Number.isSafeInteger(walletDeltaCents)) throw new HttpsError('failed-precondition', 'The grocery short-pick record needs operations review.');
   if (previous && (!Number.isSafeInteger(previous.orderedQuantity) || previous.orderedQuantity < item.quantity || previous.packedQuantity !== item.quantity || previous.missingQuantity !== previous.orderedQuantity - item.quantity || !Number.isSafeInteger(previous.orderTotalDeltaCents) || !Number.isSafeInteger(previous.walletDeltaCents))) throw new HttpsError('failed-precondition', 'The prior grocery short-pick record needs operations review.');
   const orderTotalCents = (previous?.orderTotalDeltaCents || 0) + orderTotalDeltaCents, walletCents = (previous?.walletDeltaCents || 0) + walletDeltaCents;
   if (!Number.isSafeInteger(orderTotalCents) || !Number.isSafeInteger(walletCents)) throw new HttpsError('failed-precondition', 'The cumulative grocery adjustment needs operations review.');
@@ -41,8 +42,10 @@ function fullyPicked(booking) {
   const items = booking?.details?.items;
   return Array.isArray(items) && items.length > 0 && items.every((item, index) => {
     const line = booking.picking?.lines?.[String(index)];
+    const shortage = booking.picking?.shortages?.[String(index)];
     if (item?.removed === true) return line?.itemId === item.id && line.quantity === 0;
     if (booking.picking?.substitutions?.[String(index)]?.status === 'pending') return false;
+    if (shortage && (shortage.itemId !== item?.id || !Number.isSafeInteger(shortage.orderedQuantity) || !Number.isSafeInteger(shortage.packedQuantity) || !Number.isSafeInteger(shortage.missingQuantity) || shortage.missingQuantity !== 0 || shortage.packedQuantity !== shortage.orderedQuantity)) return false;
     return item && typeof item.id === 'string' && item.id.trim().length > 0 && Number.isSafeInteger(item.quantity) && item.quantity > 0 && line?.itemId === item.id && line.quantity === item.quantity;
   });
 }
@@ -65,9 +68,11 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
         if (!booking || booking.serviceType !== 'grocery' || !merchantHasBusiness(merchant, booking.merchantId, 'grocery')) throw new HttpsError('permission-denied', 'This order is not assigned to your grocery business.');
         if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || prior.lineIndex !== lineIndex || prior.quantity !== quantity || prior.expectedRevision !== expectedRevision) throw new HttpsError('already-exists', 'This picking request reference was already used.'); return { revision: prior.revision }; }
         if (booking.status !== 'preparing' || booking.driverId || !['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Picking is only allowed for an active store preparation.');
+        const revision = nextPickingRevision(booking.picking?.revision, expectedRevision, HttpsError);
         const item = booking.details?.items?.[lineIndex];
         if (!item || typeof item.id !== 'string' || !item.id.trim()) throw new HttpsError('failed-precondition', 'This order line needs a valid product reference. Ask operations to review the order.');
-        if (!item || item.removed === true || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || quantity > item.quantity) throw new HttpsError('invalid-argument', 'Packed quantity cannot exceed the reserved order quantity.');
+        const orderedQuantity = booking.picking?.shortages?.[String(lineIndex)]?.orderedQuantity ?? item?.quantity;
+        if (!item || item.removed === true || !Number.isSafeInteger(item.quantity) || item.quantity < 1 || quantity > orderedQuantity) throw new HttpsError('invalid-argument', 'Packed quantity cannot exceed the original reserved order quantity.');
         if (booking.picking?.substitutions?.[String(lineIndex)]?.status === 'pending') throw new HttpsError('failed-precondition', 'Wait for the customer to decide on the proposed replacement.');
         const adjustment = pickedQuantityAdjustment(booking, lineIndex, quantity, HttpsError);
         let productRef, product, customerRef, customer, walletNext, codAttemptRef, codAttempt;
@@ -82,7 +87,8 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
           }
           const snapshots = await Promise.all(reads);
           product = snapshots[0].data();
-          if (!snapshots[0].exists || !Number.isSafeInteger(product?.stock) || product.stock < 0 || !Number.isSafeInteger(product.stock + adjustment.returnedQuantity)) throw new HttpsError('failed-precondition', 'The original product stock needs operations review before applying the short pick.');
+          const stockNext = product?.stock + adjustment.returnedQuantity - adjustment.reservedQuantity;
+          if (!snapshots[0].exists || !Number.isSafeInteger(product?.stock) || product.stock < 0 || !Number.isSafeInteger(stockNext) || stockNext < 0) throw new HttpsError('failed-precondition', 'The original product stock needs operations review before applying the picking correction.');
           if (customerRef) {
             customer = snapshots[1].data();
             const walletCents = Math.round(Number(customer?.walletBalance) * 100);
@@ -94,7 +100,7 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
             if (!codAttempt || codAttempt.kind !== 'cod_booking' || codAttempt.status !== 'pending_cod' || codAttempt.bookingId !== bookingId || codAttempt.uid !== booking.customerId || codAttempt.amount !== Math.round(booking.price * 100) || codAttempt.booking?.customerId !== booking.customerId || codAttempt.booking?.serviceType !== 'grocery') throw new HttpsError('failed-precondition', 'The cash order amount needs operations review before applying the short pick.');
           }
         }
-        const revision = nextPickingRevision(booking.picking?.revision, expectedRevision, HttpsError), now = new Date().toISOString(), lines = { ...(booking.picking?.lines || {}), [String(lineIndex)]: { itemId: item.id, quantity } };
+        const now = new Date().toISOString(), lines = { ...(booking.picking?.lines || {}), [String(lineIndex)]: { itemId: item.id, quantity } };
         const picking = { ...(booking.picking || {}), revision, lines, updatedAt: now };
         if (adjustment) {
           const items = [...booking.details.items];
@@ -103,8 +109,9 @@ function groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, T
           const walletDeltaCents = customerRef ? -adjustment.totalDeltaCents : 0;
           picking.shortages = { ...(picking.shortages || {}), [key]: buildShortageRecord(priorShortage, item, quantity, adjustment.totalDeltaCents, walletDeltaCents, now, HttpsError) };
           const updates = { details: { ...booking.details, items }, price: adjustment.price.totalCents / 100, originalPrice: adjustment.price.grossCents / 100, couponDiscountCents: adjustment.price.discountCents, priceBreakdown: { ...booking.priceBreakdown, itemCents: adjustment.price.itemCents, taxCents: adjustment.price.taxCents, discountCents: adjustment.price.discountCents, totalCents: adjustment.price.totalCents } };
-          tx.update(productRef, { stock: product.stock + adjustment.returnedQuantity });
-          recordStockMovement(tx, productRef, `picking_short_return_${bookingId}_${requestId}`, 'return', product.stock, product.stock + adjustment.returnedQuantity, { bookingId, lineIndex });
+          const stockNext = product.stock + adjustment.returnedQuantity - adjustment.reservedQuantity, movementKind = stockNext < product.stock ? 'reservation' : 'return';
+          tx.update(productRef, { stock: stockNext });
+          recordStockMovement(tx, productRef, `picking_short_return_${bookingId}_${requestId}`, movementKind, product.stock, stockNext, { bookingId, lineIndex });
           if (customerRef && adjustment.totalDeltaCents !== 0) {
             tx.update(customerRef, { walletBalance: walletNext / 100 });
             const debit = adjustment.totalDeltaCents > 0 ? 'wallet_liability' : 'booking_funds_unallocated';

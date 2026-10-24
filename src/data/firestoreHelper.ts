@@ -11,6 +11,8 @@ export const saveCatalogItem = route('saveCatalogItem');
 export const submitOrderReview = route('submitOrderReview');
 export const exportAccountPage = route('exportAccountPage');
 export const listenToOrderReviews = route('listenToOrderReviews');
+export const listenToUserNotifications = route('listenToUserNotifications');
+export const markUserNotificationsRead = route('markUserNotificationsRead');
 
 function route<K extends keyof typeof firebase>(name: K): typeof firebase[K] {
   return ((...args: any[]) => {
@@ -20,6 +22,7 @@ function route<K extends keyof typeof firebase>(name: K): typeof firebase[K] {
     if (String(name).startsWith('listenTo')) {
       const errorPositions: Record<string, number> = { listenToAccountProfile: 2, listenToBookingContacts: 2, listenToDriverLocation: 2, listenToBookingTracking: 2, listenToBookingEvents: 2, listenToPayoutRequests: 2, listenToWalletLedger: 2, listenToRestaurants: 1, listenToGroceryStores: 1, listenToMenuItems: 2, listenToGroceryProducts: 2, listenToMerchantHours: 3 };
       errorPositions.listenToOrderReviews = 2;
+      errorPositions.listenToUserNotifications = 2;
       errorPositions.listenToBookings = 1;
       errorPositions.listenToDriverProfiles = 1;
       errorPositions.listenToCustomerBookings = 2;

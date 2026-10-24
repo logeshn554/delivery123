@@ -405,6 +405,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /user_notifications/{userId}/items/{notificationId} {
+      allow get, list: if isOwner(userId) || isAdmin();
+      allow create, delete: if false;
+      allow update: if isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+        && (request.resource.data.readAt == null || request.resource.data.readAt is timestamp);
+    }
+
     match /booking_codes/{bookingId} {
       allow get, list: if isSignedIn() && resource.data.customerId == request.auth.uid;
       allow write: if false;

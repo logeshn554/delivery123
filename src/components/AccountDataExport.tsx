@@ -23,7 +23,7 @@ export default function AccountDataExport() {
       const result: Record<string, unknown> = { exportedAt: new Date().toISOString(), consistency: 'Paginated live reads; records may change while the export is prepared.', documentFiles: 'This copy includes document metadata. Retrieve scanned document files separately from your partner application.' };
       const serviceConnected = !useNeonAccounts || hasServiceIdentity;
       if (serviceConnected) {
-        for (const section of ['profile', 'addresses', 'bookings', 'driver_jobs', 'bundles', 'driver_bundle_legs', 'driver_ledger', 'payouts', 'payments', 'wallet', 'reviews', 'support', 'partners', 'evidence', 'eligibility', 'delivery_proofs']) {
+        for (const section of ['profile', 'addresses', 'bookings', 'driver_jobs', 'bundles', 'driver_bundle_legs', 'driver_ledger', 'payouts', 'payments', 'wallet', 'reviews', 'support', 'partners', 'evidence', 'eligibility', 'delivery_proofs', 'notifications']) {
           setProgress(`Preparing ${section.replaceAll('_', ' ')}…`);
           result[section] = await collectPages(cursor => exportAccountPage(section, cursor));
         }

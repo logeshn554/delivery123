@@ -1364,6 +1364,7 @@ exports.processAccountDeletion = onCall({ operation: 'processAccountDeletion', r
       }
     }
     await db.recursiveDelete(db.doc(`users/${uid}`));
+    await db.recursiveDelete(db.doc(`user_notifications/${uid}`));
     await db.recursiveDelete(db.doc(`driver_profiles/${uid}`));
     await db.recursiveDelete(db.doc(`driver_eligibility/${uid}`));
     await db.doc(`evidence_quotas/${uid}`).delete();
