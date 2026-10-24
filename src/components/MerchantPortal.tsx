@@ -33,6 +33,7 @@ import { useBookingNotification } from '../app/useBookingNotification';
 import { finishedBooking } from '../app/bookingNotification';
 import MerchantClosuresEditor from './MerchantClosuresEditor';
 import MerchantCatalogEditor from './MerchantCatalogEditor';
+import MerchantThermalPrint from './MerchantThermalPrint';
 import StockMovementHistory from './StockMovementHistory';
 import MerchantPreparationEditor from './MerchantPreparationEditor';
 import BookingExceptionPanel from './BookingExceptionPanel';
@@ -230,7 +231,7 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
             ) : (
               <div className="space-y-3">
                 {displayedOrders.map(ord => (
-                  <div key={ord.bookingId} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
+                  <div id={`merchant-order-print-${ord.bookingId}`} key={ord.bookingId} data-booking-print-id={ord.bookingId} className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3">
                     <BookingExceptionPanel booking={ord}/>
                     {ord.status === 'pending' && !ord.driverId && ['paid', 'pending_cod'].includes(ord.paymentStatus || '') && <MerchantRejection bookingId={ord.bookingId} cashOnDelivery={ord.paymentStatus === 'pending_cod'}/>}
                     <MerchantPreparationEditor booking={ord}/>
@@ -244,6 +245,8 @@ export default function MerchantPortal({ activeBookings, merchantId, merchantTyp
                         <p className="text-[10px] text-slate-400 mt-0.5 uppercase font-bold">{ord.status}</p>
                       </div>
                     </div>
+
+                    <MerchantThermalPrint booking={ord}/>
 
                     {/* Order items nested list */}
                     <div className="space-y-1.5 text-xs text-slate-300">
