@@ -13,6 +13,7 @@ import { getGroceryPickingProgress, getGroceryTrackingStage, GROCERY_TRACKING_ST
 import HandoverCode from './HandoverCode';
 import DeliverySignatureReceipt from './DeliverySignatureReceipt';
 import RideSafetyActions from './RideSafetyActions';
+import RideReceipt from './RideReceipt';
 
 export default function OrderTrackingScreen({ booking, onChat, onReview, onSafetyConcern }: { booking: Booking; onChat: () => void; onReview?: () => void; onSafetyConcern?: () => void }) {
   const authority = bookingAuthorityCapabilities(booking);
@@ -213,6 +214,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview, onSafet
           </div>
         </article>
       )}
+      {isRide && complete && <RideReceipt booking={booking}/>}
 
       {/* Parcel details summary */}
       {isParcel && (
