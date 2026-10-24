@@ -677,6 +677,14 @@ for (const { serviceType, option, details } of quotedJourneys) for (const cash o
       assert.notEqual(codes.pickupCode, undefined);
       await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'transit', otp: codes.pickupCode });
       assert.equal((await db.doc(`booking_codes/${ref.id}`).get()).data().pickupCode, undefined);
+      if (serviceType === 'ride') {
+        await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'completed', otp: codes.code }), error => error.code === 'failed-precondition');
+        await db.doc('driver_profiles/driver').update({ currentLat: 13.082, currentLng: 80.271, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10 });
+        await callable('advanceDriverBooking', 'driver', { bookingId: ref.id, status: 'arrived_at_destination' });
+        assert.equal((await ref.get()).data().status, 'arrived_at_destination');
+        assert.equal((await ref.collection('events').doc('rider_verified_driver').get()).data().stage, 'rider_verified');
+        assert.equal((await ref.collection('events').doc('arrived_at_destination_driver').get()).data().stage, 'arrived_at_destination');
+      }
       const finish = { bookingId: ref.id, status: 'completed', otp: codes.code };
       if (serviceType === 'transport') await callable('recordTransportInspection', 'driver', { bookingId: ref.id, stage: 'delivery', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true }, conditionNotes: 'Condition unchanged; vehicle handed over.', photos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] });
       if (serviceType === 'parcel') await collectSignature(ref.id);

@@ -82,6 +82,13 @@ test("pickup code entry uses OTP autofill and is scoped to ride/takeover/parcel/
   assert.match(src, /setPickupCode\(''\)/);
 });
 
+test('ride flow verifies the rider at pickup and records destination arrival before trip completion', () => {
+  assert.match(src, /handleArrivedAtDestination/);
+  assert.match(src, /status === 'arrived_at_destination'/);
+  assert.match(src, /Mark Arrived at Destination/);
+  assert.match(src, /Passenger trip completion code/);
+});
+
 // TASK-98: Navigation / route
 test("navigation section provides Google Maps deep-link to pickup or drop address", () => {
   assert.match(src, /google\.com\/maps\/dir/);

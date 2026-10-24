@@ -11,6 +11,14 @@ function pickupEligibility(driver, booking, now = Date.now(), maxKm = 10) {
   const km = distanceKm(location, pickup);
   return km <= maxKm ? km : null;
 }
+function destinationEligibility(driver, booking, now = Date.now(), maxKm = 0.3) {
+  const { validPoint } = require('./bookingPolicy');
+  const location = { lat: driver.currentLat, lng: driver.currentLng }, destination = booking.details?.dropLocation;
+  const reportedAt = Date.parse(driver.locationUpdatedAt || '');
+  if (!validPoint(location) || !validPoint(destination) || !Number.isFinite(reportedAt) || now - reportedAt > 60000 || reportedAt > now + 5000 || !Number.isFinite(driver.locationAccuracyMeters) || driver.locationAccuracyMeters > 100 || driver.locationAccuracyMeters < 0) return null;
+  const km = distanceKm(location, destination);
+  return km <= maxKm ? km : null;
+}
 function publicOffer(id, booking) {
   return {
     bookingId: id, serviceType: booking.serviceType, status: booking.status,
@@ -26,4 +34,4 @@ function publicOffer(id, booking) {
     }
   };
 }
-module.exports = { publicOffer, pickupEligibility, distanceKm };
+module.exports = { publicOffer, pickupEligibility, destinationEligibility, distanceKm };

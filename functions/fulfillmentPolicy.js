@@ -17,9 +17,18 @@ function contractFor(service) {
 }
 function driverTransition(service, current, next) {
   const contract = contractFor(service);
-  const allowed = { preparing: ['accepted'], transit: ['preparing'], completed: ['transit'] };
+  const allowed = {
+    preparing: ['accepted'],
+    transit: ['preparing'],
+    arrived_at_destination: service === 'ride' ? ['transit'] : [],
+    completed: service === 'ride' ? ['arrived_at_destination'] : ['transit'],
+  };
   if (!allowed[next]?.includes(current)) throw new HttpsError('failed-precondition', 'The order has changed. Refresh before continuing.');
-  return { stage: next === 'preparing' ? 'arrived_at_pickup' : next === 'transit' ? (service === 'ride' || service === 'takeover' ? 'trip_started' : 'picked_up') : (service === 'ride' || service === 'takeover' ? 'trip_completed' : 'delivery_confirmed'), requiresPickupCode: next === 'transit' && contract.pickupProof };
+  const stage = next === 'preparing' ? 'arrived_at_pickup'
+    : next === 'transit' ? (service === 'ride' || service === 'takeover' ? 'trip_started' : 'picked_up')
+      : next === 'arrived_at_destination' ? 'arrived_at_destination'
+        : (service === 'ride' || service === 'takeover' ? 'trip_completed' : 'delivery_confirmed');
+  return { stage, requiresPickupCode: next === 'transit' && contract.pickupProof };
 }
 function requireMerchantReady(service, readyEventExists) {
   if (['food', 'grocery'].includes(service) && !readyEventExists) {

@@ -8,7 +8,10 @@ test('verified order progress increases with canonical status and stops for canc
   assert.equal(getBookingProgress('pending'), 15);
   assert.ok(getBookingProgress('accepted') < getBookingProgress('preparing'));
   assert.ok(getBookingProgress('ready') < getBookingProgress('transit'));
+  assert.ok(getBookingProgress('transit') < getBookingProgress('arrived_at_destination'));
+  assert.ok(getBookingProgress('arrived_at_destination') < getBookingProgress('completed'));
   assert.equal(getBookingProgress('delivered'), 100);
+  assert.equal(getBookingProgress('arrived_at_destination'), 92);
   assert.equal(getBookingProgress('completed'), 100);
   assert.equal(getBookingProgress('cancelled'), 0);
 });
@@ -28,4 +31,12 @@ test('checkout resolves pickup and drop addresses uniformly across payment metho
   assert.match(src, /resolvedPickup = route\?\.pickupAddress \?\?/);
   assert.match(src, /resolvedDrop = route\?\.dropAddress \?\?/);
   assert.match(src, /customerName: resolvedCustomerName/);
+});
+
+test('ride history names the arrival state instead of showing a cancelled fallback', () => {
+  const src = readFileSync(new URL('../../src/components/CustomerApp.tsx', import.meta.url), 'utf8');
+  const tracking = readFileSync(new URL('../../src/components/OrderTrackingScreen.tsx', import.meta.url), 'utf8');
+  assert.match(src, /arrived_at_destination' \? 'Driver arrived at destination'/);
+  assert.match(tracking, /booking\.status === 'arrived_at_destination' \? 'Your driver arrived at the destination'/);
+  assert.match(tracking, /'Trip started', 'At destination', 'Completed'/);
 });

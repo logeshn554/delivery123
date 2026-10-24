@@ -130,6 +130,7 @@ export interface Booking {
   settlementContract?: PartnerSettlementContract;
   driverSettlement?: { version: number; serviceType: Booking['serviceType']; baseCents: number; distanceCents: number; plannedDurationCents: number; waitingCents: number; waitMinutes: number; totalCents: number; capApplied: boolean };
   arrivedAtPickup?: string;
+  arrivedAtDestination?: string;
   pickupCompletedAt?: string;
   priceBreakdown?: PriceBreakdown;
   fareBreakdown?: { baseCents: number; distanceCents: number; timeCents: number; weightCents: number; minimumAdjustmentCents: number; insuranceCents: number; subtotalCents: number; discountCents: number; totalCents: number };
@@ -138,7 +139,7 @@ export interface Booking {
   customerId: string;
   customerName: string;
   serviceType: 'food' | 'grocery' | 'ride' | 'parcel' | 'takeover' | 'transport';
-  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'transit' | 'delivered' | 'completed' | 'cancelled';
+  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'transit' | 'arrived_at_destination' | 'delivered' | 'completed' | 'cancelled';
   createdAt: string;
   updatedAt: string;
   completedAt?: string;

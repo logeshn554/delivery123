@@ -342,7 +342,7 @@ export async function rejectDriverBooking(bookingId: string) {
   return (await httpsCallable(functions, 'rejectDriverBooking')({ bookingId })).data;
 }
 
-export async function advanceDriverBooking(bookingId: string, status: 'preparing' | 'transit' | 'completed', otp?: string) {
+export async function advanceDriverBooking(bookingId: string, status: 'preparing' | 'transit' | 'arrived_at_destination' | 'completed', otp?: string) {
   return (await httpsCallable<{ bookingId: string; status: string; otp?: string }, { status: string }>(functions, 'advanceDriverBooking')({ bookingId, status, ...(otp ? { otp } : {}) })).data;
 }
 

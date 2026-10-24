@@ -13,7 +13,7 @@ const { validPoint, checkCoverage, calculateFare, calculateFareBreakdown, contai
 const { validateParcelContents, separateParcelContacts, parcelWeight } = require('./parcelPolicy');
 const { reverseWalletCredit, refundProgress } = require('./refundPolicy');
 const { isCustomerCancellationReason } = require('./cancellationPolicy');
-const { publicOffer, pickupEligibility } = require('./dispatchPolicy');
+const { publicOffer, pickupEligibility, destinationEligibility } = require('./dispatchPolicy');
 const { cartCharges } = require('./cartPolicy');
 const { checkoutCatalogItem } = require('./checkoutCatalog');
 const { merchantOpen, validateHours } = require('./merchantPolicy');
@@ -1030,7 +1030,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
   const bookingId = cleanText(request.data?.bookingId, 'Booking ID', 128);
   if (!/^[a-zA-Z0-9_-]+$/.test(bookingId)) throw new HttpsError('invalid-argument', 'Invalid booking ID.');
   const next = request.data?.status;
-  if (!['preparing', 'transit', 'completed'].includes(next)) throw new HttpsError('invalid-argument', 'Invalid job transition.');
+  if (!['preparing', 'transit', 'arrived_at_destination', 'completed'].includes(next)) throw new HttpsError('invalid-argument', 'Invalid job transition.');
   const result = await db.runTransaction(async transaction => {
     const bookingRef = db.doc(`bookings/${bookingId}`), driverRef = db.doc(`driver_profiles/${uid}`);
     const codeRef = db.doc(`booking_codes/${bookingId}`), proofRef = db.doc(`booking_delivery_proofs/${bookingId}`), pickupInspectionRef = bookingRef.collection('events').doc('transport_inspection_pickup'), deliveryInspectionRef = bookingRef.collection('events').doc('transport_inspection_delivery');
@@ -1044,6 +1044,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
     if (data.status === next) return { status: next };
     if (next === 'preparing' && data.serviceType === 'ride' && pickupEligibility(driver.data(), data, Date.now(), 0.3) === null) throw new HttpsError('failed-precondition', 'Move within 300 metres of the pickup and wait for a fresh, accurate location before marking arrival.');
+    if (next === 'arrived_at_destination' && data.serviceType === 'ride' && destinationEligibility(driver.data(), data, Date.now(), 0.3) === null) throw new HttpsError('failed-precondition', 'Move within 300 metres of the destination and wait for a fresh, accurate location before marking arrival.');
     if (data.serviceType === 'transport' && ['transit', 'completed'].includes(next)) {
       try { requireTransportInspection(next === 'transit' ? 'pickup' : 'delivery', (next === 'transit' ? pickupInspection : deliveryInspection).data()); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
@@ -1141,7 +1142,8 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
         if (merchantSettlement.payableCents > 0) transaction.create(db.doc(`financial_journals/merchant_earning_${bookingId}`), journal('merchant_earning', 'booking_funds_unallocated', 'merchant_payable', merchantSettlement.payableCents, { bookingId, merchantId: data.merchantId, commissionCents: merchantSettlement.commissionCents, contractVersion: merchantSettlement.contractVersion }));
       }
       transaction.delete(codeRef);
-    } else transaction.update(bookingRef, { status: next, ...(next === 'preparing' ? { arrivedAtPickup: new Date().toISOString() } : next === 'transit' ? { pickupCompletedAt: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
+    } else transaction.update(bookingRef, { status: next, ...(next === 'preparing' ? { arrivedAtPickup: new Date().toISOString() } : next === 'transit' ? { pickupCompletedAt: new Date().toISOString() } : next === 'arrived_at_destination' ? { arrivedAtDestination: new Date().toISOString() } : {}), updatedAt: new Date().toISOString() });
+    if (data.serviceType === 'ride' && next === 'transit' && transition.requiresPickupCode) transaction.create(bookingRef.collection('events').doc(`rider_verified_${uid}`), { stage: 'rider_verified', actorRole: 'driver', actorId: uid, proofMethod: 'pickup_code', createdAt: new Date().toISOString() });
     transaction.create(db.doc(`bookings/${bookingId}/events/${next}_${uid}`), { stage: transition.stage, actorRole: 'driver', actorId: uid, ...(next === 'completed' ? { proofMethod: SERVICES_REQUIRING_DELIVERY_SIGNATURE.has(data.serviceType) ? 'recipient_code_and_signature' : 'recipient_code', ...(SERVICES_REQUIRING_DELIVERY_SIGNATURE.has(data.serviceType) ? { deliveryProofId: proof.data().proofId } : {}) } : transition.requiresPickupCode ? { proofMethod: 'pickup_code' } : {}), createdAt: new Date().toISOString() });
     return { status: next };
   });

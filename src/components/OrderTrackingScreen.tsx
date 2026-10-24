@@ -82,7 +82,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview, onSafet
   
   const parcelTracking = isParcel ? getParcelTrackingPresentation(booking.status) : null;
   const trackingStages = isRide 
-    ? ['Ride requested', 'Driver assigned', 'Trip started', 'Completed'] 
+    ? ['Ride requested', 'Driver assigned', 'Trip started', 'At destination', 'Completed'] 
     : isTakeover
       ? ['Driver requested', 'Driver assigned', 'Driving your vehicle', 'Trip completed']
       : isTransport
@@ -98,7 +98,7 @@ export default function OrderTrackingScreen({ booking, onChat, onReview, onSafet
   const takeoverStatusTitle = cancelled ? 'Driver hire cancelled' : complete ? 'Trip complete · Vehicle returned' : stage === 2 ? 'Driver is operating your vehicle' : booking.status === 'preparing' ? 'Driver arrived at your vehicle' : stage === 1 ? 'Personal driver assigned' : 'Finding a professional driver';
   const transportStatusTitle = cancelled ? 'Vehicle transport cancelled' : complete ? 'Vehicle delivered safely' : stage === 2 ? 'Vehicle in transit on carrier' : booking.status === 'preparing' ? 'Carrier arrived for loading' : stage === 1 ? 'Carrier truck assigned' : 'Assigning an authorized carrier';
   const serviceStatusTitle = isRide 
-    ? (cancelled ? 'Ride cancelled' : complete ? 'Ride complete' : stage === 2 ? 'Your ride is in progress' : booking.status === 'preparing' ? 'Driver arrived at pickup' : stage === 1 ? 'Your driver has accepted' : 'Finding a driver') 
+    ? (cancelled ? 'Ride cancelled' : complete ? 'Ride complete' : booking.status === 'arrived_at_destination' ? 'Your driver arrived at the destination' : stage === 2 ? 'Your ride is in progress' : booking.status === 'preparing' ? 'Driver arrived at pickup' : stage === 1 ? 'Your driver has accepted' : 'Finding a driver') 
     : isTakeover ? takeoverStatusTitle
     : isTransport ? transportStatusTitle
     : isParcel ? parcelTracking!.title 

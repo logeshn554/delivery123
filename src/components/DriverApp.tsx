@@ -261,6 +261,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     await advanceDriverBooking(job.bookingId, 'transit', pickupCode.trim());
     setPickupCode('');
   });
+  const handleArrivedAtDestination = (job: Booking) => performAction(() => advanceDriverBooking(job.bookingId, 'arrived_at_destination'));
   const handleCompleteJob = (job: Booking) => performAction(async () => {
     await advanceDriverBooking(job.bookingId, 'completed', otpInput.trim());
     setOtpInput('');
@@ -693,7 +694,16 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                 </div>
               )}
 
-              {currentAssignedJob.status === 'transit' && (
+              {currentAssignedJob.status === 'transit' && currentAssignedJob.serviceType === 'ride' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500">Confirm arrival when you reach the passenger's destination. GPS must be recent and within 300 metres.</p>
+                  <button type="button" disabled={actionBusy} onClick={() => handleArrivedAtDestination(currentAssignedJob)} className="w-full rounded-xl bg-indigo-600 px-4 py-3 font-bold text-white disabled:opacity-50">Confirm arrival at destination</button>
+                </div>
+              )}
+              {currentAssignedJob.status === 'arrived_at_destination' && currentAssignedJob.serviceType === 'ride' && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3 text-sm font-semibold text-indigo-900">You are at the destination. Ask the passenger for the completion code.</div>
+              )}
+              {(currentAssignedJob.status === 'transit' && currentAssignedJob.serviceType !== 'ride' || currentAssignedJob.status === 'arrived_at_destination' && currentAssignedJob.serviceType === 'ride') && (
                 <div className="space-y-3">
                   <div>
                     <p className="text-[10px] text-slate-400 mb-2">
