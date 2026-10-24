@@ -12,6 +12,7 @@ import { bookingAuthorityCapabilities } from '../design-system/bookingAuthority'
 import { getGroceryPickingProgress, getGroceryTrackingStage, GROCERY_TRACKING_STAGES } from '../design-system/groceryTracking';
 import HandoverCode from './HandoverCode';
 import DeliverySignatureReceipt from './DeliverySignatureReceipt';
+import RideSafetyActions from './RideSafetyActions';
 
 export default function OrderTrackingScreen({ booking, onChat, onReview }: { booking: Booking; onChat: () => void; onReview?: () => void }) {
   const authority = bookingAuthorityCapabilities(booking);
@@ -193,6 +194,8 @@ export default function OrderTrackingScreen({ booking, onChat, onReview }: { boo
           {booking.driverId ? <><strong>Driver assigned</strong><p>{booking.status === 'preparing' ? `${booking.driverName || 'Your driver'} has arrived at your pickup location. Meet your driver and share your trip start code.` : `${booking.driverName || 'Your driver'} has accepted the trip. Driver contact and vehicle details appear only when provided by the booking service.`}</p></> : <><strong>Waiting for a driver assignment</strong><p>We’ll show driver details when an available driver accepts this booking.</p></>}
         </aside>
       )}
+
+      {isRide && !complete && !cancelled && <RideSafetyActions booking={booking} driverName={booking.driverName} vehicle={vehicleLabel} position={fresh && Number.isFinite(lat) && Number.isFinite(lng) ? { lat: lat!, lng: lng! } : undefined}/>}
 
       {/* Ride details summary */}
       {isRide && (
