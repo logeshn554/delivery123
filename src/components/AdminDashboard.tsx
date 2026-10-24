@@ -12,6 +12,9 @@ import DeliveryProofPolicyEditor from './DeliveryProofPolicyEditor';
 import MerchantBusinessSetup from './MerchantBusinessSetup';
 import PartnerApplicationPanel from './PartnerApplicationPanel';
 import DriverEligibilityReview from './DriverEligibilityReview';
+import TransportVehicleReviewQueue from './TransportVehicleReviewQueue';
+import TransportSettlementQueue from './TransportSettlementQueue';
+import TransportTollReviewQueue from './TransportTollReviewQueue';
 import { 
   Users, MapPin, ClipboardList, Shield, DollarSign, Search, Check, X, 
   Map, ArrowUpRight, CheckCircle2, ListFilter
@@ -186,6 +189,8 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
       </div>
 
       <PayoutRequests />
+      <TransportSettlementQueue />
+      <TransportTollReviewQueue />
       <DeletionRequests />
       {/* 4. Live bookings table monitor */}
       <div id="admin-bookings" className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
@@ -309,6 +314,7 @@ export default function AdminDashboard({ activeBookings, driverProfiles }: Admin
       <section id="admin-policy"><DispatchPolicyEditor/><DeliveryProofPolicyEditor/></section>
       <section id="admin-business"><MerchantBusinessSetup/></section>
       <PartnerApplicationPanel staff/>
+      <TransportVehicleReviewQueue/>
       <section id="admin-support"><SupportOperationsQueue/></section>
       <section className="space-y-3 rounded-xl border p-4"><h2 className="font-bold">Bookings awaiting problem review</h2>{activeBookings.filter(booking => booking.exception?.status === 'open').map(booking => <div key={booking.bookingId}><h3 className="mb-1 text-xs font-bold">{booking.bookingId} · {booking.serviceType}</h3><BookingExceptionPanel booking={booking} staff/></div>)}{!activeBookings.some(booking => booking.exception?.status === 'open') && <p className="text-sm">No reported problems in the loaded bookings.</p>}</section>
     </div></div>

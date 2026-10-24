@@ -5,7 +5,8 @@ const { catalogItem } = require('./catalogPolicy');
 const { assertStockBaseline } = require('./stockBaseline');
 const { recordStockMovement } = require('./inventoryJournal');
 const { settlementPolicy } = require('./settlementPolicy');
-const { merchantHasBusiness, normalizeMerchantBusinessIds } = require('./merchantAccess');
+const { merchantHasBusiness, merchantHasPermission, merchantStaffGrant, normalizeMerchantBusinessIds } = require('./merchantAccess');
+const { journal } = require('./journalPolicy');
 function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }) {
   const services = ['food','grocery','ride','parcel','takeover','transport'];
   const admin = async request => {
@@ -14,6 +15,36 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
   };
   const audit = (tx, uid, action, target) => tx.create(db.collection('operations_audit').doc(), { operatorId: uid, action, target, createdAt: Timestamp.now() });
   return {
+    listTransportOperatorSettlements: onCall({ operation: 'listTransportOperatorSettlements', region: REGION }, async request => {
+      await admin(request);
+      const page = await db.collectionGroup('entries').where('type', '==', 'transport_margin_pending_review').limit(101).get();
+      const entries = page.docs.slice(0, 100).map(snapshot => { const value = snapshot.data(), operatorId = snapshot.ref.parent.parent?.id; return { operatorId: operatorId || '', bookingId: String(value.bookingId || snapshot.id), grossCents: Number.isSafeInteger(value.grossCents) ? value.grossCents : 0, driverPayoutCents: Number.isSafeInteger(value.driverPayoutCents) ? value.driverPayoutCents : 0, amountCents: Number.isSafeInteger(value.amountCents) ? value.amountCents : 0, createdAt: value.createdAt?.toDate?.().toISOString() || null, status: value.status }; }).filter(entry => entry.operatorId && entry.amountCents > 0 && entry.status === 'pending_review');
+      return { entries, hasMore: page.size > 100 };
+    }),
+    reviewTransportOperatorSettlement: onCall({ operation: 'reviewTransportOperatorSettlement', region: REGION }, async request => {
+      const uid = await admin(request), input = request.data || {}, operatorId = documentId(input.operatorId, 'Transport operator ID'), bookingId = documentId(input.bookingId, 'Booking ID'), eventId = documentId(input.requestId, 'Review reference'), decision = input.decision;
+      if (!['approved', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Choose approve or reject.');
+      const reason = cleanText(input.reason, 'Finance review reason', 500), entryRef = db.doc(`transport_operator_ledger/${operatorId}/entries/${bookingId}`), balanceRef = db.doc(`transport_operator_balances/${operatorId}`), eventRef = db.doc(`transport_operator_ledger/${operatorId}/events/${eventId}`);
+      return db.runTransaction(async tx => {
+        const [operator, entry, balance, event] = await Promise.all([tx.get(db.doc(`transport_operators/${operatorId}`)), tx.get(entryRef), tx.get(balanceRef), tx.get(eventRef)]);
+        if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || prior.decision !== decision || prior.reason !== reason || prior.bookingId !== bookingId) throw new HttpsError('already-exists', 'This finance review reference was already used.'); return { status: prior.status }; }
+        const data = entry.data(), available = balance.data()?.availableCents ?? 0, reserved = balance.data()?.reservedCents ?? 0;
+        if (operator.data()?.status !== 'approved' || !data || data.status !== 'pending_review' || data.type !== 'transport_margin_pending_review' || !Number.isSafeInteger(data.amountCents) || data.amountCents <= 0 || !Number.isSafeInteger(available) || available < 0 || !Number.isSafeInteger(reserved) || reserved < 0) throw new HttpsError('failed-precondition', 'This transport settlement is not eligible for finance review.');
+        if (decision === 'approved' && !Number.isSafeInteger(available + data.amountCents)) throw new HttpsError('failed-precondition', 'The operator balance requires finance reconciliation.');
+        const journalRef = db.doc(`financial_journals/transport_operator_margin_review_${bookingId}`);
+        if (decision === 'approved') {
+          tx.set(balanceRef, { operatorId, currency: 'INR', availableCents: available + data.amountCents, reservedCents: reserved, updatedAt: Timestamp.now() }, { merge: true });
+          tx.update(entryRef, { type: 'transport_margin_approved', status: 'approved', reviewedAt: Timestamp.now(), reviewedBy: uid, reviewReason: reason });
+          tx.create(journalRef, journal('transport_operator_margin_approved', 'transport_operator_payable_pending_review', 'transport_operator_payable', data.amountCents, { bookingId, transportOperatorId: operatorId }));
+        } else {
+          tx.update(entryRef, { type: 'transport_margin_rejected', status: 'rejected', reviewedAt: Timestamp.now(), reviewedBy: uid, reviewReason: reason, amountCents: 0 });
+          tx.create(journalRef, journal('transport_operator_margin_rejected', 'transport_operator_payable_pending_review', 'booking_funds_unallocated', data.amountCents, { bookingId, transportOperatorId: operatorId }));
+        }
+        tx.create(eventRef, { actorId: uid, bookingId, decision, reason, status: decision, amountCents: data.amountCents, createdAt: Timestamp.now() });
+        audit(tx, uid, `transport_settlement_${decision}`, entryRef.path);
+        return { status: decision };
+      });
+    }),
     listMerchantBusinesses: onCall({ operation: 'listMerchantBusinesses', region: REGION }, async request => {
       const uid = request.auth?.uid;
       if (!uid) throw new HttpsError('unauthenticated', 'Sign in.');
@@ -22,13 +53,225 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       let assigned;
       try { assigned = normalizeMerchantBusinessIds(account.merchantBusinessIds); } catch { throw new HttpsError('failed-precondition', 'Merchant business access needs operations review.'); }
       for (const type of ['restaurant', 'grocery']) if (account.merchantType === type && account.merchantId && !assigned[type].includes(account.merchantId)) assigned[type].push(account.merchantId);
+      for (const [id, grant] of Object.entries(account.merchantStaffAccess || {})) if (['restaurant', 'grocery'].includes(grant?.merchantType) && merchantStaffGrant(account, id, grant.merchantType) && !assigned[grant.merchantType].includes(id)) assigned[grant.merchantType].push(id);
       const entries = await Promise.all(['restaurant', 'grocery'].flatMap(type => assigned[type].map(async id => {
         if (!merchantHasBusiness(account, id, type)) return null;
         const snapshot = await db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`).get(), business = snapshot.data();
-        if (!snapshot.exists || business.merchantType !== type || business.onboardingStatus !== 'approved' || business.merchantEligibility?.status !== 'verified') return null;
-        return { id, merchantType: type, name: typeof business.name === 'string' && business.name.trim() ? business.name : id, address: typeof business.address === 'string' ? business.address : '', acceptingOrders: business.acceptingOrders === true };
+        if (!snapshot.exists || business.merchantType !== type) return null;
+        const grant = merchantStaffGrant(account, id, type);
+        if (business.onboardingStatus === 'approved' && business.merchantEligibility?.status === 'verified') return { id, merchantType: type, name: typeof business.name === 'string' && business.name.trim() ? business.name : id, address: typeof business.address === 'string' ? business.address : '', timeZone: typeof business.timeZone === 'string' ? business.timeZone : 'Asia/Kolkata', profileRevision: Number.isSafeInteger(business.profileRevision) ? business.profileRevision : 0, acceptingOrders: business.acceptingOrders === true, ...(grant ? { permissions: grant.permissions } : {}), ...(business.ownerId === uid && typeof business.applicationId === 'string' ? { applicationId: business.applicationId } : {}), canManageStaff: business.ownerId === uid };
+        if (business.ownerId !== uid || typeof business.applicationId !== 'string') return null;
+        const application = (await db.doc(`partner_applications/${business.applicationId}`).get()).data();
+        if (!application || application.userId !== uid || application.businessId !== id || application.type !== type || application.status !== 'needs_information') return null;
+        return { id, merchantType: type, name: typeof business.name === 'string' && business.name.trim() ? business.name : id, address: typeof business.address === 'string' ? business.address : '', timeZone: typeof business.timeZone === 'string' ? business.timeZone : 'Asia/Kolkata', profileRevision: Number.isSafeInteger(business.profileRevision) ? business.profileRevision : 0, acceptingOrders: false, permissions: [], applicationId: business.applicationId, applicationNeedsInformation: true, canManageStaff: false };
       })));
       return { businesses: entries.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)) };
+    }),
+    updateMerchantBusinessProfile: onCall({ operation: 'updateMerchantBusinessProfile', region: REGION }, async request => {
+      const uid = request.auth?.uid, data = request.data || {};
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to update your business profile.');
+      const id = documentId(data.merchantId, 'Business ID'), type = data.merchantType, requestId = documentId(data.requestId, 'Update reference');
+      if (!['restaurant', 'grocery'].includes(type) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) throw new HttpsError('invalid-argument', 'Refresh the business profile before saving.');
+      const name = cleanText(data.name, 'Business name', 120), address = cleanText(data.address, 'Business address', 300), timeZone = cleanText(data.timeZone, 'Business time zone', 80);
+      try { new Intl.DateTimeFormat('en', { timeZone }).format(); } catch { throw new HttpsError('invalid-argument', 'Choose a valid time zone.'); }
+      const input = { merchantId: id, merchantType: type, name, address, timeZone, expectedRevision: data.expectedRevision };
+      return db.runTransaction(async tx => {
+        const collection = type === 'restaurant' ? 'restaurants' : 'grocery_stores', ref = db.doc(`${collection}/${id}`), eventRef = ref.collection('profile_events').doc(requestId), [businessSnapshot, event, account] = await Promise.all([tx.get(ref), tx.get(eventRef), tx.get(db.doc(`users/${uid}`))]), business = businessSnapshot.data(), profile = account.data();
+        if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || JSON.stringify(prior.input) !== JSON.stringify(input)) throw new HttpsError('already-exists', 'This profile update reference was already used.'); return { updated: true, revision: prior.revision }; }
+        if (!business || profile?.role !== 'merchant' || profile.disabled === true || profile.suspended === true || business.ownerId !== uid) throw new HttpsError('permission-denied', 'Only the active business owner can update this profile.');
+        if (business.merchantType !== type || business.onboardingStatus !== 'approved' || business.merchantEligibility?.status !== 'verified') throw new HttpsError('failed-precondition', 'Only a verified business profile can be updated.');
+        const currentRevision = Number.isSafeInteger(business.profileRevision) ? business.profileRevision : 0;
+        if (currentRevision !== data.expectedRevision) throw new HttpsError('aborted', 'The business profile changed. Refresh before saving.');
+        const revision = currentRevision + 1, now = new Date().toISOString();
+        tx.update(ref, { name, address, timeZone, profileRevision: revision, profileUpdatedAt: now });
+        tx.create(eventRef, { actorId: uid, input, revision, createdAt: now });
+        audit(tx, uid, 'merchant_business_profile_updated', `${collection}/${id}`);
+        return { updated: true, revision };
+      });
+    }),
+    getTransportOperatorDashboard: onCall({ operation: 'getTransportOperatorDashboard', region: REGION }, async request => {
+      const uid = request.auth?.uid;
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to open the transport dashboard.');
+      const account = (await db.doc(`users/${uid}`).get()).data(), operatorId = account?.transportOperatorId;
+      if (account?.role !== 'merchant' || account.disabled === true || account.suspended === true || typeof operatorId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(operatorId)) throw new HttpsError('permission-denied', 'An active transport operator account is required.');
+      const operatorSnapshot = await db.doc(`transport_operators/${operatorId}`).get(), operator = operatorSnapshot.data();
+      if (!operatorSnapshot.exists || operator.ownerUid !== uid || operator.status !== 'approved') throw new HttpsError('permission-denied', 'This transport operator account is not approved.');
+      const balanceRef = db.doc(`transport_operator_balances/${operatorId}`);
+      const [bookingPage, vehiclePage, driverPage, earningsPage, quotePage, balancePage, payoutPage, tollPage] = await Promise.all([
+        db.collection('bookings').where('transportOperatorId', '==', operatorId).orderBy('createdAt', 'desc').limit(51).get(),
+        db.collection(`transport_operators/${operatorId}/vehicles`).orderBy('__name__').limit(51).get(),
+        db.collection(`transport_operators/${operatorId}/drivers`).orderBy('__name__').limit(51).get(),
+        db.collection(`transport_operator_ledger/${operatorId}/entries`).orderBy('createdAt', 'desc').limit(501).get(),
+        db.collection(`transport_operators/${operatorId}/quote_requests`).orderBy('createdAt', 'desc').limit(101).get(),
+        balanceRef.get(),
+        db.collection('payout_requests').where('operatorId', '==', operatorId).limit(51).get(),
+        db.collection(`transport_operator_ledger/${operatorId}/expenses`).orderBy('createdAt', 'desc').limit(51).get()
+      ]);
+      const bookings = bookingPage.docs.slice(0, 50).map(snapshot => { const value = snapshot.data(); return { bookingId: snapshot.id, status: value.status || 'unknown', price: Number.isFinite(value.price) ? value.price : null, createdAt: typeof value.createdAt === 'string' ? value.createdAt : value.createdAt?.toDate?.().toISOString() || null, pickupDate: value.details?.preferredDate || null, pickupTimeReview: value.details?.pickupTimeReview || null, vehicle: value.details?.transportMakeModel || null, registration: value.details?.transportRegNo || null, pickup: value.pickupAddress || null, drop: value.dropAddress || null, driverId: value.driverId || null, transportAssignment: value.transportAssignment ? { status: value.transportAssignment.status, driverId: value.transportAssignment.driverId, vehicleId: value.transportAssignment.vehicleId } : null }; });
+      const vehicles = vehiclePage.docs.slice(0, 50).map(snapshot => ({ vehicleId: snapshot.id, ...snapshot.data() }));
+      const drivers = driverPage.docs.slice(0, 50).map(snapshot => ({ driverId: snapshot.id, ...snapshot.data() }));
+      const quoteRequests = quotePage.docs.filter(snapshot => ['open', 'offered'].includes(snapshot.data().status)).slice(0, 50).map(snapshot => { const value = snapshot.data(), booking = value.bookingDraft || {}; return { requestId: snapshot.id, status: value.status, revision: value.revision || 0, requestedAt: value.createdAt?.toDate?.().toISOString() || null, preferredDate: booking.details?.preferredDate || null, vehicle: booking.details?.transportMakeModel || null, registration: booking.details?.transportRegNo || null, vehicleType: booking.details?.transportVehicleType || null, weightKg: booking.details?.vehicleWeightKg || null, vehicleDimensions: booking.details?.vehicleDimensions || null, pickup: booking.pickupAddress || null, drop: booking.dropAddress || null, estimatedKm: booking.details?.estimatedKm || null, estimatedMinutes: booking.details?.estimatedMinutes || null, condition: booking.details?.vehicleCondition || null, quote: value.quote ? { amountCents: value.quote.amountCents, reason: value.quote.reason, expiresAt: value.quote.expiresAt?.toDate?.().toISOString() || null, decision: value.quote.decision } : null }; });
+      const entries = earningsPage.docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() })), earningsCents = entries.reduce((sum, entry) => sum + (Number.isSafeInteger(entry.amountCents) ? entry.amountCents : 0), 0);
+      const earnings = entries.slice(0, 50).map(entry => ({ bookingId: String(entry.bookingId || entry.id), type: String(entry.type || 'transport_earning'), grossCents: Number.isSafeInteger(entry.grossCents) ? entry.grossCents : Number.isSafeInteger(entry.amountCents) ? entry.amountCents : 0, driverPayoutCents: Number.isSafeInteger(entry.driverPayoutCents) ? entry.driverPayoutCents : 0, amountCents: Number.isSafeInteger(entry.amountCents) ? entry.amountCents : 0, status: String(entry.status || 'recorded'), ...(typeof entry.reviewReason === 'string' ? { reviewReason: entry.reviewReason } : {}), createdAt: entry.createdAt?.toDate?.().toISOString() || null }));
+      const operatorPayouts = payoutPage.docs.filter(snapshot => snapshot.data().beneficiaryType === 'transport_operator').slice(0, 50).map(snapshot => { const value = snapshot.data(); return { requestId: snapshot.id, amountCents: Number.isSafeInteger(value.amountCents) ? value.amountCents : 0, status: String(value.status || 'unknown'), createdAt: typeof value.createdAt === 'string' ? value.createdAt : value.createdAt?.toDate?.().toISOString() || null, transferReference: typeof value.transferReference === 'string' ? value.transferReference : null }; });
+      const tollClaims = tollPage.docs.slice(0, 50).map(snapshot => { const value = snapshot.data(); return { claimId: snapshot.id, bookingId: String(value.bookingId || ''), driverId: String(value.driverId || ''), amountCents: Number.isSafeInteger(value.amountCents) ? value.amountCents : 0, description: String(value.description || ''), status: String(value.status || 'unknown'), reviewReason: typeof value.reviewReason === 'string' ? value.reviewReason : null, createdAt: value.createdAt?.toDate?.().toISOString() || null, receiptCount: Array.isArray(value.receipts) ? value.receipts.length : 0 }; });
+      return { operator: { id: operatorId, name: operator.name || 'Transport operator', status: operator.status }, bookings, hasMoreBookings: bookingPage.size > 50, quoteRequests, hasMoreQuoteRequests: quotePage.size > 100, vehicles, hasMoreVehicles: vehiclePage.size > 50, drivers, hasMoreDrivers: driverPage.size > 50, earningsCents, earningsEntries: entries.length, earnings, hasMoreEarnings: earningsPage.size > 500, balance: { availableCents: Number.isSafeInteger(balancePage.data()?.availableCents) ? balancePage.data().availableCents : 0, reservedCents: Number.isSafeInteger(balancePage.data()?.reservedCents) ? balancePage.data().reservedCents : 0 }, operatorPayouts, hasMoreOperatorPayouts: payoutPage.size > 50, tollClaims, hasMoreTollClaims: tollPage.size > 50 };
+    }),
+    listTransportOperators: onCall({ operation: 'listTransportOperators', region: REGION }, async request => {
+      const uid = request.auth?.uid;
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to view available transport operators.');
+      const account = (await db.doc(`users/${uid}`).get()).data();
+      if (account?.role !== 'customer' || account.disabled === true || account.suspended === true) throw new HttpsError('permission-denied', 'An active customer account is required.');
+      const page = await db.collection('transport_operators').where('status', '==', 'approved').limit(100).get();
+      const operators = await Promise.all(page.docs.map(async snapshot => {
+        const value = snapshot.data();
+        if (typeof value.ownerUid !== 'string') return null;
+        const [owner, vehicle] = await Promise.all([db.doc(`users/${value.ownerUid}`).get(), db.collection(`transport_operators/${snapshot.id}/vehicles`).where('status', '==', 'approved').limit(1).get()]);
+        if (owner.data()?.disabled === true || owner.data()?.suspended === true || vehicle.empty) return null;
+        return { operatorId: snapshot.id, name: typeof value.name === 'string' && value.name.trim() ? value.name.trim() : 'Transport operator' };
+      }));
+      return { operators: operators.filter(Boolean) };
+    }),
+    issueTransportQuote: onCall({ operation: 'issueTransportQuote', region: REGION }, async request => {
+      const uid = request.auth?.uid, data = request.data || {};
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to respond to a transport quote request.');
+      const requestId = documentId(data.requestId, 'Quote request ID'), eventId = documentId(data.requestIdempotencyKey, 'Quote response reference'), decision = data.decision;
+      if (!['confirmed', 'declined'].includes(decision) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 || decision === 'confirmed' && (!Number.isSafeInteger(data.amountCents) || data.amountCents < 100 || data.amountCents > 100000000) || decision === 'confirmed' && (!Number.isSafeInteger(data.expiresInMinutes) || data.expiresInMinutes < 5 || data.expiresInMinutes > 1440)) throw new HttpsError('invalid-argument', 'Provide a valid customer price, expiry, pickup decision and current request revision.');
+      const reason = cleanText(data.reason, 'Pickup and quote terms', 500), amountCents = decision === 'confirmed' ? data.amountCents : 0;
+      return db.runTransaction(async tx => {
+        const accountSnapshot = await tx.get(db.doc(`users/${uid}`)), account = accountSnapshot.data(), operatorId = account?.transportOperatorId;
+        if (account?.role !== 'merchant' || account.disabled === true || account.suspended === true || typeof operatorId !== 'string') throw new HttpsError('permission-denied', 'An active transport operator account is required.');
+        const operatorRef = db.doc(`transport_operators/${operatorId}`), requestRef = operatorRef.collection('quote_requests').doc(requestId), mirrorRef = db.doc(`transport_quote_requests/${requestId}`), eventRef = requestRef.collection('events').doc(eventId);
+        const [operator, quoteRequest, mirror, event] = await Promise.all([tx.get(operatorRef), tx.get(requestRef), tx.get(mirrorRef), tx.get(eventRef)]);
+        if (operator.data()?.ownerUid !== uid || operator.data()?.status !== 'approved' || !quoteRequest.exists || !mirror.exists || mirror.data().operatorId !== operatorId) throw new HttpsError('permission-denied', 'This quote request does not belong to your approved operator account.');
+        const prior = quoteRequest.data();
+        if (event.exists) { const saved = event.data(); if (saved.actorId !== uid || saved.decision !== decision || saved.amountCents !== amountCents || saved.reason !== reason || saved.expectedRevision !== data.expectedRevision) throw new HttpsError('already-exists', 'This response reference was already used.'); return { status: saved.status, revision: saved.revision, expiresAt: saved.expiresAt || null }; }
+        if (prior.status !== 'open' || prior.revision !== data.expectedRevision || prior.expiresAt?.toMillis() <= Date.now()) throw new HttpsError('aborted', 'The customer request changed or expired. Refresh before responding.');
+        if (decision === 'confirmed' && amountCents < prior.bookingDraft?.settlementContract?.maxPayoutCents) throw new HttpsError('failed-precondition', 'The customer price cannot be below the reviewed maximum driver payout for this route.');
+        const revision = prior.revision + 1, issuedAt = Timestamp.now(), expiresAt = decision === 'confirmed' ? Timestamp.fromMillis(Date.now() + data.expiresInMinutes * 60000) : null;
+        const status = decision === 'confirmed' ? 'offered' : 'declined';
+        const quote = decision === 'confirmed' ? { amountCents, decision, revision, reviewedBy: uid, reviewedByRole: 'transport_operator', reviewedAt: issuedAt, reason, expiresAt } : null;
+        const offer = { status, decision, revision, reviewedBy: uid, reviewedByRole: 'transport_operator', reviewedAt: issuedAt, reason, ...(quote ? { amountCents, expiresAt, quote } : {}) };
+        tx.update(requestRef, { ...offer, respondedAt: issuedAt });
+        tx.update(mirrorRef, { ...offer, respondedAt: issuedAt });
+        tx.create(eventRef, { actorId: uid, decision, status, amountCents, reason, expectedRevision: data.expectedRevision, revision, expiresAt, createdAt: issuedAt });
+        audit(tx, uid, `transport_quote_${decision}`, requestRef.path);
+        return { status, revision, expiresAt: expiresAt?.toDate().toISOString() || null };
+      });
+    }),
+    requestTransportOperatorLink: onCall({ operation: 'requestTransportOperatorLink', region: REGION }, async request => {
+      const uid = request.auth?.uid, operatorId = documentId(request.data?.operatorId, 'Operator ID');
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to request a fleet link.');
+      return db.runTransaction(async tx => {
+        const [accountSnapshot, profileSnapshot, operatorSnapshot, memberSnapshot] = await Promise.all([
+          tx.get(db.doc(`users/${uid}`)), tx.get(db.doc(`driver_profiles/${uid}`)), tx.get(db.doc(`transport_operators/${operatorId}`)), tx.get(db.doc(`transport_operators/${operatorId}/drivers/${uid}`))
+        ]);
+        const account = accountSnapshot.data(), profile = profileSnapshot.data(), operator = operatorSnapshot.data();
+        if (account?.role !== 'driver' || account.disabled === true || account.suspended === true || profile?.status !== 'verified' || !profile.supportedServices?.includes('transport') || !profile.transportCapabilities?.approved) throw new HttpsError('failed-precondition', 'A verified driver approved for vehicle transport is required.');
+        if (profile.transportOperatorId && profile.transportOperatorId !== operatorId) throw new HttpsError('failed-precondition', 'Your driver account is already linked to another fleet. Ask that operator to remove the link first.');
+        if (!operatorSnapshot.exists || operator.status !== 'approved') throw new HttpsError('not-found', 'That transport operator is not accepting fleet link requests.');
+        if (memberSnapshot.exists && ['active', 'pending'].includes(memberSnapshot.data().status)) return { status: memberSnapshot.data().status };
+        tx.set(db.doc(`transport_operators/${operatorId}/drivers/${uid}`), { driverId: uid, name: typeof account.name === 'string' ? account.name.slice(0, 120) : 'Transport driver', status: 'pending', requestedAt: Timestamp.now() });
+        return { status: 'pending' };
+      });
+    }),
+    reviewTransportDriverLink: onCall({ operation: 'reviewTransportDriverLink', region: REGION }, async request => {
+      const uid = request.auth?.uid, operatorId = documentId(request.data?.operatorId, 'Operator ID'), driverId = documentId(request.data?.driverId, 'Driver ID');
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to review a fleet request.');
+      if (!['approved', 'declined'].includes(request.data?.decision)) throw new HttpsError('invalid-argument', 'Choose approve or decline.');
+      return db.runTransaction(async tx => {
+        const opRef = db.doc(`transport_operators/${operatorId}`), memberRef = opRef.collection('drivers').doc(driverId), [op, member, profile, account] = await Promise.all([tx.get(opRef), tx.get(memberRef), tx.get(db.doc(`driver_profiles/${driverId}`)), tx.get(db.doc(`users/${driverId}`))]);
+        if (!op.exists || op.data().ownerUid !== uid || op.data().status !== 'approved') throw new HttpsError('permission-denied', 'Only this approved operator owner can review driver requests.');
+        if (!member.exists || member.data().status !== 'pending') throw new HttpsError('failed-precondition', 'This driver request is no longer pending.');
+        if (request.data.decision === 'approved' && (account.data()?.role !== 'driver' || profile.data()?.status !== 'verified' || !profile.data()?.supportedServices?.includes('transport') || !profile.data()?.transportCapabilities?.approved || profile.data()?.transportOperatorId && profile.data().transportOperatorId !== operatorId)) throw new HttpsError('failed-precondition', 'The driver is no longer eligible for this fleet link.');
+        tx.update(memberRef, { status: request.data.decision === 'approved' ? 'active' : 'declined', reviewedAt: Timestamp.now(), reviewedBy: uid });
+        if (request.data.decision === 'approved') tx.update(db.doc(`driver_profiles/${driverId}`), { transportOperatorId: operatorId });
+        tx.create(opRef.collection('events').doc(`driver_link_${driverId}_${Date.now()}`), { action: `driver_link_${request.data.decision}`, actorId: uid, driverId, createdAt: Timestamp.now() });
+        return { status: request.data.decision };
+      });
+    }),
+    submitTransportVehicle: onCall({ operation: 'submitTransportVehicle', region: REGION }, async request => {
+      const uid = request.auth?.uid, data = request.data || {};
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to register a vehicle.');
+      const vehicleId = documentId(data.vehicleId, 'Vehicle reference'), label = cleanText(data.label, 'Vehicle label', 80), registration = cleanText(data.registration, 'Registration number', 30).toUpperCase().replace(/\s+/g, ''), carrierType = data.carrierType;
+      if (!/^[A-Z0-9-]{5,20}$/.test(registration) || !['open_carrier', 'covered_carrier', 'flatbed', 'trailer', 'other'].includes(carrierType)) throw new HttpsError('invalid-argument', 'Enter a valid registration number and carrier type.');
+      const [maxLoadKg, maxLengthCm, maxWidthCm, maxHeightCm] = [data.maxLoadKg, data.maxLengthCm, data.maxWidthCm, data.maxHeightCm];
+      if (![maxLoadKg, maxLengthCm, maxWidthCm, maxHeightCm].every(value => Number.isFinite(value) && value > 0 && value <= 100000)) throw new HttpsError('invalid-argument', 'Enter positive vehicle load and size limits.');
+      const insuranceReference = cleanText(data.insuranceReference, 'Insurance reference', 100), rcReference = cleanText(data.rcReference, 'Registration document reference', 100);
+      return db.runTransaction(async tx => {
+        const account = (await tx.get(db.doc(`users/${uid}`))).data(), operatorId = account?.transportOperatorId;
+        if (account?.role !== 'merchant' || account.disabled === true || account.suspended === true || typeof operatorId !== 'string') throw new HttpsError('permission-denied', 'An active transport operator account is required.');
+        const operatorRef = db.doc(`transport_operators/${operatorId}`), vehicleRef = operatorRef.collection('vehicles').doc(vehicleId), [operator, existing] = await Promise.all([tx.get(operatorRef), tx.get(vehicleRef)]);
+        if (operator.data()?.ownerUid !== uid || operator.data()?.status !== 'approved') throw new HttpsError('permission-denied', 'Only the approved operator owner can register fleet vehicles.');
+        if (existing.exists) { const prior = existing.data(); if (prior.registration === registration && prior.ownerUid === uid) return { status: prior.status || 'pending_review', vehicleId }; throw new HttpsError('already-exists', 'This vehicle reference is already in use.'); }
+        tx.create(vehicleRef, { vehicleId, operatorId, ownerUid: uid, label, registration, carrierType, maxLoadKg, maxLengthCm, maxWidthCm, maxHeightCm, insuranceReference, rcReference, status: 'pending_review', submittedAt: Timestamp.now() });
+        tx.create(operatorRef.collection('events').doc(`vehicle_submitted_${vehicleId}`), { action: 'vehicle_submitted_for_review', actorId: uid, vehicleId, createdAt: Timestamp.now() });
+        tx.create(db.doc(`transport_vehicle_reviews/${vehicleId}`), { operatorId, vehicleId, ownerUid: uid, label, registration, carrierType, maxLoadKg, maxLengthCm, maxWidthCm, maxHeightCm, insuranceReference, rcReference, status: 'pending_review', submittedAt: Timestamp.now() });
+        return { status: 'pending_review', vehicleId };
+      });
+    }),
+    listTransportVehicleReviews: onCall({ operation: 'listTransportVehicleReviews', region: REGION }, async request => {
+      await admin(request);
+      const page = await db.collection('transport_vehicle_reviews').where('status', '==', 'pending_review').limit(100).get();
+      return { vehicles: page.docs.map(doc => ({ vehicleId: doc.id, ...doc.data() })), hasMore: page.size === 100 };
+    }),
+    reviewTransportVehicle: onCall({ operation: 'reviewTransportVehicle', region: REGION }, async request => {
+      const uid = await admin(request), operatorId = documentId(request.data?.operatorId, 'Operator ID'), vehicleId = documentId(request.data?.vehicleId, 'Vehicle ID'), decision = request.data?.decision, reason = cleanText(request.data?.reason, 'Review reason', 500);
+      if (!['approved', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Choose approve or reject.');
+      return db.runTransaction(async tx => {
+        const ref = db.doc(`transport_operators/${operatorId}/vehicles/${vehicleId}`), snapshot = await tx.get(ref), vehicle = snapshot.data();
+        if (!snapshot.exists || vehicle.status !== 'pending_review') throw new HttpsError('failed-precondition', 'This vehicle is not awaiting review.');
+        tx.update(ref, { status: decision, reviewedBy: uid, reviewedAt: Timestamp.now(), reviewReason: reason });
+        tx.update(db.doc(`transport_vehicle_reviews/${vehicleId}`), { status: decision, reviewedBy: uid, reviewedAt: Timestamp.now(), reviewReason: reason });
+        tx.create(db.doc(`transport_operators/${operatorId}/events/vehicle_review_${vehicleId}_${Date.now()}`), { action: `vehicle_${decision}`, actorId: uid, vehicleId, reason, createdAt: Timestamp.now() });
+        audit(tx, uid, `transport_vehicle_${decision}`, ref.path);
+        return { status: decision };
+      });
+    }),
+    assignTransportFleetBooking: onCall({ operation: 'assignTransportFleetBooking', region: REGION }, async request => {
+      const uid = request.auth?.uid, data = request.data || {};
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to assign a fleet booking.');
+      const bookingId = documentId(data.bookingId, 'Booking ID'), driverId = documentId(data.driverId, 'Driver ID'), vehicleId = documentId(data.vehicleId, 'Vehicle ID');
+      return db.runTransaction(async tx => {
+        const bookingRef = db.doc(`bookings/${bookingId}`), [account, booking] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(bookingRef)]), accountData = account.data();
+        const operatorId = accountData?.transportOperatorId;
+        if (accountData?.role !== 'merchant' || accountData.disabled === true || accountData.suspended === true || typeof operatorId !== 'string' || !booking.exists || booking.data().serviceType !== 'transport' || booking.data().transportOperatorId !== operatorId) throw new HttpsError('permission-denied', 'Only this operator can assign its transport booking.');
+        const operatorRef = db.doc(`transport_operators/${operatorId}`), driverRef = db.doc(`driver_profiles/${driverId}`), memberRef = operatorRef.collection('drivers').doc(driverId), vehicleRef = operatorRef.collection('vehicles').doc(vehicleId);
+        const [operator, driver, member, vehicle] = await Promise.all([tx.get(operatorRef), tx.get(driverRef), tx.get(memberRef), tx.get(vehicleRef)]);
+        if (operator.data()?.ownerUid !== uid || operator.data()?.status !== 'approved') throw new HttpsError('permission-denied', 'An approved operator owner is required.');
+        if (!member.exists || member.data().status !== 'active' || driver.data()?.status !== 'verified' || driver.data()?.transportOperatorId !== operatorId || driver.data()?.supportedServices?.includes('transport') !== true || !driver.data()?.transportCapabilities?.approved || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'Choose an active linked driver approved for this vehicle transport booking.');
+        if (!vehicle.exists || vehicle.data().status !== 'approved' || vehicle.data().operatorId && vehicle.data().operatorId !== operatorId) throw new HttpsError('failed-precondition', 'Choose a fleet vehicle approved by AllGo operations.');
+        const current = booking.data(), assignment = current.transportAssignment;
+        const vehicleLimits = vehicle.data(), dimensions = current.details?.vehicleDimensions || {};
+        if (vehicleLimits.maxLoadKg < current.details?.vehicleWeightKg || ['lengthCm','widthCm','heightCm'].some(key => !Number.isFinite(dimensions[key]) || vehicleLimits[`max${key[0].toUpperCase()}${key.slice(1)}`] < dimensions[key])) throw new HttpsError('failed-precondition', 'This fleet vehicle is too small or under-rated for the customer vehicle.');
+        if (current.driverId || !['pending', 'accepted'].includes(current.status) || !['paid', 'pending_cod'].includes(current.paymentStatus) || current.exception?.status === 'open' || current.details?.pickupTimeReview?.status !== 'confirmed' || !Number.isFinite(Date.parse(current.details?.preferredDate || '')) || (assignment?.status === 'offered' && assignment.driverId !== driverId)) throw new HttpsError('failed-precondition', 'This booking is not ready for fleet assignment. Confirm its pickup time and resolve any open booking issue first.');
+        tx.update(bookingRef, { transportAssignment: { status: 'offered', driverId, vehicleId, assignedBy: uid, assignedAt: new Date().toISOString() }, updatedAt: new Date().toISOString() });
+        tx.create(operatorRef.collection('events').doc(`fleet_assignment_${bookingId}_${Date.now()}`), { action: 'fleet_assignment_offered', actorId: uid, bookingId, driverId, vehicleId, createdAt: Timestamp.now() });
+        return { status: 'offered' };
+      });
+    }),
+    reviewTransportPickupTime: onCall({ operation: 'reviewTransportPickupTime', region: REGION }, async request => {
+      const uid = request.auth?.uid, data = request.data || {};
+      if (!uid) throw new HttpsError('unauthenticated', 'Sign in to review a pickup time.');
+      const bookingId = documentId(data.bookingId, 'Booking ID'), requestId = documentId(data.requestId, 'Review reference'), reason = cleanText(data.reason, 'Scheduling note', 500);
+      if (!['confirmed', 'declined'].includes(data.decision) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) throw new HttpsError('invalid-argument', 'Choose a pickup decision using the latest request revision.');
+      return db.runTransaction(async tx => {
+        const bookingRef = db.doc(`bookings/${bookingId}`), [bookingSnapshot, accountSnapshot] = await Promise.all([tx.get(bookingRef), tx.get(db.doc(`users/${uid}`))]), booking = bookingSnapshot.data(), account = accountSnapshot.data();
+        if (!booking || booking.serviceType !== 'transport' || account?.role !== 'merchant' || account.disabled === true || account.suspended === true || typeof account.transportOperatorId !== 'string' || booking.transportOperatorId !== account.transportOperatorId) throw new HttpsError('permission-denied', 'Only the assigned transport operator can review this booking.');
+        const operatorRef = db.doc(`transport_operators/${account.transportOperatorId}`), operatorSnapshot = await tx.get(operatorRef), operator = operatorSnapshot.data();
+        if (!operatorSnapshot.exists || operator.ownerUid !== uid || operator.status !== 'approved') throw new HttpsError('permission-denied', 'An approved transport operator account is required.');
+        const eventRef = bookingRef.collection('events').doc(`transport_pickup_time_${requestId}`), event = await tx.get(eventRef), current = booking.details?.pickupTimeReview;
+        if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || prior.decision !== data.decision || prior.reason !== reason || prior.expectedRevision !== data.expectedRevision) throw new HttpsError('already-exists', 'This scheduling reference was already used.'); return { status: prior.decision, revision: prior.revision }; }
+        if (!Number.isFinite(Date.parse(booking.details?.preferredDate || '')) || !['pending', 'accepted'].includes(booking.status) || booking.driverId || !['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'This booking can no longer be scheduled by its transport operator.');
+        const currentRevision = Number.isSafeInteger(current?.revision) ? current.revision : 0;
+        if (current?.status === 'confirmed' || current?.status === 'declined') throw new HttpsError('failed-precondition', 'Operations already recorded a pickup decision.');
+        if (currentRevision !== data.expectedRevision) throw new HttpsError('aborted', 'The pickup request changed. Refresh before scheduling.');
+        const revision = currentRevision + 1, now = new Date().toISOString();
+        tx.update(bookingRef, { 'details.pickupTimeReview': { status: data.decision, reviewedBy: uid, reviewedByRole: 'transport_operator', reviewedAt: now, reason, revision }, updatedAt: now });
+        tx.create(eventRef, { stage: `pickup_time_${data.decision}`, actorId: uid, actorRole: 'transport_operator', decision: data.decision, expectedRevision: data.expectedRevision, revision, reason, createdAt: now });
+        tx.create(operatorRef.collection('events').doc(`pickup_${bookingId}_${requestId}`), { action: `pickup_time_${data.decision}`, actorId: uid, bookingId, reason, revision, createdAt: now });
+        return { status: data.decision, revision };
+      });
     }),
     createMerchantBusiness: onCall({ operation: 'createMerchantBusiness', region: REGION }, async request => {
       const uid = await admin(request), data = request.data || {}, type = data.merchantType, id = documentId(data.merchantId, 'Business ID'), requestId = documentId(data.requestId, 'Request ID');
@@ -131,7 +374,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       await db.runTransaction(async tx => {
         const [user, business, existing] = await Promise.all([tx.get(db.doc(`users/${uid}`)),tx.get(parent),tx.get(ref)]);
         const owner = user.data();
-        if (!(request.auth.token.admin === true && owner?.role === 'admin' || merchantHasBusiness(owner, id, type))) throw new HttpsError('permission-denied','This catalog is not assigned to you.');
+        if (!(request.auth.token.admin === true && owner?.role === 'admin' || merchantHasPermission(owner, id, type, 'catalog'))) throw new HttpsError('permission-denied','This catalog is not assigned to you or your account cannot edit it.');
         if (!business.exists) throw new HttpsError('not-found','Business unavailable.');
         if (type === 'grocery' && existing.exists) assertStockBaseline(existing.data().stock, data.item?.expectedStock, HttpsError);
         if (type === 'grocery' && !existing.exists && data.item?.expectedStock != null) throw new HttpsError('aborted', 'This product was removed. Refresh before creating a new inventory record.');
@@ -239,7 +482,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       let closedDates; try { closedDates = validateClosedDates(data.closedDates); } catch (error) { throw new HttpsError('invalid-argument', error.message); }
       return db.runTransaction(async tx => {
         const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), eventRef = ref.collection('closure_history').doc(requestId), [account, record, event] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(eventRef)]), merchant = account.data();
-        if (!(request.auth.token.admin === true && merchant?.role === 'admin' || merchantHasBusiness(merchant, id, type))) throw new HttpsError('permission-denied', 'This business is not assigned to you.');
+        if (!(request.auth.token.admin === true && merchant?.role === 'admin' || merchantHasPermission(merchant, id, type, 'business'))) throw new HttpsError('permission-denied', 'This business is not assigned to you or your account cannot change its closures.');
         if (!record.exists) throw new HttpsError('not-found', 'Business unavailable.');
         if (event.exists) { const prior = event.data(); if (prior.actorId !== uid || JSON.stringify(prior.closedDates) !== JSON.stringify(closedDates) || prior.reason !== reason || prior.expectedRevision !== data.expectedRevision) throw new HttpsError('already-exists', 'This request reference was already used.'); return { revision: prior.revision }; }
         if ((record.data().closureRevision || 0) !== data.expectedRevision) throw new HttpsError('aborted', 'Closure dates changed. Refresh before saving.');
@@ -287,7 +530,7 @@ function operationsFunctions({ onCall, db, REGION, HttpsError, Timestamp, docume
       try { weeklyHours = validateHours(data.weeklyHours); new Intl.DateTimeFormat('en', { timeZone: data.timeZone }).format(); }
       catch (error) { throw new HttpsError('invalid-argument', error.message); }
       if (typeof data.acceptingOrders !== 'boolean' || typeof data.timeZone !== 'string') throw new HttpsError('invalid-argument', 'Specify a time zone and accepting-orders state.');
-      await db.runTransaction(async tx => { const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), [account, business] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref)]), owner = account.data(); if (!(request.auth.token.admin === true && owner?.role === 'admin' || merchantHasBusiness(owner, id, type))) throw new HttpsError('permission-denied', 'This business is not assigned to you.'); if (!business.exists) throw new HttpsError('not-found', 'Business unavailable.'); tx.update(ref, { weeklyHours, timeZone: data.timeZone, acceptingOrders: data.acceptingOrders }); audit(tx, uid, 'merchant_hours_updated', id); }); return { updated: true };
+      await db.runTransaction(async tx => { const ref = db.doc(`${type === 'restaurant' ? 'restaurants' : 'grocery_stores'}/${id}`), [account, business] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref)]), owner = account.data(); if (!(request.auth.token.admin === true && owner?.role === 'admin' || merchantHasPermission(owner, id, type, 'business'))) throw new HttpsError('permission-denied', 'This business is not assigned to you or your account cannot change its hours.'); if (!business.exists) throw new HttpsError('not-found', 'Business unavailable.'); tx.update(ref, { weeklyHours, timeZone: data.timeZone, acceptingOrders: data.acceptingOrders }); audit(tx, uid, 'merchant_hours_updated', id); }); return { updated: true };
     })
   };
 }

@@ -73,13 +73,27 @@ service cloud.firestore {
       return request.resource.data;
     }
 
+    function merchantOutlet(account, merchantId, businessType) {
+      return account.get('merchantId', '') == merchantId && account.get('merchantType', '') == businessType
+        || account.get('merchantBusinessIds', {}).get(businessType, []).hasAny([merchantId])
+        || account.get('merchantStaffAccess', {}).get(merchantId, {}).get('merchantType', '') == businessType;
+    }
+    function merchantPermission(account, merchantId, businessType, permission) {
+      return merchantOutlet(account, merchantId, businessType)
+        && (!account.get('merchantStaffAccess', {}).keys().hasAny([merchantId])
+          || account.get('merchantStaffAccess', {}).get(merchantId, {}).get('permissions', []).hasAny([permission]));
+    }
+    function merchantPermissionFor(data, permission) {
+      let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let businessType = data.get('serviceType', '') == 'food' ? 'restaurant' : data.get('serviceType', '') == 'grocery' ? 'grocery' : '';
+      return businessType != '' && merchantPermission(account, data.get('merchantId', ''), businessType, permission);
+    }
     function isMerchantFor(data) {
       let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       let businessType = data.get('serviceType', '') == 'food' ? 'restaurant' : data.get('serviceType', '') == 'grocery' ? 'grocery' : '';
-      return isSignedIn() && account.role == 'merchant'
-        && businessType != '' && data.get('merchantId', '') != ''
-        && (account.get('merchantId', '') == data.get('merchantId', '') && account.get('merchantType', '') == businessType
-          || account.get('merchantBusinessIds', {}).get(businessType, []).hasAny([data.get('merchantId', '')]));
+      let merchantId = data.get('merchantId', '');
+      return isSignedIn() && account.role == 'merchant' && businessType != '' && merchantId != ''
+        && merchantPermission(account, merchantId, businessType, 'orders');
     }
 
     function existing() {
@@ -110,10 +124,9 @@ service cloud.firestore {
     function isMerchantForLeg(data) {
       let account = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       let businessType = data.get('type', '') == 'food' ? 'restaurant' : data.get('type', '') == 'grocery' ? 'grocery' : '';
-      return isSignedIn() && account.role == 'merchant'
-        && businessType != '' && data.get('merchantId', '') != ''
-        && (account.get('merchantId', '') == data.get('merchantId', '') && account.get('merchantType', '') == businessType
-          || account.get('merchantBusinessIds', {}).get(businessType, []).hasAny([data.get('merchantId', '')]));
+      let merchantId = data.get('merchantId', '');
+      return isSignedIn() && account.role == 'merchant' && businessType != '' && merchantId != ''
+        && merchantPermission(account, merchantId, businessType, 'orders');
     }
 
     function canReadLeg(bundleId, legData) {
@@ -142,11 +155,12 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'name', 'email', 'role']) 
-        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'phoneVerified', 'requestedRole', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType', 'merchantBusinessIds', 'accountAuthority', 'neonAccountId'])
+        && data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'phoneVerified', 'requestedRole', 'role', 'createdAt', 'walletBalance', 'photoURL', 'defaultAddressId', 'defaultAddress', 'preferences', 'favorites', 'merchantId', 'merchantType', 'merchantBusinessIds', 'merchantStaffAccess', 'transportOperatorId', 'accountAuthority', 'neonAccountId'])
         && (!data.keys().hasAny(['merchantBusinessIds']) || (data.merchantBusinessIds is map
           && data.merchantBusinessIds.keys().hasOnly(['restaurant', 'grocery'])
           && (!data.merchantBusinessIds.keys().hasAny(['restaurant']) || data.merchantBusinessIds.restaurant is list && data.merchantBusinessIds.restaurant.size() <= 25)
           && (!data.merchantBusinessIds.keys().hasAny(['grocery']) || data.merchantBusinessIds.grocery is list && data.merchantBusinessIds.grocery.size() <= 25)))
+        && (!data.keys().hasAny(['merchantStaffAccess']) || (data.merchantStaffAccess is map && data.merchantStaffAccess.size() <= 25))
         && (!data.keys().hasAny(['favorites']) || (data.favorites is list && data.favorites.size() <= 200))
         && data.uid == request.auth.uid
         && data.name is string && data.name.size() <= 100
@@ -155,6 +169,7 @@ service cloud.firestore {
         && (!data.keys().hasAny(['phone']) || (data.phone is string && data.phone.size() <= 20))
         && (!data.keys().hasAny(['phoneVerified']) || data.phoneVerified is bool)
         && (!data.keys().hasAny(['requestedRole']) || (data.requestedRole in ['customer', 'driver', 'merchant']))
+        && (!data.keys().hasAny(['transportOperatorId']) || (data.transportOperatorId is string && data.transportOperatorId.size() <= 128))
         && (!data.keys().hasAny(['walletBalance']) || (data.walletBalance is int || data.walletBalance is float))
         && (!data.keys().hasAny(['defaultAddressId']) || (data.defaultAddressId is string && data.defaultAddressId.size() <= 128))
         && (!data.keys().hasAny(['defaultAddress']) || (data.defaultAddress is string && data.defaultAddress.size() <= 300))
@@ -170,7 +185,7 @@ service cloud.firestore {
 
     function isValidDriverProfile(data, driverId) {
       return data.keys().hasAll(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online'])
-        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs', 'activeBookingId', 'earningsDate', 'rejectedBookingIds', 'availableEarningsCents', 'reservedEarningsCents', 'supportedServices', 'locationUpdatedAt', 'locationAccuracyMeters', 'transportCapabilities', 'locationConsent', 'locationConsentAt'])
+        && data.keys().hasOnly(['driverId', 'vehicleType', 'vehicleNo', 'licenseNo', 'status', 'online', 'currentLat', 'currentLng', 'todayEarnings', 'completedJobs', 'activeBookingId', 'earningsDate', 'rejectedBookingIds', 'availableEarningsCents', 'reservedEarningsCents', 'supportedServices', 'locationUpdatedAt', 'locationAccuracyMeters', 'transportCapabilities', 'locationConsent', 'locationConsentAt', 'transportOperatorId'])
         && data.driverId == driverId
         && (data.vehicleType == 'bike' || data.vehicleType == 'auto' || data.vehicleType == 'car' || data.vehicleType == 'suv')
         && data.vehicleNo is string && data.vehicleNo.size() <= 30
@@ -219,7 +234,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'merchantBusinessIds', 'accountAuthority', 'neonAccountId', 'phoneVerified']);
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && incoming().role == 'customer' && incoming().get('walletBalance', 0) == 0 && !incoming().keys().hasAny(['merchantId', 'merchantType', 'merchantBusinessIds', 'merchantStaffAccess', 'transportOperatorId', 'accountAuthority', 'neonAccountId', 'phoneVerified']);
       allow update: if isSignedIn() && (
         isOwner(userId) && isValidUser(incoming()) &&
         incoming().get('accountAuthority', null) == existing().get('accountAuthority', null) &&
@@ -229,6 +244,8 @@ service cloud.firestore {
         incoming().get('merchantId', null) == existing().get('merchantId', null) &&
         incoming().get('merchantType', null) == existing().get('merchantType', null) &&
         incoming().get('merchantBusinessIds', null) == existing().get('merchantBusinessIds', null) &&
+        incoming().get('merchantStaffAccess', null) == existing().get('merchantStaffAccess', null) &&
+        incoming().get('transportOperatorId', null) == existing().get('transportOperatorId', null) &&
         incoming().get('phoneVerified', false) == existing().get('phoneVerified', false) &&
         incoming().get('requestedRole', null) == existing().get('requestedRole', null)
       );
@@ -298,6 +315,7 @@ service cloud.firestore {
           incoming().get('transportCapabilities', null) == existing().get('transportCapabilities', null) &&
           incoming().get('locationConsent', false) == existing().get('locationConsent', false) &&
           incoming().get('locationConsentAt', null) == existing().get('locationConsentAt', null) &&
+          incoming().get('transportOperatorId', null) == existing().get('transportOperatorId', null) &&
           (!incoming().online || incoming().get('locationConsent', false) == true) &&
           (!incoming().online || existing().get('activeBookingId', null) != null || driverEligibilityNotExpired(driverId)) &&
           (existing().status != 'verified' || (incoming().vehicleType == existing().vehicleType && incoming().vehicleNo == existing().vehicleNo && incoming().licenseNo == existing().licenseNo)) &&
@@ -332,6 +350,14 @@ service cloud.firestore {
       allow write: if false;
       match /events/{eventId} { allow read: if isAdmin(); allow write: if false; }
     }
+    match /transport_operators/{operatorId} {
+      allow read, write: if false;
+      match /{subcollection}/{documentId} { allow read, write: if false; }
+    }
+    match /transport_vehicle_reviews/{vehicleId} { allow read, write: if false; }
+    match /transport_quote_requests/{requestId} { allow read, write: if false; }
+    match /transport_operator_ledger/{operatorId}/entries/{entryId} { allow read, write: if false; }
+      match /transport_operator_ledger/{operatorId}/expenses/{expenseId} { allow read, write: if false; }
     match /merchant_settlement_orders/{bookingId} {
       allow read, write: if false;
     }
@@ -358,7 +384,7 @@ service cloud.firestore {
         allow read: if true;
         allow write: if false;
         match /stock_events/{eventId} {
-          allow read: if isSignedIn() && (isAdmin() || isMerchantFor({'merchantId': storeId, 'serviceType': 'grocery'}));
+          allow read: if isSignedIn() && (isAdmin() || merchantPermission(get(/databases/$(database)/documents/users/$(request.auth.uid)).data, storeId, 'grocery', 'catalog'));
           allow write: if false;
         }
       }
@@ -493,7 +519,7 @@ service cloud.firestore {
 
     match /payout_requests/{requestId} {
       allow create: if false;
-      allow get, list: if isSignedIn() && (resource.data.driverId == request.auth.uid || resource.data.beneficiaryType == 'merchant' && isMerchantFor({'merchantId': resource.data.merchantId, 'serviceType': resource.data.serviceType}) || isAdmin());
+      allow get, list: if isSignedIn() && (resource.data.driverId == request.auth.uid || resource.data.beneficiaryType == 'merchant' && merchantPermissionFor(resource.data, 'settlements') || resource.data.beneficiaryType == 'transport_operator' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'merchant' && resource.data.operatorId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.transportOperatorId || isAdmin());
       allow update, delete: if false;
     }
 
@@ -502,11 +528,11 @@ service cloud.firestore {
       allow write: if false;
     }
     match /merchant_balances/{merchantId} {
-      allow get: if isSignedIn() && (isAdmin() || isMerchantFor({'merchantId': merchantId, 'serviceType': 'food'}) || isMerchantFor({'merchantId': merchantId, 'serviceType': 'grocery'}));
+      allow get: if isSignedIn() && (isAdmin() || merchantPermission(get(/databases/$(database)/documents/users/$(request.auth.uid)).data, merchantId, 'restaurant', 'settlements') || merchantPermission(get(/databases/$(database)/documents/users/$(request.auth.uid)).data, merchantId, 'grocery', 'settlements'));
       allow list, write: if false;
     }
     match /merchant_ledger/{merchantId}/entries/{entryId} {
-      allow get, list: if isSignedIn() && (isAdmin() || isMerchantFor(resource.data));
+      allow get, list: if isSignedIn() && (isAdmin() || merchantPermissionFor(resource.data, 'settlements'));
       allow write: if false;
     }
     match /financial_journals/{entryId} {

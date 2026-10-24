@@ -49,6 +49,149 @@ test('merchant settlement terms require reviewed business, owner acceptance and 
   assert.equal(active.acceptedBy, 'merchant');
   assert.equal((await db.collection('merchant_settlement_contracts/restaurant_1/events').get()).size, 2);
 });
+
+test('merchant owners grant and revoke outlet-scoped staff permissions enforced by business callables', async () => {
+  await db.doc('users/merchant-owner').set({ uid: 'merchant-owner', role: 'merchant', merchantId: 'staff-shop', merchantType: 'restaurant' });
+  await db.doc('users/merchant-staff').set({ uid: 'merchant-staff', role: 'merchant', name: 'Staff', email: 'staff@example.test' });
+  await db.doc('users/customer-staff').set({ uid: 'customer-staff', role: 'customer', name: 'Customer', email: 'customer@example.test' });
+  await db.doc('restaurants/staff-shop').set({ id: 'staff-shop', ownerId: 'merchant-owner', merchantType: 'restaurant', onboardingStatus: 'approved', merchantEligibility: { status: 'verified' } });
+  await db.doc('restaurants/staff-shop/menu_items/dish').set({ name: 'Dish', price: 120, available: true });
+  await db.doc('bookings/staff-order').set({ bookingId: 'staff-order', customerId: 'customer', customerName: 'Customer', merchantId: 'staff-shop', serviceType: 'food', status: 'pending', paymentStatus: 'paid', price: 120, driverId: null });
+
+  const input = { merchantId: 'staff-shop', merchantType: 'restaurant', staffUid: 'merchant-staff', permissions: ['orders'] };
+  await assert.rejects(callable('grantMerchantStaffAccess', 'customer', input), error => error.code === 'permission-denied');
+  await assert.rejects(callable('grantMerchantStaffAccess', 'merchant-owner', { ...input, staffUid: 'customer-staff' }), error => error.code === 'failed-precondition');
+  assert.deepEqual(await callable('grantMerchantStaffAccess', 'merchant-owner', input), { granted: true });
+  assert.deepEqual(await callable('grantMerchantStaffAccess', 'merchant-owner', input), { granted: true });
+  assert.deepEqual(await callable('listMerchantStaff', 'merchant-owner', { merchantId: 'staff-shop', merchantType: 'restaurant' }), { members: [{ uid: 'merchant-staff', name: 'Staff', email: 'staff@example.test', permissions: ['orders'] }] });
+  assert.deepEqual(await callable('listMerchantBusinesses', 'merchant-staff'), { businesses: [{ id: 'staff-shop', merchantType: 'restaurant', name: 'staff-shop', address: '', acceptingOrders: false, permissions: ['orders'], canManageStaff: false }] });
+
+  await assert.rejects(callable('updateMerchantCatalog', 'merchant-staff', { catalogId: 'staff-shop', merchantType: 'restaurant', itemId: 'dish', available: false }), error => error.code === 'permission-denied');
+  assert.deepEqual(await callable('advanceMerchantBooking', 'merchant-staff', { bookingId: 'staff-order', status: 'preparing' }), { status: 'preparing' });
+
+  await callable('grantMerchantStaffAccess', 'merchant-owner', { ...input, permissions: ['catalog'] });
+  assert.deepEqual(await callable('updateMerchantCatalog', 'merchant-staff', { catalogId: 'staff-shop', merchantType: 'restaurant', itemId: 'dish', available: false }), { updated: true });
+  await assert.rejects(callable('advanceMerchantBooking', 'merchant-staff', { bookingId: 'staff-order', status: 'ready' }), error => error.code === 'permission-denied');
+  await assert.deepEqual(await callable('revokeMerchantStaffAccess', 'merchant-owner', { merchantId: 'staff-shop', merchantType: 'restaurant', staffUid: 'merchant-staff' }), { revoked: true });
+  assert.deepEqual(await callable('listMerchantBusinesses', 'merchant-staff'), { businesses: [] });
+  await assert.rejects(callable('advanceMerchantBooking', 'merchant-staff', { bookingId: 'staff-order', status: 'ready' }), error => error.code === 'permission-denied');
+  assert.equal((await db.collection('operations_audit').where('operatorId', '==', 'merchant-owner').get()).size, 4);
+});
+test('verified merchant owners update public business details with revision checks and immutable history', async () => {
+  await db.doc('users/merchant-owner').set({ uid: 'merchant-owner', role: 'merchant', merchantId: 'profile-shop', merchantType: 'restaurant' });
+  await db.doc('users/merchant-staff').set({ uid: 'merchant-staff', role: 'merchant', merchantStaffAccess: { 'profile-shop': { merchantType: 'restaurant', ownerUid: 'merchant-owner', permissions: ['business'] } } });
+  await db.doc('restaurants/profile-shop').set({ id: 'profile-shop', ownerId: 'merchant-owner', merchantType: 'restaurant', onboardingStatus: 'approved', merchantEligibility: { status: 'verified' }, name: 'Old name', address: 'Old address', timeZone: 'Asia/Kolkata', profileRevision: 0 });
+  const input = { merchantId: 'profile-shop', merchantType: 'restaurant', name: 'New name', address: 'New business address', timeZone: 'Asia/Kolkata', expectedRevision: 0, requestId: 'profile-change' };
+  await assert.rejects(callable('updateMerchantBusinessProfile', 'merchant-staff', input), error => error.code === 'permission-denied');
+  assert.deepEqual(await callable('updateMerchantBusinessProfile', 'merchant-owner', input), { updated: true, revision: 1 });
+  assert.deepEqual(await callable('updateMerchantBusinessProfile', 'merchant-owner', input), { updated: true, revision: 1 });
+  await assert.rejects(callable('updateMerchantBusinessProfile', 'merchant-owner', { ...input, name: 'Competing update', requestId: 'stale-profile' }), error => error.code === 'aborted');
+  assert.deepEqual((await db.doc('restaurants/profile-shop').get()).data().name, 'New name');
+  assert.equal((await db.collection('restaurants/profile-shop/profile_events').get()).size, 1);
+});
+test('approved transport operators see only their own fleet dashboard and assigned transport jobs', async () => {
+  await db.doc('users/operator-owner').set({ uid: 'operator-owner', role: 'merchant', transportOperatorId: 'carrier-one' });
+  await db.doc('users/admin').set({ uid: 'admin', role: 'admin' });
+  await db.doc('transport_operators/carrier-one').set({ ownerUid: 'operator-owner', name: 'Northbound Carriers', status: 'approved' });
+  await db.doc('transport_operators/carrier-one/vehicles/flatbed-1').set({ label: 'Flatbed 1', status: 'available' });
+  await db.doc('transport_operators/carrier-one/drivers/driver-one').set({ name: 'Assigned carrier', status: 'verified' });
+  await db.doc('transport_operator_ledger/carrier-one/entries/earning-1').set({ amountCents: 125000, createdAt: new Date().toISOString() });
+  await db.doc('bookings/transport-one').set({ serviceType: 'transport', transportOperatorId: 'carrier-one', status: 'accepted', createdAt: new Date().toISOString(), pickupAddress: 'Pickup', dropAddress: 'Destination', driverId: 'driver-one', details: { transportMakeModel: 'Van', transportRegNo: 'REG-1', preferredDate: '2026-11-01T09:00:00.000Z' } });
+  await db.doc('bookings/transport-two').set({ serviceType: 'transport', transportOperatorId: 'carrier-two', status: 'accepted', createdAt: new Date().toISOString() });
+  await db.doc('bookings/transport-schedule').set({ serviceType: 'transport', transportOperatorId: 'carrier-one', status: 'pending', paymentStatus: 'paid', price: 12000, createdAt: new Date().toISOString(), pickupAddress: 'Scheduled pickup', dropAddress: 'Scheduled destination', details: { preferredDate: '2026-11-02T09:00:00.000Z' } });
+  const dashboard = await callable('getTransportOperatorDashboard', 'operator-owner');
+  assert.equal(dashboard.operator.name, 'Northbound Carriers');
+  assert.deepEqual(dashboard.bookings.map(booking => booking.bookingId).sort(), ['transport-one', 'transport-schedule']);
+  assert.equal(dashboard.vehicles[0].vehicleId, 'flatbed-1');
+  assert.equal(dashboard.drivers[0].driverId, 'driver-one');
+  assert.equal(dashboard.earningsCents, 125000);
+  assert.equal(dashboard.bookings.find(booking => booking.bookingId === 'transport-schedule').price, 12000);
+  const schedule = { bookingId: 'transport-schedule', decision: 'confirmed', reason: 'Pickup slot confirmed for the requested date.', expectedRevision: 0, requestId: 'pickup-confirmation' };
+  await assert.rejects(callable('reviewTransportPickupTime', 'other-operator', schedule), error => error.code === 'permission-denied');
+  assert.deepEqual(await callable('reviewTransportPickupTime', 'operator-owner', schedule), { status: 'confirmed', revision: 1 });
+  assert.deepEqual(await callable('reviewTransportPickupTime', 'operator-owner', schedule), { status: 'confirmed', revision: 1 });
+  assert.equal((await db.doc('bookings/transport-schedule').get()).data().details.pickupTimeReview.reviewedByRole, 'transport_operator');
+  await assert.rejects(callable('getTransportOperatorDashboard', 'other-operator'), error => error.code === 'permission-denied');
+  await db.doc('transport_operators/carrier-one').update({ ownerUid: 'other-operator' });
+  await assert.rejects(callable('getTransportOperatorDashboard', 'operator-owner'), error => error.code === 'permission-denied');
+});
+test('transport fleet linking requires driver consent and offers operator assignments only to the linked driver', async () => {
+  await db.doc('users/admin').set({ uid: 'admin', role: 'admin' });
+  await db.doc('users/operator-owner').set({ uid: 'operator-owner', role: 'merchant', transportOperatorId: 'carrier-one' });
+  await db.doc('transport_operators/carrier-one').set({ ownerUid: 'operator-owner', status: 'approved', name: 'Carrier One' });
+  await db.doc('users/other-operator').set({ uid: 'other-operator', role: 'merchant', transportOperatorId: 'carrier-two' });
+  await db.doc('transport_operators/carrier-two').set({ ownerUid: 'other-operator', status: 'approved' });
+  await db.doc('users/driver').set({ uid: 'driver', name: 'Fleet driver', role: 'driver' });
+  await db.doc('driver_profiles/driver').set({ driverId: 'driver', status: 'verified', online: true, locationConsent: true, supportedServices: ['transport'], transportCapabilities: { approved: true, supportedVehicleTypes: ['car'], vehicleCapacity: 1, equipmentType: 'covered_carrier', maxWeightKg: 1000, maxDimensions: { lengthCm: 500, widthCm: 220, heightCm: 220 } }, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10 });
+  assert.deepEqual(await callable('requestTransportOperatorLink', 'driver', { operatorId: 'carrier-one' }), { status: 'pending' });
+  assert.equal((await db.doc('transport_operators/carrier-one/drivers/driver').get()).data().status, 'pending');
+  await assert.rejects(callable('reviewTransportDriverLink', 'other-operator', { operatorId: 'carrier-one', driverId: 'driver', decision: 'approved' }), error => error.code === 'permission-denied');
+  await callable('reviewTransportDriverLink', 'operator-owner', { operatorId: 'carrier-one', driverId: 'driver', decision: 'approved' });
+  assert.equal((await db.doc('driver_profiles/driver').get()).data().transportOperatorId, 'carrier-one');
+  const vehicle = await callable('submitTransportVehicle', 'operator-owner', { vehicleId: 'fleet-one', label: 'Covered carrier 1', registration: 'KA-01-AB-1234', carrierType: 'covered_carrier', maxLoadKg: 1500, maxLengthCm: 500, maxWidthCm: 220, maxHeightCm: 220, insuranceReference: 'INS-REF-1', rcReference: 'RC-REF-1' });
+  assert.equal(vehicle.status, 'pending_review');
+  assert.equal((await callable('listTransportVehicleReviews', 'admin', {}, true)).vehicles[0].vehicleId, 'fleet-one');
+  await assert.rejects(callable('reviewTransportVehicle', 'operator-owner', { operatorId: 'carrier-one', vehicleId: 'fleet-one', decision: 'approved', reason: 'Owner cannot self-approve.' }), error => error.code === 'permission-denied');
+  const now = new Date().toISOString();
+  await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['transport'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+  await db.doc('bookings/fleet-booking').set({ serviceType: 'transport', transportOperatorId: 'carrier-one', status: 'pending', driverId: null, paymentStatus: 'paid', price: 10000, createdAt: now, updatedAt: now, details: { pickupZoneId: 'city', pickupLocation: { lat: 13.081, lng: 80.271 }, preferredDate: new Date(Date.now() - 60000).toISOString(), transportVehicleType: 'car', vehicleWeightKg: 500, vehicleDimensions: { lengthCm: 300, widthCm: 180, heightCm: 160 } } });
+  await callable('reviewTransportPickupTime', 'operator-owner', { bookingId: 'fleet-booking', decision: 'confirmed', reason: 'Pickup time confirmed.', expectedRevision: 0, requestId: 'fleet-schedule' });
+  await assert.rejects(callable('assignTransportFleetBooking', 'operator-owner', { bookingId: 'fleet-booking', driverId: 'driver', vehicleId: 'fleet-one' }), error => error.code === 'failed-precondition');
+  await callable('reviewTransportVehicle', 'admin', { operatorId: 'carrier-one', vehicleId: 'fleet-one', decision: 'approved', reason: 'Documents checked against operator submission.' }, true);
+  await callable('assignTransportFleetBooking', 'operator-owner', { bookingId: 'fleet-booking', driverId: 'driver', vehicleId: 'fleet-one' });
+  await db.doc('users/driver-two').set({ uid: 'driver-two', name: 'Backup fleet driver', role: 'driver' });
+  await db.doc('driver_profiles/driver-two').set({ driverId: 'driver-two', status: 'verified', online: true, locationConsent: true, supportedServices: ['transport'], transportCapabilities: { approved: true, supportedVehicleTypes: ['car'], vehicleCapacity: 1, equipmentType: 'covered_carrier', maxWeightKg: 1000, maxDimensions: { lengthCm: 500, widthCm: 220, heightCm: 220 } }, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10 });
+  await callable('requestTransportOperatorLink', 'driver-two', { operatorId: 'carrier-one' });
+  await callable('reviewTransportDriverLink', 'operator-owner', { operatorId: 'carrier-one', driverId: 'driver-two', decision: 'approved' });
+  assert.equal((await callable('listDriverOffers', 'driver')).some(offer => offer.bookingId === 'fleet-booking'), true);
+  await db.doc('users/unlinked-driver').set({ uid: 'unlinked-driver', name: 'Unlinked driver', role: 'driver' });
+  await db.doc('driver_profiles/unlinked-driver').set({ driverId: 'unlinked-driver', status: 'verified', online: true, locationConsent: true, supportedServices: ['transport'], transportCapabilities: { approved: true, supportedVehicleTypes: ['car'], vehicleCapacity: 1, equipmentType: 'covered_carrier', maxWeightKg: 1000, maxDimensions: { lengthCm: 500, widthCm: 220, heightCm: 220 } }, currentLat: 13.08, currentLng: 80.27, locationUpdatedAt: new Date().toISOString(), locationAccuracyMeters: 10 });
+  assert.equal((await callable('listDriverOffers', 'unlinked-driver')).some(offer => offer.bookingId === 'fleet-booking'), false);
+  await assert.rejects(callable('acceptDriverBooking', 'unlinked-driver', { bookingId: 'fleet-booking' }), error => error.code === 'failed-precondition');
+  assert.equal((await db.doc('bookings/fleet-booking').get()).data().driverId, null);
+  await callable('rejectDriverBooking', 'driver', { bookingId: 'fleet-booking' });
+  assert.equal((await db.doc('bookings/fleet-booking').get()).data().transportAssignment.status, 'rejected');
+  await assert.rejects(callable('assignTransportFleetBooking', 'operator-owner', { bookingId: 'fleet-booking', driverId: 'driver', vehicleId: 'fleet-one' }), error => error.code === 'failed-precondition');
+  await callable('assignTransportFleetBooking', 'operator-owner', { bookingId: 'fleet-booking', driverId: 'driver-two', vehicleId: 'fleet-one' });
+  assert.equal((await callable('listDriverOffers', 'driver')).some(offer => offer.bookingId === 'fleet-booking'), false);
+  assert.equal((await callable('listDriverOffers', 'driver-two')).some(offer => offer.bookingId === 'fleet-booking'), true);
+  await callable('acceptDriverBooking', 'driver-two', { bookingId: 'fleet-booking' });
+  const assigned = (await db.doc('bookings/fleet-booking').get()).data();
+  assert.equal(assigned.driverId, 'driver-two');
+  assert.equal(assigned.transportVehicleId, 'fleet-one');
+  assert.equal(assigned.transportAssignment.status, 'accepted');
+});
+test('customer accepts a versioned operator price and confirmed pickup slot before transport COD checkout', async () => {
+  const restoreMaps = mockJourneyMaps();
+  try {
+    await db.doc('users/operator-owner').set({ uid: 'operator-owner', role: 'merchant', transportOperatorId: 'carrier-one' });
+    await db.doc('transport_operators/carrier-one').set({ ownerUid: 'operator-owner', status: 'approved', name: 'Carrier One' });
+    await db.doc('transport_operators/carrier-one/vehicles/approved-truck').set({ vehicleId: 'approved-truck', status: 'approved', maxLoadKg: 2000, maxLengthCm: 600, maxWidthCm: 250, maxHeightCm: 250 });
+    await db.doc('service_pricing/transport').set({ enabled: true, version: 3, zoneIds: ['city'], options: { car: { price: 100, maxKm: 100 } }, settlement: { baseCents: 5000, maxPayoutCents: 5000 } });
+    await db.doc('service_zones/city').set({ enabled: true, serviceTypes: ['transport'], polygon: [{ lat: 13, lng: 80 }, { lat: 14, lng: 80 }, { lat: 14, lng: 81 }, { lat: 13, lng: 81 }] });
+    const booking = { serviceType: 'transport', customerName: 'Test customer', pickupAddress: 'Pickup street', dropAddress: 'Drop street', details: { pickupPlaceId: 'pickup-place', dropPlaceId: 'drop-place', transportVehicleType: 'car', transportMakeModel: 'Test car', transportRegNo: 'TEST-1234', vehicleWeightKg: 800, vehicleDimensions: { lengthCm: 400, widthCm: 190, heightCm: 170 }, vehicleCondition: 'No visible damage.', vehiclePhotos: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }], ownershipConfirmed: true, preferredDate: new Date(Date.now() + 3600000).toISOString() } };
+    const requested = await callable('requestTransportQuote', 'customer', { operatorId: 'carrier-one', requestId: 'customer-quote-request', booking });
+    assert.equal(requested.status, 'open');
+    const dashboard = await callable('getTransportOperatorDashboard', 'operator-owner');
+    assert.equal(dashboard.quoteRequests[0].requestId, 'customer-quote-request');
+    await assert.rejects(callable('issueTransportQuote', 'operator-owner', { requestId: requested.requestId, decision: 'confirmed', amountCents: 3000, expiresInMinutes: 30, reason: 'Below driver payout.', expectedRevision: 0, requestIdempotencyKey: 'underpriced-operator-quote' }), error => error.code === 'failed-precondition');
+    const issued = await callable('issueTransportQuote', 'operator-owner', { requestId: requested.requestId, decision: 'confirmed', amountCents: 15000, expiresInMinutes: 30, reason: 'Pickup time confirmed. Price includes covered carrier loading and delivery.', expectedRevision: 0, requestIdempotencyKey: 'operator-quote-response' });
+    assert.equal(issued.status, 'offered');
+    const offer = await callable('getTransportQuoteRequest', 'customer', { requestId: requested.requestId });
+    assert.equal(offer.offer.amountCents, 15000);
+    assert.equal(offer.offer.pickupTimeReview.status, 'confirmed');
+    const accepted = await callable('acceptTransportQuote', 'customer', { requestId: requested.requestId, expectedRevision: offer.revision });
+    assert.equal(accepted.amount, 15000);
+    assert.equal((await callable('acceptTransportQuote', 'customer', { requestId: requested.requestId, expectedRevision: offer.revision })).quoteId, accepted.quoteId);
+    const checkout = await callable('createCodBooking', 'customer', { requestId: 'transport-operator-cod', expectedAmountCents: accepted.amount, booking: { serviceType: 'transport', details: { quoteId: accepted.quoteId } } });
+    const confirmed = (await db.doc(`bookings/${checkout.bookingId}`).get()).data();
+    assert.equal(confirmed.price, 150);
+    assert.equal(confirmed.transportOperatorId, 'carrier-one');
+    assert.equal(confirmed.details.pickupTimeReview.status, 'confirmed');
+    assert.equal(confirmed.details.transportOperatorQuote.amountCents, 15000);
+    assert.equal(confirmed.paymentStatus, 'pending_cod');
+  } finally { restoreMaps(); }
+});
 const collectSignature = async (bookingId, requestId = `signature_${bookingId}`) => {
   const code = (await db.doc(`booking_codes/${bookingId}`).get()).data()?.code;
   return callable('saveDeliverySignature', 'driver', { bookingId, requestId, consent: true, otp: code, policyVersion: 1, privacyPolicyUrl: 'https://example.test/privacy', strokes: [[{ x: 0.1, y: 0.6 }, { x: 0.3, y: 0.4 }, { x: 0.6, y: 0.7 }, { x: 0.9, y: 0.3 }]] });
@@ -145,7 +288,10 @@ for (const serviceType of ['food', 'grocery']) test(`${serviceType} pushes reach
   await db.doc('driver_profiles/driver').set({ status: 'verified' });
   await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'shop', merchantType: serviceType === 'food' ? 'restaurant' : 'grocery' });
   await db.doc('users/wrong').set({ role: 'merchant', merchantId: 'shop', merchantType: serviceType === 'food' ? 'grocery' : 'restaurant' });
-  for (const [uid, audience, token] of [['customer', 'customer', 'customer-phone'], ['driver', 'customer', 'driver-customer-app'], ['driver', 'driver', 'driver-app'], ['merchant', 'merchant', 'merchant-app'], ['wrong', 'merchant', 'wrong-business']]) {
+  const merchantType = serviceType === 'food' ? 'restaurant' : 'grocery';
+  await db.doc('users/staff-orders').set({ role: 'merchant', merchantStaffAccess: { shop: { merchantType, ownerUid: 'merchant', permissions: ['orders'] } } });
+  await db.doc('users/staff-wrong-type').set({ role: 'merchant', merchantStaffAccess: { shop: { merchantType: merchantType === 'restaurant' ? 'grocery' : 'restaurant', ownerUid: 'merchant', permissions: ['orders'] } } });
+  for (const [uid, audience, token] of [['customer', 'customer', 'customer-phone'], ['driver', 'customer', 'driver-customer-app'], ['driver', 'driver', 'driver-app'], ['merchant', 'merchant', 'merchant-app'], ['staff-orders', 'merchant', 'staff-app'], ['wrong', 'merchant', 'wrong-business'], ['staff-wrong-type', 'merchant', 'wrong-staff-business']]) {
     await callable('registerPushDevice', uid, { audience, token, platform: 'android' });
   }
   await db.doc('push_devices/legacy').set({ uid: 'customer', token: 'legacy-customer', expiresAt: Timestamp.fromMillis(Date.now() + 60000) });
@@ -155,7 +301,7 @@ for (const serviceType of ['food', 'grocery']) test(`${serviceType} pushes reach
   await db.doc('bookings/ALLGO_push').set(booking);
   await notificationHarness(async sent => {
     await notify('ALLGO_push', booking);
-    assert.deepEqual(sent.flatMap(message => message.tokens).sort(), ['customer-phone', 'driver-app', 'legacy-customer', 'merchant-app']);
+    assert.deepEqual(sent.flatMap(message => message.tokens).sort(), ['customer-phone', 'driver-app', 'legacy-customer', 'merchant-app', 'staff-app']);
     for (const message of sent) {
       assert.deepEqual(message.data, { bookingId: 'ALLGO_push', eventId: 'event-test', type: 'order_confirmed' });
       assert.equal(JSON.stringify(message).includes('private phone'), false);
@@ -1170,12 +1316,19 @@ test('global catalog search checks live stock, availability and item names acros
 test('support cases enforce order ownership and preserve scoped reply and resolution history', async () => {
   await db.doc('users/admin').set({ role: 'admin' });
   await db.doc('users/other').set({ role: 'customer' });
+  await db.doc('users/merchant').set({ role: 'merchant', merchantId: 'support_shop', merchantType: 'restaurant' });
   await db.doc('bookings/support_order').set({ customerId: 'customer', serviceType: 'food' });
   await db.doc('platform_config/support').set({ firstResponseMinutes: 30 });
   const create = { ticketId: 'case1', subject: 'Missing item', message: 'One item is missing', category: 'missing_item', bookingId: 'support_order' };
   await assert.rejects(callable('createSupportCase', 'other', create), error => error.code === 'permission-denied');
   await callable('createSupportCase', 'customer', create);
   await callable('createSupportCase', 'customer', create);
+  await callable('createSupportCase', 'merchant', { ticketId: 'merchant_case', subject: 'Catalog help', message: 'Need help updating a menu item', category: 'general' });
+  const merchantCase = (await db.doc('support_tickets/merchant_case').get()).data();
+  assert.equal(merchantCase.requesterRole, 'merchant');
+  assert.equal((await db.doc('support_tickets/merchant_case/events/created').get()).data().actorRole, 'merchant');
+  await callable('postSupportMessage', 'merchant', { ticketId: 'merchant_case', requestId: 'merchant_reply', text: 'More context for support' });
+  assert.equal((await db.doc('support_tickets/merchant_case/messages/merchant_merchant_reply').get()).data().actorRole, 'merchant');
   assert.ok((await db.doc('support_tickets/case1').get()).data().firstResponseDueAt);
   await assert.rejects(callable('postSupportMessage', 'other', { ticketId: 'case1', requestId: 'reply', text: 'Private' }), error => error.code === 'permission-denied');
   await assert.rejects(callable('postSupportMessage', 'admin', { ticketId: 'case1', requestId: 'reply', text: 'Investigating' }, true), error => error.code === 'failed-precondition');
@@ -1190,6 +1343,7 @@ test('support cases enforce order ownership and preserve scoped reply and resolu
   await assert.rejects(callable('postSupportMessage', 'customer', { ticketId: 'case1', requestId: 'closed_reply', text: 'Still missing' }), error => error.code === 'failed-precondition');
   await callable('reviewSupportCase', 'customer', { ticketId: 'case1', requestId: 'reopen', action: 'reopen', reason: 'Replacement was not received', expectedRevision: 3 });
   const ticket = (await db.doc('support_tickets/case1').get()).data();
+  assert.equal(ticket.requesterRole, 'customer');
   assert.equal(ticket.status, 'open'); assert.equal(ticket.assignedTo, null);
   assert.equal((await db.collection('support_tickets/case1/events').get()).size, 5);
 });
@@ -1517,6 +1671,86 @@ test('pickup and recipient codes protect custody; concurrent completion settles 
   await Promise.all([callable('advanceDriverBooking','driver',{bookingId:'handover',status:'completed',otp:'5678'}),callable('advanceDriverBooking','driver',{bookingId:'handover',status:'completed',otp:'5678'})]);
   const driver=(await db.doc('driver_profiles/driver').get()).data();
   assert.equal(driver.availableEarningsCents,8000);assert.equal(driver.completedJobs,1);assert.equal(driver.activeBookingId,null);assert.equal((await db.collection('driver_ledger/driver/entries').get()).size,1);
+});
+test('completed operator transport records customer gross, actual driver payout and a reviewable operator margin exactly once', async () => {
+  await db.doc('users/driver').set({ role: 'driver', name: 'Carrier driver' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'operator_transport', availableEarningsCents: 0, completedJobs: 0 });
+  await db.doc('transport_operators/carrier-one').set({ status: 'approved', ownerUid: 'operator-owner' });
+  await db.doc('bookings/operator_transport').set({ bookingId: 'operator_transport', customerId: 'customer', driverId: 'driver', transportOperatorId: 'carrier-one', serviceType: 'transport', status: 'transit', paymentStatus: 'paid', price: 150, settlementContract: { serviceType: 'transport', version: 1, baseCents: 8000, maxPayoutCents: 10000 }, details: { estimatedKm: 10, estimatedMinutes: 30 } });
+  await db.doc('booking_codes/operator_transport').set({ customerId: 'customer', code: '5678', attempts: 0 });
+  await db.doc('bookings/operator_transport/events/transport_inspection_delivery').set({ inspectionStage: 'delivery', status: 'recorded', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true } });
+  await Promise.all([callable('advanceDriverBooking', 'driver', { bookingId: 'operator_transport', status: 'completed', otp: '5678' }), callable('advanceDriverBooking', 'driver', { bookingId: 'operator_transport', status: 'completed', otp: '5678' })]);
+  const ledger = (await db.doc('transport_operator_ledger/carrier-one/entries/operator_transport').get()).data();
+  assert.equal(ledger.grossCents, 15000);
+  assert.equal(ledger.driverPayoutCents, 8000);
+  assert.equal(ledger.amountCents, 7000);
+  assert.equal(ledger.status, 'pending_review');
+  const journal = (await db.doc('financial_journals/transport_operator_margin_operator_transport').get()).data();
+  assert.equal(journal.amountCents, 7000);
+  assert.deepEqual(journal.lines.map(line => line.account), ['booking_funds_unallocated', 'transport_operator_payable_pending_review']);
+  assert.equal(journal.references.transportOperatorId, 'carrier-one');
+  assert.equal((await db.collection('transport_operator_ledger/carrier-one/entries').get()).size, 1);
+});
+test('transport toll receipt requires finance review and is reimbursed once from operator margin', async () => {
+  await db.doc('users/driver').set({ role: 'driver', name: 'Carrier driver' });
+  await db.doc('users/operator-owner').set({ uid: 'operator-owner', role: 'merchant', transportOperatorId: 'carrier-one' });
+  await db.doc('users/admin').set({ uid: 'admin', role: 'admin' });
+  await db.doc('driver_profiles/driver').set({ status: 'verified', activeBookingId: 'toll_transport', availableEarningsCents: 0, completedJobs: 0 });
+  await db.doc('transport_operators/carrier-one').set({ status: 'approved', ownerUid: 'operator-owner' });
+  await db.doc('bookings/toll_transport').set({ bookingId: 'toll_transport', customerId: 'customer', driverId: 'driver', transportOperatorId: 'carrier-one', serviceType: 'transport', status: 'transit', paymentStatus: 'paid', price: 150, settlementContract: { serviceType: 'transport', version: 1, baseCents: 8000, maxPayoutCents: 10000 } });
+  await db.doc('booking_codes/toll_transport').set({ customerId: 'customer', code: '5678', attempts: 0 });
+  await db.doc('bookings/toll_transport/events/transport_inspection_pickup').set({ inspectionStage: 'pickup', status: 'recorded' });
+  await db.doc('bookings/toll_transport/events/transport_inspection_delivery').set({ inspectionStage: 'delivery', status: 'recorded', checklist: { unloadedWithCustomer: true, conditionCompared: true, keysAndItemsReturned: true, handoverCompleted: true } });
+  const claimInput = { bookingId: 'toll_transport', requestId: 'toll_receipt_a', amountCents: 1000, description: 'Highway toll', receipts: [{ contentType: 'image/png', base64: 'iVBORw0KGgo=' }] };
+  await assert.rejects(callable('submitTransportTollClaim', 'customer', claimInput), error => error.code === 'permission-denied');
+  const claim = await callable('submitTransportTollClaim', 'driver', claimInput);
+  assert.deepEqual(claim, { claimId: 'toll_transport_toll_receipt_a', status: 'pending_review' });
+  await assert.rejects(callable('advanceDriverBooking', 'driver', { bookingId: 'toll_transport', status: 'completed', otp: '5678' }), error => error.code === 'failed-precondition');
+  assert.equal((await db.doc('bookings/toll_transport').get()).data().status, 'transit');
+  const review = { operatorId: 'carrier-one', claimId: claim.claimId, bookingId: 'toll_transport', decision: 'approved', reason: 'Receipt verified against toll amount.', requestId: 'toll_review_a' };
+  await assert.rejects(callable('reviewTransportTollClaim', 'customer', review, true), error => error.code === 'permission-denied');
+  await callable('reviewTransportTollClaim', 'admin', review, true);
+  assert.deepEqual(await callable('submitTransportTollClaim', 'driver', claimInput), { claimId: claim.claimId, status: 'approved' });
+  await Promise.all([callable('advanceDriverBooking', 'driver', { bookingId: 'toll_transport', status: 'completed', otp: '5678' }), callable('advanceDriverBooking', 'driver', { bookingId: 'toll_transport', status: 'completed', otp: '5678' })]);
+  assert.equal((await db.doc('bookings/toll_transport').get()).data().driverPayout, 90);
+  assert.equal((await db.doc('bookings/toll_transport').get()).data().transportTollReimbursementCents, 1000);
+  assert.equal((await db.doc('driver_profiles/driver').get()).data().availableEarningsCents, 9000);
+  assert.equal((await db.doc('transport_operator_ledger/carrier-one/entries/toll_transport').get()).data().amountCents, 6000);
+  assert.equal((await db.doc(`transport_operator_ledger/carrier-one/expenses/${claim.claimId}`).get()).data().status, 'reimbursed');
+  assert.equal((await db.doc(`financial_journals/transport_toll_reimbursement_${claim.claimId}`).get()).data().amountCents, 1000);
+  assert.equal((await db.collection('driver_ledger/driver/entries').get()).size, 2);
+});
+test('transport operator settlement approval and payout require ownership, finance review and actual transfer result', async () => {
+  await db.doc('users/operator-owner').set({ uid: 'operator-owner', role: 'merchant', transportOperatorId: 'carrier-one' });
+  await db.doc('users/admin').set({ uid: 'admin', role: 'admin' });
+  await db.doc('transport_operators/carrier-one').set({ status: 'approved', ownerUid: 'operator-owner' });
+  await db.doc('transport_operator_ledger/carrier-one/entries/settlement-a').set({ bookingId: 'settlement-a', type: 'transport_margin_pending_review', grossCents: 15000, driverPayoutCents: 8000, amountCents: 7000, status: 'pending_review', createdAt: Timestamp.now() });
+  const review = { operatorId: 'carrier-one', bookingId: 'settlement-a', decision: 'approved', reason: 'Reconciled booking receipt and driver settlement.', requestId: 'review-settlement-a' };
+  await assert.rejects(callable('reviewTransportOperatorSettlement', 'customer', review), error => error.code === 'permission-denied');
+  assert.equal((await callable('listTransportOperatorSettlements', 'admin', {}, true)).entries[0].bookingId, 'settlement-a');
+  await callable('reviewTransportOperatorSettlement', 'admin', review, true);
+  assert.equal((await db.doc('transport_operator_balances/carrier-one').get()).data().availableCents, 7000);
+  await assert.rejects(callable('requestTransportOperatorPayout', 'customer', { requestId: 'payout-a' }), error => error.code === 'permission-denied');
+  const payout = await callable('requestTransportOperatorPayout', 'operator-owner', { requestId: 'payout-a' });
+  assert.deepEqual(await callable('requestTransportOperatorPayout', 'operator-owner', { requestId: 'payout-a' }), payout);
+  assert.equal(payout.amountCents, 7000);
+  assert.equal((await db.doc('transport_operator_balances/carrier-one').get()).data().reservedCents, 7000);
+  await assert.rejects(callable('recordTransportOperatorPayout', 'operator-owner', { requestId: payout.requestId, status: 'paid', reference: 'BANK-REF-A' }), error => error.code === 'permission-denied');
+  await callable('recordTransportOperatorPayout', 'admin', { requestId: payout.requestId, status: 'paid', reference: 'BANK-REF-A' }, true);
+  assert.deepEqual(await callable('recordTransportOperatorPayout', 'admin', { requestId: payout.requestId, status: 'paid', reference: 'BANK-REF-A' }, true), { status: 'paid' });
+  const payoutDoc = (await db.doc(`payout_requests/${payout.requestId}`).get()).data();
+  assert.equal(payoutDoc.status, 'paid'); assert.equal(payoutDoc.transferReference, 'BANK-REF-A');
+  assert.equal((await db.doc('transport_operator_balances/carrier-one').get()).data().reservedCents, 0);
+  await db.doc('transport_operator_ledger/carrier-one/entries/settlement-b').set({ bookingId: 'settlement-b', type: 'transport_margin_pending_review', grossCents: 12000, driverPayoutCents: 8000, amountCents: 4000, status: 'pending_review', createdAt: Timestamp.now() });
+  await callable('reviewTransportOperatorSettlement', 'admin', { ...review, bookingId: 'settlement-b', requestId: 'review-settlement-b' }, true);
+  const failedPayout = await callable('requestTransportOperatorPayout', 'operator-owner', { requestId: 'payout-b' });
+  await callable('recordTransportOperatorPayout', 'admin', { requestId: failedPayout.requestId, status: 'failed', reference: 'Bank transfer rejected by receiving bank.' }, true);
+  const restored = (await db.doc('transport_operator_balances/carrier-one').get()).data();
+  assert.equal(restored.availableCents, 4000); assert.equal(restored.reservedCents, 0);
+  await db.doc('transport_operator_ledger/carrier-one/entries/settlement-c').set({ bookingId: 'settlement-c', type: 'transport_margin_pending_review', grossCents: 9000, driverPayoutCents: 8000, amountCents: 1000, status: 'pending_review', createdAt: Timestamp.now() });
+  await callable('reviewTransportOperatorSettlement', 'admin', { ...review, bookingId: 'settlement-c', decision: 'rejected', reason: 'Receipt does not reconcile with the customer payment.', requestId: 'review-settlement-c' }, true);
+  assert.equal((await db.doc('transport_operator_ledger/carrier-one/entries/settlement-c').get()).data().status, 'rejected');
+  assert.equal((await db.doc('transport_operator_balances/carrier-one').get()).data().availableCents, 4000);
 });
 test('food, grocery and parcel completion requires a private, consented recipient signature', async () => {
   await db.doc('users/driver').set({ role: 'driver', name: 'Delivery partner' });

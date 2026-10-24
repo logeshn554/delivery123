@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeMerchantBusinessIds, merchantHasBusiness, addMerchantBusiness } = require('./merchantAccess');
+const { normalizeMerchantBusinessIds, merchantHasBusiness, merchantHasPermission, merchantBusinessOutlets, addMerchantBusiness } = require('./merchantAccess');
 
 test('merchant outlet access supports primary and additional type-scoped businesses', () => {
   const account = { role: 'merchant', merchantId: 'main', merchantType: 'restaurant', merchantBusinessIds: { restaurant: ['branch-2'], grocery: ['market-1'] } };
@@ -10,6 +10,26 @@ test('merchant outlet access supports primary and additional type-scoped busines
   assert.equal(merchantHasBusiness(account, 'market-1', 'restaurant'), false);
   assert.equal(merchantHasBusiness({ ...account, suspended: true }, 'branch-2', 'restaurant'), false);
   assert.equal(merchantHasBusiness({ role: 'customer', merchantBusinessIds: { restaurant: ['branch-2'] } }, 'branch-2', 'restaurant'), false);
+});
+
+
+test('staff access is limited to assigned outlets and explicit permissions', () => {
+  const staff = { role: 'merchant', merchantStaffAccess: { branch: { merchantType: 'restaurant', ownerUid: 'owner', permissions: ['orders'] } } };
+  assert.equal(merchantHasBusiness(staff, 'branch', 'restaurant'), true);
+  assert.equal(merchantHasBusiness(staff, 'other', 'restaurant'), false);
+  assert.equal(merchantHasPermission(staff, 'branch', 'restaurant', 'orders'), true);
+  assert.equal(merchantHasPermission(staff, 'branch', 'restaurant', 'catalog'), false);
+  assert.equal(merchantHasPermission({ ...staff, disabled: true }, 'branch', 'restaurant', 'orders'), false);
+  assert.equal(merchantHasPermission({ role: 'merchant', merchantStaffAccess: { branch: { merchantType: 'restaurant', permissions: ['admin'] } } }, 'branch', 'restaurant', 'orders'), false);
+  assert.deepEqual(merchantBusinessOutlets(staff), [{ merchantId: 'branch', merchantType: 'restaurant' }]);
+});
+
+test('legacy direct merchant assignments retain access while staff grants remain explicitly scoped', () => {
+  const owner = { role: 'merchant', merchantId: 'main', merchantType: 'restaurant' };
+  assert.equal(merchantHasPermission(owner, 'main', 'restaurant', 'business'), true);
+  assert.equal(merchantHasPermission(owner, 'main', 'restaurant', 'invalid'), false);
+  const mixed = { ...owner, merchantStaffAccess: { main: { merchantType: 'restaurant', ownerUid: 'owner', permissions: ['orders'] } } };
+  assert.equal(merchantHasPermission(mixed, 'main', 'restaurant', 'catalog'), false);
 });
 
 test('merchant outlet lists are bounded, unique and safe to extend without replacing the primary assignment', () => {

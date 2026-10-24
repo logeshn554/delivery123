@@ -17,6 +17,8 @@ export interface UserProfile {
   merchantId?: string;
   merchantType?: 'restaurant' | 'grocery';
   merchantBusinessIds?: { restaurant?: string[]; grocery?: string[] };
+  merchantStaffAccess?: Record<string, { merchantType: 'restaurant' | 'grocery'; ownerUid: string; permissions: Array<'orders' | 'catalog' | 'business'> }>;
+  transportOperatorId?: string;
   preferences?: {
     orderUpdates: boolean;
     promotions: boolean;
@@ -39,6 +41,8 @@ export interface DriverProfile {
   availableEarningsCents?: number;
   reservedEarningsCents?: number;
   activeBookingId?: string | null;
+  transportOperatorId?: string;
+  transportCapabilities?: { approved?: boolean; [key: string]: unknown };
   earningsDate?: string;
   driverId: string;
   vehicleType: 'bike' | 'auto' | 'car' | 'suv';
@@ -188,7 +192,7 @@ export interface BookingDetails {
   takeoverOption?: string;
   takeoverTransmission?: 'manual' | 'automatic';
   preferredDate?: string;
-  pickupTimeReview?: { status: 'confirmed' | 'declined'; reviewedBy: string; reviewedAt: string; reason: string };
+  pickupTimeReview?: { status: 'confirmed' | 'declined'; reviewedBy: string; reviewedByRole?: string; reviewedAt: string; reason: string; revision?: number };
   deliveryMode?: string;
   weightKg?: number;
   dimensions?: { lengthCm: number; widthCm: number; heightCm: number };
@@ -235,6 +239,7 @@ export interface BookingDetails {
 }
 
 export interface SupportTicket {
+  requesterRole?: 'customer' | 'driver' | 'merchant';
   messageRevision?: number;
   bookingId?: string | null;
   category?: string;
@@ -250,6 +255,30 @@ export interface SupportTicket {
   status: 'open' | 'in_progress' | 'escalated' | 'resolved';
   createdAt: string;
 }
+
+export interface TransportOperatorDashboardData {
+  operator: { id: string; name: string; status: string };
+  quoteRequests: Array<{ requestId: string; status: 'open' | 'offered'; revision: number; requestedAt: string | null; preferredDate: string | null; vehicle: string | null; registration: string | null; vehicleType: string | null; weightKg: number | null; vehicleDimensions: { lengthCm?: number; widthCm?: number; heightCm?: number } | null; pickup: string | null; drop: string | null; estimatedKm: number | null; estimatedMinutes: number | null; condition: string | null; quote?: { amountCents: number; reason: string; expiresAt: string | null; decision: string } | null }>;
+  hasMoreQuoteRequests: boolean;
+  bookings: Array<{ bookingId: string; status: string; price: number | null; createdAt: string | null; pickupDate: string | null; pickupTimeReview: { status?: string; reason?: string; revision?: number } | null; vehicle: string | null; registration: string | null; pickup: string | null; drop: string | null; driverId: string | null; transportAssignment?: { status?: string; driverId?: string; vehicleId?: string } | null }>;
+  hasMoreBookings: boolean;
+  vehicles: Array<{ vehicleId: string; [key: string]: unknown }>;
+  hasMoreVehicles: boolean;
+  drivers: Array<{ driverId: string; [key: string]: unknown }>;
+  hasMoreDrivers: boolean;
+  earningsCents: number;
+  earningsEntries: number;
+  earnings: Array<{ bookingId: string; type: string; grossCents: number; driverPayoutCents: number; amountCents: number; status: string; reviewReason?: string; createdAt: string | null }>;
+  hasMoreEarnings: boolean;
+  balance: { availableCents: number; reservedCents: number };
+  operatorPayouts: Array<{ requestId: string; amountCents: number; status: string; createdAt: string | null; transferReference: string | null }>;
+  hasMoreOperatorPayouts: boolean;
+  tollClaims: Array<{ claimId: string; bookingId: string; driverId: string; amountCents: number; description: string; status: string; reviewReason: string | null; createdAt: string | null; receiptCount: number }>;
+  hasMoreTollClaims: boolean;
+}
+
+export interface TransportOperatorOption { operatorId: string; name: string }
+export interface TransportQuoteRequestStatus { requestId: string; status: 'open' | 'offered' | 'declined' | 'accepted' | 'expired'; revision: number; offer?: { amountCents: number; terms: string; expiresAt: string; pickupTimeReview: { status: string; reviewedAt: string; reason: string } }; message?: string }
 
 export type LegType = 'ride' | 'food' | 'grocery' | 'parcel' | 'takeover' | 'transport';
 export type LegStatus = 'pending' | 'accepted' | 'preparing' | 'ready' | 'transit' | 'delivered' | 'completed' | 'cancelled';

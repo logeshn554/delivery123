@@ -37,7 +37,8 @@ const { evidenceScanningFunctions } = require('./evidenceScanning');
 const { evidenceReviewFunctions } = require('./evidenceReview');
 const { driverEligibilityFunctions } = require('./driverEligibility');
 const { merchantEligibilityFunctions } = require('./merchantEligibility');
-const { merchantHasBusiness, merchantBusinessOutlets } = require('./merchantAccess');
+const { merchantStaffFunctions } = require('./merchantStaff');
+const { merchantHasPermission, merchantBusinessOutlets } = require('./merchantAccess');
 const { scanBytes } = require('./clamScanner');
 const { getStorage } = require('firebase-admin/storage');
 const { catalogSearchFunctions } = require('./catalogSearch');
@@ -53,6 +54,7 @@ const { firestoreDatabaseId } = require('./databaseConfig');
 const { parcelPickupTimeAvailable } = require('./parcelPickupPolicy');
 const { transportInspectionFunctions } = require('./transportInspection');
 const { requireTransportInspection } = require('./transportInspectionPolicy');
+const { transportTollFunctions } = require('./transportTolls');
 
 const app = initializeApp();
 const databaseId = firestoreDatabaseId();
@@ -74,10 +76,12 @@ Object.assign(exports, bookingExceptionFunctions({ onCall, db, REGION, HttpsErro
 Object.assign(exports, dispatchRecoveryFunctions({ onSchedule, onCall, db, REGION, Timestamp, HttpsError, documentId, cleanText }));
 Object.assign(exports, groceryPickingFunctions({ onCall, db, REGION, HttpsError, documentId, Timestamp, journal, recordStockMovement, productWithinExpiry }));
 Object.assign(exports, transportInspectionFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
+Object.assign(exports, transportTollFunctions({ onCall, db, REGION, HttpsError, Timestamp, documentId, cleanText }));
 Object.assign(exports, grocerySubstitutionExpiryFunctions({ onSchedule, db, REGION, Timestamp }));
 Object.assign(exports, partnerApplicationFunctions({ onCall, db, REGION, HttpsError, documentId, cleanText }));
 Object.assign(exports, driverEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
 Object.assign(exports, merchantEligibilityFunctions({ onCall, onSchedule, db, REGION, HttpsError, documentId, cleanText, getIdentity: uid => getAuth(app).getUser(uid) }));
+Object.assign(exports, merchantStaffFunctions({ onCall, db, REGION, HttpsError, documentId, Timestamp }));
 function evidenceBucket(name) {
   const configured = process.env.EVIDENCE_STORAGE_BUCKET;
   if (!configured || name && name !== configured) throw new HttpsError('failed-precondition', 'The private document bucket is not configured for this environment.');
@@ -181,7 +185,7 @@ exports.updateMerchantPreparation = onCall({ operation: 'updateMerchantPreparati
     const [profile, snapshot, prior] = await Promise.all([tx.get(db.doc(`users/${uid}`)), tx.get(ref), tx.get(eventRef)]);
     const merchant = profile.data(), booking = snapshot.data();
     const type = booking?.serviceType === 'food' ? 'restaurant' : booking?.serviceType === 'grocery' ? 'grocery' : null;
-    if (!booking || !type || !merchantHasBusiness(merchant, booking.merchantId, type)) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
+    if (!booking || !type || !merchantHasPermission(merchant, booking.merchantId, type, 'orders')) throw new HttpsError('permission-denied', 'This order is not assigned to your business or your account cannot manage orders.');
     if (prior.exists) {
       if (prior.data().minutes !== minutes || prior.data().reason !== reason) throw new HttpsError('already-exists', 'This request was already used for a different preparation update.');
       return { saved: true, expectedReadyAt: prior.data().expectedReadyAt };
@@ -201,7 +205,7 @@ exports.advanceMerchantBooking = onCall({ operation: 'advanceMerchantBooking', r
     const bookingRef = db.doc(`bookings/${bookingId}`);
     const [account, snapshot] = await Promise.all([transaction.get(db.doc(`users/${uid}`)), transaction.get(bookingRef)]);
     const merchant = account.data(), booking = snapshot.data(), type = booking?.serviceType === 'food' ? 'restaurant' : booking?.serviceType === 'grocery' ? 'grocery' : null;
-    if (!booking || !type || !merchantHasBusiness(merchant, booking.merchantId, type)) throw new HttpsError('permission-denied', 'This order is not assigned to your business.');
+    if (!booking || !type || !merchantHasPermission(merchant, booking.merchantId, type, 'orders')) throw new HttpsError('permission-denied', 'This order is not assigned to your business or your account cannot manage orders.');
     if (booking.status === next) return { status: next };
     if (booking.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (!['paid', 'pending_cod'].includes(booking.paymentStatus) || booking.driverId || booking.status !== (next === 'preparing' ? 'pending' : 'preparing')) throw new HttpsError('failed-precondition', 'The order changed. Refresh before continuing.');
@@ -223,7 +227,7 @@ exports.updateMerchantCatalog = onCall({ operation: 'updateMerchantCatalog', reg
     const parentPath = type === 'restaurant' ? `restaurants/${catalogId}` : `grocery_stores/${catalogId}`;
     const itemRef = db.doc(`${parentPath}/${type === 'restaurant' ? 'menu_items' : 'products'}/${itemId}`);
     const [account, parent, item] = await Promise.all([transaction.get(db.doc(`users/${uid}`)), transaction.get(db.doc(parentPath)), transaction.get(itemRef)]);
-    if (!(request.auth.token.admin === true && account.data()?.role === 'admin' || merchantHasBusiness(account.data(), catalogId, type))) throw new HttpsError('permission-denied', 'This catalog is not assigned to your business.');
+    if (!(request.auth.token.admin === true && account.data()?.role === 'admin' || merchantHasPermission(account.data(), catalogId, type, 'catalog'))) throw new HttpsError('permission-denied', 'This catalog is not assigned to your business or your account cannot manage the catalog.');
     if (!parent.exists || !item.exists) throw new HttpsError('not-found', 'The catalog item is unavailable.');
     if (type === 'grocery') assertStockBaseline(item.data().stock, request.data.expectedStock, HttpsError);
     transaction.update(itemRef, changes);
@@ -816,6 +820,100 @@ exports.getServiceQuote = onCall({ operation: 'getServiceQuote', region: REGION,
   return { quoteId: quoteRef.id, amount: quote.amount, currency: CURRENCY, price: quote.amount / 100, expiresAt: expiresAt.toDate().toISOString(), estimatedKm: quote.booking.details.estimatedKm, estimatedMinutes: quote.booking.details.estimatedMinutes, ...(quote.fareBreakdown ? { fareBreakdown: { ...quote.fareBreakdown, discountCents, totalCents: quote.amount } } : {}) };
 });
 
+exports.requestTransportQuote = onCall({ operation: 'requestTransportQuote', region: REGION, secrets: [MAPS_API_KEY] }, async request => {
+  const uid = requireUser(request), data = request.data || {}, operatorId = documentId(data.operatorId, 'Transport operator ID'), requestId = documentId(data.requestId, 'Quote request reference');
+  if (data.booking?.serviceType !== 'transport') throw new HttpsError('invalid-argument', 'Submit a vehicle transport booking request.');
+  const fingerprint = crypto.createHash('sha256').update(JSON.stringify({ operatorId, booking: data.booking })).digest('hex');
+  const operatorRef = db.doc(`transport_operators/${operatorId}`), requestRef = operatorRef.collection('quote_requests').doc(requestId), mirrorRef = db.doc(`transport_quote_requests/${requestId}`);
+  const existing = await requestRef.get();
+  if (existing.exists) {
+    if (existing.data().customerId !== uid || existing.data().requestFingerprint !== fingerprint) throw new HttpsError('already-exists', 'This request reference is already in use.');
+    return { requestId, status: existing.data().status, revision: existing.data().revision || 0 };
+  }
+  const account = (await db.doc(`users/${uid}`).get()).data();
+  if (account?.role !== 'customer' || account.disabled === true || account.suspended === true) throw new HttpsError('permission-denied', 'An active customer account is required.');
+  const operator = (await operatorRef.get()).data();
+  if (!operator || operator.status !== 'approved' || typeof operator.ownerUid !== 'string') throw new HttpsError('failed-precondition', 'This transport operator is not available for new bookings.');
+  const vehicles = await db.collection(`transport_operators/${operatorId}/vehicles`).where('status', '==', 'approved').limit(1).get();
+  if (vehicles.empty) throw new HttpsError('failed-precondition', 'This operator has no approved transport vehicles available for quoting.');
+  const prepared = await priceAndPrepareBooking(uid, data.booking);
+  if (prepared.booking.serviceType !== 'transport' || !prepared.booking.details?.pickupZoneId || !Number.isFinite(prepared.booking.details?.vehicleWeightKg)) throw new HttpsError('failed-precondition', 'Transport route or vehicle details need operations review.');
+  const { otp, ...bookingDraft } = prepared.booking;
+  bookingDraft.price = 0;
+  const expiresAt = Timestamp.fromMillis(Date.now() + 48 * 60 * 60 * 1000), now = Timestamp.now();
+  const requestData = { requestId, operatorId, customerId: uid, requestFingerprint: fingerprint, bookingDraft, status: 'open', revision: 0, createdAt: now, expiresAt };
+  await db.runTransaction(async tx => {
+    const [prior, operatorSnapshot, freshVehicles] = await Promise.all([tx.get(requestRef), tx.get(operatorRef), tx.get(db.collection(`transport_operators/${operatorId}/vehicles`).where('status', '==', 'approved').limit(1))]);
+    if (prior.exists) {
+      if (prior.data().customerId !== uid || prior.data().requestFingerprint !== fingerprint) throw new HttpsError('already-exists', 'This request reference is already in use.');
+      return;
+    }
+    if (operatorSnapshot.data()?.ownerUid !== operator.ownerUid || operatorSnapshot.data()?.status !== 'approved' || freshVehicles.empty) throw new HttpsError('failed-precondition', 'The operator or its approved fleet changed. Refresh and try again.');
+    tx.create(requestRef, requestData);
+    tx.create(mirrorRef, requestData);
+    tx.create(requestRef.collection('events').doc('submitted'), { actorId: uid, actorRole: 'customer', action: 'transport_quote_requested', createdAt: now });
+  });
+  return { requestId, status: 'open', revision: 0 };
+});
+
+exports.getTransportQuoteRequest = onCall({ operation: 'getTransportQuoteRequest', region: REGION }, async request => {
+  const uid = requireUser(request), requestId = documentId(request.data?.requestId, 'Quote request ID');
+  const snapshot = await db.doc(`transport_quote_requests/${requestId}`).get(), data = snapshot.data();
+  if (!snapshot.exists || data.customerId !== uid) throw new HttpsError('permission-denied', 'This quote request does not belong to your account.');
+  const expired = ['open', 'offered'].includes(data.status) && data.expiresAt?.toMillis() <= Date.now();
+  if (expired && data.status === 'open') {
+    await db.runTransaction(async tx => {
+      const [mirror, scoped] = await Promise.all([tx.get(snapshot.ref), tx.get(db.doc(`transport_operators/${data.operatorId}/quote_requests/${requestId}`))]);
+      if (mirror.data()?.status === 'open' && mirror.data()?.expiresAt?.toMillis() <= Date.now()) { tx.update(snapshot.ref, { status: 'expired', revision: (mirror.data().revision || 0) + 1 }); if (scoped.exists) tx.update(scoped.ref, { status: 'expired', revision: (scoped.data().revision || 0) + 1 }); }
+    });
+  }
+  const current = (await snapshot.ref.get()).data();
+  return { requestId, status: expired && current.status === 'open' ? 'expired' : current.status, revision: current.revision || 0, ...(current.status === 'offered' && current.quote ? { offer: { amountCents: current.quote.amountCents, terms: current.quote.reason, expiresAt: current.quote.expiresAt.toDate().toISOString(), pickupTimeReview: { status: current.quote.decision, reviewedAt: current.quote.reviewedAt.toDate().toISOString(), reason: current.quote.reason } } } : {}), ...(current.status === 'declined' ? { message: current.reason || 'The operator cannot meet the requested pickup time.' } : {}) };
+});
+
+exports.cancelTransportQuoteRequest = onCall({ operation: 'cancelTransportQuoteRequest', region: REGION }, async request => {
+  const uid = requireUser(request), requestId = documentId(request.data?.requestId, 'Quote request ID'), mirrorRef = db.doc(`transport_quote_requests/${requestId}`), first = await mirrorRef.get();
+  if (!first.exists || first.data().customerId !== uid) throw new HttpsError('permission-denied', 'This quote request does not belong to your account.');
+  const initial = first.data(), scopedRef = db.doc(`transport_operators/${initial.operatorId}/quote_requests/${requestId}`);
+  return db.runTransaction(async tx => {
+    const [mirror, scoped] = await Promise.all([tx.get(mirrorRef), tx.get(scopedRef)]), current = mirror.data();
+    if (!mirror.exists || !scoped.exists || current.customerId !== uid) throw new HttpsError('permission-denied', 'This quote request does not belong to your account.');
+    if (current.status === 'cancelled') return { status: 'cancelled' };
+    if (!['open', 'offered', 'accepted'].includes(current.status)) throw new HttpsError('failed-precondition', 'This transport quote request can no longer be cancelled.');
+    let paymentQuote;
+    if (current.status === 'accepted' && current.acceptedQuoteId) {
+      const quoteRef = db.doc(`service_quotes/${current.acceptedQuoteId}`); paymentQuote = await tx.get(quoteRef);
+      if (paymentQuote.exists && paymentQuote.data().claimed) throw new HttpsError('failed-precondition', 'Checkout has already started. Finish or resolve the payment attempt before leaving this booking.');
+      if (paymentQuote.exists) tx.update(quoteRef, { claimed: true, expiresAt: Timestamp.now(), cancelledAt: Timestamp.now() });
+    }
+    const revision = (current.revision || 0) + 1, updated = { status: 'cancelled', revision, cancelledAt: Timestamp.now(), cancelledBy: uid };
+    tx.update(mirrorRef, updated); tx.update(scopedRef, updated);
+    tx.create(scopedRef.collection('events').doc(`customer_cancel_${revision}`), { actorId: uid, actorRole: 'customer', action: 'transport_quote_cancelled', revision, createdAt: Timestamp.now() });
+    return { status: 'cancelled' };
+  });
+});
+
+exports.acceptTransportQuote = onCall({ operation: 'acceptTransportQuote', region: REGION }, async request => {
+  const uid = requireUser(request), requestId = documentId(request.data?.requestId, 'Quote request ID'), expectedRevision = request.data?.expectedRevision;
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) throw new HttpsError('invalid-argument', 'Refresh this operator quote before accepting it.');
+  const requestRef = db.doc(`transport_quote_requests/${requestId}`), scopedRef = db.doc(`transport_operators/${(await requestRef.get()).data()?.operatorId || '_missing_'}/quote_requests/${requestId}`), quoteRef = db.collection('service_quotes').doc();
+  return db.runTransaction(async tx => {
+    const [mirror, scoped] = await Promise.all([tx.get(requestRef), tx.get(scopedRef)]), current = mirror.data(), offer = current?.quote;
+    if (!mirror.exists || !scoped.exists || current.customerId !== uid) throw new HttpsError('permission-denied', 'This transport quote is unavailable for your account.');
+    if (current.status === 'accepted' && current.acceptedBy === uid && current.acceptedRevision === expectedRevision) return { quoteId: current.acceptedQuoteId, amount: current.acceptedAmountCents, price: current.acceptedAmountCents / 100, expiresAt: current.paymentQuoteExpiresAt.toDate().toISOString(), estimatedKm: current.bookingDraft.details.estimatedKm, estimatedMinutes: current.bookingDraft.details.estimatedMinutes };
+    if (current.status !== 'offered' || current.revision !== expectedRevision || !offer || offer.expiresAt?.toMillis() <= Date.now() || current.expiresAt?.toMillis() <= Date.now()) throw new HttpsError('failed-precondition', 'This operator quote expired or changed. Refresh the request.');
+    const operatorRef = db.doc(`transport_operators/${current.operatorId}`), operator = await tx.get(operatorRef);
+    if (!operator.exists || operator.data().status !== 'approved') throw new HttpsError('failed-precondition', 'This operator is no longer approved. Request a new quote.');
+    const acceptedAt = new Date().toISOString(), paymentQuoteExpiresAt = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000), booking = { ...current.bookingDraft, bookingId: `ALLGO_${crypto.randomUUID()}`, status: 'pending', price: offer.amountCents / 100, createdAt: acceptedAt, updatedAt: acceptedAt, transportOperatorId: current.operatorId, otp: String(crypto.randomInt(1000, 10000)), details: { ...current.bookingDraft.details, pickupTimeReview: { status: 'confirmed', reviewedBy: offer.reviewedBy, reviewedByRole: 'transport_operator', reviewedAt: offer.reviewedAt.toDate().toISOString(), reason: offer.reason, revision: 1 }, transportOperatorQuote: { amountCents: offer.amountCents, terms: offer.reason, acceptedAt } } };
+    const quote = { uid, amount: offer.amountCents, booking, items: [], storeId: null, restaurantId: null, expiresAt: paymentQuoteExpiresAt, createdAt: Timestamp.now(), claimed: false, couponLocked: true, originalAmount: offer.amountCents, transportRequestId: requestId, operatorId: current.operatorId };
+    tx.create(quoteRef, quote);
+    const updated = { status: 'accepted', acceptedBy: uid, acceptedRevision: expectedRevision, acceptedQuoteId: quoteRef.id, acceptedAmountCents: offer.amountCents, paymentQuoteExpiresAt, acceptedAt: Timestamp.now(), revision: current.revision + 1 };
+    tx.update(requestRef, updated); tx.update(scopedRef, updated);
+    tx.create(scopedRef.collection('events').doc(`customer_accept_${quoteRef.id}`), { actorId: uid, actorRole: 'customer', action: 'transport_quote_accepted', quoteId: quoteRef.id, amountCents: offer.amountCents, createdAt: Timestamp.now() });
+    return { quoteId: quoteRef.id, amount: offer.amountCents, price: offer.amountCents / 100, expiresAt: paymentQuoteExpiresAt.toDate().toISOString(), estimatedKm: booking.details.estimatedKm, estimatedMinutes: booking.details.estimatedMinutes };
+  });
+});
+
 exports.getDriverEarningEstimate = onCall({ operation: 'getDriverEarningEstimate', region: REGION }, async request => {
   const uid = requireUser(request), id = documentId(request.data?.bookingId, 'Booking ID');
   const [booking, account] = await Promise.all([db.doc(`bookings/${id}`).get(), db.doc(`users/${uid}`).get()]);
@@ -861,7 +959,9 @@ exports.listDriverOffers = onCall({ operation: 'listDriverOffers', region: REGIO
     const offer = priorOffers.get(document.id);
     const dispatchable = ['food', 'grocery'].includes(booking.serviceType) ? booking.status === 'ready' : booking.status === 'pending';
     const parcelTimeReached = !['parcel', 'transport'].includes(booking.serviceType) || parcelPickupTimeAvailable(booking.details);
-    return dispatchable && parcelTimeReached && !booking.driverId && booking.exception?.status !== 'open' && ['paid', 'pending_cod'].includes(booking.paymentStatus) && pickupEligibility(driver, booking) !== null && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities, booking.details)) && (!offer || offer.bookingVersion === (booking.updatedAt || booking.createdAt));
+    const fleetAssignment = booking.transportAssignment;
+    const fleetDriverMatch = booking.serviceType !== 'transport' || !booking.transportOperatorId || fleetAssignment?.status === 'offered' && fleetAssignment.driverId === uid;
+    return dispatchable && parcelTimeReached && !booking.driverId && booking.exception?.status !== 'open' && ['paid', 'pending_cod'].includes(booking.paymentStatus) && pickupEligibility(driver, booking) !== null && !driver.rejectedBookingIds?.includes(document.id) && (booking.serviceType !== 'ride' || booking.details?.vehicleType === driver.vehicleType) && (booking.serviceType !== 'transport' || carrierSuitable(driver.transportCapabilities, booking.details)) && fleetDriverMatch && (!offer || offer.bookingVersion === (booking.updatedAt || booking.createdAt));
   }).sort((a, b) => {
     const aLease = priorOffers.get(a.id), bLease = priorOffers.get(b.id);
     const aActive = aLease?.expiresAt?.toMillis() > offerEvaluationTime, bActive = bLease?.expiresAt?.toMillis() > offerEvaluationTime;
@@ -895,6 +995,7 @@ exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region:
     if (account.data()?.role !== 'driver' || driver.data()?.status !== 'verified' || driver.data()?.online !== true || driver.data()?.locationConsent !== true || eligibility.data()?.status === 'expired') throw new HttpsError('permission-denied', 'Only currently eligible verified online drivers with location consent can accept jobs.');
     if (driver.data()?.activeBookingId) throw new HttpsError('failed-precondition', 'Complete your current job before accepting another.');
     const data = booking.data();
+    const fleetAssignment = data?.transportAssignment;
     if (!offer.exists || offer.data().expiresAt.toMillis() <= Date.now() || offer.data().bookingVersion !== (data?.updatedAt || data?.createdAt) || !data || pickupEligibility(driver.data(), data) === null) throw new HttpsError('failed-precondition', 'This pickup offer expired or your location is stale. Refresh offers.');
     const dispatchable = data && (['food', 'grocery'].includes(data.serviceType) ? data.status === 'ready' : data.status === 'pending');
     if (!dispatchable || ['parcel', 'transport'].includes(data.serviceType) && !parcelPickupTimeAvailable(data.details) || data.driverId || data.exception?.status === 'open' || !['paid', 'pending_cod'].includes(data.paymentStatus) || driver.data()?.rejectedBookingIds?.includes(bookingId)) throw new HttpsError('failed-precondition', 'This job is no longer available or its requested pickup time is unconfirmed or not yet due.');
@@ -904,9 +1005,19 @@ exports.acceptDriverBooking = onCall({ operation: 'acceptDriverBooking', region:
     if (data.serviceType === 'transport') {
       const capabilities = driver.data().transportCapabilities;
       if (!carrierSuitable(capabilities, data.details)) throw new HttpsError('failed-precondition', 'The carrier equipment is not approved or cannot carry this vehicle safely.');
+      if (data.transportOperatorId) {
+        if (fleetAssignment?.status !== 'offered' || fleetAssignment.driverId !== uid || !fleetAssignment.vehicleId || driver.data()?.transportOperatorId !== data.transportOperatorId) throw new HttpsError('permission-denied', 'This fleet booking was not assigned to your linked driver account.');
+        const [member, vehicle] = await Promise.all([
+          transaction.get(db.doc(`transport_operators/${data.transportOperatorId}/drivers/${uid}`)),
+          transaction.get(db.doc(`transport_operators/${data.transportOperatorId}/vehicles/${fleetAssignment.vehicleId}`))
+        ]);
+        if (!member.exists || member.data()?.status !== 'active' || !vehicle.exists || vehicle.data()?.status !== 'approved') throw new HttpsError('failed-precondition', 'The linked driver or fleet vehicle is no longer approved.');
+      } else if (fleetAssignment?.status === 'offered') {
+        throw new HttpsError('failed-precondition', 'This fleet assignment needs an operator link. Refresh offers.');
+      }
     }
     if (!driver.data().supportedServices?.includes(data.serviceType)) throw new HttpsError('permission-denied', 'Your account is not approved for this service. Contact operations.');
-    transaction.update(bookingRef, { driverId: uid, driverName: account.data().name, status: 'accepted', updatedAt: new Date().toISOString() });
+    transaction.update(bookingRef, { driverId: uid, driverName: account.data().name, status: 'accepted', updatedAt: new Date().toISOString(), ...(data.serviceType === 'transport' && data.transportOperatorId ? { transportVehicleId: fleetAssignment.vehicleId, 'transportAssignment.status': 'accepted', 'transportAssignment.acceptedAt': new Date().toISOString() } : {}) });
     transaction.update(driverRef, { activeBookingId: bookingId });
     transaction.create(db.doc(`bookings/${bookingId}/events/accepted_${uid}`), { stage: 'partner_assigned', actorRole: 'driver', actorId: uid, createdAt: new Date().toISOString() });
     return { status: 'accepted' };
@@ -964,6 +1075,13 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
       let settlement;
       try { settlement = calculateDriverSettlement(data); }
       catch (error) { throw new HttpsError('failed-precondition', error.message); }
+      let approvedTollClaims = [];
+      if (data.serviceType === 'transport' && data.transportOperatorId) {
+        const tollPage = await transaction.get(db.collection(`transport_operator_ledger/${documentId(data.transportOperatorId, 'Transport operator ID')}/expenses`).where('bookingId', '==', bookingId));
+        if (tollPage.docs.some(doc => doc.data().status === 'pending_review')) throw new HttpsError('failed-precondition', 'Operations must review every submitted toll receipt before completing transport.');
+        approvedTollClaims = tollPage.docs.filter(doc => doc.data().status === 'approved');
+      }
+      const tollReimbursementCents = approvedTollClaims.reduce((sum, doc) => addCents(sum, doc.data().amountCents), 0);
       let merchantSettlement, merchantBalanceRef, merchantBalance, merchantEntryRef, merchantEntry;
       const merchantSettlementContract = settlementOrder.data()?.contract;
       if (merchantSettlementContract) {
@@ -984,18 +1102,37 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
         assertCodAttempt(cashAttempt, data.customerId, data.serviceType, priceCents);
         if (cashAttempt.status !== 'pending_cod' || cashAttempt.bookingId !== bookingId) throw new HttpsError('failed-precondition', 'Cash payment records need reconciliation before completion.');
       }
-      const payout = settlement.totalCents / 100;
+      if (!Number.isSafeInteger(tollReimbursementCents) || tollReimbursementCents > 0 && (data.serviceType !== 'transport' || !data.transportOperatorId || priceCents - settlement.totalCents < tollReimbursementCents)) throw new HttpsError('failed-precondition', 'Approved toll reimbursements exceed the available transport quote margin. Contact operations.');
+      const payoutCents = addCents(settlement.totalCents, tollReimbursementCents);
+      const payout = payoutCents / 100;
       const today = new Date().toISOString().slice(0, 10);
       const current = driver.data();
-      const payoutCents = Math.round(payout * 100);
+      let operatorLedgerEntryRef = null;
+      if (data.serviceType === 'transport' && data.transportOperatorId) {
+        const operatorId = documentId(data.transportOperatorId, 'Transport operator ID');
+        const customerPriceCents = Math.round(Number(data.price) * 100);
+        const operatorNetCents = customerPriceCents - payoutCents;
+        if (!Number.isSafeInteger(customerPriceCents) || customerPriceCents <= 0 || operatorNetCents < 0) throw new HttpsError('failed-precondition', 'Transport customer price does not cover the completed driver settlement. Contact operations.');
+        operatorLedgerEntryRef = db.doc(`transport_operator_ledger/${operatorId}/entries/${bookingId}`);
+        const [operator, existingOperatorEntry] = await Promise.all([transaction.get(db.doc(`transport_operators/${operatorId}`)), transaction.get(operatorLedgerEntryRef)]);
+        if (!operator.exists || operator.data()?.status !== 'approved' || existingOperatorEntry.exists) throw new HttpsError('failed-precondition', 'Transport operator settlement records need reconciliation before completion.');
+        transaction.create(operatorLedgerEntryRef, { bookingId, type: 'transport_margin_pending_review', grossCents: customerPriceCents, driverPayoutCents: settlement.totalCents, tollReimbursementCents, amountCents: operatorNetCents, currency: CURRENCY, status: 'pending_review', createdAt: Timestamp.now() });
+      }
       if (wasCod) {
         transaction.create(db.doc(`financial_journals/cod_collected_${bookingId}`), journal('cod_cash_collected', 'cash_in_hand_driver', 'customer_receivable_cod', priceCents, { bookingId, driverId: uid }));
         transaction.update(cashAttemptRef, { status: 'paid', paidAt: Timestamp.now(), cashCollectedBy: uid });
       }
       transaction.update(driverRef, { activeBookingId: null, ...(eligibility.data()?.status === 'expired' ? { status: 'pending', online: false, supportedServices: [] } : {}), earningsDate: today, todayEarnings: addCents(current.earningsDate === today ? Math.round(Number(current.todayEarnings || 0) * 100) : 0, payoutCents) / 100, availableEarningsCents: addCents(Number(current.availableEarningsCents || 0), payoutCents), completedJobs: Number(current.completedJobs || 0) + 1 });
-      transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}`), { bookingId, amountCents: payoutCents, type: 'delivery_earning', createdAt: Timestamp.now() });
-      if (payoutCents > 0) transaction.create(db.doc(`financial_journals/driver_earning_${bookingId}`), journal('driver_earning', 'driver_expense_pending_allocation', 'driver_payable', payoutCents, { bookingId, driverId: uid }));
-      transaction.update(bookingRef, { status: next, ...(wasCod ? { paymentStatus: 'paid', cashCollectedAt: new Date().toISOString() } : {}), driverPayout: payout, driverSettlement: settlement, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}`), { bookingId, amountCents: settlement.totalCents, type: 'delivery_earning', createdAt: Timestamp.now() });
+      if (tollReimbursementCents > 0) transaction.create(db.doc(`driver_ledger/${uid}/entries/${bookingId}_transport_tolls`), { bookingId, amountCents: tollReimbursementCents, type: 'transport_toll_reimbursement', createdAt: Timestamp.now() });
+      if (operatorLedgerEntryRef) transaction.create(db.doc(`financial_journals/transport_operator_margin_${bookingId}`), journal('transport_operator_margin_pending_review', 'booking_funds_unallocated', 'transport_operator_payable_pending_review', Math.round(Number(data.price) * 100) - payoutCents, { bookingId, transportOperatorId: data.transportOperatorId, driverPayoutCents: settlement.totalCents }));
+      if (settlement.totalCents > 0) transaction.create(db.doc(`financial_journals/driver_earning_${bookingId}`), journal('driver_earning', 'driver_expense_pending_allocation', 'driver_payable', settlement.totalCents, { bookingId, driverId: uid }));
+      for (const claim of approvedTollClaims) {
+        const toll = claim.data();
+        transaction.update(claim.ref, { status: 'reimbursed', reimbursedAt: Timestamp.now() });
+        transaction.create(db.doc(`financial_journals/transport_toll_reimbursement_${claim.id}`), journal('transport_toll_reimbursement', 'transport_toll_expense', 'driver_payable', toll.amountCents, { bookingId, driverId: uid, transportOperatorId: data.transportOperatorId, transportExpenseId: claim.id }));
+      }
+      transaction.update(bookingRef, { status: next, ...(wasCod ? { paymentStatus: 'paid', cashCollectedAt: new Date().toISOString() } : {}), driverPayout: payout, driverSettlement: settlement, transportTollReimbursementCents: tollReimbursementCents, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       if (merchantSettlement) {
         const available = merchantBalance.data()?.availableCents ?? 0, reserved = merchantBalance.data()?.reservedCents ?? 0;
         transaction.set(merchantBalanceRef, { merchantId: data.merchantId, merchantType: data.serviceType === 'food' ? 'restaurant' : 'grocery', currency: CURRENCY, availableCents: addCents(available, merchantSettlement.payableCents), reservedCents: reserved, updatedAt: Timestamp.now() }, { merge: true });
@@ -1023,7 +1160,8 @@ exports.rejectDriverBooking = onCall({ operation: 'rejectDriverBooking', region:
     if (!['pending', 'ready', 'accepted', 'preparing'].includes(data.status) || !['paid', 'pending_cod'].includes(data.paymentStatus)) throw new HttpsError('failed-precondition', 'This job cannot be rejected at its current stage. Contact operations.');
     const rejectedBookingIds = [...new Set([...(driver.data().rejectedBookingIds || []), bookingId])].slice(-100);
     transaction.update(driverRef, { rejectedBookingIds, ...(data.driverId === uid ? { activeBookingId: null } : {}) });
-    if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', dispatchStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    if (data.driverId === uid) transaction.update(bookingRef, { driverId: null, driverName: FieldValue.delete(), status: ['food', 'grocery'].includes(data.serviceType) ? 'ready' : 'pending', dispatchStartedAt: new Date().toISOString(), updatedAt: new Date().toISOString(), ...(data.serviceType === 'transport' && data.transportOperatorId ? { transportVehicleId: FieldValue.delete(), 'transportAssignment.status': 'rejected', 'transportAssignment.rejectedAt': new Date().toISOString() } : {}) });
+    else if (data.serviceType === 'transport' && data.transportAssignment?.status === 'offered' && data.transportAssignment.driverId === uid) transaction.update(bookingRef, { 'transportAssignment.status': 'rejected', 'transportAssignment.rejectedAt': new Date().toISOString(), updatedAt: new Date().toISOString() });
     transaction.set(db.doc(`dispatch_events/${crypto.randomUUID()}`), { bookingId, driverId: uid, action: 'rejected', createdAt: Timestamp.now() });
     return { status: 'rejected' };
   });
@@ -1064,6 +1202,47 @@ exports.recordDriverPayout = onCall({ operation: 'recordDriverPayout', region: R
     transaction.update(payoutRef, { status, transferReference: reference, recordedBy: request.auth.uid, updatedAt: new Date().toISOString() });
     transaction.create(db.doc(`driver_ledger/${data.driverId}/entries/${requestId}_result`), { type: status === 'paid' ? 'payout_completed' : 'payout_reversed', amountCents: status === 'paid' ? 0 : cents, transferredCents: status === 'paid' ? cents : 0, requestId, reference, createdAt: Timestamp.now() });
     transaction.create(db.doc(`financial_journals/payout_result_${requestId}`), journal(status === 'paid' ? 'driver_payout_recorded' : 'driver_payout_reversed', 'driver_reserved_payable', status === 'paid' ? 'bank_transfer_clearing' : 'driver_payable', cents, { driverId: data.driverId, payoutRequestId: requestId, providerReference: reference }));
+    return { status };
+  });
+});
+
+exports.requestTransportOperatorPayout = onCall({ operation: 'requestTransportOperatorPayout', region: REGION }, async request => {
+  const uid = requireUser(request), requestId = documentId(request.data?.requestId, 'Payout request');
+  const account = (await db.doc(`users/${uid}`).get()).data(), operatorId = account?.transportOperatorId;
+  if (account?.role !== 'merchant' || account.disabled === true || account.suspended === true || typeof operatorId !== 'string') throw new HttpsError('permission-denied', 'An active transport operator account is required.');
+  const payoutRef = db.doc(`payout_requests/transport_${operatorId}_${requestId}`), operatorRef = db.doc(`transport_operators/${operatorId}`), balanceRef = db.doc(`transport_operator_balances/${operatorId}`);
+  return db.runTransaction(async tx => {
+    const [existing, operator, balance, ownerAccount] = await Promise.all([tx.get(payoutRef), tx.get(operatorRef), tx.get(balanceRef), tx.get(db.doc(`users/${uid}`))]);
+    if (ownerAccount.data()?.role !== 'merchant' || ownerAccount.data()?.transportOperatorId !== operatorId || ownerAccount.data()?.disabled === true || ownerAccount.data()?.suspended === true || operator.data()?.ownerUid !== uid || operator.data()?.status !== 'approved') throw new HttpsError('permission-denied', 'Only the approved transport operator owner can request a payout.');
+    if (existing.exists) { if (existing.data().operatorId !== operatorId || existing.data().requestedBy !== uid) throw new HttpsError('permission-denied', 'This payout request belongs to another operator.'); return { requestId: payoutRef.id, amountCents: existing.data().amountCents, status: existing.data().status }; }
+    const available = balance.data()?.availableCents, reserved = balance.data()?.reservedCents ?? 0;
+    if (!Number.isSafeInteger(available) || available <= 0 || !Number.isSafeInteger(reserved) || reserved < 0) throw new HttpsError('failed-precondition', 'No approved transport settlement balance is available for withdrawal.');
+    const payoutRequestId = payoutRef.id, now = Timestamp.now();
+    tx.update(balanceRef, { availableCents: 0, reservedCents: addCents(reserved, available), updatedAt: now });
+    tx.create(payoutRef, { requestId: payoutRequestId, beneficiaryType: 'transport_operator', operatorId, requestedBy: uid, amount: available / 100, amountCents: available, status: 'requested', createdAt: now.toDate().toISOString() });
+    tx.create(db.doc(`financial_journals/transport_payout_reserve_${payoutRequestId}`), journal('transport_operator_payout_reserved', 'transport_operator_payable', 'transport_operator_reserved_payable', available, { transportOperatorId: operatorId, payoutRequestId }));
+    return { requestId: payoutRequestId, amountCents: available, status: 'requested' };
+  });
+});
+
+exports.recordTransportOperatorPayout = onCall({ operation: 'recordTransportOperatorPayout', region: REGION }, async request => {
+  const uid = requireUser(request);
+  if (request.auth.token.admin !== true || (await db.doc(`users/${uid}`).get()).data()?.role !== 'admin') throw new HttpsError('permission-denied', 'An operations administrator must record actual transfers.');
+  const requestId = documentId(request.data?.requestId, 'Payout request'), status = request.data?.status;
+  if (!['paid', 'failed'].includes(status)) throw new HttpsError('invalid-argument', 'Select the actual transfer result.');
+  const reference = cleanText(request.data?.reference, status === 'paid' ? 'Actual transfer reference' : 'Failure reason', 200);
+  return db.runTransaction(async tx => {
+    const payoutRef = db.doc(`payout_requests/${requestId}`), payout = await tx.get(payoutRef), data = payout.data();
+    if (!data || data.beneficiaryType !== 'transport_operator' || !data.operatorId) throw new HttpsError('not-found', 'Transport operator payout request not found.');
+    if (data.status === status && data.transferReference === reference) return { status };
+    if (data.status !== 'requested') throw new HttpsError('failed-precondition', 'This payout transfer already has a recorded result.');
+    const balanceRef = db.doc(`transport_operator_balances/${data.operatorId}`), balance = await tx.get(balanceRef), available = balance.data()?.availableCents, reserved = balance.data()?.reservedCents, cents = data.amountCents;
+    if (!Number.isSafeInteger(cents) || cents <= 0 || !Number.isSafeInteger(available) || available < 0 || !Number.isSafeInteger(reserved) || reserved < cents) throw new HttpsError('failed-precondition', 'Transport operator payout balances need reconciliation.');
+    tx.update(balanceRef, { availableCents: status === 'failed' ? addCents(available, cents) : available, reservedCents: addCents(reserved, -cents), updatedAt: Timestamp.now() });
+    tx.update(payoutRef, { status, transferReference: reference, recordedBy: uid, updatedAt: Timestamp.now().toDate().toISOString() });
+    tx.create(db.doc(`financial_journals/transport_payout_result_${requestId}`), journal(status === 'paid' ? 'transport_operator_payout_recorded' : 'transport_operator_payout_reversed', 'transport_operator_reserved_payable', status === 'paid' ? 'bank_transfer_clearing' : 'transport_operator_payable', cents, { transportOperatorId: data.operatorId, payoutRequestId: requestId, providerReference: reference }));
+    tx.create(db.doc(`transport_operator_ledger/${data.operatorId}/events/${requestId}_result`), { type: status === 'paid' ? 'payout_completed' : 'payout_reversed', amountCents: status === 'paid' ? 0 : cents, requestId, reference, createdAt: Timestamp.now() });
+    tx.create(db.collection('operations_audit').doc(), { operatorId: uid, action: status === 'paid' ? 'transport_operator_payout_recorded' : 'transport_operator_payout_reversed', target: payoutRef.path, createdAt: Timestamp.now() });
     return { status };
   });
 });
@@ -1661,7 +1840,7 @@ async function cancelPaidBooking(request, merchantRefusal = false) {
   const refusalReason = merchantRefusal ? cleanText(request.data?.reason, 'Rejection reason', 500) : null;
   const cancellationReason = !merchantRefusal && request.data?.reason !== undefined ? request.data.reason : null;
   if (cancellationReason !== null && !isCustomerCancellationReason(cancellationReason)) throw new HttpsError('invalid-argument', 'Choose a supported cancellation reason.');
-  const merchantOwns = (account, record) => merchantHasBusiness(account, record?.merchantId, record?.serviceType === 'food' ? 'restaurant' : record?.serviceType === 'grocery' ? 'grocery' : null);
+  const merchantOwns = (account, record) => merchantHasPermission(account, record?.merchantId, record?.serviceType === 'food' ? 'restaurant' : record?.serviceType === 'grocery' ? 'grocery' : null, 'orders');
   const bookingId = documentId(request.data?.bookingId, 'Booking reference');
   const bookingRef = db.doc(`bookings/${bookingId}`);
   let booking;

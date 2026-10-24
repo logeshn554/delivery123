@@ -27,10 +27,64 @@ export function listenToMerchantHours(id: string, type: 'restaurant' | 'grocery'
 export async function setMerchantHours(merchantId: string, merchantType: 'restaurant' | 'grocery', weeklyHours: Record<string, { open: string; close: string }[]>, timeZone: string, acceptingOrders: boolean) {
   return (await httpsCallable(functions, 'setMerchantHours')({ merchantId, merchantType, weeklyHours, timeZone, acceptingOrders })).data;
 }
-export type MerchantBusinessSummary = { id: string; merchantType: 'restaurant' | 'grocery'; name: string; address: string; acceptingOrders: boolean };
+export type MerchantBusinessSummary = { id: string; merchantType: 'restaurant' | 'grocery'; name: string; address: string; timeZone?: string; profileRevision?: number; acceptingOrders: boolean; applicationId?: string; applicationNeedsInformation?: boolean; permissions?: Array<'orders' | 'catalog' | 'business'>; canManageStaff?: boolean };
 export async function listMerchantBusinesses(): Promise<MerchantBusinessSummary[]> {
   const result = (await httpsCallable<void, { businesses: MerchantBusinessSummary[] }>(functions, 'listMerchantBusinesses')()).data;
   return result.businesses;
+}
+export async function updateMerchantBusinessProfile(input: { merchantId: string; merchantType: 'restaurant' | 'grocery'; name: string; address: string; timeZone: string; expectedRevision: number; requestId: string }) {
+  return (await httpsCallable<typeof input, { updated: true; revision: number }>(functions, 'updateMerchantBusinessProfile')(input)).data;
+}
+export async function getTransportOperatorDashboard() {
+  return (await httpsCallable<void, import('../types').TransportOperatorDashboardData>(functions, 'getTransportOperatorDashboard')()).data;
+}
+export async function reviewTransportPickupTime(input: { bookingId: string; decision: 'confirmed' | 'declined'; reason: string; expectedRevision: number; requestId: string }) {
+  return (await httpsCallable<typeof input, { status: string; revision: number }>(functions, 'reviewTransportPickupTime')(input)).data;
+}
+export async function listTransportOperators() {
+  return (await httpsCallable<void, { operators: import('../types').TransportOperatorOption[] }>(functions, 'listTransportOperators')()).data.operators;
+}
+export async function requestTransportQuote(input: { operatorId: string; requestId: string; booking: Pick<import('../types').Booking, 'serviceType' | 'customerName' | 'pickupAddress' | 'dropAddress' | 'details'> }) {
+  return (await httpsCallable<typeof input, { requestId: string; status: string; revision: number }>(functions, 'requestTransportQuote')(input)).data;
+}
+export async function getTransportQuoteRequest(requestId: string) {
+  return (await httpsCallable<{ requestId: string }, import('../types').TransportQuoteRequestStatus>(functions, 'getTransportQuoteRequest')({ requestId })).data;
+}
+export async function acceptTransportQuote(input: { requestId: string; expectedRevision: number }) {
+  return (await httpsCallable<typeof input, { quoteId: string; amount: number; price: number; expiresAt: string; estimatedKm: number; estimatedMinutes: number }>(functions, 'acceptTransportQuote')(input)).data;
+}
+export async function cancelTransportQuoteRequest(requestId: string) { return (await httpsCallable<{ requestId: string }, { status: string }>(functions, 'cancelTransportQuoteRequest')({ requestId })).data; }
+export async function issueTransportQuote(input: { requestId: string; decision: 'confirmed' | 'declined'; amountCents: number; expiresInMinutes: number; reason: string; expectedRevision: number; requestIdempotencyKey: string }) {
+  return (await httpsCallable<typeof input, { status: string; revision: number; expiresAt: string | null }>(functions, 'issueTransportQuote')(input)).data;
+}
+export async function requestTransportOperatorLink(operatorId: string) {
+  return (await httpsCallable<{ operatorId: string }, { status: string }>(functions, 'requestTransportOperatorLink')({ operatorId })).data;
+}
+export async function reviewTransportDriverLink(input: { operatorId: string; driverId: string; decision: 'approved' | 'declined' }) {
+  return (await httpsCallable<typeof input, { status: string }>(functions, 'reviewTransportDriverLink')(input)).data;
+}
+export async function assignTransportFleetBooking(input: { bookingId: string; driverId: string; vehicleId: string }) {
+  return (await httpsCallable<typeof input, { status: string }>(functions, 'assignTransportFleetBooking')(input)).data;
+}
+export async function submitTransportVehicle(input: { vehicleId: string; label: string; registration: string; carrierType: string; maxLoadKg: number; maxLengthCm: number; maxWidthCm: number; maxHeightCm: number; insuranceReference: string; rcReference: string }) {
+  return (await httpsCallable<typeof input, { status: string; vehicleId: string }>(functions, 'submitTransportVehicle')(input)).data;
+}
+export async function listTransportVehicleReviews() {
+  return (await httpsCallable<void, { vehicles: Array<{ vehicleId: string; operatorId: string; label: string; registration: string; carrierType: string; maxLoadKg: number; maxLengthCm: number; maxWidthCm: number; maxHeightCm: number; insuranceReference: string; rcReference: string }>; hasMore: boolean }>(functions, 'listTransportVehicleReviews')()).data;
+}
+export async function reviewTransportVehicle(input: { operatorId: string; vehicleId: string; decision: 'approved' | 'rejected'; reason: string }) {
+  return (await httpsCallable<typeof input, { status: string }>(functions, 'reviewTransportVehicle')(input)).data;
+}
+export type MerchantStaffMember = { uid: string; name: string; email: string; permissions: Array<'orders' | 'catalog' | 'business'> };
+export async function listMerchantStaff(merchantId: string, merchantType: 'restaurant' | 'grocery'): Promise<MerchantStaffMember[]> {
+  const result = (await httpsCallable<{ merchantId: string; merchantType: 'restaurant' | 'grocery' }, { members: MerchantStaffMember[] }>(functions, 'listMerchantStaff')({ merchantId, merchantType })).data;
+  return result.members;
+}
+export async function grantMerchantStaffAccess(input: { merchantId: string; merchantType: 'restaurant' | 'grocery'; staffUid: string; permissions: Array<'orders' | 'catalog' | 'business'> }) {
+  return (await httpsCallable(functions, 'grantMerchantStaffAccess')(input)).data;
+}
+export async function revokeMerchantStaffAccess(input: { merchantId: string; merchantType: 'restaurant' | 'grocery'; staffUid: string }) {
+  return (await httpsCallable(functions, 'revokeMerchantStaffAccess')(input)).data;
 }
 export async function saveCatalogItem(merchantId: string, merchantType: 'restaurant' | 'grocery', itemId: string, item: unknown) {
   return (await httpsCallable(functions, 'saveCatalogItem')({ merchantId, merchantType, itemId, item })).data;
@@ -301,6 +355,12 @@ export async function recordTransportInspection(bookingId: string, stage: Transp
 export async function getTransportInspection(bookingId: string, stage: TransportInspectionStage) {
   return (await httpsCallable<{ bookingId: string; stage: TransportInspectionStage }, { inspection: TransportInspectionRecord | null }>(functions, 'getTransportInspection')({ bookingId, stage })).data.inspection;
 }
+export type TransportTollClaim = { claimId: string; amountCents: number; description: string; status: string; reviewReason: string | null; createdAt: string | null; receiptCount: number };
+export async function submitTransportTollClaim(input: { bookingId: string; requestId: string; amountCents: number; description: string; receipts: TransportInspectionPhoto[] }) { return (await httpsCallable<typeof input, { claimId: string; status: string }>(functions, 'submitTransportTollClaim')(input)).data; }
+export async function getTransportTollClaims(bookingId: string) { return (await httpsCallable<{ bookingId: string }, { claims: TransportTollClaim[] }>(functions, 'getTransportTollClaims')({ bookingId })).data.claims; }
+export async function getTransportTollReceipt(operatorId: string, claimId: string) { return (await httpsCallable<{ operatorId: string; claimId: string }, { receipts: TransportInspectionPhoto[] }>(functions, 'getTransportTollReceipt')({ operatorId, claimId })).data.receipts; }
+export async function listTransportTollClaimsForReview() { return (await httpsCallable<void, { claims: Array<{ claimId: string; bookingId: string; operatorId: string; driverId: string; amountCents: number; description: string; receiptCount: number; createdAt: string | null }>; hasMore: boolean }>(functions, 'listTransportTollClaimsForReview')()).data; }
+export async function reviewTransportTollClaim(input: { operatorId: string; claimId: string; bookingId: string; decision: 'approved' | 'rejected'; reason: string; requestId: string }) { return (await httpsCallable<typeof input, { status: string }>(functions, 'reviewTransportTollClaim')(input)).data; }
 
 export type DeliveryProofPolicy = { enabled: boolean; version: number; retentionDays: number; privacyPolicyUrl: string };
 export async function getDeliveryProofPolicy() {
@@ -610,7 +670,7 @@ export function listenToSupportTickets(userId: string, callback: (tickets: Suppo
 export async function createPayoutRequest(request: { requestId: string; driverId: string; amount: number }) {
   return (await httpsCallable(functions, 'requestDriverPayout')({ requestId: request.requestId })).data;
 }
-export type PayoutRecord = { requestId: string; driverId: string; amount: number; status: string; createdAt: string; transferReference?: string };
+export type PayoutRecord = { requestId: string; driverId?: string; operatorId?: string; beneficiaryType?: string; amount: number; status: string; createdAt: string; transferReference?: string };
 export function listenToPayoutRequests(driverId: string | undefined, callback: (records: PayoutRecord[]) => void, onError: (error: unknown) => void) {
   const records = collection(db, 'payout_requests');
   return onSnapshot(driverId ? query(records, where('driverId', '==', driverId)) : records, snapshot => callback(snapshot.docs.map(record => ({ ...record.data(), requestId: record.id } as PayoutRecord)).sort((a, b) => b.createdAt.localeCompare(a.createdAt))), onError);
@@ -618,6 +678,11 @@ export function listenToPayoutRequests(driverId: string | undefined, callback: (
 export async function recordDriverPayout(requestId: string, status: 'paid' | 'failed', reference: string) {
   return (await httpsCallable(functions, 'recordDriverPayout')({ requestId, status, reference })).data;
 }
+export async function requestTransportOperatorPayout(requestId: string) { return (await httpsCallable<{ requestId: string }, { requestId: string; amountCents: number; status: string }>(functions, 'requestTransportOperatorPayout')({ requestId })).data; }
+export async function recordTransportOperatorPayout(input: { requestId: string; status: 'paid' | 'failed'; reference: string }) { return (await httpsCallable<typeof input, { status: string }>(functions, 'recordTransportOperatorPayout')(input)).data; }
+export async function listTransportOperatorSettlements() { return (await httpsCallable<void, { entries: Array<{ operatorId: string; bookingId: string; grossCents: number; driverPayoutCents: number; amountCents: number; createdAt: string | null }>; hasMore: boolean }>(functions, 'listTransportOperatorSettlements')()).data; }
+export async function reviewTransportOperatorSettlement(input: { operatorId: string; bookingId: string; decision: 'approved' | 'rejected'; reason: string; requestId: string }) { return (await httpsCallable<typeof input, { status: string }>(functions, 'reviewTransportOperatorSettlement')(input)).data; }
+export async function recordTransportOperatorPayoutResult(input: { requestId: string; status: 'paid' | 'failed'; reference: string }) { return (await httpsCallable<typeof input, { status: string }>(functions, 'recordTransportOperatorPayout')(input)).data; }
 
 /**
  * Updates the user's wallet balance in Firestore
