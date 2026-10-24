@@ -580,6 +580,19 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
             <div className="rounded-xl border border-slate-200 bg-white p-3">
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Navigation</p>
               <ParcelOrderDetails booking={currentAssignedJob}/><TransportOrderDetails booking={currentAssignedJob}/><TakeoverOrderDetails booking={currentAssignedJob}/>
+              {['food', 'grocery'].includes(currentAssignedJob.serviceType) && (currentAssignedJob.details?.items?.length ?? 0) > 0 && (
+                <section aria-label="Order contents" className="mb-3 rounded-lg bg-slate-50 p-3">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pickup checklist</p>
+                  <ul className="space-y-2 text-xs text-slate-700">
+                    {currentAssignedJob.details!.items!.map((item, index) => (
+                      <li key={`${item.id}:${item.variantId || ''}:${index}`} className={item.removed ? 'text-slate-400 line-through' : ''}>
+                        <span className="font-semibold">{item.quantity} × {item.name}{item.variantName ? ` · ${item.variantName}` : ''}</span>
+                        {!item.removed && item.addOns?.length ? <span className="mt-0.5 block pl-4 text-[11px] text-slate-500">Extras: {item.addOns.map(addOn => addOn.name).join(', ')}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
               <p className="mb-3 text-xs text-slate-700">{currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress || 'Address unavailable'}</p>
               <p className="mb-3 text-[10px] text-slate-400">{profile?.currentLat != null && profile.currentLng != null ? `Last GPS: ${profile.currentLat.toFixed(5)}, ${profile.currentLng.toFixed(5)}` : 'GPS location is not available.'}</p>
               {(currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress) && <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(currentAssignedJob.status === 'accepted' ? currentAssignedJob.pickupAddress || '' : currentAssignedJob.dropAddress || currentAssignedJob.pickupAddress || '')}`} target="_blank" rel="noreferrer" className="block rounded-lg bg-purple-600 px-3 py-2 text-center text-xs font-bold text-white">Open directions</a>}
