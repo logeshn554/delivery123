@@ -7,11 +7,11 @@ import TakeoverOrderDetails from './TakeoverOrderDetails';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, CheckCircle2, Navigation, DollarSign, Power, ToggleLeft, ToggleRight, 
-  MapPin, Check, Eye, Clock, ShieldAlert, Award, FileText, Send, MessageSquare,
+  MapPin, Check, Eye, Clock, ShieldAlert, Award, FileText, Send, MessageSquare, Bell,
   Phone, Banknote
 } from 'lucide-react';
 import { Booking, DriverProfile } from '../types';
-import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages, getDeliverySignature } from '../data/firestoreHelper';
+import { createPayoutRequest, createSupportTicket, getOrCreateDriverProfile, updateDriverStatus, updateDriverLocation, acceptDriverBooking, rejectDriverBooking, advanceDriverBooking, listenToDriverLocation, sendChatMessage, listenToChatMessages, getDeliverySignature, listenToUserNotifications, markUserNotificationsRead, type UserNotification } from '../data/firestoreHelper';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import PayoutRequests from './PayoutRequests';
 import DriverEarningEstimate from './DriverEarningEstimate';
@@ -21,6 +21,7 @@ import { useFeedbackDialog } from './useFeedbackDialog';
 import { usesAndroidLocation, usesNativeLocation, locationConsent, startNativeDriverLocation, stopNativeDriverLocation, nativeDriverLocationStatus } from '../driverLocation';
 import DeliverySignaturePad from './DeliverySignaturePad';
 import TransportInspectionForm from './TransportInspectionForm';
+import { enableOrderNotifications } from '../nativeNotifications';
 
 interface DriverAppProps {
   userId: string;
@@ -53,7 +54,22 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
     const timer = setInterval(() => setOfferNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const [activeSubView, setActiveSubView] = useState<'orders' | 'wallet' | 'support' | 'profile' | null>(null);
+  const [activeSubView, setActiveSubView] = useState<'orders' | 'wallet' | 'support' | 'profile' | 'notifications' | null>(null);
+  const [notificationHistory, setNotificationHistory] = useState<UserNotification[]>([]);
+  const [notificationHistoryError, setNotificationHistoryError] = useState('');
+  const [notificationHistoryLoading, setNotificationHistoryLoading] = useState(false);
+  const [notificationSetupBusy, setNotificationSetupBusy] = useState(false);
+  const [notificationSetupMessage, setNotificationSetupMessage] = useState('');
+  useEffect(() => {
+    setNotificationHistoryLoading(true);
+    return listenToUserNotifications(userId, items => { setNotificationHistory(items); setNotificationHistoryLoading(false); setNotificationHistoryError(''); }, error => { setNotificationHistoryLoading(false); setNotificationHistoryError(error instanceof Error ? error.message : 'Notification history is unavailable.'); });
+  }, [userId]);
+  const openNotification = async (item: UserNotification) => {
+    try { if (!item.readAt) await markUserNotificationsRead(userId, [item.id]); }
+    catch (error) { setNotificationHistoryError(error instanceof Error ? error.message : 'The notification could not be marked as read.'); }
+    if (item.type === 'dispatch_offer') setActiveSubView(null);
+    else if (item.bookingId) { setActiveSubView(null); window.dispatchEvent(new CustomEvent('allgo:booking', { detail: item.bookingId })); }
+  };
   useEffect(() => {
     const back = (event: Event) => { if (activeSubView) { event.preventDefault(); setActiveSubView(null); } };
     window.addEventListener('allgo:back', back);
@@ -284,7 +300,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                   ✕ Close
                 </button>
                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-900 ml-2">
-                  {activeSubView === 'orders' ? 'Your deliveries' : activeSubView === 'wallet' ? 'Your earnings' : activeSubView === 'profile' ? 'Partner profile' : 'Help & support'}
+                  {activeSubView === 'orders' ? 'Your deliveries' : activeSubView === 'wallet' ? 'Your earnings' : activeSubView === 'profile' ? 'Partner profile' : activeSubView === 'notifications' ? 'Notifications' : 'Help & support'}
                 </h3>
               </div>
               <span className="text-[9px] bg-purple-500/15 text-purple-400 font-extrabold px-2 py-0.5 rounded-full border border-purple-500/20">PARTNER HUB</span>
@@ -293,6 +309,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 select-text">
               {activeSubView === 'profile' && <section className="role-profile-card"><div className="role-avatar">{userName?.[0] || 'D'}</div><h2>{userName || 'Delivery partner'}</h2><p>Verification: {profile.status}</p><dl><dt>Vehicle</dt><dd>{profile.vehicleType || 'Not provided'}</dd><dt>Registration</dt><dd>{profile.vehicleNo || 'Not provided'}</dd><dt>Completed deliveries</dt><dd>{profile.completedJobs || 0}</dd></dl><button type="button" className="allgo-action" onClick={()=>setActiveSubView(null)}>View dashboard & verification</button><button type="button" className="role-text-action" onClick={()=>setActiveSubView('support')}>Help & support</button></section>}
+              {activeSubView === 'notifications' && <section className="space-y-3" aria-label="Delivery partner notifications"><div className="flex items-center justify-between gap-2"><div><h2 className="text-sm font-bold">Recent updates</h2><p className="text-xs text-slate-500">Job offers, assignments and booking changes</p></div><button type="button" disabled={actionBusy || !notificationHistory.some(item => !item.readAt)} className="min-h-11 text-xs font-semibold text-purple-700 disabled:opacity-50" onClick={() => void performAction(() => markUserNotificationsRead(userId, notificationHistory.filter(item => !item.readAt).map(item => item.id)))}>Mark all read</button></div><button type="button" disabled={notificationSetupBusy} className="min-h-11 rounded-lg border px-3 text-sm font-semibold" onClick={() => { setNotificationSetupBusy(true); setNotificationSetupMessage(''); void enableOrderNotifications().then(() => setNotificationSetupMessage('Device notifications enabled.')).catch(error => setNotificationSetupMessage(error instanceof Error ? error.message : 'Notification setup failed.')).finally(() => setNotificationSetupBusy(false)); }}>{notificationSetupBusy ? 'Enabling device notifications…' : 'Enable device notifications'}</button>{notificationSetupMessage && <p role="status" className="text-xs text-slate-600">{notificationSetupMessage}</p>}{notificationHistoryError && <p role="alert" className="text-xs text-rose-700">{notificationHistoryError}</p>}{notificationHistoryLoading && <p role="status" className="text-xs text-slate-500">Loading notification history…</p>}{notificationHistory.map(item => <button type="button" key={item.id} className="block w-full rounded-xl border p-3 text-left" onClick={() => void openNotification(item)}><span className="flex items-center justify-between gap-3"><strong className="text-sm">{item.title}</strong>{!item.readAt && <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800">Unread</span>}</span><span className="mt-1 block text-xs text-slate-600">{item.body}</span><small className="mt-1 block text-[10px] text-slate-500">{item.deliveryStatus === 'failed' || item.deliveryStatus === 'partial' ? 'Push delivery failed; saved in your history.' : item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString() : 'Saved in your history.'}</small></button>)}{!notificationHistoryLoading && !notificationHistoryError && notificationHistory.length === 0 && <p className="rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500">Job offers and booking updates will appear here.</p>}</section>}
               {activeSubView === 'orders' && (
                 <div className="space-y-3">
                   <p className="text-[10px] text-slate-400 font-medium">Your completed deliveries & dispatches:</p>
@@ -898,7 +915,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
       </div>
 
       {/* Driver Footer */}
-      <nav className="role-navigation" aria-label="Delivery partner navigation">{([{id:null,label:'Home',Icon:Navigation},{id:'orders',label:'Orders',Icon:FileText},{id:'wallet',label:'Earnings',Icon:DollarSign},{id:'profile',label:'Profile',Icon:Award}] as const).map(({id,label,Icon})=><button type="button" key={label} aria-current={activeSubView===id?'page':undefined} onClick={()=>setActiveSubView(id)}><Icon size={21} aria-hidden="true"/><span>{label}</span></button>)}</nav>
+      <nav className="role-navigation" aria-label="Delivery partner navigation">{([{id:null,label:'Home',Icon:Navigation},{id:'orders',label:'Orders',Icon:FileText},{id:'notifications',label:'Alerts',Icon:Bell},{id:'wallet',label:'Earnings',Icon:DollarSign},{id:'profile',label:'Profile',Icon:Award}] as const).map(({id,label,Icon})=><button type="button" key={label} aria-current={activeSubView===id?'page':undefined} onClick={()=>setActiveSubView(id)}><Icon size={21} aria-hidden="true"/><span>{label}{id === 'notifications' && notificationHistory.some(item => !item.readAt) ? ` · ${notificationHistory.filter(item => !item.readAt).length}` : ''}</span></button>)}</nav>
 
     </div>
   );
