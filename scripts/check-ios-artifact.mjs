@@ -1,0 +1,21 @@
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { resolveAudience } from './app-audiences.mjs';
+import { assertAppMetadata, assertIOSIdentity } from './app-artifact-policy.mjs';
+
+if (process.platform !== 'darwin') throw new Error('iOS simulator artifact inspection requires macOS with plutil.');
+const application = resolveAudience(process.argv[2]);
+const artifact = path.resolve('.cache', 'apps', application.id, 'app-simulator.app');
+const infoPath = path.join(artifact, 'Info.plist'), metadataPath = path.join(artifact, 'public', 'allgo-build.json');
+if (!existsSync(infoPath) || !existsSync(metadataPath)) throw new Error('The requested iOS simulator app artifact is missing.');
+const converted = spawnSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-', infoPath], { encoding: 'utf8', windowsHide: true });
+if (converted.error) throw converted.error;
+if (converted.status !== 0) throw new Error(converted.stderr || 'Could not read the packaged iOS property list.');
+const info = JSON.parse(converted.stdout), metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
+assertIOSIdentity(info, application);
+assertAppMetadata(metadata, application);
+const report = { audience: application.id, appId: application.appId, title: application.title, scheme: application.scheme, sha256: createHash('sha256').update(readFileSync(metadataPath)).digest('hex'), verifiedAt: new Date().toISOString() };
+writeFileSync(path.join(path.dirname(artifact), 'verification.json'), `${JSON.stringify(report, null, 2)}\n`);
+console.log(`Verified packaged ${application.id} iOS simulator app: ${application.appId}, metadata sha256 ${report.sha256}`);

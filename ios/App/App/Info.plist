@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>AllGo</string>
+	<string>$(ALLGO_APP_TITLE)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -21,8 +21,8 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>CFBundleURLTypes</key>
-	<array><dict><key>CFBundleURLSchemes</key><array><string>allgo</string></array></dict></array>
-	<key>UIBackgroundModes</key><array><string>remote-notification</string><string>location</string></array>
+	<array><dict><key>CFBundleURLSchemes</key><array><string>$(ALLGO_APP_SCHEME)</string></array></dict></array>
+	<key>UIBackgroundModes</key><array><string>remote-notification</string></array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>

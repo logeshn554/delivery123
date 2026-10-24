@@ -30,6 +30,16 @@ test('iOS-only preparation works without a synced Android project', () => fixtur
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(readFileSync(config, 'utf8')).packageClassList, ['AppPlugin']);
 }));
+test('iOS preparation sets the selected audience identity in generated Capacitor config', () => fixture(directory => {
+  const config = path.join(directory, 'ios/App/App/capacitor.config.json');
+  mkdirSync(path.dirname(config), { recursive: true });
+  writeFileSync(config, JSON.stringify({ appId: 'in.allgo.app', appName: 'AllGo', packageClassList: [] }));
+  const result = spawnSync(process.execPath, [script, 'ios', 'merchant'], { cwd: directory, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const generated = JSON.parse(readFileSync(config, 'utf8'));
+  assert.equal(generated.appId, 'in.allgo.merchant');
+  assert.equal(generated.appName, 'AllGo Merchant');
+}));
 test('explicit native preparation rejects an unsynced platform', () => fixture(directory => {
   const result = spawnSync(process.execPath, [script, 'android'], { cwd: directory, encoding: 'utf8' });
   assert.notEqual(result.status, 0);

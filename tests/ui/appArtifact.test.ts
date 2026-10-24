@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveAudience } from '../../scripts/app-audiences.mjs';
-import { assertAppMetadata, assertAndroidIdentity } from '../../scripts/app-artifact-policy.mjs';
+import { assertAppMetadata, assertAndroidIdentity, assertIOSIdentity } from '../../scripts/app-artifact-policy.mjs';
 
 const driver = resolveAudience('driver');
 const badging = "package: name='in.allgo.delivery'\napplication-label:'AllGo Delivery'\nlaunchable-activity: name='in.allgo.app.MainActivity'";
@@ -21,4 +21,13 @@ test('artifact policy rejects demo, release and cross-audience metadata', () => 
   const metadata = { audience: 'driver', appId: 'in.allgo.delivery', mode: 'development', demo: false };
   assertAppMetadata(metadata, driver);
   for (const changes of [{ audience: 'merchant' }, { demo: true }, { mode: 'production' }, { appId: 'in.allgo.app' }]) assert.throws(() => assertAppMetadata({ ...metadata, ...changes }, driver), /metadata/);
+});
+test('iOS artifact identity matches each independently installable app audience', () => {
+  for (const audience of ['customer', 'merchant', 'driver'] as const) {
+    const application = resolveAudience(audience);
+    const info = { CFBundleIdentifier: application.appId, CFBundleDisplayName: application.title, CFBundleURLTypes: [{ CFBundleURLSchemes: [application.scheme] }], UIBackgroundModes: ['remote-notification', ...(audience === 'driver' ? ['location'] : [])] };
+    assert.doesNotThrow(() => assertIOSIdentity(info, application));
+    assert.throws(() => assertIOSIdentity({ ...info, CFBundleIdentifier: 'in.allgo.wrong' }, application), /bundle identity/);
+    assert.throws(() => assertIOSIdentity({ ...info, CFBundleURLTypes: [{ CFBundleURLSchemes: ['wrong'] }] }, application), /URL scheme/);
+  }
 });

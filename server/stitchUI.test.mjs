@@ -230,12 +230,14 @@ test('food cart uses announced quantities, touch-sized steppers and server-quote
 });
 test('checkout review keeps total payable visible, makes bill details collapsible and links cancellation terms',()=>{
   const review=readFileSync(new URL('../src/components/CheckoutReviewScreen.tsx',import.meta.url),'utf8');
+  const cancellation=readFileSync(new URL('../src/components/CancellationPolicyNotice.tsx',import.meta.url),'utf8');
   const styles=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
   assert.match(review,/<details className="checkout-bill-details" open>/);
   assert.match(review,/Total · \{currency\(breakdown\.totalCents\)\}/);
-  assert.match(review,/\{business\.cancellation\}/);
-  assert.match(review,/Read cancellation policy/);
-  assert.match(review,/The published cancellation policy is not available yet/);
+  assert.match(review,/CancellationPolicyNotice/);
+  assert.match(cancellation,/business\.cancellation/);
+  assert.match(cancellation,/Read the published cancellation terms/);
+  assert.match(cancellation,/The published cancellation policy is not available yet/);
   assert.match(review,/Payment method/);
   assert.match(styles,/\.checkout-bill-details > summary/);
 });
@@ -488,11 +490,13 @@ test('vehicle transport explains supported classes and requires physical vehicle
   assert.match(screen,/ownershipConfirmed: consent/);
   assert.match(policy,/supportedVehicleTypes\.includes\(details\.transportVehicleType\)/);
 });
-test('transport review explains automatic carrier assignment and unavailable optional coverage',()=>{
+test('transport review requests an approved operator quote and discloses unavailable coverage',()=>{
   const screen=readFileSync(new URL('../src/components/TransportBookingScreen.tsx',import.meta.url),'utf8');
-  assert.match(screen,/AllGo matches an approved carrier and equipment/);
-  assert.match(screen,/You cannot choose a carrier or lift option/);
-  assert.match(screen,/A transit-insurance option is not shown here/);
+  assert.match(screen,/Available transport operator/);
+  assert.match(screen,/Choose a suitable operator/);
+  assert.match(screen,/No approved operator has an approved fleet vehicle with enough load and size capacity/);
+  assert.match(screen,/Payment starts only after acceptance/);
+  assert.doesNotMatch(screen,/transit-insurance|lift option/);
 });
 test('ride and vehicle transport quote cards show server route estimates and accessible expiry progress',()=>{
   const ride=readFileSync(new URL('../src/components/ServiceBookingScreen.tsx',import.meta.url),'utf8');

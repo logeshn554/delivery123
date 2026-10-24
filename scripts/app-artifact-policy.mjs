@@ -28,3 +28,13 @@ export function assertAndroidIdentity(badging, manifest, application) {
   const service = elements(manifest, 'service').some(service => service.name === 'in.allgo.app.DriverLocationService');
   if (service !== (application.id === 'driver')) throw new Error('APK driver location service does not match the app audience.');
 }
+
+export function assertIOSIdentity(info, application) {
+  if (info?.CFBundleIdentifier !== application.appId) throw new Error('iOS bundle identity mismatch.');
+  if (info?.CFBundleDisplayName !== application.title) throw new Error('iOS display name mismatch.');
+  const schemes = info?.CFBundleURLTypes?.flatMap(item => item.CFBundleURLSchemes || []) || [];
+  if (!schemes.includes(application.scheme)) throw new Error('iOS booking URL scheme is missing.');
+  const modes = info?.UIBackgroundModes || [];
+  const locationExpected = application.id === 'driver';
+  if (modes.includes('location') !== locationExpected) throw new Error('iOS background location capability does not match the app audience.');
+}
