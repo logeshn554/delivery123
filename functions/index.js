@@ -908,6 +908,7 @@ exports.advanceDriverBooking = onCall({ operation: 'advanceDriverBooking', regio
     if (data.exception?.status === 'open') throw new HttpsError('failed-precondition', 'Operations must resolve the reported booking problem first.');
     if (data.status === 'completed' && next === 'completed') return { status: 'completed' };
     if (data.status === next) return { status: next };
+    if (next === 'preparing' && data.serviceType === 'ride' && pickupEligibility(driver.data(), data, Date.now(), 0.3) === null) throw new HttpsError('failed-precondition', 'Move within 300 metres of the pickup and wait for a fresh, accurate location before marking arrival.');
     if (next === 'transit') requireMerchantReady(data.serviceType, merchantReadyEvent.exists);
     const transition = driverTransition(data.serviceType, data.status, next);
     if (transition.requiresPickupCode) {

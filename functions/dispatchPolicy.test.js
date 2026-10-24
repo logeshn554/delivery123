@@ -11,6 +11,8 @@ test('pickup eligibility rejects missing, stale, inaccurate, future and distant 
   assert.equal(pickupEligibility({ ...driver, locationUpdatedAt: new Date(now + 60000).toISOString() }, booking, now), null);
   assert.equal(pickupEligibility({ ...driver, locationAccuracyMeters: 300 }, booking, now), null);
   assert.equal(pickupEligibility(driver, { details: { pickupLocation: { lat: 12, lng: 79 } } }, now), null);
+  assert.ok(pickupEligibility(driver, booking, now, 0.3) < 0.3);
+  assert.equal(pickupEligibility(driver, { details: { pickupLocation: { lat: 13.084, lng: 80.27 } } }, now, 0.3), null);
   assert.equal(pickupEligibility(driver, {}, now), null);
 });
 test('unassigned offers contain no customer contact, exact address, instructions or OTP', () => {

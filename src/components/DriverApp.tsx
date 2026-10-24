@@ -615,6 +615,7 @@ export default function DriverApp({ userId, userName, activeBookings, detectedLa
                             ? 'Step 1: Ride coordinates locked. Drive to passenger pickup spot.'
                             : 'Step 1: Parcel pickup location locked. Drive to sender pickup spot.'}
                   </p>
+                  {currentAssignedJob.serviceType === 'ride' && <p className="mb-2 text-[10px] font-semibold text-indigo-700">Ride arrival uses your latest accurate GPS report and can only be marked within 300 metres of pickup.</p>}
                   <button 
                     disabled={actionBusy}
                     onClick={() => handleArrivedAtPickup(currentAssignedJob.bookingId)}
